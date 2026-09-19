@@ -166,7 +166,7 @@ impl ReadingStore {
         .await?;
         let original = layer.data.digest();
         let mut changed = vec![];
-        let mut mapping = None;
+        let mut mapping = vec![];
         match &command.edit {
             ReadingEdit::InsertNew { drafts, target } => {
                 for draft in drafts {
@@ -294,7 +294,7 @@ impl ReadingStore {
         )
         .await?;
         saved.changed_blocks = changed;
-        if let Some((source, result)) = mapping {
+        for (source, result) in mapping {
             sqlx::query("INSERT INTO placement_manual_decision(overlay_id,overlay_revision_id,source_group_id,result_group_id) VALUES($1,$2,$3,$4)").bind(id).bind(saved.overlay.revision_id).bind(source).bind(result).execute(&mut *tx).await.map_err(storage)?;
         }
         persist::record(

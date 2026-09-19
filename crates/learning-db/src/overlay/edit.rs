@@ -110,7 +110,7 @@ pub(crate) fn ordered_merge(
 pub(crate) fn structure(
     data: &mut EditableReading,
     edit: &ReadingEdit,
-) -> Result<Option<(Uuid, Uuid)>, ContentError> {
+) -> Result<Vec<(Uuid, Uuid)>, ContentError> {
     match edit {
         ReadingEdit::Move { placement_id, .. } | ReadingEdit::Remove { placement_id } => {
             let index = data
@@ -167,9 +167,13 @@ pub(crate) fn structure(
                 anchor: anchor.clone(),
             };
             data.groups.push(g);
-            return Ok(Some((*group_id, result)));
+            let mut mappings = vec![(*group_id, result)];
+            if let Some(target) = merge_into {
+                mappings.push((*target, result));
+            }
+            return Ok(mappings);
         }
         _ => return invalid("unsupported_structure_edit"),
     };
-    Ok(None)
+    Ok(vec![])
 }

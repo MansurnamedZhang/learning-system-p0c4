@@ -14,4 +14,3 @@ TEST_B1_MIGRATIONS_DIR=$(mktemp -d)
 export TEST_B1_MIGRATIONS_DIR
 cp /app/migrations/0001_content_core.sql /app/migrations/0002_composition_release.sql "$TEST_B1_MIGRATIONS_DIR/"
 exec cargo test --offline --locked --workspace -- --test-threads=1
-

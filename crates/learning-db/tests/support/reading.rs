@@ -86,6 +86,8 @@ pub async fn counts(r: &TestRig, actor: Principal) -> Vec<i64> {
         "SELECT count(*) FROM placement_migration_decision WHERE author_id=$1",
         "SELECT count(*) FROM placement_migration_mapping WHERE decision_id IN (SELECT id FROM placement_migration_decision WHERE author_id=$1)",
         "SELECT count(*) FROM migration_receipt WHERE actor_id=$1",
+        "SELECT count(*) FROM placement_manual_decision WHERE overlay_id IN (SELECT id FROM overlay WHERE owner_id=$1)",
+        "SELECT count(*) FROM reading_receipt_block WHERE actor_id=$1",
     ] {
         out.push(
             sqlx::query_scalar(q)

@@ -5,6 +5,140 @@ use support::{assembly as a, reading as h, *};
 use uuid::Uuid;
 
 #[tokio::test]
+async fn manual_merge_records_both_old_group_identities() {
+    let (r, actor, space, doc, zero) = h::fixture().await;
+    let store = h::store(&r);
+    let one = store
+        .edit(
+            actor,
+            zero.overlay.overlay_id,
+            h::edit(&zero, h::add(h::gap(&doc, 1), "N")),
+        )
+        .await
+        .unwrap();
+    let mut dc = a::edit(&doc);
+    dc.nodes.clear();
+    let next = r.compositions().save(actor, space, dc).await.unwrap();
+    let m = MigrationStore::new(r.runtime_pool.clone());
+    let p = m
+        .propose(
+            actor,
+            one.overlay.overlay_id,
+            propose(&one, next.reference.clone()),
+        )
+        .await
+        .unwrap();
+    let source = p.groups[0].group_id;
+    let two = m
+        .decide(
+            actor,
+            one.overlay.overlay_id,
+            decide(
+                &one,
+                p.proposal_id,
+                MigrationAction::Adopt {
+                    groups: vec![GroupDecision::KeepUnplaced { group_id: source }],
+                    merges: vec![],
+                },
+            ),
+        )
+        .await
+        .unwrap()
+        .adopted
+        .unwrap();
+    let three = store
+        .edit(
+            actor,
+            two.overlay.overlay_id,
+            h::edit(&two, h::add(h::gap(&next, 0), "I")),
+        )
+        .await
+        .unwrap();
+    let st = store
+        .state(actor, three.overlay.overlay_id)
+        .await
+        .unwrap()
+        .unwrap()
+        .editable
+        .unwrap();
+    let unplaced = st.groups.iter().find(|g| g.group_id == source).unwrap();
+    let placed = st.groups.iter().find(|g| g.location.placed()).unwrap();
+    let target = placed.group_id;
+    let order = vec![
+        placed.placements[0].placement_id,
+        unplaced.placements[0].placement_id,
+    ];
+    let merge_command = h::edit(
+        &three,
+        ReadingEdit::PlaceUnplaced {
+            group_id: source,
+            anchor: h::gap(&next, 0),
+            merge_into: Some(target),
+            merged_order: order,
+        },
+    );
+    let before = h::counts(&r, actor).await;
+    let f = format!("manual_fail_{}", actor.actor_id.simple());
+    sqlx::query(&format!("CREATE FUNCTION {f}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.actor_id='{}'::uuid THEN RAISE EXCEPTION 'injected'; END IF; RETURN NEW; END $$",actor.actor_id)).execute(&r.admin_pool).await.unwrap();
+    sqlx::query(&format!(
+        "CREATE TRIGGER {f} BEFORE INSERT ON reading_receipt FOR EACH ROW EXECUTE FUNCTION {f}()"
+    ))
+    .execute(&r.admin_pool)
+    .await
+    .unwrap();
+    assert!(matches!(
+        store
+            .edit(actor, three.overlay.overlay_id, merge_command.clone())
+            .await,
+        Err(ContentError::Storage)
+    ));
+    assert_eq!(h::counts(&r, actor).await, before);
+    assert_eq!(
+        store
+            .state(actor, three.overlay.overlay_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .view,
+        three.view
+    );
+    sqlx::query(&format!("DROP TRIGGER {f} ON reading_receipt"))
+        .execute(&r.admin_pool)
+        .await
+        .unwrap();
+    sqlx::query(&format!("DROP FUNCTION {f}()"))
+        .execute(&r.admin_pool)
+        .await
+        .unwrap();
+    let four = store
+        .edit(actor, three.overlay.overlay_id, merge_command)
+        .await
+        .unwrap();
+    let historical = store
+        .read(actor, three.view, ReadingMode::Fused)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(h::text(&historical), ["I"]);
+    assert_eq!(historical.unplaced[0].revision.draft.payload.text, "N");
+    assert_eq!(
+        h::text(
+            &store
+                .read(actor, four.view, ReadingMode::Fused)
+                .await
+                .unwrap()
+                .unwrap()
+        ),
+        ["I", "N"]
+    );
+    let rows:Vec<(Uuid,Uuid)>=sqlx::query_as("SELECT source_group_id,result_group_id FROM placement_manual_decision WHERE overlay_revision_id=$1 ORDER BY source_group_id").bind(four.overlay.revision_id).fetch_all(&r.admin_pool).await.unwrap();
+    let mut expected = vec![source, target];
+    expected.sort();
+    assert_eq!(rows.iter().map(|r| r.0).collect::<Vec<_>>(), expected);
+    assert_eq!(rows[0].1, rows[1].1);
+}
+
+#[tokio::test]
 async fn hidden_current_source_suppresses_visible_historical_anchor_and_filters_migration_sides() {
     let (r, actor, space, doc, zero) = h::fixture().await;
     let store = h::store(&r);
