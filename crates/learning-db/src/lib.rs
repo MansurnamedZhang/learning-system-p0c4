@@ -1,6 +1,12 @@
 //! PostgreSQL persistence for the trusted application boundary.
 mod authorization;
+mod block_write;
 mod composition;
+mod overlay;
+mod placement_migration;
+pub use placement_migration::MigrationStore;
+mod reading;
+pub use reading::ReadingStore;
 mod read;
 mod release;
 mod request;

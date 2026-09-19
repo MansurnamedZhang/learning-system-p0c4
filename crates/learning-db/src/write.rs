@@ -1,10 +1,11 @@
+use crate::block_write::{PendingRevision, insert_revision};
 use crate::{COLUMNS, ContentStore, RevisionRow, storage};
 use learning_core::{
-    CONTRACT_VERSION, ContentError, CreateCommand, Principal, ReviseCommand, Revision, TextDraft,
+    CONTRACT_VERSION, ContentError, CreateCommand, Principal, ReviseCommand, Revision,
     canonical_json, hex_digest,
 };
 use serde_json::{Value, json};
-use sqlx::{Postgres, Transaction, types::Json};
+use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 impl ContentStore {
@@ -151,36 +152,6 @@ async fn receipt(
     Ok(Some(row.into()))
 }
 
-struct PendingRevision<'a> {
-    block_id: Uuid,
-    space_id: Uuid,
-    revision_id: Uuid,
-    parent: Option<Uuid>,
-    actor: Principal,
-    draft: &'a TextDraft,
-    reason: &'a str,
-}
-async fn insert_revision(
-    tx: &mut Transaction<'_, Postgres>,
-    r: PendingRevision<'_>,
-) -> Result<Revision, ContentError> {
-    let query = format!(
-        "INSERT INTO public.block_revision AS r(id,space_id,block_id,parent_revision_id,content,content_sha256,author_id,reason) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING {COLUMNS}"
-    );
-    let row = sqlx::query_as::<_, RevisionRow>(&query)
-        .bind(r.revision_id)
-        .bind(r.space_id)
-        .bind(r.block_id)
-        .bind(r.parent)
-        .bind(Json(r.draft))
-        .bind(r.draft.digest())
-        .bind(r.actor.actor_id)
-        .bind(r.reason)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(storage)?;
-    Ok(row.into())
-}
 async fn insert_receipt(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,

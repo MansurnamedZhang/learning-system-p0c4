@@ -13,4 +13,7 @@ GRANT CONNECT, TEMPORARY ON DATABASE learning_test TO learning_admin, learning_r
 CREATE DATABASE learning_upgrade_test OWNER learning_admin;
 REVOKE ALL ON DATABASE learning_upgrade_test FROM PUBLIC;
 GRANT CONNECT, TEMPORARY ON DATABASE learning_upgrade_test TO learning_admin, learning_runtime;
+CREATE DATABASE learning_b1_upgrade_test OWNER learning_admin;
+REVOKE ALL ON DATABASE learning_b1_upgrade_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE learning_b1_upgrade_test TO learning_admin, learning_runtime;
 SQL

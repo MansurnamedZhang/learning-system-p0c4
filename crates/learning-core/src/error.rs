@@ -9,6 +9,11 @@ pub enum ContentError {
     Conflict { current_revision_id: Uuid },
     #[error("发布基础已过期")]
     PublicationConflict { composition_id: Uuid },
+    #[error("阅读基础已过期")]
+    ReadingConflict {
+        current_overlay_revision: Uuid,
+        current_reading_view_revision: Uuid,
+    },
     #[error("幂等请求标识已用于其它内容")]
     IdempotencyConflict,
     #[error("存储服务暂时不可用")]

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 pub mod assembly;
+pub mod reading;
 use learning_core::{CreateCommand, Principal, ReviseCommand, Revision};
 use learning_db::{ContentStore, MIGRATOR};
 use sqlx::{PgPool, postgres::PgPoolOptions};
