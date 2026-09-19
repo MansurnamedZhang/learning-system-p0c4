@@ -1,18 +1,52 @@
-use learning_core::{ContentError, CreateCommand, Principal, ReviseCommand, Revision};
-use sqlx::PgPool;
+//! PostgreSQL persistence for the trusted application boundary.
+mod read;
+mod write;
+
+use chrono::{DateTime, Utc};
+use learning_core::{ContentError, Revision, TextDraft};
+use sqlx::{PgPool, types::Json};
 use uuid::Uuid;
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
 
 #[derive(Clone)]
-pub struct ContentStore { pub pool: PgPool }
-
+pub struct ContentStore {
+    pool: PgPool,
+}
 impl ContentStore {
-    pub fn new(pool: PgPool) -> Self { Self { pool } }
-    pub async fn create(&self, _actor: Principal, _space: Uuid, _cmd: CreateCommand) -> Result<Revision, ContentError> { Err(ContentError::Storage) }
-    pub async fn revise(&self, _actor: Principal, _block: Uuid, _cmd: ReviseCommand) -> Result<Revision, ContentError> { Err(ContentError::Storage) }
-    pub async fn read(&self, _actor: Principal, _revision: Uuid) -> Result<Option<Revision>, ContentError> { Ok(None) }
-    pub async fn read_many(&self, _actor: Principal, _ids: &[Uuid]) -> Result<Vec<Revision>, ContentError> { Ok(vec![]) }
-    pub async fn list(&self, _actor: Principal, _space: Uuid) -> Result<Vec<Revision>, ContentError> { Ok(vec![]) }
-    pub async fn history(&self, _actor: Principal, _block: Uuid) -> Result<Vec<Revision>, ContentError> { Ok(vec![]) }
+    /// The pool must authenticate as the non-owner runtime role, never as migrator.
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+const COLUMNS: &str = "r.block_id,r.id AS revision_id,r.parent_revision_id,r.content,r.content_sha256,r.author_id,r.reason,r.created_at";
+
+#[derive(sqlx::FromRow)]
+struct RevisionRow {
+    block_id: Uuid,
+    revision_id: Uuid,
+    parent_revision_id: Option<Uuid>,
+    content: Json<TextDraft>,
+    content_sha256: String,
+    author_id: Uuid,
+    reason: String,
+    created_at: DateTime<Utc>,
+}
+impl From<RevisionRow> for Revision {
+    fn from(r: RevisionRow) -> Self {
+        Self {
+            block_id: r.block_id,
+            revision_id: r.revision_id,
+            parent_revision_id: r.parent_revision_id,
+            draft: r.content.0,
+            content_sha256: r.content_sha256,
+            author_id: r.author_id,
+            reason: r.reason,
+            created_at: r.created_at,
+        }
+    }
+}
+fn storage(_: impl std::fmt::Debug) -> ContentError {
+    ContentError::Storage
 }

@@ -1,0 +1,41 @@
+name: learning-system-p0-test
+services:
+  pg:
+    image: postgres:18.6-bookworm
+    cpus: 2
+    mem_limit: 4g
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password, admin_password, runtime_password]
+    volumes:
+      - test_pg:/var/lib/postgresql
+      - ./initdb.sh:/docker-entrypoint-initdb.d/10-learning.sh:ro
+    networks: [test]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d learning_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  test:
+    profiles: [test]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.test
+    cpus: 4
+    mem_limit: 4g
+    environment:
+      CARGO_BUILD_JOBS: 4
+    secrets: [admin_password, runtime_password]
+    depends_on:
+      pg: {condition: service_healthy}
+    networks: [test]
+networks:
+  test: {internal: true}
+volumes:
+  test_pg:
+secrets:
+  postgres_password: {file: ../.runtime/secrets/postgres_password}
+  admin_password: {file: ../.runtime/secrets/admin_password}
+  runtime_password: {file: ../.runtime/secrets/runtime_password}

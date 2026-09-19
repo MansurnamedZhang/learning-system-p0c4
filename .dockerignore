@@ -1,0 +1,13 @@
+**
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
+!crates/
+!crates/**
+!migrations/
+!migrations/**
+!contracts/
+!contracts/**
+!deploy/
+!deploy/Dockerfile.test
+!deploy/run-tests.sh

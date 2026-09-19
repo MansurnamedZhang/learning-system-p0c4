@@ -1,0 +1,9 @@
+FROM rust:1.97.0-bookworm
+WORKDIR /app
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY crates ./crates
+COPY migrations ./migrations
+COPY contracts ./contracts
+COPY deploy/run-tests.sh /run-tests.sh
+RUN cargo test --locked --workspace --no-run
+ENTRYPOINT ["sh", "/run-tests.sh"]
