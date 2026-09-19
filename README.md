@@ -31,13 +31,15 @@ cargo test --locked --workspace -- --test-threads=1
 从本目录创建仅用于本项目的随机测试凭据，已存在的文件保留：
 
 ```sh
-python -c 'import pathlib,secrets; p=pathlib.Path(".runtime/secrets"); p.mkdir(parents=True,exist_ok=True); [(p/n).write_text(secrets.token_hex(32)) for n in ("postgres_password","admin_password","runtime_password") if not (p/n).exists()]'
+python -c 'import pathlib,secrets; p=pathlib.Path(".runtime/secrets"); p.mkdir(mode=0o700,parents=True,exist_ok=True); p.chmod(0o700); names=("postgres_password","admin_password","runtime_password"); [(p/n).write_text(secrets.token_hex(32)) for n in names if not (p/n).exists()]; [(p/n).chmod(0o644) for n in names]'
 docker compose -f deploy/compose.test.yaml --profile test build test
 docker compose -f deploy/compose.test.yaml --profile test up --abort-on-container-exit --exit-code-from test
 docker compose -f deploy/compose.test.yaml stop
 ```
 
-数据库使用独立内部网络，无宿主端口，限制 2 CPU / 4 GiB；测试运行器限制 4 CPU / 4 GiB。构建时下载依赖，运行测试时离线。停止后保留卷；不把凭据、课程原件或编译目录打进源码镜像。已有卷不会重跑初始化；不要改密钥文件来假定已轮换数据库密码。
+数据库使用独立内部网络，无宿主端口，限制 2 CPU / 4 GiB；测试运行器限制 4 CPU / 4 GiB。Docker 基础镜像锁定为本次已验证的官方 Linux/amd64 manifest；其它架构需选择对应官方 manifest 并重新验证。构建时下载依赖，运行测试时离线。Linux 上凭据父目录为 0700，文件为 0644：宿主其他用户不能遍历父目录，容器内 PostgreSQL 可读单文件只读挂载。停止后保留卷；不把凭据、课程原件或编译目录打进源码镜像。已有卷不会重跑初始化；不要改密钥文件来假定已轮换数据库密码。
+
+网络正常时使用上面的标准 Compose build。此次测试主机的 Docker Hub DNS 不通，因此经命令级代理核验并导入同一官方镜像，再以一次性构建参数完成构建；未修改共享 Docker 服务，也未将代理写入最终镜像。具体命令差异与摘要见验收记录，原失败日志保留。
 
 ## 当前边界
 

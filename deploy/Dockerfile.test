@@ -1,4 +1,5 @@
-FROM rust:1.97.0-bookworm
+# Verified official linux/amd64 platform manifest; recorded in p0a-verification.md.
+FROM rust:1.97.0-bookworm@sha256:b5a086f64ffecaa4e283063184770107915756739598173e1f5712d6b34b84d0
 WORKDIR /app
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates ./crates
