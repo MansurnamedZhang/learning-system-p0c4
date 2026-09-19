@@ -11,7 +11,7 @@ pub struct PublishRoot {
     pub composition_id: Uuid,
     pub revision_id: Uuid,
     pub expected_head_revision_id: Uuid,
-    pub expected_release_id: Option<Uuid>,
+    pub expected_publication_token: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "RawPublishCommand")]
@@ -47,6 +47,14 @@ impl PublishCommand {
         }
         let mut seen = HashSet::new();
         for root in &self.roots {
+            if root.expected_publication_token.len() != 64
+                || !root
+                    .expected_publication_token
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            {
+                return invalid("publication_token");
+            }
             if !seen.insert(root.composition_id) {
                 return invalid("duplicate_release_root");
             }
@@ -67,4 +75,12 @@ pub struct Release {
     pub author_id: Uuid,
     pub reason: String,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicationState {
+    pub composition_id: Uuid,
+    pub head_revision_id: Uuid,
+    pub published: Option<CompositionRef>,
+    pub publication_token: String,
 }

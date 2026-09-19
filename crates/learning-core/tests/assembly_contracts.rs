@@ -10,7 +10,25 @@ fn node() -> Value {
     json!({"occurrence_id":null,"target":{"type":"block","block_id":Uuid::from_u128(1),"revision_id":Uuid::from_u128(2)}})
 }
 fn publish() -> Value {
-    json!({"request_id":Uuid::nil(),"roots":[{"composition_id":Uuid::from_u128(1),"revision_id":Uuid::from_u128(2),"expected_head_revision_id":Uuid::from_u128(2),"expected_release_id":null}],"reason":"发布"})
+    json!({"request_id":Uuid::nil(),"roots":[{"composition_id":Uuid::from_u128(1),"revision_id":Uuid::from_u128(2),"expected_head_revision_id":Uuid::from_u128(2),"expected_publication_token": "0000000000000000000000000000000000000000000000000000000000000000"}],"reason":"发布"})
+}
+
+#[test]
+fn publication_tokens_are_strict_opaque_values_not_free_metadata() {
+    for token in [
+        json!(null),
+        json!(""),
+        json!("a".repeat(63)),
+        json!("a".repeat(65)),
+        json!("G".repeat(64)),
+    ] {
+        let mut value = publish();
+        value["roots"][0]["expected_publication_token"] = token;
+        assert!(serde_json::from_value::<PublishCommand>(value).is_err());
+    }
+    let mut value = publish();
+    value["roots"][0]["expected_release_id"] = json!(Uuid::new_v4());
+    assert!(serde_json::from_value::<PublishCommand>(value).is_err());
 }
 #[test]
 fn creation_requires_paired_identity_and_base() {

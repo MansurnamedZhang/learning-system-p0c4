@@ -20,7 +20,7 @@ impl ContentStore {
             space_id,
             serde_json::to_value(&command).map_err(storage)?,
         );
-        let mut tx = self.begin_request(actor, command.request_id).await?;
+        let mut tx = crate::request::begin(&self.pool, actor, command.request_id).await?;
         authorize(&mut tx, actor, space_id).await?;
         if let Some(revision) = receipt(&mut tx, actor, command.request_id, &digest).await? {
             tx.commit().await.map_err(storage)?;
@@ -62,7 +62,7 @@ impl ContentStore {
             block_id,
             serde_json::to_value(&command).map_err(storage)?,
         );
-        let mut tx = self.begin_request(actor, command.request_id).await?;
+        let mut tx = crate::request::begin(&self.pool, actor, command.request_id).await?;
         let space_id: Uuid = sqlx::query_scalar("SELECT space_id FROM public.block WHERE id=$1")
             .bind(block_id)
             .fetch_optional(&mut *tx)
@@ -107,33 +107,6 @@ impl ContentStore {
         tx.commit().await.map_err(storage)?;
         Ok(revision)
     }
-
-    async fn begin_request(
-        &self,
-        actor: Principal,
-        request_id: Uuid,
-    ) -> Result<Transaction<'_, Postgres>, ContentError> {
-        let mut tx = self.pool.begin().await.map_err(storage)?;
-        for statement in [
-            "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
-            "SET LOCAL lock_timeout='10s'",
-            "SET LOCAL statement_timeout='15s'",
-        ] {
-            sqlx::query(statement)
-                .execute(&mut *tx)
-                .await
-                .map_err(storage)?;
-        }
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
-            .bind(format!(
-                "learning/content/request/{}:{}",
-                actor.actor_id, request_id
-            ))
-            .execute(&mut *tx)
-            .await
-            .map_err(storage)?;
-        Ok(tx)
-    }
 }
 
 fn request_digest(operation: &str, target: Uuid, command: Value) -> String {
@@ -145,16 +118,7 @@ async fn authorize(
     actor: Principal,
     space: Uuid,
 ) -> Result<(), ContentError> {
-    let permission: Option<bool> = sqlx::query_scalar("SELECT public.lock_space_grant($1,$2)")
-        .bind(actor.actor_id)
-        .bind(space)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(storage)?;
-    if permission != Some(true) {
-        return Err(ContentError::NotFound);
-    }
-    Ok(())
+    crate::authorization::lock_grants(tx, actor, &[(space, true)]).await
 }
 
 async fn receipt(
@@ -163,10 +127,15 @@ async fn receipt(
     request: Uuid,
     digest: &str,
 ) -> Result<Option<Revision>, ContentError> {
+    let registered = crate::request::check(tx, actor, request, digest, "content_v1").await?;
     let existing:Option<(String,Uuid)>=sqlx::query_as("SELECT request_sha256,revision_id FROM public.mutation_receipt WHERE actor_id=$1 AND request_id=$2")
         .bind(actor.actor_id).bind(request).fetch_optional(&mut **tx).await.map_err(storage)?;
     let Some((prior, id)) = existing else {
-        return Ok(None);
+        return if registered {
+            Err(ContentError::Storage)
+        } else {
+            Ok(None)
+        };
     };
     if prior != digest {
         return Err(ContentError::IdempotencyConflict);
@@ -219,6 +188,7 @@ async fn insert_receipt(
     digest: &str,
     revision: Uuid,
 ) -> Result<(), ContentError> {
+    crate::request::register(tx, actor, request, digest, "content_v1").await?;
     sqlx::query("INSERT INTO public.mutation_receipt(actor_id,request_id,request_sha256,revision_id) VALUES ($1,$2,$3,$4)")
         .bind(actor.actor_id).bind(request).bind(digest).bind(revision).execute(&mut **tx).await.map_err(storage)?;
     Ok(())

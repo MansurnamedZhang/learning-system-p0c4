@@ -1,6 +1,12 @@
 //! PostgreSQL persistence for the trusted application boundary.
+mod authorization;
+mod composition;
 mod read;
+mod release;
+mod request;
 mod write;
+pub use composition::CompositionStore;
+pub use release::ReleaseStore;
 
 use chrono::{DateTime, Utc};
 use learning_core::{ContentError, Revision, TextDraft};
