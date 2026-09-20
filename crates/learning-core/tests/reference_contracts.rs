@@ -94,8 +94,13 @@ fn duplicate_exact_references_and_direct_dependency_overflow_are_rejected() {
         source_run: None,
     };
     assert!(draft.validate().is_err());
-    draft.basis_refs = (0..257).map(|n| ExactRef::Block(block(n + 1))).collect();
-    assert!(draft.validate().is_err());
+    draft.basis_refs = (0..256).map(|n| ExactRef::Block(block(n + 1))).collect();
+    assert!(draft.validate().is_ok());
+    draft.basis_refs.push(ExactRef::Block(block(257)));
+    assert!(matches!(
+        draft.validate(),
+        Err(ContentError::Invalid(code)) if code == "reference_budget_exceeded"
+    ));
 }
 
 #[test]
@@ -117,14 +122,24 @@ fn relation_selections_reject_duplicate_exact_relations_and_enforce_limit() {
     };
     assert!(draft.validate().is_err());
     draft.body = BodyV2::RelationView {
-        selections: (0..257)
+        selections: (0..256)
             .map(|n| RelationSelection {
                 relation: relation(n + 1),
                 review: None,
             })
             .collect(),
     };
-    assert!(draft.validate().is_err());
+    assert!(draft.validate().is_ok());
+    if let BodyV2::RelationView { selections } = &mut draft.body {
+        selections.push(RelationSelection {
+            relation: relation(257),
+            review: None,
+        });
+    }
+    assert!(matches!(
+        draft.validate(),
+        Err(ContentError::Invalid(code)) if code == "reference_budget_exceeded"
+    ));
 }
 
 #[test]
