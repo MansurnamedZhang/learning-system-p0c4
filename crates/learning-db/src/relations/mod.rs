@@ -19,7 +19,7 @@ impl RelationStore {
     }
 }
 
-fn scope(scope: &RelationScope) -> (Uuid, Option<Uuid>) {
+pub(crate) fn scope(scope: &RelationScope) -> (Uuid, Option<Uuid>) {
     match *scope {
         RelationScope::Space { space_id } => (space_id, None),
         RelationScope::PersonalOverlay {
@@ -44,7 +44,7 @@ async fn check_scope(
 }
 /// Discover before locking and resolve again after sorted grant locks. The
 /// returned set is also checked after identity locks, never extended backwards.
-async fn lock_dependencies(
+pub(crate) async fn lock_dependencies(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,
     value: &RelationScope,
@@ -60,7 +60,7 @@ async fn lock_dependencies(
     check_dependencies(tx, actor, roots, &allowed).await?;
     Ok(allowed)
 }
-async fn check_dependencies(
+pub(crate) async fn check_dependencies(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,
     roots: &[ExactRef],
@@ -74,7 +74,7 @@ async fn check_dependencies(
     }
     Ok(checked)
 }
-fn enum_text(value: serde_json::Value) -> Result<String, ContentError> {
+pub(crate) fn enum_text(value: serde_json::Value) -> Result<String, ContentError> {
     value
         .as_str()
         .map(str::to_owned)
