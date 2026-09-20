@@ -135,6 +135,208 @@ fn text() -> Value {
     json!({"intent":"note","language":"en","title":"v2","body":{"kind":"text","payload":{"format":"markdown","text":"body"}},"basis_refs":[],"requires_context":[],"source_run":null})
 }
 
+// Hyphen removal guarantees a distinct spelling even when a UUID happens to
+// contain no a-f digits; uppercasing additionally exercises case normalization.
+fn uuid_alias(id: Uuid) -> String {
+    id.simple().to_string().to_uppercase()
+}
+
+#[tokio::test]
+async fn uuid_alias_basis_duplicates_fail_at_commit() {
+    let r = TestRig::from_env().await;
+    let (a, s) = r.seed_actor_space(true).await;
+    let b = r.seed_block(a, s).await;
+    let c = r.seed_block(a, s).await;
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let rel = relation(&mut tx, a.actor_id, s, b, c, true).await;
+    let review_id = review(&mut tx, a.actor_id, s, rel, None, true).await;
+    let ep = epistemic(&mut tx, a.actor_id, s, b, json!([]), json!([]), true).await;
+    tx.commit().await.unwrap();
+    for (original, alias, target) in [
+        (
+            json!({"type":"block","block_id":b.0,"revision_id":b.1}),
+            json!({"type":"block","block_id":uuid_alias(b.0),"revision_id":uuid_alias(b.1)}),
+            ("block", b.0, b.1),
+        ),
+        (
+            json!({"type":"relation","relation_id":rel.0,"revision_id":rel.1}),
+            json!({"type":"relation","relation_id":uuid_alias(rel.0),"revision_id":uuid_alias(rel.1)}),
+            ("relation", rel.0, rel.1),
+        ),
+        (
+            json!({"type":"relation_review","relation":{"relation_id":rel.0,"revision_id":rel.1},"review_id":review_id}),
+            json!({"type":"relation_review","relation":{"relation_id":uuid_alias(rel.0),"revision_id":uuid_alias(rel.1)},"review_id":uuid_alias(review_id)}),
+            ("relation_review", rel.1, review_id),
+        ),
+        (
+            json!({"type":"epistemic_review","stream_id":ep.0,"review_id":ep.1}),
+            json!({"type":"epistemic_review","stream_id":uuid_alias(ep.0),"review_id":uuid_alias(ep.1)}),
+            ("epistemic_review", ep.0, ep.1),
+        ),
+    ] {
+        assert_ne!(original, alias);
+        let mut draft = text();
+        draft["basis_refs"] = json!([original, alias]);
+        assert!(learning_core::ContentDraft::decode(2, draft.clone()).is_err());
+        let mut tx = r.runtime_pool.begin().await.unwrap();
+        let block = v2(&mut tx, a.actor_id, s, draft).await;
+        for position in [0, 1] {
+            dependency(
+                &mut tx,
+                ("block", block.0, block.1),
+                position,
+                "basis",
+                target,
+            )
+            .await;
+        }
+        assert_eq!(
+            sqlstate(&tx.commit().await.unwrap_err()).as_deref(),
+            Some("23514"),
+            "duplicate {} identity",
+            target.0
+        );
+    }
+}
+
+#[tokio::test]
+async fn uuid_alias_relation_selection_duplicates_fail_at_commit() {
+    let r = TestRig::from_env().await;
+    let (a, s) = r.seed_actor_space(true).await;
+    let b = r.seed_block(a, s).await;
+    let c = r.seed_block(a, s).await;
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let rel = relation(&mut tx, a.actor_id, s, b, c, true).await;
+    tx.commit().await.unwrap();
+    let selections = json!([
+        {"relation":{"relation_id":rel.0,"revision_id":rel.1},"review":null},
+        {"relation":{"relation_id":uuid_alias(rel.0),"revision_id":uuid_alias(rel.1)},"review":null}
+    ]);
+    let mut draft = text();
+    draft["body"] = json!({"kind":"relation_view","selections":selections});
+    assert!(learning_core::ContentDraft::decode(2, draft.clone()).is_err());
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let block = v2(&mut tx, a.actor_id, s, draft).await;
+    for position in [0, 1] {
+        dependency(
+            &mut tx,
+            ("block", block.0, block.1),
+            position,
+            "selected_relation",
+            ("relation", rel.0, rel.1),
+        )
+        .await;
+    }
+    assert_eq!(
+        sqlstate(&tx.commit().await.unwrap_err()).as_deref(),
+        Some("23514")
+    );
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let ep = epistemic(&mut tx, a.actor_id, s, b, selections, json!([]), true).await;
+    for position in [1, 2] {
+        dependency(
+            &mut tx,
+            ("epistemic_review", ep.0, ep.1),
+            position,
+            "selected_relation",
+            ("relation", rel.0, rel.1),
+        )
+        .await;
+    }
+    assert_eq!(
+        sqlstate(&tx.commit().await.unwrap_err()).as_deref(),
+        Some("23514")
+    );
+}
+
+#[tokio::test]
+async fn uuid_alias_distinct_references_context_and_selected_review_commit() {
+    let r = TestRig::from_env().await;
+    let (a, s) = r.seed_actor_space(true).await;
+    let b = r.seed_block(a, s).await;
+    let c = r.seed_block(a, s).await;
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let rel = relation(&mut tx, a.actor_id, s, b, c, true).await;
+    let other = relation(&mut tx, a.actor_id, s, c, b, true).await;
+    let review_id = review(&mut tx, a.actor_id, s, rel, None, true).await;
+    tx.commit().await.unwrap();
+    let mut draft = text();
+    draft["basis_refs"] = json!([
+        {"type":"block","block_id":b.0,"revision_id":b.1},
+        {"type":"block","block_id":uuid_alias(c.0),"revision_id":uuid_alias(c.1)}
+    ]);
+    // Context is an ordered list, not a uniqueness-constrained basis set.
+    draft["requires_context"] = json!([
+        {"block_id":b.0,"revision_id":b.1},
+        {"block_id":uuid_alias(b.0),"revision_id":uuid_alias(b.1)}
+    ]);
+    draft["body"] = json!({"kind":"relation_view","selections":[
+        {"relation":{"relation_id":rel.0,"revision_id":rel.1},"review":{"relation":{"relation_id":uuid_alias(rel.0),"revision_id":uuid_alias(rel.1)},"review_id":uuid_alias(review_id)}},
+        {"relation":{"relation_id":uuid_alias(other.0),"revision_id":uuid_alias(other.1)},"review":null}
+    ]});
+    assert!(learning_core::ContentDraft::decode(2, draft.clone()).is_ok());
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let block = v2(&mut tx, a.actor_id, s, draft).await;
+    for (position, (role, target)) in [
+        ("basis", ("block", b.0, b.1)),
+        ("basis", ("block", c.0, c.1)),
+        ("requires_context", ("block", b.0, b.1)),
+        ("requires_context", ("block", b.0, b.1)),
+        ("selected_relation", ("relation", rel.0, rel.1)),
+        ("selected_review", ("relation_review", rel.1, review_id)),
+        ("selected_relation", ("relation", other.0, other.1)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        dependency(
+            &mut tx,
+            ("block", block.0, block.1),
+            position as i32,
+            role,
+            target,
+        )
+        .await;
+    }
+    tx.commit().await.unwrap();
+    let stored: Value = sqlx::query_scalar("SELECT content FROM block_revision WHERE id=$1")
+        .bind(block.1)
+        .fetch_one(&r.runtime_pool)
+        .await
+        .unwrap();
+    assert!(learning_core::ContentDraft::decode(2, stored).is_ok());
+}
+
+#[tokio::test]
+async fn uuid_alias_review_cannot_forge_nested_relation_owner() {
+    let r = TestRig::from_env().await;
+    let (a, s) = r.seed_actor_space(true).await;
+    let b = r.seed_block(a, s).await;
+    let c = r.seed_block(a, s).await;
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let rel = relation(&mut tx, a.actor_id, s, b, c, true).await;
+    let other = relation(&mut tx, a.actor_id, s, c, b, true).await;
+    let review_id = review(&mut tx, a.actor_id, s, rel, None, true).await;
+    tx.commit().await.unwrap();
+    let mut draft = text();
+    draft["basis_refs"] = json!([{"type":"relation_review","relation":{"relation_id":uuid_alias(other.0),"revision_id":uuid_alias(rel.1)},"review_id":uuid_alias(review_id)}]);
+    let mut tx = r.runtime_pool.begin().await.unwrap();
+    let block = v2(&mut tx, a.actor_id, s, draft).await;
+    // This registry key and index are valid. Only the nested stable relation ID is forged.
+    dependency(
+        &mut tx,
+        ("block", block.0, block.1),
+        0,
+        "basis",
+        ("relation_review", rel.1, review_id),
+    )
+    .await;
+    assert_eq!(
+        sqlstate(&tx.commit().await.unwrap_err()).as_deref(),
+        Some("23514")
+    );
+}
+
 #[tokio::test]
 async fn pre_b3_revisions_are_backfilled_without_changing_old_checksums_or_content() {
     let admin_pool = sqlx::PgPool::connect(

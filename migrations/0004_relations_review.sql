@@ -180,20 +180,21 @@ $$;
 
 CREATE FUNCTION public.b3_selections(value jsonb)
 RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE result jsonb:='[]'; selection jsonb; seen jsonb:='[]';
+DECLARE result jsonb:='[]'; selection jsonb; seen jsonb:='[]'; normalized_relation jsonb;
 BEGIN
  IF jsonb_typeof(value) IS DISTINCT FROM 'array' OR jsonb_array_length(value)>256 THEN
   RAISE EXCEPTION 'invalid relation selections' USING ERRCODE='23514';
  END IF;
  FOR selection IN SELECT jsonb_array_elements(value) LOOP
   PERFORM public.b3_shape(selection,ARRAY['relation'],ARRAY['review']);
-  IF seen @> jsonb_build_array(selection->'relation') THEN
+  normalized_relation:=public.b3_reference(selection->'relation','relation');
+  IF seen @> jsonb_build_array(normalized_relation) THEN
    RAISE EXCEPTION 'duplicate relation selection' USING ERRCODE='23514';
   END IF;
-  seen:=seen||jsonb_build_array(selection->'relation');
-  result:=result||public.b3_edge('selected_relation',public.b3_reference(selection->'relation','relation'));
+  seen:=seen||jsonb_build_array(normalized_relation);
+  result:=result||public.b3_edge('selected_relation',normalized_relation);
   IF selection->'review' IS NOT NULL AND selection->'review'<>'null'::jsonb THEN
-   IF selection->'review'->'relation' IS DISTINCT FROM selection->'relation' THEN
+   IF public.b3_reference(selection->'review'->'relation','relation') IS DISTINCT FROM normalized_relation THEN
     RAISE EXCEPTION 'selection review mismatch' USING ERRCODE='23514';
    END IF;
    result:=result||public.b3_edge('selected_review',public.b3_reference(selection->'review','relation_review'));
@@ -204,7 +205,7 @@ END $$;
 
 CREATE FUNCTION public.b3_content_dependencies(version integer, value jsonb)
 RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE result jsonb:='[]'; reference jsonb; body jsonb; payload jsonb; seen jsonb:='[]';
+DECLARE result jsonb:='[]'; reference jsonb; body jsonb; payload jsonb; seen jsonb:='[]'; normalized_reference jsonb;
 BEGIN
  IF version=1 THEN
   PERFORM public.b3_shape(value,ARRAY['kind','intent','language','title','payload']);
@@ -222,11 +223,12 @@ BEGIN
    IF jsonb_typeof(reference) IS DISTINCT FROM 'object' OR jsonb_typeof(reference->'type') IS DISTINCT FROM 'string' THEN
     RAISE EXCEPTION 'invalid exact reference' USING ERRCODE='23514';
    END IF;
-   IF seen @> jsonb_build_array(reference) THEN
+   normalized_reference:=public.b3_reference(reference-'type',reference->>'type');
+   IF seen @> jsonb_build_array(normalized_reference) THEN
     RAISE EXCEPTION 'duplicate basis reference' USING ERRCODE='23514';
    END IF;
-   seen:=seen||jsonb_build_array(reference);
-   result:=result||public.b3_edge('basis',public.b3_reference(reference-'type',reference->>'type'));
+   seen:=seen||jsonb_build_array(normalized_reference);
+   result:=result||public.b3_edge('basis',normalized_reference);
   END LOOP;
   FOR reference IN SELECT jsonb_array_elements(value->'requires_context') LOOP
    result:=result||public.b3_edge('requires_context',public.b3_reference(reference,'block'));
