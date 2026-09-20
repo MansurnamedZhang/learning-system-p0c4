@@ -31,6 +31,7 @@ impl AuthorizedClosure {
 pub(crate) struct Session {
     facts: BTreeMap<ExactRef, Option<Fact>>,
     selected: BTreeSet<ExactRef>,
+    validated_roots: BTreeSet<ExactRef>,
     work: usize,
 }
 impl Session {
@@ -80,7 +81,9 @@ impl Session {
         root: &ExactRef,
     ) -> Result<bool, ContentError> {
         self.step()?;
-        if self.selected.contains(root) {
+        // Reachability from another root does not prove this root's depth in
+        // a cyclic graph. Restored budget checkpoints must also retain it.
+        if self.selected.contains(root) && self.validated_roots.contains(root) {
             return Ok(true);
         }
         let mut reached = BTreeSet::new();
@@ -118,6 +121,7 @@ impl Session {
             return budget();
         }
         self.selected = merged;
+        self.validated_roots.insert(root.clone());
         Ok(true)
     }
     fn depth(&mut self, root: &ExactRef, reached: &BTreeSet<ExactRef>) -> Result<(), ContentError> {
@@ -191,13 +195,26 @@ impl Session {
         if !self.authorize(tx, actor, root).await? {
             return Ok(None);
         }
+        self.selected_object(tx, actor, root).await.map(Some)
+    }
+    /// Materialize a member of an authorized closure without promoting a
+    /// dependency to a new operation root. Audit references remain independent.
+    async fn selected_object(
+        &mut self,
+        tx: &mut Transaction<'_, Postgres>,
+        actor: Principal,
+        root: &ExactRef,
+    ) -> Result<AuthorizedObject, ContentError> {
+        if !self.selected.contains(root) {
+            return Err(ContentError::Storage);
+        }
         let mut object = projection::materialize(tx, root).await?;
         if let Some(previous) = object.previous()
             && !self.authorize(tx, actor, &previous).await?
         {
             object.redact_previous();
         }
-        Ok(Some(object))
+        Ok(object)
     }
     pub fn space(&self, r: &ExactRef) -> Result<Uuid, ContentError> {
         self.facts
@@ -239,10 +256,7 @@ pub(crate) async fn load(
     let selected: Vec<_> = session.selected.iter().cloned().collect();
     let mut objects = BTreeMap::new();
     for r in selected {
-        let object = session
-            .object(tx, actor, &r)
-            .await?
-            .ok_or(ContentError::NotFound)?;
+        let object = session.selected_object(tx, actor, &r).await?;
         objects.insert(r.clone(), (session.space(&r)?, object));
     }
     Ok(AuthorizedClosure {

@@ -186,6 +186,69 @@ async fn postgres_payload_bytes_accept_exact_limit_and_reject_one_extra_byte() {
 }
 
 #[tokio::test]
+async fn cyclic_depth_is_validated_for_each_root_in_both_batch_orders() {
+    let rig = TestRig::from_env().await;
+    let (actor, space) = rig.seed_actor_space(true).await;
+    let store = VersionedContentStore::new(rig.runtime_pool.clone());
+    let a = BlockRef {
+        block_id: Uuid::new_v4(),
+        revision_id: Uuid::new_v4(),
+    };
+    let b = BlockRef {
+        block_id: Uuid::new_v4(),
+        revision_id: Uuid::new_v4(),
+    };
+    let mut tx = rig.runtime_pool.begin().await.unwrap();
+    let mut tail = vec![];
+    for _ in 0..31 {
+        tail = vec![seed_content(&mut tx, actor, space, with_basis(tail), None).await];
+    }
+    // A -> B -> A terminates its repeated path, while the tail from A has
+    // 32 objects. Starting at B instead adds one object to that same tail.
+    for (root, targets) in [
+        (&a, vec![b.clone(), tail[0].clone()]),
+        (&b, vec![a.clone()]),
+    ] {
+        sqlx::query("INSERT INTO block(id,space_id,head_revision_id) VALUES($1,$2,$3)")
+            .bind(root.block_id)
+            .bind(space)
+            .bind(root.revision_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let draft = with_basis(targets.clone());
+        sqlx::query("INSERT INTO block_revision(id,space_id,block_id,contract_version,content,content_sha256,author_id,reason) VALUES($1,$2,$3,2,$4,$5,$6,'cycle depth')")
+            .bind(root.revision_id).bind(space).bind(root.block_id)
+            .bind(serde_json::to_value(&draft).unwrap()).bind(draft.digest()).bind(actor.actor_id)
+            .execute(&mut *tx).await.unwrap();
+        for (position, target) in targets.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO reference_dependency VALUES('block',$1,$2,$3,'basis','block',$4,$5)",
+            )
+            .bind(root.block_id)
+            .bind(root.revision_id)
+            .bind(position as i32)
+            .bind(target.block_id)
+            .bind(target.revision_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+    }
+    tx.commit().await.unwrap();
+    assert!(store.read(actor, a.clone()).await.unwrap().is_some());
+    assert!(store.preview(actor, a.clone()).await.unwrap().is_some());
+    budget(store.read(actor, b.clone()).await);
+    let forward = store.read_many(actor, vec![a.clone(), b.clone()]).await;
+    let reverse = store.read_many(actor, vec![b, a]).await;
+    assert!(
+        matches!(&forward, Err(ContentError::Invalid(code)) if code == "reference_budget_exceeded")
+            && matches!(&reverse, Err(ContentError::Invalid(code)) if code == "reference_budget_exceeded"),
+        "forward={forward:?}; reverse={reverse:?}"
+    );
+}
+
+#[tokio::test]
 async fn cycles_terminate_without_authorizing_only_the_visible_prefix() {
     let rig = TestRig::from_env().await;
     let (actor, space) = rig.seed_actor_space(true).await;
