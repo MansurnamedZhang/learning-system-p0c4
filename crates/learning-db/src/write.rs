@@ -83,6 +83,15 @@ impl ContentStore {
                 .await
                 .map_err(storage)?;
         if head != command.base_revision_id {
+            crate::references::load(
+                &mut tx,
+                actor,
+                &[learning_core::ExactRef::Block(learning_core::BlockRef {
+                    block_id,
+                    revision_id: head,
+                })],
+            )
+            .await?;
             return Err(ContentError::Conflict {
                 current_revision_id: head,
             });
@@ -97,7 +106,7 @@ impl ContentStore {
             draft: &command.draft,
             reason: &command.reason,
         };
-        let revision = insert_revision(&mut tx, pending).await?;
+        insert_revision(&mut tx, pending).await?;
         sqlx::query("UPDATE public.block SET head_revision_id=$1 WHERE id=$2")
             .bind(revision_id)
             .bind(block_id)
@@ -105,6 +114,18 @@ impl ContentStore {
             .await
             .map_err(storage)?;
         insert_receipt(&mut tx, actor, command.request_id, &digest, revision_id).await?;
+        let revision = crate::references::project(
+            &mut tx,
+            actor,
+            &learning_core::ExactRef::Block(learning_core::BlockRef {
+                block_id,
+                revision_id,
+            }),
+        )
+        .await?
+        .ok_or(ContentError::NotFound)?
+        .block()?
+        .try_into()?;
         tx.commit().await.map_err(storage)?;
         Ok(revision)
     }
@@ -149,7 +170,14 @@ async fn receipt(
     .fetch_one(&mut **tx)
     .await
     .map_err(storage)?;
-    Ok(Some(row.into()))
+    let reference = learning_core::ExactRef::Block(learning_core::BlockRef {
+        block_id: row.block_id,
+        revision_id: row.revision_id,
+    });
+    let object = crate::references::project(tx, actor, &reference)
+        .await?
+        .ok_or(ContentError::NotFound)?;
+    Ok(Some(object.block()?.try_into()?))
 }
 
 async fn insert_receipt(

@@ -149,7 +149,7 @@ impl MigrationStore {
 type Mapping = (Uuid, Uuid, &'static str, Vec<Uuid>);
 fn apply(
     p: &Proposal,
-    target: &CompositionSnapshot,
+    target: &VersionedCompositionSnapshot,
     decisions: &[GroupDecision],
     merges: &[MergeOrder],
 ) -> Result<(overlay::Layer, Vec<Mapping>), ContentError> {

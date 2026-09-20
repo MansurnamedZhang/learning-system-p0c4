@@ -172,17 +172,17 @@ mod tests {
             revision_id: Uuid::new_v4(),
         };
         let draft:TextDraft=serde_json::from_value(serde_json::json!({"kind":"text","intent":"note","language":"en","title":"","payload":{"format":"markdown","text":"N"}})).unwrap();
-        let body = Revision {
+        let body = ContentRevision {
             block_id: block.block_id,
             revision_id: block.revision_id,
             parent_revision_id: None,
             content_sha256: draft.digest(),
-            draft,
+            draft: ContentDraft::V1(draft),
             author_id: id,
             reason: "test".into(),
             created_at: chrono::Utc::now(),
         };
-        let snapshot = CompositionSnapshot {
+        let snapshot = VersionedCompositionSnapshot {
             root: base.clone(),
             blocks: vec![],
             compositions: vec![],

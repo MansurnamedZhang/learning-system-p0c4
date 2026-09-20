@@ -19,7 +19,7 @@ pub(crate) fn insertion_index(ids: &[Uuid], order: &PlacementOrder) -> Result<us
     Ok(index)
 }
 pub(crate) fn parent<'a>(
-    snapshot: &'a CompositionSnapshot,
+    snapshot: &'a VersionedCompositionSnapshot,
     path: &[Uuid],
 ) -> Result<&'a CompositionRevision, ContentError> {
     let mut reference = &snapshot.root;
@@ -42,7 +42,7 @@ pub(crate) fn parent<'a>(
         .ok_or(ContentError::Storage)
 }
 pub(crate) fn validate_gap(
-    snapshot: &CompositionSnapshot,
+    snapshot: &VersionedCompositionSnapshot,
     anchor: &GapAnchor,
 ) -> Result<(), ContentError> {
     anchor.validate()?;
@@ -66,7 +66,7 @@ mod tests {
     fn id(n: u128) -> Uuid {
         Uuid::from_u128(n)
     }
-    fn fixture() -> (CompositionSnapshot, GapAnchor) {
+    fn fixture() -> (VersionedCompositionSnapshot, GapAnchor) {
         let root = CompositionRef {
             composition_id: id(1),
             revision_id: id(2),
@@ -86,7 +86,7 @@ mod tests {
             reason: "x".into(),
             created_at: chrono::Utc::now(),
         };
-        let snapshot = CompositionSnapshot {
+        let snapshot = VersionedCompositionSnapshot {
             root: root.clone(),
             compositions: vec![
                 revision(

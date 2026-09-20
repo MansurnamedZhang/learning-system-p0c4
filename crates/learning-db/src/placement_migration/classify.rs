@@ -1,7 +1,7 @@
 use learning_core::*;
 pub(crate) fn classify(
-    old: &CompositionSnapshot,
-    target: &CompositionSnapshot,
+    old: &VersionedCompositionSnapshot,
+    target: &VersionedCompositionSnapshot,
     group: &EditableGroup,
 ) -> Result<(MigrationClass, Option<GapAnchor>, String), ContentError> {
     use crate::overlay::anchor::{invalid, parent, validate_gap};
@@ -73,12 +73,12 @@ mod tests {
     fn id(n: u128) -> Uuid {
         Uuid::from_u128(n)
     }
-    fn snap(rev: u128, nodes: &[u128]) -> CompositionSnapshot {
+    fn snap(rev: u128, nodes: &[u128]) -> VersionedCompositionSnapshot {
         let reference = CompositionRef {
             composition_id: id(1),
             revision_id: id(rev),
         };
-        CompositionSnapshot {
+        VersionedCompositionSnapshot {
             root: reference.clone(),
             blocks: vec![],
             compositions: vec![CompositionRevision {
@@ -104,7 +104,7 @@ mod tests {
         }
     }
     fn group(
-        old: &CompositionSnapshot,
+        old: &VersionedCompositionSnapshot,
         l: Option<u128>,
         r: Option<u128>,
         affinity: Affinity,

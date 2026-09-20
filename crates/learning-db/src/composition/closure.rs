@@ -1,4 +1,4 @@
-use crate::{COLUMNS, RevisionRow, storage};
+use crate::{references, storage};
 use chrono::{DateTime, Utc};
 use learning_core::*;
 use sqlx::{Postgres, Transaction};
@@ -8,7 +8,8 @@ use uuid::Uuid;
 pub(crate) const BODY_LIMIT: usize = 8 * 1024 * 1024;
 pub(crate) struct Closure {
     pub compositions: BTreeMap<CompositionRef, (Uuid, CompositionRevision)>,
-    pub blocks: BTreeMap<BlockRef, (Uuid, Revision)>,
+    pub blocks: BTreeMap<BlockRef, (Uuid, ContentRevision)>,
+    reference_spaces: Vec<(Uuid, bool)>,
 }
 impl Closure {
     pub fn spaces(&self) -> Vec<(Uuid, bool)> {
@@ -16,10 +17,11 @@ impl Closure {
             .values()
             .map(|(s, _)| (*s, false))
             .chain(self.blocks.values().map(|(s, _)| (*s, false)))
+            .chain(self.reference_spaces.iter().copied())
             .collect()
     }
-    pub fn snapshot(self, root: CompositionRef) -> CompositionSnapshot {
-        CompositionSnapshot {
+    pub fn snapshot(self, root: CompositionRef) -> VersionedCompositionSnapshot {
+        VersionedCompositionSnapshot {
             root,
             compositions: self.compositions.into_values().map(|(_, r)| r).collect(),
             blocks: self.blocks.into_values().map(|(_, r)| r).collect(),
@@ -121,9 +123,19 @@ pub(crate) async fn load(
     roots: &[CompositionRef],
     draft: Option<(Uuid, &[NodeDraft])>,
 ) -> Result<Closure, ContentError> {
+    load_with_session(tx, actor, roots, draft, &mut references::Session::default()).await
+}
+pub(crate) async fn load_with_session(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    roots: &[CompositionRef],
+    draft: Option<(Uuid, &[NodeDraft])>,
+    session: &mut references::Session,
+) -> Result<Closure, ContentError> {
     let mut result = Closure {
         compositions: BTreeMap::new(),
         blocks: BTreeMap::new(),
+        reference_spaces: vec![],
     };
     let mut stack: Vec<(NodeTarget, Vec<Uuid>)> = roots
         .iter()
@@ -145,14 +157,16 @@ pub(crate) async fn load(
                 if let std::collections::btree_map::Entry::Vacant(entry) =
                     result.blocks.entry(reference.clone())
                 {
-                    let meta:Option<(Uuid,i32)>=sqlx::query_as("SELECT r.space_id,octet_length(r.content::text) FROM public.block_revision r JOIN public.space_grant g ON g.space_id=r.space_id WHERE g.actor_id=$1 AND r.block_id=$2 AND r.id=$3").bind(actor.actor_id).bind(reference.block_id).bind(reference.revision_id).fetch_optional(&mut **tx).await.map_err(storage)?;
-                    let (space, size) = meta.ok_or(ContentError::NotFound)?;
-                    bytes += size as usize;
+                    let (space, size, revision, spaces) = session
+                        .assembly_block(tx, actor, &reference)
+                        .await?
+                        .ok_or(ContentError::NotFound)?;
+                    result.reference_spaces.extend(spaces);
+                    bytes += size;
                     if bytes > BODY_LIMIT {
                         return invalid("composition_body_limit");
                     }
-                    let row=sqlx::query_as::<_,RevisionRow>(&format!("SELECT {COLUMNS} FROM public.block_revision r JOIN public.space_grant g ON g.space_id=r.space_id WHERE g.actor_id=$1 AND r.block_id=$2 AND r.id=$3")).bind(actor.actor_id).bind(reference.block_id).bind(reference.revision_id).fetch_optional(&mut **tx).await.map_err(storage)?.ok_or(ContentError::NotFound)?;
-                    entry.insert((space, row.into()));
+                    entry.insert((space, revision));
                 }
             }
             NodeTarget::Composition(reference) => {

@@ -6,8 +6,8 @@ pub(crate) fn project(
     layer: &Layer,
     access: &Access,
     mode: ReadingMode,
-) -> Result<ReadingProjection, ContentError> {
-    let mut result = ReadingProjection {
+) -> Result<VersionedReadingProjection, ContentError> {
+    let mut result = VersionedReadingProjection {
         overlay: OverlayRef {
             overlay_id: layer.id,
             revision_id: layer.revision,
@@ -53,9 +53,9 @@ pub(crate) fn project(
     }
     Ok(result)
 }
-fn item(p: &Placement, group: &EditableGroup, access: &Access) -> Option<PersonalItem> {
+fn item(p: &Placement, group: &EditableGroup, access: &Access) -> Option<VersionedPersonalItem> {
     let (_, revision) = access.blocks.get(&p.block)?;
-    Some(PersonalItem {
+    Some(VersionedPersonalItem {
         placement_id: p.placement_id,
         revision: revision.clone(),
         location: (group.location.placed()
@@ -67,11 +67,11 @@ fn item(p: &Placement, group: &EditableGroup, access: &Access) -> Option<Persona
 fn walk(
     layer: &Layer,
     access: &Access,
-    source: &CompositionSnapshot,
+    source: &VersionedCompositionSnapshot,
     reference: &CompositionRef,
     path: &[Uuid],
     mode: ReadingMode,
-    out: &mut Vec<ReadingItem>,
+    out: &mut Vec<VersionedReadingItem>,
 ) -> Result<(), ContentError> {
     let composition = source
         .compositions
@@ -100,7 +100,7 @@ fn walk(
             for group in groups {
                 for p in &group.placements {
                     if let Some(item) = item(p, group, access) {
-                        out.push(ReadingItem::Personal { item });
+                        out.push(VersionedReadingItem::Personal { item });
                     }
                 }
             }
@@ -119,7 +119,7 @@ fn walk(
                         b.block_id == reference.block_id && b.revision_id == reference.revision_id
                     })
                     .ok_or(ContentError::Storage)?;
-                out.push(ReadingItem::Original {
+                out.push(VersionedReadingItem::Original {
                     path: next,
                     revision: revision.clone(),
                 });
@@ -133,14 +133,14 @@ fn walk(
                         .ok_or(ContentError::Storage)?
                         .title
                         .clone();
-                    out.push(ReadingItem::SectionStart {
+                    out.push(VersionedReadingItem::SectionStart {
                         path: next.clone(),
                         title,
                     });
                 }
                 walk(layer, access, source, reference, &next, mode, out)?;
                 if mode != ReadingMode::Personal {
-                    out.push(ReadingItem::SectionEnd { path: next });
+                    out.push(VersionedReadingItem::SectionEnd { path: next });
                 }
             }
             _ => {}
@@ -165,17 +165,17 @@ mod tests {
             revision_id: id,
         };
         let draft:TextDraft=serde_json::from_value(serde_json::json!({"kind":"text","intent":"note","language":"en","title":"","payload":{"format":"markdown","text":"N"}})).unwrap();
-        let revision = Revision {
+        let revision = ContentRevision {
             block_id: id,
             revision_id: id,
             parent_revision_id: None,
             content_sha256: draft.digest(),
-            draft,
+            draft: ContentDraft::V1(draft),
             author_id: id,
             reason: "test".into(),
             created_at: chrono::Utc::now(),
         };
-        let snapshot = CompositionSnapshot {
+        let snapshot = VersionedCompositionSnapshot {
             root: base.clone(),
             blocks: vec![],
             compositions: vec![],
@@ -224,7 +224,7 @@ mod tests {
             right_occurrence_id: None,
             affinity: Affinity::AfterLeft,
         };
-        let snapshot = CompositionSnapshot {
+        let snapshot = VersionedCompositionSnapshot {
             root: base.clone(),
             compositions: vec![CompositionRevision {
                 reference: base.clone(),
@@ -240,7 +240,7 @@ mod tests {
             blocks: vec![],
         };
         let mut blocks = BTreeMap::new();
-        let placements=[(3,"first"),(1,"second"),(2,"third")].into_iter().map(|(n,text)|{let reference=BlockRef{block_id:Uuid::from_u128(n),revision_id:Uuid::from_u128(n)};let draft:TextDraft=serde_json::from_value(serde_json::json!({"kind":"text","intent":"note","language":"en","title":"","payload":{"format":"markdown","text":text}})).unwrap();blocks.insert(reference.clone(),(id,Revision{block_id:reference.block_id,revision_id:reference.revision_id,parent_revision_id:None,content_sha256:draft.digest(),draft,author_id:id,reason:"test".into(),created_at:chrono::Utc::now()}));Placement{placement_id:Uuid::from_u128(n),block:reference}}).collect();
+        let placements=[(3,"first"),(1,"second"),(2,"third")].into_iter().map(|(n,text)|{let reference=BlockRef{block_id:Uuid::from_u128(n),revision_id:Uuid::from_u128(n)};let draft:TextDraft=serde_json::from_value(serde_json::json!({"kind":"text","intent":"note","language":"en","title":"","payload":{"format":"markdown","text":text}})).unwrap();blocks.insert(reference.clone(),(id,ContentRevision{block_id:reference.block_id,revision_id:reference.revision_id,parent_revision_id:None,content_sha256:draft.digest(),draft:ContentDraft::V1(draft),author_id:id,reason:"test".into(),created_at:chrono::Utc::now()}));Placement{placement_id:Uuid::from_u128(n),block:reference}}).collect();
         let layer = Layer {
             id,
             space: id,
@@ -274,7 +274,10 @@ mod tests {
                     result
                         .unplaced
                         .iter()
-                        .map(|p| p.revision.draft.payload.text.as_str())
+                        .map(|p| match &p.revision.draft {
+                            ContentDraft::V1(d) => d.payload.text.as_str(),
+                            _ => panic!(),
+                        })
                         .collect::<Vec<_>>(),
                     ["first", "second", "third"]
                 );
@@ -288,7 +291,10 @@ mod tests {
                 result
                     .unplaced
                     .iter()
-                    .map(|p| p.revision.draft.payload.text.as_str())
+                    .map(|p| match &p.revision.draft {
+                        ContentDraft::V1(d) => d.payload.text.as_str(),
+                        _ => panic!(),
+                    })
                     .collect::<Vec<_>>(),
                 ["first", "third"]
             );

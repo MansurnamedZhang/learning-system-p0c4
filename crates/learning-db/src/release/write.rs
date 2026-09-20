@@ -56,6 +56,13 @@ impl ReleaseStore {
             tx.commit().await.map_err(storage)?;
             return Ok(result);
         }
+        if discovered
+            .blocks
+            .values()
+            .any(|(_, r)| matches!(r.draft, ContentDraft::V2(_)))
+        {
+            return Err(ContentError::Invalid("unsupported_content_version".into()));
+        }
         for root in &command.roots {
             let (head,release):(Uuid,Option<Uuid>)=sqlx::query_as("SELECT head_revision_id,last_release_id FROM public.composition WHERE id=$1 AND space_id=$2 FOR UPDATE").bind(root.composition_id).bind(space).fetch_optional(&mut *tx).await.map_err(storage)?.ok_or(ContentError::NotFound)?;
             if head != root.expected_head_revision_id {

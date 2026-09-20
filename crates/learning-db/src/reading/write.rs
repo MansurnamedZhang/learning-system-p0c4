@@ -140,10 +140,12 @@ impl ReadingStore {
                 .collect(),
             _ => vec![],
         };
-        let extra_blocks = model::blocks(&mut tx, actor, extra.clone()).await?;
+        let (extra_blocks, extra_spaces) =
+            model::blocks_with_spaces(&mut tx, actor, extra.clone()).await?;
         if extra_blocks.len() != extra.len() {
             return Err(ContentError::NotFound);
         }
+        access.spaces.extend(extra_spaces);
         access.spaces.extend(extra_blocks.values().map(|(s, _)| {
             (
                 *s,
@@ -234,6 +236,15 @@ impl ReadingStore {
                     .await
                     .map_err(storage)?;
                     if head != c.base_revision_id {
+                        crate::references::load(
+                            &mut tx,
+                            actor,
+                            &[ExactRef::Block(BlockRef {
+                                block_id: c.block_id,
+                                revision_id: head,
+                            })],
+                        )
+                        .await?;
                         return Err(ContentError::Conflict {
                             current_revision_id: head,
                         });
@@ -336,11 +347,13 @@ async fn replay(
     if !access.complete(&layer) {
         return Err(ContentError::NotFound);
     }
-    let blocks = model::blocks(tx, actor, saved.changed_blocks.clone()).await?;
+    let (blocks, block_spaces) =
+        model::blocks_with_spaces(tx, actor, saved.changed_blocks.clone()).await?;
     if blocks.len() != saved.changed_blocks.len() {
         return Err(ContentError::NotFound);
     }
     access.spaces.extend_from_slice(required);
+    access.spaces.extend(block_spaces);
     access
         .spaces
         .extend(blocks.values().map(|(s, _)| (*s, false)));

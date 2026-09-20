@@ -22,61 +22,19 @@ async fn real_p0a_data_and_idempotent_receipt_survive_additive_upgrade() {
         )
         .await
         .unwrap();
-    let empty: bool = sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NULL")
-        .fetch_one(&admin)
-        .await
-        .unwrap();
-    assert!(empty, "upgrade test requires its own fresh database");
-    let path = std::env::var("TEST_P0A_MIGRATIONS_DIR")
-        .expect("directory containing only unchanged 0001 required");
-    let old = sqlx::migrate::Migrator::new(std::path::Path::new(&path))
-        .await
-        .unwrap();
-    assert_eq!(old.iter().count(), 1);
-    old.run(&admin).await.unwrap();
+    let fixture = support::frozen_fixture::load("p0a", &admin).await;
     let actor = Principal {
-        actor_id: Uuid::new_v4(),
+        actor_id: serde_json::from_value(fixture["actor_id"].clone()).unwrap(),
     };
-    let space = Uuid::new_v4();
-    let block = Uuid::new_v4();
-    let revision = Uuid::new_v4();
-    let cmd = support::command("historic content");
+    let space: Uuid = serde_json::from_value(fixture["space"].clone()).unwrap();
+    let cmd: learning_core::CreateCommand =
+        serde_json::from_value(fixture["command"].clone()).unwrap();
+    let before: learning_core::Revision =
+        serde_json::from_value(fixture["before"].clone()).unwrap();
+    let revision = before.revision_id;
     let digest=hex_digest(canonical_json(&serde_json::json!({"operation":"create","target":space,"contract_version":CONTRACT_VERSION,"command":cmd})).as_bytes());
-    let mut tx = admin.begin().await.unwrap();
-    sqlx::query("INSERT INTO app_user VALUES($1)")
-        .bind(actor.actor_id)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO space VALUES($1,$2)")
-        .bind(space)
-        .bind(actor.actor_id)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO space_grant VALUES($1,$2,true)")
-        .bind(actor.actor_id)
-        .bind(space)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO block(id,space_id,head_revision_id) VALUES($1,$2,$3)")
-        .bind(block)
-        .bind(space)
-        .bind(revision)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO block_revision(id,space_id,block_id,content,content_sha256,author_id,reason) VALUES($1,$2,$3,$4,$5,$6,$7)").bind(revision).bind(space).bind(block).bind(sqlx::types::Json(&cmd.draft)).bind(cmd.draft.digest()).bind(actor.actor_id).bind(&cmd.reason).execute(&mut *tx).await.unwrap();
-    sqlx::query("INSERT INTO mutation_receipt(actor_id,request_id,request_sha256,revision_id) VALUES($1,$2,$3,$4)").bind(actor.actor_id).bind(cmd.request_id).bind(&digest).bind(revision).execute(&mut *tx).await.unwrap();
-    tx.commit().await.unwrap();
+    let old_checksum: Vec<u8> = serde_json::from_value(fixture["checksums"][0][1].clone()).unwrap();
     let store = ContentStore::new(runtime.clone());
-    let before = store.read(actor, revision).await.unwrap().unwrap();
-    let old_checksum: Vec<u8> =
-        sqlx::query_scalar("SELECT checksum FROM _sqlx_migrations WHERE version=1")
-            .fetch_one(&admin)
-            .await
-            .unwrap();
     MIGRATOR.run(&admin).await.unwrap();
     let new_checksum: Vec<u8> =
         sqlx::query_scalar("SELECT checksum FROM _sqlx_migrations WHERE version=1")

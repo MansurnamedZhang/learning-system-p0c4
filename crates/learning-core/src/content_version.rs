@@ -314,6 +314,51 @@ pub struct ContentRevision {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReferencePreview {
+    pub revision: ContentRevision,
+    pub target: Option<PreviewTarget>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+pub enum PreviewTarget {
+    Embedded(Box<ReferencePreview>),
+    Link(BlockRef),
+}
+
+impl From<crate::Revision> for ContentRevision {
+    fn from(r: crate::Revision) -> Self {
+        Self {
+            block_id: r.block_id,
+            revision_id: r.revision_id,
+            parent_revision_id: r.parent_revision_id,
+            draft: ContentDraft::V1(r.draft),
+            content_sha256: r.content_sha256,
+            author_id: r.author_id,
+            reason: r.reason,
+            created_at: r.created_at,
+        }
+    }
+}
+impl TryFrom<ContentRevision> for crate::Revision {
+    type Error = ContentError;
+    fn try_from(r: ContentRevision) -> Result<Self, Self::Error> {
+        let ContentDraft::V1(draft) = r.draft else {
+            return invalid("unsupported_content_version");
+        };
+        Ok(Self {
+            block_id: r.block_id,
+            revision_id: r.revision_id,
+            parent_revision_id: r.parent_revision_id,
+            draft,
+            content_sha256: r.content_sha256,
+            author_id: r.author_id,
+            reason: r.reason,
+            created_at: r.created_at,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CreateContent {
     pub request_id: Uuid,
@@ -487,5 +532,24 @@ impl<'de> Deserialize<'de> for ContentDraft {
         Err(serde::de::Error::custom(
             "ContentDraft requires explicit contract_version dispatch",
         ))
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ContentRevisionPage {
+    pub items: Vec<ContentRevision>,
+    pub next_cursor: Option<crate::PageCursor>,
+}
+impl TryFrom<ContentRevisionPage> for crate::RevisionPage {
+    type Error = ContentError;
+    fn try_from(p: ContentRevisionPage) -> Result<Self, Self::Error> {
+        Ok(Self {
+            items: p
+                .items
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
+            next_cursor: p.next_cursor,
+        })
     }
 }

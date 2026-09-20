@@ -68,7 +68,7 @@ pub(crate) async fn lock_access(
     tx: &mut Tx<'_>,
     actor: Principal,
     p: &Proposal,
-) -> Result<(Access, CompositionSnapshot), ContentError> {
+) -> Result<(Access, VersionedCompositionSnapshot), ContentError> {
     let mut access = model::access(tx, actor, &p.layer).await?;
     let (spaces, target) = model::snapshot(tx, actor, &p.target).await?;
     if !access.complete(&p.layer) || target.is_none() {

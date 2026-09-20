@@ -1,5 +1,5 @@
 use crate::composition::closure;
-use crate::{COLUMNS, RevisionRow, storage};
+use crate::{references, storage};
 use learning_core::*;
 use sqlx::{Postgres, Row, Transaction};
 use std::collections::{BTreeMap, BTreeSet};
@@ -14,9 +14,9 @@ pub(crate) struct Layer {
     pub data: EditableReading,
 }
 pub(crate) struct Access {
-    pub source: Option<CompositionSnapshot>,
-    pub blocks: BTreeMap<BlockRef, (Uuid, Revision)>,
-    pub origins: BTreeMap<CompositionRef, CompositionSnapshot>,
+    pub source: Option<VersionedCompositionSnapshot>,
+    pub blocks: BTreeMap<BlockRef, (Uuid, ContentRevision)>,
+    pub origins: BTreeMap<CompositionRef, VersionedCompositionSnapshot>,
     pub spaces: Vec<(Uuid, bool)>,
 }
 impl Access {
@@ -101,10 +101,22 @@ pub(crate) async fn snapshot(
     tx: &mut Tx<'_>,
     actor: Principal,
     r: &CompositionRef,
-) -> Result<(Vec<(Uuid, bool)>, Option<CompositionSnapshot>), ContentError> {
-    match closure::load(tx, actor, std::slice::from_ref(r), None).await {
+) -> Result<(Vec<(Uuid, bool)>, Option<VersionedCompositionSnapshot>), ContentError> {
+    snapshot_with_session(tx, actor, r, &mut references::Session::default()).await
+}
+async fn snapshot_with_session(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    r: &CompositionRef,
+    session: &mut references::Session,
+) -> Result<(Vec<(Uuid, bool)>, Option<VersionedCompositionSnapshot>), ContentError> {
+    let checkpoint = session.checkpoint();
+    match closure::load_with_session(tx, actor, std::slice::from_ref(r), None, session).await {
         Ok(c) => Ok((c.spaces(), Some(c.snapshot(r.clone())))),
-        Err(ContentError::NotFound) => Ok((vec![], None)),
+        Err(ContentError::NotFound) => {
+            session.restore(checkpoint);
+            Ok((vec![], None))
+        }
         Err(e) => Err(e),
     }
 }
@@ -112,29 +124,58 @@ pub(crate) async fn blocks(
     tx: &mut Tx<'_>,
     actor: Principal,
     refs: impl IntoIterator<Item = BlockRef>,
-) -> Result<BTreeMap<BlockRef, (Uuid, Revision)>, ContentError> {
+) -> Result<BTreeMap<BlockRef, (Uuid, ContentRevision)>, ContentError> {
+    Ok(blocks_with_spaces(tx, actor, refs).await?.0)
+}
+pub(crate) async fn blocks_with_spaces(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    refs: impl IntoIterator<Item = BlockRef>,
+) -> Result<
+    (
+        BTreeMap<BlockRef, (Uuid, ContentRevision)>,
+        Vec<(Uuid, bool)>,
+    ),
+    ContentError,
+> {
+    blocks_with_session(tx, actor, refs, &mut references::Session::default()).await
+}
+async fn blocks_with_session(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    refs: impl IntoIterator<Item = BlockRef>,
+    session: &mut references::Session,
+) -> Result<
+    (
+        BTreeMap<BlockRef, (Uuid, ContentRevision)>,
+        Vec<(Uuid, bool)>,
+    ),
+    ContentError,
+> {
     let refs: BTreeSet<_> = refs.into_iter().collect();
     let mut result = BTreeMap::new();
-    let mut bytes = 0usize;
+    let mut bytes = 0;
+    let mut spaces = vec![];
     for r in refs {
-        let meta:Option<(Uuid,i32)>=sqlx::query_as("SELECT r.space_id,octet_length(r.content::text) FROM block_revision r JOIN space_grant g ON g.space_id=r.space_id AND g.actor_id=$1 WHERE r.block_id=$2 AND r.id=$3").bind(actor.actor_id).bind(r.block_id).bind(r.revision_id).fetch_optional(&mut **tx).await.map_err(storage)?;
-        if let Some((space, size)) = meta {
-            bytes += size as usize;
+        if let Some((space, size, revision, ss)) = session.assembly_block(tx, actor, &r).await? {
+            bytes += size;
             if bytes > closure::BODY_LIMIT {
                 return super::anchor::invalid("personal_body_limit");
             }
-            let row=sqlx::query_as::<_,RevisionRow>(&format!("SELECT {COLUMNS} FROM block_revision r JOIN space_grant g ON g.space_id=r.space_id AND g.actor_id=$1 WHERE r.block_id=$2 AND r.id=$3")).bind(actor.actor_id).bind(r.block_id).bind(r.revision_id).fetch_optional(&mut **tx).await.map_err(storage)?.ok_or(ContentError::NotFound)?;
-            result.insert(r, (space, row.into()));
+            spaces.extend(ss);
+            result.insert(r, (space, revision));
         }
     }
-    Ok(result)
+    Ok((result, spaces))
 }
 pub(crate) async fn access(
     tx: &mut Tx<'_>,
     actor: Principal,
     layer: &Layer,
 ) -> Result<Access, ContentError> {
-    let (mut spaces, source) = snapshot(tx, actor, &layer.data.base).await?;
+    let mut session = references::Session::default();
+    let (mut spaces, source) =
+        snapshot_with_session(tx, actor, &layer.data.base, &mut session).await?;
     let mut origins = BTreeMap::new();
     if let Some(s) = &source {
         origins.insert(layer.data.base.clone(), s.clone());
@@ -149,13 +190,13 @@ pub(crate) async fn access(
         if origins.contains_key(&reference) {
             continue;
         }
-        let (ss, s) = snapshot(tx, actor, &reference).await?;
+        let (ss, s) = snapshot_with_session(tx, actor, &reference, &mut session).await?;
         spaces.extend(ss);
         if let Some(s) = s {
             origins.insert(reference, s);
         }
     }
-    let blocks = blocks(
+    let (blocks, block_spaces) = blocks_with_session(
         tx,
         actor,
         layer
@@ -164,9 +205,10 @@ pub(crate) async fn access(
             .iter()
             .flat_map(|g| g.placements.iter().map(|p| p.block.clone()))
             .collect::<Vec<_>>(),
+        &mut session,
     )
     .await?;
-    spaces.extend(blocks.values().map(|(s, _)| (*s, false)));
+    spaces.extend(block_spaces);
     spaces.push((layer.space, false));
     Ok(Access {
         source,

@@ -28,12 +28,12 @@ impl ReadingStore {
         }))
     }
 
-    pub async fn read(
+    pub async fn read_versioned(
         &self,
         actor: Principal,
         reference: ReadingRef,
         mode: ReadingMode,
-    ) -> Result<Option<ReadingProjection>, ContentError> {
+    ) -> Result<Option<VersionedReadingProjection>, ContentError> {
         let mut tx = request::begin_read(&self.pool).await?;
         let ids: Option<(Uuid, Uuid)> = sqlx::query_as("SELECT v.overlay_id,v.overlay_revision_id FROM reading_view_revision v JOIN overlay o ON o.id=v.overlay_id JOIN space_grant g ON g.space_id=o.space_id AND g.actor_id=$1 WHERE v.view_id=$2 AND v.id=$3 AND o.owner_id=$1")
             .bind(actor.actor_id).bind(reference.view_id).bind(reference.revision_id).fetch_optional(&mut *tx).await.map_err(storage)?;
@@ -45,5 +45,19 @@ impl ReadingStore {
         let projection = super::projection::project(&layer, &access, mode)?;
         tx.commit().await.map_err(storage)?;
         Ok(Some(projection))
+    }
+}
+
+impl ReadingStore {
+    pub async fn read(
+        &self,
+        actor: Principal,
+        reference: ReadingRef,
+        mode: ReadingMode,
+    ) -> Result<Option<ReadingProjection>, ContentError> {
+        self.read_versioned(actor, reference, mode)
+            .await?
+            .map(TryInto::try_into)
+            .transpose()
     }
 }

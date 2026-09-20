@@ -71,24 +71,76 @@ pub enum SourceProjection {
     Unavailable,
 }
 #[derive(Debug, Clone, Serialize)]
-pub struct PersonalItem {
+pub struct PersonalItemData<R> {
     pub placement_id: Uuid,
-    pub revision: Revision,
+    pub revision: R,
     pub location: Option<GapAnchor>,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum ReadingItem {
+pub enum ReadingItemData<R> {
     SectionStart { path: Vec<Uuid>, title: String },
     SectionEnd { path: Vec<Uuid> },
-    Original { path: Vec<Uuid>, revision: Revision },
-    Personal { item: PersonalItem },
+    Original { path: Vec<Uuid>, revision: R },
+    Personal { item: PersonalItemData<R> },
 }
 #[derive(Debug, Clone, Serialize)]
-pub struct ReadingProjection {
+pub struct ReadingProjectionData<R> {
     pub overlay: OverlayRef,
     pub view: ReadingRef,
     pub source: SourceProjection,
-    pub items: Vec<ReadingItem>,
-    pub unplaced: Vec<PersonalItem>,
+    pub items: Vec<ReadingItemData<R>>,
+    pub unplaced: Vec<PersonalItemData<R>>,
+}
+
+pub type PersonalItem = PersonalItemData<Revision>;
+pub type VersionedPersonalItem = PersonalItemData<ContentRevision>;
+pub type ReadingItem = ReadingItemData<Revision>;
+pub type VersionedReadingItem = ReadingItemData<ContentRevision>;
+pub type ReadingProjection = ReadingProjectionData<Revision>;
+pub type VersionedReadingProjection = ReadingProjectionData<ContentRevision>;
+impl TryFrom<VersionedPersonalItem> for PersonalItem {
+    type Error = ContentError;
+    fn try_from(p: VersionedPersonalItem) -> Result<Self, Self::Error> {
+        Ok(Self {
+            placement_id: p.placement_id,
+            revision: p.revision.try_into()?,
+            location: p.location,
+        })
+    }
+}
+impl TryFrom<VersionedReadingProjection> for ReadingProjection {
+    type Error = ContentError;
+    fn try_from(p: VersionedReadingProjection) -> Result<Self, Self::Error> {
+        let items = p
+            .items
+            .into_iter()
+            .map(|item| {
+                Ok(match item {
+                    VersionedReadingItem::SectionStart { path, title } => {
+                        ReadingItem::SectionStart { path, title }
+                    }
+                    VersionedReadingItem::SectionEnd { path } => ReadingItem::SectionEnd { path },
+                    VersionedReadingItem::Original { path, revision } => ReadingItem::Original {
+                        path,
+                        revision: revision.try_into()?,
+                    },
+                    VersionedReadingItem::Personal { item } => ReadingItem::Personal {
+                        item: item.try_into()?,
+                    },
+                })
+            })
+            .collect::<Result<_, ContentError>>()?;
+        Ok(Self {
+            overlay: p.overlay,
+            view: p.view,
+            source: p.source,
+            items,
+            unplaced: p
+                .unplaced
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
+        })
+    }
 }

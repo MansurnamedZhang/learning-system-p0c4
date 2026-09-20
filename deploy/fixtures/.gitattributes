@@ -1,0 +1,2 @@
+# Audited frozen program bytes, including sources.sha256, must survive checkout.
+b2-b60056b/** -text

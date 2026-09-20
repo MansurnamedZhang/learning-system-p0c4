@@ -116,10 +116,10 @@ pub struct CompositionRevision {
     pub created_at: DateTime<Utc>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CompositionSnapshot {
+pub struct CompositionSnapshotData<R> {
     pub root: CompositionRef,
     pub compositions: Vec<CompositionRevision>,
-    pub blocks: Vec<Revision>,
+    pub blocks: Vec<R>,
 }
 pub fn composition_digest(kind: CompositionKind, title: &str, nodes: &[Occurrence]) -> String {
     hex_digest(
@@ -135,4 +135,21 @@ pub(crate) fn validate_assembly_reason(reason: &str) -> Result<(), ContentError>
         return invalid("assembly_reason");
     }
     Ok(())
+}
+
+pub type CompositionSnapshot = CompositionSnapshotData<Revision>;
+pub type VersionedCompositionSnapshot = CompositionSnapshotData<crate::ContentRevision>;
+impl TryFrom<VersionedCompositionSnapshot> for CompositionSnapshot {
+    type Error = ContentError;
+    fn try_from(s: VersionedCompositionSnapshot) -> Result<Self, Self::Error> {
+        Ok(Self {
+            root: s.root,
+            compositions: s.compositions,
+            blocks: s
+                .blocks
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
+        })
+    }
 }

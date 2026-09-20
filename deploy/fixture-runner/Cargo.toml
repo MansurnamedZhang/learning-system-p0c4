@@ -1,0 +1,12 @@
+[package]
+name = "knowweave-frozen-fixtures"
+version = "0.1.0"
+edition = "2024"
+[workspace]
+[dependencies]
+learning-core = { path = "../fixtures/b2-b60056b/crates/learning-core" }
+learning-db = { path = "../fixtures/b2-b60056b/crates/learning-db" }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "json", "chrono", "migrate", "macros"] }

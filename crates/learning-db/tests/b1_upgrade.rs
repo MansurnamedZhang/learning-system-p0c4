@@ -1,7 +1,8 @@
 mod support;
+use learning_core::*;
 use learning_db::{ContentStore, MIGRATOR};
 use sqlx::postgres::PgPoolOptions;
-use support::{assembly as a, *};
+use support::*;
 #[tokio::test]
 async fn actual_b1_stores_and_receipts_survive_b2_upgrade() {
     let admin_pool = PgPoolOptions::new()
@@ -20,49 +21,29 @@ async fn actual_b1_stores_and_receipts_survive_b2_upgrade() {
         )
         .await
         .unwrap();
-    let empty: bool = sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NULL")
-        .fetch_one(&admin_pool)
-        .await
-        .unwrap();
-    assert!(empty, "B1 upgrade needs separate empty database");
-    let path =
-        std::env::var("TEST_B1_MIGRATIONS_DIR").expect("unchanged 0001/0002 directory required");
-    let old = sqlx::migrate::Migrator::new(std::path::Path::new(&path))
-        .await
-        .unwrap();
-    assert_eq!(old.iter().count(), 2);
-    old.run(&admin_pool).await.unwrap();
+    let fixture = frozen_fixture::load("b1", &admin_pool).await;
     let r = TestRig {
         store: ContentStore::new(runtime_pool.clone()),
         admin_pool,
         runtime_pool,
     };
-    let (actor, space) = r.seed_actor_space(true).await;
-    let c = command("B1 preserved");
-    let b = r.store.create(actor, space, c.clone()).await.unwrap();
-    let dc = a::doc(vec![a::block(&b)]);
-    let d = r
-        .compositions()
-        .save(actor, space, dc.clone())
-        .await
-        .unwrap();
-    let pc = a::publish(vec![a::root(&d, None)]);
-    let published = r
-        .releases()
-        .publish(actor, space, pc.clone())
-        .await
-        .unwrap();
-    let before = r
-        .compositions()
-        .read(actor, d.reference.clone())
-        .await
-        .unwrap();
-    let sums: Vec<(i64, Vec<u8>)> =
-        sqlx::query_as("SELECT version,checksum FROM _sqlx_migrations ORDER BY version")
-            .fetch_all(&r.admin_pool)
-            .await
-            .unwrap();
-    let counts = r.assembly_counts(actor).await;
+    let actor = Principal {
+        actor_id: serde_json::from_value(fixture["actor_id"].clone()).unwrap(),
+    };
+    let space = serde_json::from_value(fixture["space"].clone()).unwrap();
+    let c: CreateCommand = serde_json::from_value(fixture["command"].clone()).unwrap();
+    let b: Revision = serde_json::from_value(fixture["before"].clone()).unwrap();
+    let dc: SaveComposition =
+        serde_json::from_value(fixture["composition_command"].clone()).unwrap();
+    let d: CompositionRevision = serde_json::from_value(fixture["composition"].clone()).unwrap();
+    let pc: PublishCommand = serde_json::from_value(fixture["publish_command"].clone()).unwrap();
+    let published: Release = serde_json::from_value(fixture["published"].clone()).unwrap();
+    let before: Option<CompositionSnapshot> =
+        serde_json::from_value(fixture["snapshot"].clone()).unwrap();
+    let sums: Vec<(i64, Vec<u8>)> = serde_json::from_value(fixture["checksums"].clone()).unwrap();
+    let counts: (i64, i64, i64, i64, i64) =
+        serde_json::from_value(fixture["counts"].clone()).unwrap();
+    assert_eq!(r.assembly_counts(actor).await, counts);
     MIGRATOR.run(&r.admin_pool).await.unwrap();
     let after: Vec<(i64, Vec<u8>)> = sqlx::query_as(
         "SELECT version,checksum FROM _sqlx_migrations WHERE version<=2 ORDER BY version",

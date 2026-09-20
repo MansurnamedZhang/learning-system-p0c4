@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 pub mod assembly;
+pub mod frozen_fixture;
 pub mod reading;
+pub mod references;
+pub mod typed_references;
 use learning_core::{CreateCommand, Principal, ReviseCommand, Revision};
 use learning_db::{ContentStore, MIGRATOR};
 use sqlx::{PgPool, postgres::PgPoolOptions};

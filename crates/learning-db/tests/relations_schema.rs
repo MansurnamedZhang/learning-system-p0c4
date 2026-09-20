@@ -351,34 +351,22 @@ async fn pre_b3_revisions_are_backfilled_without_changing_old_checksums_or_conte
     )
     .await
     .unwrap();
-    assert!(
-        sqlx::query_scalar::<_, bool>("SELECT to_regclass('public._sqlx_migrations') IS NULL")
-            .fetch_one(&admin_pool)
-            .await
-            .unwrap()
-    );
-    let mut old = sqlx::migrate::Migrator::DEFAULT;
-    old.migrations = std::borrow::Cow::Owned(
-        learning_db::MIGRATOR
-            .iter()
-            .filter(|m| m.version <= 3)
-            .cloned()
-            .collect(),
-    );
-    old.run(&admin_pool).await.unwrap();
+    let fixture = support::frozen_fixture::load("b3-schema", &admin_pool).await;
     let r = TestRig {
         store: learning_db::ContentStore::new(runtime_pool.clone()),
         admin_pool,
         runtime_pool,
     };
-    let (a, s) = r.seed_actor_space(true).await;
-    let cmd = support::command("historical v1 bytes");
-    let before = r.store.create(a, s, cmd.clone()).await.unwrap();
+    let a = learning_core::Principal {
+        actor_id: serde_json::from_value(fixture["actor_id"].clone()).unwrap(),
+    };
+    let s: Uuid = serde_json::from_value(fixture["space"].clone()).unwrap();
+    let cmd: learning_core::CreateCommand =
+        serde_json::from_value(fixture["command"].clone()).unwrap();
+    let before: learning_core::Revision =
+        serde_json::from_value(fixture["before"].clone()).unwrap();
     let checksums: Vec<(i64, Vec<u8>)> =
-        sqlx::query_as("SELECT version,checksum FROM _sqlx_migrations ORDER BY version")
-            .fetch_all(&r.admin_pool)
-            .await
-            .unwrap();
+        serde_json::from_value(fixture["checksums"].clone()).unwrap();
     learning_db::MIGRATOR.run(&r.admin_pool).await.unwrap();
     let after: Vec<(i64, Vec<u8>)> = sqlx::query_as(
         "SELECT version,checksum FROM _sqlx_migrations WHERE version<=3 ORDER BY version",
