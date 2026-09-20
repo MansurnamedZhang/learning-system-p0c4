@@ -12,6 +12,18 @@ pub(crate) enum AuthorizedObject {
     EpistemicReview(EpistemicReview),
 }
 impl AuthorizedObject {
+    pub fn relation(self) -> Result<RelationRevision, ContentError> {
+        match self {
+            Self::Relation(r) => Ok(r),
+            _ => Err(ContentError::Storage),
+        }
+    }
+    pub fn relation_review(self) -> Result<RelationReview, ContentError> {
+        match self {
+            Self::RelationReview(r) => Ok(r),
+            _ => Err(ContentError::Storage),
+        }
+    }
     pub fn block(self) -> Result<ContentRevision, ContentError> {
         match self {
             Self::Block(r) => Ok(r),

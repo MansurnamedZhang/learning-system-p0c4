@@ -9,6 +9,8 @@ mod reading;
 pub use reading::ReadingStore;
 mod read;
 mod references;
+mod relations;
+pub use relations::RelationStore;
 mod release;
 mod request;
 mod versioned_content;
