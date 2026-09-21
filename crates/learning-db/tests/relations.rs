@@ -97,8 +97,24 @@ async fn normalized_symmetric_keys_and_immutable_identity_are_enforced() {
     let (rig, store, actor, space, e, h) = fixture().await;
     let mut c = save(space, exact(&e), exact(&h));
     c.relation_type = RelationType::RelatedTo;
+    // Always exercise the swap branch despite server-generated UUIDs.
+    if c.from.block_id < c.to.block_id {
+        std::mem::swap(&mut c.from, &mut c.to);
+    }
     let r = store.save(actor, c.clone()).await.unwrap();
-    assert!(r.from.block_id < r.to.block_id);
+    // Independent whole-pair normalization (including the matching revisions).
+    // This is added coverage of already-correct behavior, not a claimed RED.
+    let (expected_from, expected_to) = if e.block_id < h.block_id {
+        (exact(&e), exact(&h))
+    } else {
+        (exact(&h), exact(&e))
+    };
+    assert_eq!((&r.from, &r.to), (&expected_from, &expected_to));
+    let canonical = serde_json::json!({"domain":"relation-content-v1","scope":{"kind":"space","space_id":space},"type":"related_to","from":expected_from,"to":expected_to,"rationale":"observation","conditions":"within scope"});
+    assert_eq!(
+        r.content_sha256,
+        hex_digest(canonical_json(&canonical).as_bytes())
+    );
     std::mem::swap(&mut c.from, &mut c.to);
     assert!(matches!(
         store.save(actor, c.clone()).await,

@@ -1,4 +1,6 @@
 //! Executes genuinely frozen B2 program code against old schema versions.
+mod b2;
+mod legacy_snapshot;
 use learning_core::*;
 use learning_db::{CompositionStore, ContentStore, ReleaseStore};
 use serde_json::{Value, json};
@@ -14,7 +16,9 @@ fn command(text: &str) -> CreateCommand {
 }
 #[tokio::main]
 async fn main() {
-    let kind = std::env::args().nth(1).expect("p0a|b1|b3-schema required");
+    let kind = std::env::args()
+        .nth(1)
+        .expect("p0a|b1|b3-schema|b2 required");
     let (admin_env, runtime_env, version) = match kind.as_str() {
         "p0a" => (
             "TEST_UPGRADE_ADMIN_DATABASE_URL",
@@ -29,6 +33,11 @@ async fn main() {
         "b3-schema" => (
             "TEST_B3_SCHEMA_UPGRADE_ADMIN_DATABASE_URL",
             "TEST_B3_SCHEMA_UPGRADE_DATABASE_URL",
+            3,
+        ),
+        "b2" => (
+            "TEST_B2_UPGRADE_ADMIN_DATABASE_URL",
+            "TEST_B2_UPGRADE_DATABASE_URL",
             3,
         ),
         _ => panic!("unknown fixture kind"),
@@ -88,6 +97,7 @@ async fn main() {
     let cmd = command(match kind.as_str() {
         "p0a" => "historic content",
         "b1" => "B1 preserved",
+        "b2" => "K",
         _ => "historical v1 bytes",
     });
     let before = if kind == "p0a" {
@@ -110,6 +120,18 @@ async fn main() {
         store.create(actor, space, cmd.clone()).await.unwrap()
     };
     let mut manifest = json!({"schema_version":1,"kind":kind,"producer_commit":COMMIT,"source_manifest_sha256":SOURCE_HASH,"started_empty":true,"actor_id":actor.actor_id,"space":space,"command":cmd,"before":before});
+    if kind == "b2" {
+        b2::populate(
+            &admin,
+            runtime.clone(),
+            actor,
+            space,
+            &cmd,
+            &before,
+            &mut manifest,
+        )
+        .await;
+    }
     if kind == "b1" {
         let compositions = CompositionStore::new(runtime.clone());
         let releases = ReleaseStore::new(runtime.clone());

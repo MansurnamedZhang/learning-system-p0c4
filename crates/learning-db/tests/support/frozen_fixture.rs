@@ -7,6 +7,7 @@ pub async fn load(kind: &str, admin: &PgPool) -> Value {
         "p0a" => "TEST_P0A_FIXTURE_MANIFEST",
         "b1" => "TEST_B1_FIXTURE_MANIFEST",
         "b3-schema" => "TEST_B3_SCHEMA_FIXTURE_MANIFEST",
+        "b2" => "TEST_B2_FIXTURE_MANIFEST",
         _ => panic!("unknown kind"),
     };
     let manifest: Value = serde_json::from_slice(

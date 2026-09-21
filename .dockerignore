@@ -11,3 +11,11 @@
 !deploy/
 !deploy/Dockerfile.test
 !deploy/run-tests.sh
+!deploy/bootstrap-fixtures.sh
+!deploy/fixture-runner/
+!deploy/fixture-runner/Cargo.toml
+!deploy/fixture-runner/Cargo.lock
+!deploy/fixture-runner/src/
+!deploy/fixture-runner/src/**
+!deploy/fixtures/
+!deploy/fixtures/**

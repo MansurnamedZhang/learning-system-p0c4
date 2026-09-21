@@ -5,6 +5,10 @@ COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates ./crates
 COPY migrations ./migrations
 COPY contracts ./contracts
+COPY deploy/fixture-runner ./deploy/fixture-runner
+COPY deploy/fixtures ./deploy/fixtures
+COPY deploy/bootstrap-fixtures.sh ./deploy/bootstrap-fixtures.sh
 COPY deploy/run-tests.sh /run-tests.sh
+RUN cargo build --locked --manifest-path deploy/fixture-runner/Cargo.toml
 RUN cargo test --locked --workspace --no-run
 ENTRYPOINT ["sh", "/run-tests.sh"]
