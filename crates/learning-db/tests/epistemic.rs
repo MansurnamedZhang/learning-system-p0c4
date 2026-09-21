@@ -752,3 +752,59 @@ async fn first_and_update_cas_races_and_identical_requests_commit_once() {
     pa.close().await;
     pb.close().await;
 }
+
+#[tokio::test]
+async fn stable_cross_space_cas_conflicts_authorize_head_without_requiring_audit_parent() {
+    let (rig, _, reviews, actor, _, r, checked) = setup().await;
+    let (owner, evidence_space) = rig.seed_actor_space(true).await;
+    let evidence = rig
+        .store
+        .create(
+            owner,
+            evidence_space,
+            support::command("cross-space evidence"),
+        )
+        .await
+        .unwrap();
+    rig.grant(actor, evidence_space, false).await;
+    let mut original = judgment(&r, &checked);
+    original.state = EpistemicState::Testing;
+    original.relations.clear();
+    original.evidence = vec![exact(&evidence)];
+    let first = reviews.append(actor, original.clone()).await.unwrap();
+    let mut stale = original.clone();
+    stale.request_id = Uuid::new_v4();
+    stale.evidence.clear();
+    // The existing head predates both attempts. An unchanged retry must not
+    // permanently report that authorization changed during discovery.
+    for _ in 0..2 {
+        let result = reviews.append(actor, stale.clone()).await;
+        assert!(
+            matches!(result, Err(ContentError::Conflict { current_revision_id }) if current_revision_id == first.reference.review_id),
+            "expected readable head conflict, got {result:?}"
+        );
+    }
+    rig.revoke(actor, evidence_space).await;
+    assert!(matches!(
+        reviews.append(actor, stale.clone()).await,
+        Err(ContentError::NotFound)
+    ));
+    assert!(matches!(
+        reviews.append(actor, original).await,
+        Err(ContentError::NotFound)
+    ));
+    // A correct CAS may replace a hidden audit predecessor with a judgment
+    // whose necessary evidence is fully readable.
+    stale.expected_previous = Some(first.reference.clone());
+    let second = reviews.append(actor, stale.clone()).await.unwrap();
+    assert_eq!(second.previous, None);
+    assert_eq!(second.reference.stream_id, first.reference.stream_id);
+    assert_eq!(reviews.append(actor, stale).await.unwrap(), second);
+    rig.grant(actor, evidence_space, false).await;
+    let mut restored = second.clone();
+    restored.previous = Some(first.reference);
+    assert_eq!(
+        reviews.read(actor, second.reference).await.unwrap(),
+        ReviewProjection::Available(restored)
+    );
+}

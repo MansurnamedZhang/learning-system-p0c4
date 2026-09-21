@@ -29,7 +29,25 @@ impl ReviewStore {
                 review_id,
             }));
         }
-        let allowed = lock_dependencies(&mut tx, actor, &c.scope, &roots).await?;
+        let mut discovery_roots = roots.clone();
+        if receipt.is_none() {
+            let (space, overlay) = scope(&c.scope);
+            let current: Option<(Uuid, Uuid)> = sqlx::query_as("SELECT id,head_review_id FROM public.epistemic_stream WHERE space_id=$1 AND overlay_id IS NOT DISTINCT FROM $2 AND target_block_id=$3 AND target_revision_id=$4 AND actor_id=$5")
+                .bind(space).bind(overlay).bind(c.target.block_id).bind(c.target.revision_id).bind(actor.actor_id).fetch_optional(&mut *tx).await.map_err(storage)?;
+            if let Some((stream_id, review_id)) = current {
+                let current = EpistemicReviewRef {
+                    stream_id,
+                    review_id,
+                };
+                // A stale CAS must authorize its conflict payload before grant
+                // locking. A matching CAS uses the predecessor only as an audit
+                // token, so hidden prior evidence must not block replacement.
+                if c.expected_previous.as_ref() != Some(&current) {
+                    discovery_roots.push(ExactRef::EpistemicReview(current));
+                }
+            }
+        }
+        let allowed = lock_dependencies(&mut tx, actor, &c.scope, &discovery_roots).await?;
         // Replay checks current authorization of the original fixed record, but
         // never applies creation rules against a newer relation review head.
         if request::check(&mut tx, actor, c.request_id, &digest, "epistemic_review").await? {
