@@ -1,3 +1,6 @@
+mod evidence_read;
+mod evidence_write;
+mod manifest;
 mod read;
 mod write;
 use sqlx::PgPool;

@@ -19,8 +19,20 @@ impl MigrationStore {
         command.validate()?;
         let digest = reading_request_digest("migration_propose", actor, id, &command);
         let mut tx = request::begin(&self.pool, actor, command.request_id).await?;
-        let layer =
+        let mut layer =
             overlay::load(&mut tx, actor, id, Some(command.expected_overlay_revision)).await?;
+        layer = overlay::load_view(
+            &mut tx,
+            actor,
+            ReadingRef {
+                view_id: layer.view.view_id,
+                revision_id: command.expected_reading_view_revision,
+            },
+        )
+        .await?;
+        if layer.id != id || layer.revision != command.expected_overlay_revision {
+            return Err(ContentError::NotFound);
+        }
         if let Some(prior) = sqlx::query_scalar::<_, Option<Uuid>>(
             "SELECT proposal_id FROM migration_receipt WHERE actor_id=$1 AND request_id=$2",
         )
@@ -71,6 +83,7 @@ impl MigrationStore {
         }
         overlay::lock_heads(
             &mut tx,
+            actor,
             &p.layer,
             command.expected_overlay_revision,
             command.expected_reading_view_revision,
@@ -84,7 +97,7 @@ impl MigrationStore {
         .fetch_one(&mut *tx)
         .await
         .map_err(storage)?;
-        sqlx::query("INSERT INTO placement_migration(id,overlay_id,old_overlay_revision_id,target_space_id,target_root,target_revision_id,author_id,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(p.id).bind(id).bind(p.layer.revision).bind(space).bind(p.target.composition_id).bind(p.target.revision_id).bind(actor.actor_id).bind(&command.reason).execute(&mut *tx).await.map_err(storage)?;
+        sqlx::query("INSERT INTO placement_migration(id,overlay_id,old_overlay_revision_id,target_space_id,target_root,target_revision_id,author_id,reason,old_view_revision_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)").bind(p.id).bind(id).bind(p.layer.revision).bind(space).bind(p.target.composition_id).bind(p.target.revision_id).bind(actor.actor_id).bind(&command.reason).bind(p.layer.view.revision_id).execute(&mut *tx).await.map_err(storage)?;
         for g in &p.layer.data.groups {
             let old = access
                 .origins

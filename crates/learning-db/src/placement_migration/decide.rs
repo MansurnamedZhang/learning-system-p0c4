@@ -40,13 +40,14 @@ impl MigrationStore {
         {
             let row=sqlx::query("SELECT d.* FROM migration_receipt r JOIN placement_migration_decision d ON d.id=r.decision_id WHERE r.actor_id=$1 AND r.request_id=$2").bind(actor.actor_id).bind(command.request_id).fetch_one(&mut *tx).await.map_err(storage)?;
             let adopted = if row.get("adopted") {
-                let layer = overlay::load(
+                let mut layer = overlay::load(
                     &mut tx,
                     actor,
                     id,
                     Some(row.get("result_overlay_revision_id")),
                 )
                 .await?;
+                layer.view.revision_id = row.get("result_view_revision_id");
                 if !overlay::access(&mut tx, actor, &layer)
                     .await?
                     .complete(&layer)
@@ -74,6 +75,7 @@ impl MigrationStore {
         }
         overlay::lock_heads(
             &mut tx,
+            actor,
             &p.layer,
             command.expected_overlay_revision,
             command.expected_reading_view_revision,

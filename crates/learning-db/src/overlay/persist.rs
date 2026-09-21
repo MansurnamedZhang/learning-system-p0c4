@@ -80,7 +80,31 @@ pub(crate) async fn save(
             sqlx::query("INSERT INTO overlay_placement(overlay_id,overlay_revision_id,placement_id,group_id,position,block_space_id,block_id,block_revision_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(layer.id).bind(rev).bind(p.placement_id).bind(g.group_id).bind(i as i32).bind(space).bind(p.block.block_id).bind(p.block.revision_id).execute(&mut **tx).await.map_err(storage)?;
         }
     }
-    sqlx::query("INSERT INTO reading_view_revision(id,view_id,overlay_id,overlay_revision_id,parent_revision_id,author_id) VALUES($1,$2,$3,$4,$5,$6)").bind(view_rev).bind(layer.view.view_id).bind(layer.id).bind(rev).bind(parent.map(|p|p.1)).bind(actor.actor_id).execute(&mut **tx).await.map_err(storage)?;
+    let (version, choices) = if let Some((_, parent_view)) = parent {
+        crate::reading::selection::choices(
+            tx,
+            &ReadingRef {
+                view_id: layer.view.view_id,
+                revision_id: parent_view,
+            },
+        )
+        .await?
+    } else {
+        (1, ReadingSelections::default())
+    };
+    crate::reading::selection::insert_view(
+        tx,
+        actor,
+        layer,
+        crate::reading::selection::NewView {
+            id: view_rev,
+            overlay_revision: rev,
+            parent: parent.map(|p| p.1),
+            version,
+            choices: &choices,
+        },
+    )
+    .await?;
     sqlx::query("UPDATE overlay SET head_revision_id=$1 WHERE id=$2")
         .bind(rev)
         .bind(layer.id)

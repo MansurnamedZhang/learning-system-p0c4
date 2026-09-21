@@ -24,13 +24,20 @@ pub(crate) async fn load(
     id: Uuid,
 ) -> Result<Proposal, ContentError> {
     let row=sqlx::query("SELECT p.* FROM placement_migration p JOIN overlay o ON o.id=p.overlay_id JOIN space_grant g ON g.space_id=o.space_id AND g.actor_id=$1 WHERE p.id=$2 AND o.owner_id=$1").bind(actor.actor_id).bind(id).fetch_optional(&mut **tx).await.map_err(storage)?.ok_or(ContentError::NotFound)?;
-    let layer = model::load(
+    let mut layer = model::load(
         tx,
         actor,
         row.get("overlay_id"),
         Some(row.get("old_overlay_revision_id")),
     )
     .await?;
+    let fixed = if let Some(id) = row.get::<Option<Uuid>, _>("old_view_revision_id") {
+        id
+    } else {
+        sqlx::query_scalar("SELECT id FROM reading_view_revision WHERE overlay_id=$1 AND overlay_revision_id=$2 AND contract_version=1 ORDER BY created_at,id LIMIT 1")
+            .bind(layer.id).bind(layer.revision).fetch_one(&mut **tx).await.map_err(storage)?
+    };
+    layer.view.revision_id = fixed;
     let rows = sqlx::query(
         "SELECT * FROM placement_migration_group WHERE proposal_id=$1 ORDER BY group_id",
     )

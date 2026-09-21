@@ -8,6 +8,8 @@ pub(crate) fn project(
     mode: ReadingMode,
 ) -> Result<VersionedReadingProjection, ContentError> {
     let mut result = VersionedReadingProjection {
+        contract_version: 1,
+        evidence: ReadingEvidence::default(),
         overlay: OverlayRef {
             overlay_id: layer.id,
             revision_id: layer.revision,

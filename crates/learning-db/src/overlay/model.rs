@@ -38,7 +38,7 @@ pub(crate) async fn load(
 ) -> Result<Layer, ContentError> {
     let row=sqlx::query("SELECT o.id,o.space_id,o.head_revision_id FROM overlay o JOIN space_grant g ON g.space_id=o.space_id AND g.actor_id=$1 WHERE o.id=$2 AND o.owner_id=$1").bind(actor.actor_id).bind(id).fetch_optional(&mut **tx).await.map_err(storage)?.ok_or(ContentError::NotFound)?;
     let rev = revision.unwrap_or(row.get("head_revision_id"));
-    let r=sqlx::query("SELECT r.*,v.view_id,v.id AS view_revision FROM overlay_revision r JOIN reading_view_revision v ON v.overlay_id=r.overlay_id AND v.overlay_revision_id=r.id WHERE r.overlay_id=$1 AND r.id=$2").bind(id).bind(rev).fetch_optional(&mut **tx).await.map_err(storage)?.ok_or(ContentError::NotFound)?;
+    let r=sqlx::query("SELECT r.*,v.view_id,v.id AS view_revision FROM overlay_revision r JOIN reading_view_revision v ON v.overlay_id=r.overlay_id AND v.overlay_revision_id=r.id JOIN reading_view h ON h.id=v.view_id WHERE r.overlay_id=$1 AND r.id=$2 ORDER BY (v.id=h.head_revision_id) DESC,v.created_at,v.id LIMIT 1").bind(id).bind(rev).fetch_optional(&mut **tx).await.map_err(storage)?.ok_or(ContentError::NotFound)?;
     let rows=sqlx::query("SELECT * FROM overlay_group WHERE overlay_id=$1 AND overlay_revision_id=$2 ORDER BY group_id").bind(id).bind(rev).fetch_all(&mut **tx).await.map_err(storage)?;
     let mut groups = vec![];
     for g in rows {
@@ -96,6 +96,18 @@ pub(crate) async fn load(
             groups,
         },
     })
+}
+pub(crate) async fn load_view(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    view: ReadingRef,
+) -> Result<Layer, ContentError> {
+    let pair:Option<(Uuid,Uuid)>=sqlx::query_as("SELECT v.overlay_id,v.overlay_revision_id FROM reading_view_revision v JOIN overlay o ON o.id=v.overlay_id JOIN space_grant g ON g.space_id=o.space_id AND g.actor_id=$1 WHERE v.view_id=$2 AND v.id=$3 AND o.owner_id=$1")
+        .bind(actor.actor_id).bind(view.view_id).bind(view.revision_id).fetch_optional(&mut **tx).await.map_err(storage)?;
+    let (id, rev) = pair.ok_or(ContentError::NotFound)?;
+    let mut layer = load(tx, actor, id, Some(rev)).await?;
+    layer.view = view;
+    Ok(layer)
 }
 pub(crate) async fn snapshot(
     tx: &mut Tx<'_>,
@@ -173,9 +185,15 @@ pub(crate) async fn access(
     actor: Principal,
     layer: &Layer,
 ) -> Result<Access, ContentError> {
-    let mut session = references::Session::default();
-    let (mut spaces, source) =
-        snapshot_with_session(tx, actor, &layer.data.base, &mut session).await?;
+    access_with_session(tx, actor, layer, &mut references::Session::default()).await
+}
+pub(crate) async fn access_with_session(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    layer: &Layer,
+    session: &mut references::Session,
+) -> Result<Access, ContentError> {
+    let (mut spaces, source) = snapshot_with_session(tx, actor, &layer.data.base, session).await?;
     let mut origins = BTreeMap::new();
     if let Some(s) = &source {
         origins.insert(layer.data.base.clone(), s.clone());
@@ -190,7 +208,7 @@ pub(crate) async fn access(
         if origins.contains_key(&reference) {
             continue;
         }
-        let (ss, s) = snapshot_with_session(tx, actor, &reference, &mut session).await?;
+        let (ss, s) = snapshot_with_session(tx, actor, &reference, session).await?;
         spaces.extend(ss);
         if let Some(s) = s {
             origins.insert(reference, s);
@@ -205,7 +223,7 @@ pub(crate) async fn access(
             .iter()
             .flat_map(|g| g.placements.iter().map(|p| p.block.clone()))
             .collect::<Vec<_>>(),
-        &mut session,
+        session,
     )
     .await?;
     spaces.extend(block_spaces);
@@ -219,6 +237,7 @@ pub(crate) async fn access(
 }
 pub(crate) async fn lock_heads(
     tx: &mut Tx<'_>,
+    actor: Principal,
     layer: &Layer,
     expected: Uuid,
     view_expected: Uuid,
@@ -236,6 +255,27 @@ pub(crate) async fn lock_heads(
             .await
             .map_err(storage)?;
     if current != expected || view != view_expected {
+        // Conflict metadata is a historical read, too. Never disclose the new
+        // head when any of its necessary reading/evidence dependencies is hidden.
+        // This failing operation takes no additional grant locks after heads.
+        let current_layer = load_view(
+            tx,
+            actor,
+            ReadingRef {
+                view_id: layer.view.view_id,
+                revision_id: view,
+            },
+        )
+        .await?;
+        let mut session = references::Session::default();
+        if !access_with_session(tx, actor, &current_layer, &mut session)
+            .await?
+            .complete(&current_layer)
+        {
+            return Err(ContentError::NotFound);
+        }
+        let (_, choices) = crate::reading::selection::choices(tx, &current_layer.view).await?;
+        crate::reading::selection::authorize(tx, actor, layer.id, &choices, &mut session).await?;
         return Err(ContentError::ReadingConflict {
             current_overlay_revision: current,
             current_reading_view_revision: view,

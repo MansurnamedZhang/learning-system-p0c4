@@ -8,6 +8,8 @@ mod error;
 mod identity;
 mod overlay;
 mod reading;
+mod reading_selection;
+pub use reading_selection::*;
 mod references;
 mod relation;
 mod release;

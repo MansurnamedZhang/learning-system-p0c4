@@ -110,6 +110,18 @@ impl ReadingStore {
         let mut tx = request::begin(&self.pool, actor, command.request_id).await?;
         let mut layer =
             model::load(&mut tx, actor, id, Some(command.expected_overlay_revision)).await?;
+        layer = model::load_view(
+            &mut tx,
+            actor,
+            ReadingRef {
+                view_id: layer.view.view_id,
+                revision_id: command.expected_reading_view_revision,
+            },
+        )
+        .await?;
+        if layer.id != id || layer.revision != command.expected_overlay_revision {
+            return Err(ContentError::NotFound);
+        }
         if let Some(saved) = replay(
             &mut tx,
             actor,
@@ -161,6 +173,7 @@ impl ReadingStore {
         }
         model::lock_heads(
             &mut tx,
+            actor,
             &layer,
             command.expected_overlay_revision,
             command.expected_reading_view_revision,
@@ -336,13 +349,7 @@ async fn replay(
         }
         return Ok(None);
     };
-    let layer = model::load(
-        tx,
-        actor,
-        saved.overlay.overlay_id,
-        Some(saved.overlay.revision_id),
-    )
-    .await?;
+    let layer = model::load_view(tx, actor, saved.view.clone()).await?;
     let mut access = model::access(tx, actor, &layer).await?;
     if !access.complete(&layer) {
         return Err(ContentError::NotFound);

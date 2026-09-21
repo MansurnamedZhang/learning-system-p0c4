@@ -35,14 +35,18 @@ impl ReadingStore {
         mode: ReadingMode,
     ) -> Result<Option<VersionedReadingProjection>, ContentError> {
         let mut tx = request::begin_read(&self.pool).await?;
-        let ids: Option<(Uuid, Uuid)> = sqlx::query_as("SELECT v.overlay_id,v.overlay_revision_id FROM reading_view_revision v JOIN overlay o ON o.id=v.overlay_id JOIN space_grant g ON g.space_id=o.space_id AND g.actor_id=$1 WHERE v.view_id=$2 AND v.id=$3 AND o.owner_id=$1")
-            .bind(actor.actor_id).bind(reference.view_id).bind(reference.revision_id).fetch_optional(&mut *tx).await.map_err(storage)?;
-        let Some((id, rev)) = ids else {
-            return Ok(None);
+        let layer = match model::load_view(&mut tx, actor, reference).await {
+            Ok(layer) => layer,
+            Err(ContentError::NotFound) => return Ok(None),
+            Err(e) => return Err(e),
         };
-        let layer = model::load(&mut tx, actor, id, Some(rev)).await?;
-        let access = model::access(&mut tx, actor, &layer).await?;
-        let projection = super::projection::project(&layer, &access, mode)?;
+        let mut session = crate::references::Session::default();
+        let access = model::access_with_session(&mut tx, actor, &layer, &mut session).await?;
+        let mut projection = super::projection::project(&layer, &access, mode)?;
+        let (version, choices) = super::selection::choices(&mut tx, &layer.view).await?;
+        projection.contract_version = version;
+        projection.evidence =
+            super::selection::project(&mut tx, actor, &choices, &mut session).await?;
         tx.commit().await.map_err(storage)?;
         Ok(Some(projection))
     }

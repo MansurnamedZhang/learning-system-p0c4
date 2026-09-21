@@ -83,6 +83,16 @@ impl ReleaseStore {
         let mut tx = request::begin_read(&self.pool).await?;
         let checked = async {
             let r = load(&mut tx, actor, id).await?;
+            let version: i32 =
+                sqlx::query_scalar("SELECT contract_version FROM release WHERE id=$1")
+                    .bind(id)
+                    .fetch_one(&mut *tx)
+                    .await
+                    .map_err(storage)?;
+            if version == 2 {
+                super::evidence_read::load(&mut tx, actor, id).await?;
+                return Err(ContentError::Invalid("unsupported_content_version".into()));
+            }
             closure::load(&mut tx, actor, &r.roots, None).await?;
             Ok::<_, ContentError>(r)
         }

@@ -4,6 +4,7 @@ mod index;
 mod projection;
 pub(crate) use closure::{AuthorizedClosure, Session, load};
 pub(crate) use index::insert;
+pub(crate) use index::key;
 pub(crate) use projection::project;
 
 /// Distinguish a hidden root from an authorized root with a hidden dependency.

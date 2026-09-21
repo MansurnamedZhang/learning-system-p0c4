@@ -84,3 +84,71 @@ pub struct PublicationState {
     pub published: Option<CompositionRef>,
     pub publication_token: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "RawPublishEvidence")]
+pub struct PublishEvidence {
+    pub request_id: Uuid,
+    pub roots: Vec<PublishRoot>,
+    pub readings: Vec<crate::ReadingRef>,
+    pub reason: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawPublishEvidence {
+    request_id: Uuid,
+    roots: Vec<PublishRoot>,
+    readings: Vec<crate::ReadingRef>,
+    reason: String,
+}
+impl TryFrom<RawPublishEvidence> for PublishEvidence {
+    type Error = ContentError;
+    fn try_from(r: RawPublishEvidence) -> Result<Self, Self::Error> {
+        let command = Self {
+            request_id: r.request_id,
+            roots: r.roots,
+            readings: r.readings,
+            reason: r.reason,
+        };
+        command.validate()?;
+        Ok(command)
+    }
+}
+impl PublishEvidence {
+    pub fn validate(&self) -> Result<(), ContentError> {
+        if self.reason.trim().is_empty() {
+            return invalid("assembly_reason");
+        }
+        PublishCommand {
+            request_id: self.request_id,
+            roots: self.roots.clone(),
+            reason: self.reason.clone(),
+        }
+        .validate()?;
+        if self.readings.len() > 16 {
+            return invalid("release_readings_limit");
+        }
+        let mut seen = HashSet::new();
+        if self.readings.iter().any(|r| !seen.insert(r.view_id)) {
+            return invalid("duplicate_release_reading");
+        }
+        Ok(())
+    }
+    pub fn digest(&self, space: Uuid) -> String {
+        let mut command = self.clone();
+        command.roots.sort_by_key(|r| r.composition_id);
+        command.readings.sort();
+        hex_digest(canonical_json(&json!({"domain":"release-request-v2","operation":"release_publish_evidence","space_id":space,"command":command})).as_bytes())
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvidenceRelease {
+    pub release_id: Uuid,
+    pub space_id: Uuid,
+    pub roots: Vec<CompositionRef>,
+    pub author_id: Uuid,
+    pub reason: String,
+    pub created_at: DateTime<Utc>,
+    pub readings: Vec<crate::ReadingRef>,
+    pub manifest_sha256: String,
+}

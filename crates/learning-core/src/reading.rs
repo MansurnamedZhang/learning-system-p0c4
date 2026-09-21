@@ -1,7 +1,7 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReadingRef {
     pub view_id: Uuid,
@@ -98,7 +98,16 @@ pub type VersionedPersonalItem = PersonalItemData<ContentRevision>;
 pub type ReadingItem = ReadingItemData<Revision>;
 pub type VersionedReadingItem = ReadingItemData<ContentRevision>;
 pub type ReadingProjection = ReadingProjectionData<Revision>;
-pub type VersionedReadingProjection = ReadingProjectionData<ContentRevision>;
+#[derive(Debug, Clone, Serialize)]
+pub struct VersionedReadingProjection {
+    pub contract_version: u32,
+    pub overlay: OverlayRef,
+    pub view: ReadingRef,
+    pub source: SourceProjection,
+    pub items: Vec<VersionedReadingItem>,
+    pub unplaced: Vec<VersionedPersonalItem>,
+    pub evidence: ReadingEvidence,
+}
 impl TryFrom<VersionedPersonalItem> for PersonalItem {
     type Error = ContentError;
     fn try_from(p: VersionedPersonalItem) -> Result<Self, Self::Error> {
@@ -112,6 +121,9 @@ impl TryFrom<VersionedPersonalItem> for PersonalItem {
 impl TryFrom<VersionedReadingProjection> for ReadingProjection {
     type Error = ContentError;
     fn try_from(p: VersionedReadingProjection) -> Result<Self, Self::Error> {
+        if p.contract_version != 1 {
+            return Err(ContentError::Invalid("unsupported_content_version".into()));
+        }
         let items = p
             .items
             .into_iter()
