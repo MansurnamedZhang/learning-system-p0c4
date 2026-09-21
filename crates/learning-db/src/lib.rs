@@ -1,6 +1,8 @@
 //! PostgreSQL persistence for the trusted application boundary.
 mod authorization;
 mod block_write;
+mod lineage;
+pub use lineage::LineageStore;
 mod composition;
 mod overlay;
 mod placement_migration;

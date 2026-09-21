@@ -6,6 +6,8 @@ mod digest;
 mod epistemic;
 mod error;
 mod identity;
+mod lineage;
+pub use lineage::*;
 mod overlay;
 mod reading;
 mod reading_selection;
