@@ -75,20 +75,29 @@ pub(crate) async fn lock_access(
     tx: &mut Tx<'_>,
     actor: Principal,
     p: &Proposal,
+    result: Option<&Layer>,
 ) -> Result<(Access, VersionedCompositionSnapshot), ContentError> {
-    let mut access = model::access(tx, actor, &p.layer).await?;
-    let (spaces, target) = model::snapshot(tx, actor, &p.target).await?;
-    if !access.complete(&p.layer) || target.is_none() {
-        return Err(ContentError::NotFound);
-    }
-    access.spaces.extend(spaces);
-    access.spaces.push((p.layer.space, true));
+    let (access, _) = access_for_write(tx, actor, p, result).await?;
     authorization::lock_grants(tx, actor, &access.spaces).await?;
-    let access = model::access(tx, actor, &p.layer).await?;
-    let (_, target) = model::snapshot(tx, actor, &p.target).await?;
-    if !access.complete(&p.layer) {
-        return Err(ContentError::NotFound);
+    let (checked, target) = access_for_write(tx, actor, p, result).await?;
+    model::require_locked_spaces(&access.spaces, &checked.spaces)?;
+    Ok((checked, target))
+}
+async fn access_for_write(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    p: &Proposal,
+    result: Option<&Layer>,
+) -> Result<(Access, VersionedCompositionSnapshot), ContentError> {
+    let mut session = crate::references::Session::default();
+    let mut access = model::authorize_view(tx, actor, &p.layer, &mut session).await?;
+    let (spaces, target) = model::snapshot_with_session(tx, actor, &p.target, &mut session).await?;
+    access.spaces.extend(spaces);
+    if let Some(result) = result {
+        let saved = model::authorize_view(tx, actor, result, &mut session).await?;
+        access.spaces.extend(saved.spaces);
     }
+    access.spaces.push((p.layer.space, true));
     Ok((access, target.ok_or(ContentError::NotFound)?))
 }
 pub(crate) async fn project(

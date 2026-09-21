@@ -28,7 +28,30 @@ impl MigrationStore {
         if p.layer.id != id {
             return Err(ContentError::NotFound);
         }
-        model::lock_access(&mut tx, actor, &p).await?;
+        // Discover the receipt's precise result before acquiring any grants:
+        // neither its carried choices nor its spaces may be added after locks.
+        let receipt=sqlx::query("SELECT d.* FROM migration_receipt r JOIN placement_migration_decision d ON d.id=r.decision_id WHERE r.actor_id=$1 AND r.request_id=$2").bind(actor.actor_id).bind(command.request_id).fetch_optional(&mut *tx).await.map_err(storage)?;
+        let replay_layer = if let Some(row) =
+            receipt.as_ref().filter(|r| r.get::<bool, _>("adopted"))
+        {
+            let layer = overlay::load_view(
+                &mut tx,
+                actor,
+                ReadingRef {
+                    view_id: p.layer.view.view_id,
+                    revision_id: row.get("result_view_revision_id"),
+                },
+            )
+            .await?;
+            if layer.id != id || layer.revision != row.get::<Uuid, _>("result_overlay_revision_id")
+            {
+                return Err(ContentError::NotFound);
+            }
+            Some(layer)
+        } else {
+            None
+        };
+        model::lock_access(&mut tx, actor, &p, replay_layer.as_ref()).await?;
         if request::check(
             &mut tx,
             actor,
@@ -38,33 +61,15 @@ impl MigrationStore {
         )
         .await?
         {
-            let row=sqlx::query("SELECT d.* FROM migration_receipt r JOIN placement_migration_decision d ON d.id=r.decision_id WHERE r.actor_id=$1 AND r.request_id=$2").bind(actor.actor_id).bind(command.request_id).fetch_one(&mut *tx).await.map_err(storage)?;
-            let adopted = if row.get("adopted") {
-                let mut layer = overlay::load(
-                    &mut tx,
-                    actor,
-                    id,
-                    Some(row.get("result_overlay_revision_id")),
-                )
-                .await?;
-                layer.view.revision_id = row.get("result_view_revision_id");
-                if !overlay::access(&mut tx, actor, &layer)
-                    .await?
-                    .complete(&layer)
-                {
-                    return Err(ContentError::NotFound);
-                }
-                Some(ReadingSaved {
-                    overlay: OverlayRef {
-                        overlay_id: id,
-                        revision_id: layer.revision,
-                    },
-                    view: layer.view,
-                    changed_blocks: vec![],
-                })
-            } else {
-                None
-            };
+            let row = receipt.ok_or(ContentError::Storage)?;
+            let adopted = replay_layer.map(|layer| ReadingSaved {
+                overlay: OverlayRef {
+                    overlay_id: id,
+                    revision_id: layer.revision,
+                },
+                view: layer.view,
+                changed_blocks: vec![],
+            });
             let result = MigrationDecided {
                 proposal_id: p.id,
                 decision_id: row.get("id"),

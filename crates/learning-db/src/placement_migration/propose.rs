@@ -44,7 +44,7 @@ impl MigrationStore {
         .flatten()
         {
             let p = model::load(&mut tx, actor, prior).await?;
-            model::lock_access(&mut tx, actor, &p).await?;
+            model::lock_access(&mut tx, actor, &p, None).await?;
             request::check(
                 &mut tx,
                 actor,
@@ -69,7 +69,7 @@ impl MigrationStore {
             target: command.target,
             groups: vec![],
         };
-        let (access, target) = model::lock_access(&mut tx, actor, &p).await?;
+        let (access, target) = model::lock_access(&mut tx, actor, &p, None).await?;
         if request::check(
             &mut tx,
             actor,

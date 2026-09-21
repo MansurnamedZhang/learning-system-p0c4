@@ -116,7 +116,7 @@ pub(crate) async fn snapshot(
 ) -> Result<(Vec<(Uuid, bool)>, Option<VersionedCompositionSnapshot>), ContentError> {
     snapshot_with_session(tx, actor, r, &mut references::Session::default()).await
 }
-async fn snapshot_with_session(
+pub(crate) async fn snapshot_with_session(
     tx: &mut Tx<'_>,
     actor: Principal,
     r: &CompositionRef,
@@ -132,27 +132,7 @@ async fn snapshot_with_session(
         Err(e) => Err(e),
     }
 }
-pub(crate) async fn blocks(
-    tx: &mut Tx<'_>,
-    actor: Principal,
-    refs: impl IntoIterator<Item = BlockRef>,
-) -> Result<BTreeMap<BlockRef, (Uuid, ContentRevision)>, ContentError> {
-    Ok(blocks_with_spaces(tx, actor, refs).await?.0)
-}
-pub(crate) async fn blocks_with_spaces(
-    tx: &mut Tx<'_>,
-    actor: Principal,
-    refs: impl IntoIterator<Item = BlockRef>,
-) -> Result<
-    (
-        BTreeMap<BlockRef, (Uuid, ContentRevision)>,
-        Vec<(Uuid, bool)>,
-    ),
-    ContentError,
-> {
-    blocks_with_session(tx, actor, refs, &mut references::Session::default()).await
-}
-async fn blocks_with_session(
+pub(crate) async fn blocks_with_session(
     tx: &mut Tx<'_>,
     actor: Principal,
     refs: impl IntoIterator<Item = BlockRef>,
@@ -235,6 +215,36 @@ pub(crate) async fn access_with_session(
         spaces,
     })
 }
+/// Full immutable view authorization for writes/replays. Display projections
+/// intentionally retain their separate omission behavior in access_with_session.
+pub(crate) async fn authorize_view(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    layer: &Layer,
+    session: &mut references::Session,
+) -> Result<Access, ContentError> {
+    let mut access = access_with_session(tx, actor, layer, session).await?;
+    if !access.complete(layer) {
+        return Err(ContentError::NotFound);
+    }
+    let (_, choices) = crate::reading::selection::choices(tx, &layer.view).await?;
+    crate::reading::selection::authorize(tx, actor, layer.id, &choices, session).await?;
+    access.spaces.extend(session.spaces());
+    Ok(access)
+}
+pub(crate) fn require_locked_spaces(
+    locked: &[(Uuid, bool)],
+    required: &[(Uuid, bool)],
+) -> Result<(), ContentError> {
+    if required.iter().any(|(space, write)| {
+        !locked
+            .iter()
+            .any(|(held, can_write)| held == space && (!write || *can_write))
+    }) {
+        return Err(ContentError::NotFound);
+    }
+    Ok(())
+}
 pub(crate) async fn lock_heads(
     tx: &mut Tx<'_>,
     actor: Principal,
@@ -268,14 +278,7 @@ pub(crate) async fn lock_heads(
         )
         .await?;
         let mut session = references::Session::default();
-        if !access_with_session(tx, actor, &current_layer, &mut session)
-            .await?
-            .complete(&current_layer)
-        {
-            return Err(ContentError::NotFound);
-        }
-        let (_, choices) = crate::reading::selection::choices(tx, &current_layer.view).await?;
-        crate::reading::selection::authorize(tx, actor, layer.id, &choices, &mut session).await?;
+        authorize_view(tx, actor, &current_layer, &mut session).await?;
         return Err(ContentError::ReadingConflict {
             current_overlay_revision: current,
             current_reading_view_revision: view,

@@ -135,7 +135,8 @@ impl ReadingStore {
             tx.commit().await.map_err(storage)?;
             return Ok(saved);
         }
-        let mut access = model::access(&mut tx, actor, &layer).await?;
+        let mut session = crate::references::Session::default();
+        let mut access = model::authorize_view(&mut tx, actor, &layer, &mut session).await?;
         if !access.complete(&layer) {
             return Err(ContentError::NotFound);
         }
@@ -153,7 +154,7 @@ impl ReadingStore {
             _ => vec![],
         };
         let (extra_blocks, extra_spaces) =
-            model::blocks_with_spaces(&mut tx, actor, extra.clone()).await?;
+            model::blocks_with_session(&mut tx, actor, extra.clone(), &mut session).await?;
         if extra_blocks.len() != extra.len() {
             return Err(ContentError::NotFound);
         }
@@ -165,10 +166,14 @@ impl ReadingStore {
             )
         }));
         authorization::lock_grants(&mut tx, actor, &access.spaces).await?;
-        access = model::access(&mut tx, actor, &layer).await?;
-        if !access.complete(&layer)
-            || model::blocks(&mut tx, actor, extra).await?.len() != extra_blocks.len()
-        {
+        let locked_spaces = access.spaces.clone();
+        let mut session = crate::references::Session::default();
+        access = model::authorize_view(&mut tx, actor, &layer, &mut session).await?;
+        let (rechecked, extra_spaces) =
+            model::blocks_with_session(&mut tx, actor, extra, &mut session).await?;
+        access.spaces.extend(extra_spaces);
+        model::require_locked_spaces(&locked_spaces, &access.spaces)?;
+        if !access.complete(&layer) || rechecked.len() != extra_blocks.len() {
             return Err(ContentError::NotFound);
         }
         model::lock_heads(
@@ -350,12 +355,13 @@ async fn replay(
         return Ok(None);
     };
     let layer = model::load_view(tx, actor, saved.view.clone()).await?;
-    let mut access = model::access(tx, actor, &layer).await?;
+    let mut session = crate::references::Session::default();
+    let mut access = model::authorize_view(tx, actor, &layer, &mut session).await?;
     if !access.complete(&layer) {
         return Err(ContentError::NotFound);
     }
     let (blocks, block_spaces) =
-        model::blocks_with_spaces(tx, actor, saved.changed_blocks.clone()).await?;
+        model::blocks_with_session(tx, actor, saved.changed_blocks.clone(), &mut session).await?;
     if blocks.len() != saved.changed_blocks.len() {
         return Err(ContentError::NotFound);
     }
@@ -365,12 +371,13 @@ async fn replay(
         .spaces
         .extend(blocks.values().map(|(s, _)| (*s, false)));
     authorization::lock_grants(tx, actor, &access.spaces).await?;
-    if !model::access(tx, actor, &layer).await?.complete(&layer)
-        || model::blocks(tx, actor, saved.changed_blocks.clone())
-            .await?
-            .len()
-            != blocks.len()
-    {
+    let mut session = crate::references::Session::default();
+    let mut checked = model::authorize_view(tx, actor, &layer, &mut session).await?;
+    let (rechecked, extra_spaces) =
+        model::blocks_with_session(tx, actor, saved.changed_blocks.clone(), &mut session).await?;
+    checked.spaces.extend(extra_spaces);
+    model::require_locked_spaces(&access.spaces, &checked.spaces)?;
+    if !checked.complete(&layer) || rechecked.len() != blocks.len() {
         return Err(ContentError::NotFound);
     }
     request::check(tx, actor, request_id, digest, operation).await?;

@@ -141,6 +141,18 @@ BEGIN
    OR EXISTS(SELECT 1 FROM public.release_manifest_object WHERE release_id=released)
    OR EXISTS(SELECT 1 FROM public.release_manifest_composition WHERE release_id=released)
    THEN RAISE EXCEPTION 'v1 release has evidence' USING ERRCODE='23514'; END IF;
+  IF EXISTS(
+   WITH RECURSIVE compositions(composition_id,revision_id) AS (
+    SELECT composition_id,revision_id FROM public.release_root WHERE release_id=released
+    UNION SELECT o.child_composition_id,o.child_revision_id FROM compositions c
+     JOIN public.composition_occurrence o ON o.composition_id=c.composition_id AND o.composition_revision_id=c.revision_id
+     WHERE o.child_composition_id IS NOT NULL
+   )
+   SELECT 1 FROM compositions c
+    JOIN public.composition_occurrence o ON o.composition_id=c.composition_id AND o.composition_revision_id=c.revision_id
+    JOIN public.block_revision b ON b.block_id=o.block_id AND b.id=o.block_revision_id
+    WHERE b.contract_version<>1
+  ) THEN RAISE EXCEPTION 'v2 content requires an evidence release' USING ERRCODE='23514'; END IF;
  ELSE
   SELECT count(*) INTO n FROM public.release_root WHERE release_id=released;
   IF n NOT BETWEEN 1 AND 16 OR (SELECT count(*) FROM public.release_reading WHERE release_id=released)>16
