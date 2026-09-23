@@ -1,6 +1,6 @@
 mod support;
 
-use learning_assets::{FsAssetStore, VerifiedBlob};
+use learning_assets::{FsAssetStore, UploadDeclaration, VerifiedBlob};
 use learning_core::*;
 use learning_db::{AssetMedia, AssetStore, LineageStore, ReviewStore, VersionedContentStore};
 use std::{fs, path::PathBuf};
@@ -25,7 +25,16 @@ impl Files {
     fn finalized(&self, bytes: &[u8]) -> VerifiedBlob {
         let source = self.root.join(format!("source-{}", Uuid::new_v4()));
         fs::write(&source, bytes).unwrap();
-        self.store.put_from_file(Uuid::new_v4(), &source).unwrap()
+        self.store
+            .put_from_file(
+                Uuid::new_v4(),
+                &source,
+                UploadDeclaration {
+                    expected_size_bytes: bytes.len() as u64,
+                    max_size_bytes: 1_000_000,
+                },
+            )
+            .unwrap()
     }
 }
 

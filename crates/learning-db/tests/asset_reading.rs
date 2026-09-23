@@ -1,6 +1,6 @@
 mod support;
 
-use learning_assets::FsAssetStore;
+use learning_assets::{FsAssetStore, UploadDeclaration};
 use learning_core::*;
 use learning_db::{AssetMedia, AssetStore, ResourceInput, VersionedContentStore};
 use std::{fs, io::Read, path::PathBuf};
@@ -25,7 +25,16 @@ impl Files {
     fn finalized(&self, bytes: &[u8]) -> learning_assets::VerifiedBlob {
         let source = self.root.join(format!("source-{}", Uuid::new_v4()));
         fs::write(&source, bytes).unwrap();
-        self.store.put_from_file(Uuid::new_v4(), &source).unwrap()
+        self.store
+            .put_from_file(
+                Uuid::new_v4(),
+                &source,
+                UploadDeclaration {
+                    expected_size_bytes: bytes.len() as u64,
+                    max_size_bytes: 1_000_000,
+                },
+            )
+            .unwrap()
     }
 }
 
@@ -102,7 +111,14 @@ async fn exact_block_and_resource_version_reads_hide_absent_and_revoked_uses() {
     let (outsider, _) = rig.seed_actor_space(true).await;
     let store = AssetStore::new(rig.runtime_pool.clone(), files.store.clone());
     let old_asset = ready(&rig, &files, owner, space, PNG).await;
-    let new_asset = ready(&rig, &files, owner, space, b"second original").await;
+    let new_asset = ready(
+        &rig,
+        &files,
+        owner,
+        space,
+        &[137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0, 73, 69, 78, 69],
+    )
+    .await;
     let block = figure(&rig, owner, space, old_asset.reference.clone()).await;
     let new_block_revision = VersionedContentStore::new(rig.runtime_pool.clone())
         .revise(

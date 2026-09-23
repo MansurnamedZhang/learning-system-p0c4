@@ -21,6 +21,12 @@ pub enum AssetIoError {
     Corrupt(String),
     #[error("asset byte count overflow")]
     SizeOverflow,
+    #[error("declared upload size exceeds the trusted upload limit")]
+    InvalidDeclaration,
+    #[error("upload exceeds its declared size or trusted limit")]
+    UploadLimitExceeded,
+    #[error("upload byte count differs from its declaration")]
+    DeclaredSizeMismatch,
     #[error("invalid asset metadata or reconciliation protection key")]
     InvalidMetadata,
     #[error(transparent)]
@@ -34,6 +40,15 @@ pub struct VerifiedBlob {
     storage_key: String,
     sha256: String,
     size_bytes: u64,
+}
+
+/// The trusted service supplies `max_size_bytes` from its upload policy, not
+/// from the untrusted request. `expected_size_bytes` is the declared byte
+/// count and must be confirmed while streaming before publication.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UploadDeclaration {
+    pub expected_size_bytes: u64,
+    pub max_size_bytes: u64,
 }
 
 /// A possible orphan reported by a read-only scan. `path` is a logical key,
@@ -86,6 +101,7 @@ impl FsAssetStore {
         &self,
         upload_id: Uuid,
         source: &Path,
+        declaration: UploadDeclaration,
     ) -> Result<VerifiedBlob, AssetIoError> {
         // A source inside staging is an incomplete upload, not a trusted source.
         // This also rejects a symlink to the named staging path before any write.
@@ -96,14 +112,30 @@ impl FsAssetStore {
             return Err(AssetIoError::InvalidSource);
         }
         let mut input = File::open(source)?;
-        self.put_from_reader(upload_id, &mut input)
+        self.put_from_reader(upload_id, &mut input, declaration)
     }
 
     fn put_from_reader(
         &self,
         upload_id: Uuid,
         input: &mut impl Read,
+        declaration: UploadDeclaration,
     ) -> Result<VerifiedBlob, AssetIoError> {
+        self.put_from_reader_with_stage_hook(upload_id, input, declaration, |_| {})
+    }
+
+    // A private seam lets the unit test alter the named stage at the exact
+    // boundary between the two volume writes, without a timing race.
+    fn put_from_reader_with_stage_hook(
+        &self,
+        upload_id: Uuid,
+        input: &mut impl Read,
+        declaration: UploadDeclaration,
+        before_second_copy: impl FnOnce(&Path),
+    ) -> Result<VerifiedBlob, AssetIoError> {
+        if declaration.expected_size_bytes > declaration.max_size_bytes {
+            return Err(AssetIoError::InvalidDeclaration);
+        }
         let stage_path = self.staging_root.join(upload_id.to_string());
         // A unique incoming file avoids truncating the source even if it is a
         // hard-link alias of an interrupted named stage outside this directory.
@@ -114,7 +146,7 @@ impl FsAssetStore {
             .create_new(true)
             .write(true)
             .open(&incoming_path)?;
-        let (sha256, size_bytes) = copy_and_hash(input, &mut stage)?;
+        let (sha256, size_bytes) = copy_and_hash(input, &mut stage, declaration)?;
         stage.sync_all()?;
         sync_directory(&self.staging_root)?;
         drop(stage);
@@ -123,6 +155,7 @@ impl FsAssetStore {
         }
         fs::rename(&incoming_path, &stage_path)?;
         sync_directory(&self.staging_root)?;
+        before_second_copy(&stage_path);
 
         let storage_key = format!("sha256/{}/{}", &sha256[..2], sha256);
         let blob = VerifiedBlob {
@@ -150,7 +183,7 @@ impl FsAssetStore {
             .write(true)
             .open(&pending_path)?;
         let mut staged = File::open(&stage_path)?;
-        let (copied_sha256, copied_size) = copy_and_hash(&mut staged, &mut pending)?;
+        let (copied_sha256, copied_size) = copy_and_hash(&mut staged, &mut pending, declaration)?;
         drop(staged);
         pending.sync_all()?;
         drop(pending);
@@ -432,6 +465,7 @@ fn consider(
 fn copy_and_hash(
     source: &mut impl Read,
     destination: &mut impl Write,
+    declaration: UploadDeclaration,
 ) -> Result<(String, u64), AssetIoError> {
     let mut hasher = Sha256::new();
     let mut size_bytes = 0_u64;
@@ -441,11 +475,18 @@ fn copy_and_hash(
         if read == 0 {
             break;
         }
-        destination.write_all(&buffer[..read])?;
-        hasher.update(&buffer[..read]);
-        size_bytes = size_bytes
+        let next_size = size_bytes
             .checked_add(read as u64)
             .ok_or(AssetIoError::SizeOverflow)?;
+        if next_size > declaration.max_size_bytes || next_size > declaration.expected_size_bytes {
+            return Err(AssetIoError::UploadLimitExceeded);
+        }
+        destination.write_all(&buffer[..read])?;
+        hasher.update(&buffer[..read]);
+        size_bytes = next_size;
+    }
+    if size_bytes != declaration.expected_size_bytes {
+        return Err(AssetIoError::DeclaredSizeMismatch);
     }
     Ok((format!("{:x}", hasher.finalize()), size_bytes))
 }
@@ -545,7 +586,14 @@ mod tests {
 
         assert!(
             store
-                .put_from_reader(upload_id, &mut FailAfterFirstChunk(false))
+                .put_from_reader(
+                    upload_id,
+                    &mut FailAfterFirstChunk(false),
+                    UploadDeclaration {
+                        expected_size_bytes: 10,
+                        max_size_bytes: 10,
+                    },
+                )
                 .is_err()
         );
         let partials: Vec<_> = fs::read_dir(&staging)
@@ -561,5 +609,52 @@ mod tests {
         );
         assert_eq!(fs::read(partials[0].path()).unwrap(), b"start");
         assert!(!assets.join("sha256").exists());
+    }
+
+    #[test]
+    fn second_volume_copy_does_not_write_past_the_declared_limit() {
+        let root = TestRoot::new();
+        let assets = root.0.join("assets");
+        let staging = root.0.join("staging");
+        let store = FsAssetStore::new(assets.clone(), staging).unwrap();
+        let original = vec![b'a'; 100_000];
+        let digest = format!("{:x}", Sha256::digest(&original));
+        let mut input = io::Cursor::new(original);
+        let declaration = UploadDeclaration {
+            expected_size_bytes: 100_000,
+            max_size_bytes: 100_000,
+        };
+
+        let result = store.put_from_reader_with_stage_hook(
+            Uuid::new_v4(),
+            &mut input,
+            declaration,
+            |named_stage| {
+                let mut stage = OpenOptions::new().append(true).open(named_stage).unwrap();
+                stage.write_all(&vec![b'b'; 100_000]).unwrap();
+                stage.sync_all().unwrap();
+            },
+        );
+        assert!(
+            matches!(&result, Err(AssetIoError::UploadLimitExceeded)),
+            "the second copy must stop at the upload limit: {result:?}"
+        );
+        let pending: Vec<_> = fs::read_dir(assets.join(".finalizing"))
+            .unwrap()
+            .map(|entry| entry.unwrap())
+            .collect();
+        assert_eq!(pending.len(), 1, "failed copy stays reconcilable");
+        assert!(
+            pending[0].metadata().unwrap().len() <= declaration.max_size_bytes,
+            "the assets volume must never receive bytes beyond the upload limit"
+        );
+        assert!(
+            !assets
+                .join("sha256")
+                .join(&digest[..2])
+                .join(digest)
+                .exists(),
+            "a failed second copy must not publish a digest object"
+        );
     }
 }

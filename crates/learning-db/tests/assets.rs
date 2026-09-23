@@ -1,6 +1,6 @@
 mod support;
 
-use learning_assets::{FsAssetStore, VerifiedBlob};
+use learning_assets::{FsAssetStore, UploadDeclaration, VerifiedBlob};
 use learning_core::ContentError;
 use learning_db::{AssetMedia, AssetStore, ResourceInput};
 use serde_json::{Value, json};
@@ -28,7 +28,17 @@ impl Files {
     fn verified(&self, name: &str, bytes: &[u8]) -> VerifiedBlob {
         let source = self.root.join(name);
         fs::write(&source, bytes).unwrap();
-        let blob = self.store.put_from_file(Uuid::new_v4(), &source).unwrap();
+        let blob = self
+            .store
+            .put_from_file(
+                Uuid::new_v4(),
+                &source,
+                UploadDeclaration {
+                    expected_size_bytes: bytes.len() as u64,
+                    max_size_bytes: 1_000_000,
+                },
+            )
+            .unwrap();
         self.store.verify(&blob).unwrap();
         blob
     }
@@ -104,6 +114,96 @@ async fn verified_registration_replays_one_receipt_and_conflicts_on_different_by
         .await
         .unwrap();
     assert_eq!(counts, (1, 1));
+}
+
+#[tokio::test]
+async fn media_claim_must_match_original_bytes_without_weakening_request_conflicts() {
+    let rig = TestRig::from_env().await;
+    let files = Files::new();
+    let (actor, space) = rig.seed_actor_space(true).await;
+    let store = AssetStore::new(rig.runtime_pool.clone(), files.store.clone());
+
+    for (name, bytes, claimed_type) in [
+        ("png-as-pdf", PNG, "application/pdf"),
+        ("bad-pdf", b"plain text" as &[u8], "application/pdf"),
+        ("bad-png", b"not a PNG" as &[u8], "image/png"),
+        (
+            "bad-notebook",
+            br#"{"nbformat":4,"cells":{}}"# as &[u8],
+            "application/x-ipynb+json",
+        ),
+        ("unknown-type", PDF, "image/jpeg"),
+    ] {
+        let blob = files.verified(name, bytes);
+        let request_id = Uuid::new_v4();
+        assert!(matches!(
+            store
+                .register_verified(actor, space, request_id, blob, media(claimed_type, name))
+                .await,
+            Err(ContentError::Invalid(_))
+        ));
+        let counts: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM asset WHERE space_id=$1),(SELECT count(*) FROM upload_receipt WHERE actor_id=$2 AND request_id=$3)",
+        )
+        .bind(space)
+        .bind(actor.actor_id)
+        .bind(request_id)
+        .fetch_one(&rig.admin_pool)
+        .await
+        .unwrap();
+        assert_eq!(counts, (0, 0), "rejected media {name}");
+    }
+
+    // Opaque attachments may be registered only under the generic type.
+    let opaque = files.verified("opaque", b"arbitrary attachment bytes");
+    let generic = store
+        .register_verified(
+            actor,
+            space,
+            Uuid::new_v4(),
+            opaque,
+            media("application/octet-stream", "opaque"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(generic.media.media_type, "application/octet-stream");
+
+    let request_id = Uuid::new_v4();
+    let valid_png = files.verified("valid-png", PNG);
+    let first = store
+        .register_verified(
+            actor,
+            space,
+            request_id,
+            valid_png.clone(),
+            media("image/png", "valid.png"),
+        )
+        .await
+        .unwrap();
+    // A used request key has precedence over validating a different media
+    // claim: this is still the old idempotency conflict, never a new receipt.
+    assert!(matches!(
+        store
+            .register_verified(
+                actor,
+                space,
+                request_id,
+                valid_png,
+                media("application/pdf", "changed.pdf"),
+            )
+            .await,
+        Err(ContentError::IdempotencyConflict)
+    ));
+    let saved: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM upload_receipt WHERE actor_id=$1 AND request_id=$2 AND asset_id=$3",
+    )
+    .bind(actor.actor_id)
+    .bind(request_id)
+    .bind(first.reference.asset_id)
+    .fetch_one(&rig.admin_pool)
+    .await
+    .unwrap();
+    assert_eq!(saved, 1);
 }
 
 #[tokio::test]

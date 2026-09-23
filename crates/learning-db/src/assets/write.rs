@@ -1,11 +1,12 @@
 use super::{AssetMedia, AssetRecord, AssetStore, ResourceInput, SourceSegmentRef, read};
 use crate::{authorization, request, storage};
-use learning_assets::VerifiedBlob;
+use learning_assets::{FsAssetStore, VerifiedBlob};
 use learning_core::{
     AssetRef, ContentError, Principal, ResourceVersionRef, canonical_json, hex_digest,
 };
 use serde_json::{Value, json};
 use sqlx::{Postgres, Transaction};
+use std::io::{self, Read};
 use uuid::Uuid;
 
 fn validate_name(name: &str) -> Result<(), ContentError> {
@@ -30,6 +31,49 @@ fn validate_media(media: &AssetMedia) -> Result<(), ContentError> {
         || parts.next().is_some()
     {
         return Err(ContentError::Invalid("invalid_asset_media_type".into()));
+    }
+    Ok(())
+}
+
+fn has_prefix(file: &mut impl Read, expected: &[u8]) -> Result<bool, ContentError> {
+    let mut actual = vec![0_u8; expected.len()];
+    match file.read_exact(&mut actual) {
+        Ok(()) => Ok(actual == expected),
+        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
+        Err(error) => Err(storage(error)),
+    }
+}
+
+/// Bounded C1 signature/shape validation, not a complete document parser.
+/// The verified file is opened afresh so a claimed MIME cannot outrun bytes
+/// that were finalized before the PostgreSQL transaction.
+fn validate_media_bytes(
+    files: &FsAssetStore,
+    verified: &VerifiedBlob,
+    media_type: &str,
+) -> Result<(), ContentError> {
+    let mut original = files.open(verified).map_err(storage)?;
+    let valid = match media_type {
+        "application/pdf" => has_prefix(&mut original, b"%PDF-")?,
+        "image/png" => has_prefix(&mut original, &[137, 80, 78, 71, 13, 10, 26, 10])?,
+        "application/x-ipynb+json" => serde_json::from_reader::<_, Value>(original)
+            .ok()
+            .and_then(|value| {
+                let object = value.as_object()?;
+                Some(
+                    object.get("cells").is_some_and(Value::is_array)
+                        && object
+                            .get("nbformat")
+                            .and_then(Value::as_u64)
+                            .is_some_and(|version| version > 0),
+                )
+            })
+            .unwrap_or(false),
+        "application/octet-stream" => true,
+        _ => return Err(ContentError::Invalid("unsupported_asset_media_type".into())),
+    };
+    if !valid {
+        return Err(ContentError::Invalid("asset_media_bytes_mismatch".into()));
     }
     Ok(())
 }
@@ -76,6 +120,7 @@ impl AssetStore {
             tx.commit().await.map_err(storage)?;
             return Ok(old);
         }
+        validate_media_bytes(&self.files, &verified, &media.media_type)?;
         let id = Uuid::new_v4();
         sqlx::query("INSERT INTO public.asset(space_id,id,sha256,byte_size,storage_key,media_type,original_file_name,status) VALUES($1,$2,$3,$4,$5,$6,$7,'ready')")
             .bind(space)
