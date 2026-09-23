@@ -1,5 +1,11 @@
 use learning_assets::FsAssetStore;
-use std::{fs, io::Read, path::PathBuf};
+use std::{
+    collections::HashSet,
+    fs,
+    io::Read,
+    path::PathBuf,
+    time::{Duration, SystemTime},
+};
 use uuid::Uuid;
 
 const PDF: &[u8] = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n";
@@ -169,4 +175,171 @@ fn failure_to_copy_into_assets_never_returns_a_blob() {
         fs::read(dirs.assets().join("sha256")).unwrap(),
         b"blocks target directory"
     );
+}
+
+fn make_old(path: &std::path::Path) {
+    let old = SystemTime::now() - Duration::from_secs(7200);
+    fs::File::open(path)
+        .unwrap()
+        .set_times(fs::FileTimes::new().set_modified(old))
+        .unwrap();
+}
+
+#[test]
+fn dry_run_reconcile_only_reports_old_unprotected_digest_and_interrupted_files() {
+    let dirs = TestDirs::new();
+    let store = dirs.store();
+    let referenced = store
+        .put_from_file(Uuid::new_v4(), &dirs.source("referenced.pdf", PDF))
+        .unwrap();
+    let backup = store
+        .put_from_file(Uuid::new_v4(), &dirs.source("backup.png", PNG))
+        .unwrap();
+    let orphan = store
+        .put_from_file(Uuid::new_v4(), &dirs.source("orphan.ipynb", NOTEBOOK))
+        .unwrap();
+    let young = store
+        .put_from_file(Uuid::new_v4(), &dirs.source("young.bin", b"young bytes"))
+        .unwrap();
+    for blob in [&referenced, &backup, &orphan] {
+        make_old(&dirs.assets().join(blob.storage_key()));
+    }
+    fs::create_dir_all(dirs.assets().join(".finalizing")).unwrap();
+    let upload = Uuid::new_v4();
+    let active_stage = format!("staging/{upload}.incoming-{}", Uuid::new_v4());
+    let abandoned_stage = format!("staging/{}.incoming-{}", Uuid::new_v4(), Uuid::new_v4());
+    let abandoned_named_stage = format!("staging/{}", Uuid::new_v4());
+    let active_pending = format!(".finalizing/{upload}.pending-{}", Uuid::new_v4());
+    let abandoned_pending = format!(".finalizing/{}.pending-{}", Uuid::new_v4(), Uuid::new_v4());
+    for name in [&active_stage, &abandoned_stage, &abandoned_named_stage] {
+        let path = dirs.root.join(name);
+        fs::write(&path, b"unfinished stage").unwrap();
+        make_old(&path);
+    }
+    for name in [&active_pending, &abandoned_pending] {
+        let path = dirs.assets().join(name);
+        fs::write(&path, b"unfinished copy").unwrap();
+        make_old(&path);
+    }
+    let protected: HashSet<String> = [
+        referenced.storage_key().to_owned(),
+        backup.storage_key().to_owned(),
+        upload.to_string(),
+    ]
+    .into();
+    let cutoff = SystemTime::now() - Duration::from_secs(3600);
+    let while_upload_active = store.reconcile(&protected, cutoff).unwrap();
+    let active_candidates: HashSet<String> = while_upload_active
+        .candidates
+        .into_iter()
+        .map(|candidate| candidate.path)
+        .collect();
+    assert_eq!(
+        active_candidates,
+        [
+            abandoned_stage.clone(),
+            abandoned_named_stage.clone(),
+            abandoned_pending.clone(),
+        ]
+        .into(),
+        "an old finalized digest may still belong to an active upload"
+    );
+    // Exact staging/pending keys also signal an active upload. They must not
+    // allow a finalized digest of unknown upload origin to be proposed.
+    for active_key in [&active_stage, &active_pending] {
+        let exact_protected: HashSet<String> = [
+            referenced.storage_key().to_owned(),
+            backup.storage_key().to_owned(),
+            (*active_key).clone(),
+        ]
+        .into();
+        let exact_report = store.reconcile(&exact_protected, cutoff).unwrap();
+        let exact_candidates: HashSet<String> = exact_report
+            .candidates
+            .into_iter()
+            .map(|candidate| candidate.path)
+            .collect();
+        assert_eq!(exact_candidates, active_candidates);
+    }
+    // The upload has finished: its incomplete files are gone. An idle run can
+    // now report the old orphan digest while referenced/backup keys stay safe.
+    fs::remove_file(dirs.root.join(&active_stage)).unwrap();
+    fs::remove_file(dirs.assets().join(&active_pending)).unwrap();
+    let idle_protected: HashSet<String> = [
+        referenced.storage_key().to_owned(),
+        backup.storage_key().to_owned(),
+    ]
+    .into();
+    let report = store.reconcile(&idle_protected, cutoff).unwrap();
+    let candidates: HashSet<String> = report
+        .candidates
+        .into_iter()
+        .map(|candidate| candidate.path)
+        .collect();
+    assert_eq!(
+        candidates,
+        [
+            orphan.storage_key().to_owned(),
+            abandoned_stage.clone(),
+            abandoned_named_stage.clone(),
+            abandoned_pending.clone(),
+        ]
+        .into()
+    );
+    assert!(!candidates.contains(young.storage_key()));
+    // A dry run has no deletion side effect, even for reported candidates.
+    assert!(dirs.assets().join(orphan.storage_key()).exists());
+    assert!(dirs.root.join(abandoned_stage).exists());
+    assert!(dirs.root.join(abandoned_named_stage).exists());
+    assert!(dirs.assets().join(abandoned_pending).exists());
+    assert!(dirs.assets().join(referenced.storage_key()).exists());
+    assert!(dirs.assets().join(backup.storage_key()).exists());
+    assert!(!dirs.root.join(active_stage).exists());
+    assert!(!dirs.assets().join(active_pending).exists());
+}
+
+#[test]
+fn reconcile_rejects_an_untrusted_protection_key_instead_of_traversing_outside_roots() {
+    let dirs = TestDirs::new();
+    let store = dirs.store();
+    let protected: HashSet<String> = ["../outside".to_owned()].into();
+    assert!(store.reconcile(&protected, SystemTime::now()).is_err());
+}
+
+#[test]
+fn reconcile_fails_closed_if_a_required_volume_root_disappears() {
+    let dirs = TestDirs::new();
+    let store = dirs.store();
+    let protected = HashSet::new();
+    fs::remove_dir(dirs.staging()).unwrap();
+    assert!(store.reconcile(&protected, SystemTime::now()).is_err());
+    fs::create_dir(dirs.staging()).unwrap();
+    fs::remove_dir(dirs.assets()).unwrap();
+    assert!(store.reconcile(&protected, SystemTime::now()).is_err());
+}
+
+#[test]
+fn registered_byte_open_rejects_forged_keys_and_rehashes_the_original() {
+    let dirs = TestDirs::new();
+    let store = dirs.store();
+    let blob = store
+        .put_from_file(Uuid::new_v4(), &dirs.source("handout.pdf", PDF))
+        .unwrap();
+    assert!(
+        store
+            .open_record("../outside", blob.sha256(), PDF.len() as i64)
+            .is_err()
+    );
+    assert!(
+        store
+            .open_record(blob.storage_key(), "0", PDF.len() as i64)
+            .is_err()
+    );
+    let mut opened = Vec::new();
+    store
+        .open_record(blob.storage_key(), blob.sha256(), PDF.len() as i64)
+        .unwrap()
+        .read_to_end(&mut opened)
+        .unwrap();
+    assert_eq!(opened, PDF);
 }

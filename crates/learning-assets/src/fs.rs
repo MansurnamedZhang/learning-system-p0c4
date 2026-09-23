@@ -1,8 +1,10 @@
 use sha2::{Digest, Sha256};
 use std::{
+    collections::HashSet,
     fs::{self, File, OpenOptions},
     io::{self, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -19,6 +21,8 @@ pub enum AssetIoError {
     Corrupt(String),
     #[error("asset byte count overflow")]
     SizeOverflow,
+    #[error("invalid asset metadata or reconciliation protection key")]
+    InvalidMetadata,
     #[error(transparent)]
     Io(#[from] io::Error),
 }
@@ -30,6 +34,20 @@ pub struct VerifiedBlob {
     storage_key: String,
     sha256: String,
     size_bytes: u64,
+}
+
+/// A possible orphan reported by a read-only scan. `path` is a logical key,
+/// never a caller-supplied filesystem path. Reporting does not authorize deletion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReconcileCandidate {
+    pub path: String,
+    pub modified_at: SystemTime,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReconcileReport {
+    pub candidates: Vec<ReconcileCandidate>,
 }
 
 impl VerifiedBlob {
@@ -171,7 +189,138 @@ impl FsAssetStore {
         Ok(file)
     }
 
+    /// Trusted storage-adapter entry point for database metadata. Application
+    /// access must go through `AssetStore::open_for_use`, which checks the exact
+    /// current use before calling this method. Reconstruct the private token
+    /// only from a canonical digest key and rehash the opened file.
+    pub fn open_record(
+        &self,
+        storage_key: &str,
+        sha256: &str,
+        byte_size: i64,
+    ) -> Result<File, AssetIoError> {
+        if sha256.len() != 64
+            || !sha256
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            || storage_key != format!("sha256/{}/{}", &sha256[..2], sha256)
+        {
+            return Err(AssetIoError::InvalidMetadata);
+        }
+        let size_bytes = u64::try_from(byte_size).map_err(|_| AssetIoError::InvalidMetadata)?;
+        self.open(&VerifiedBlob {
+            storage_key: storage_key.into(),
+            sha256: sha256.into(),
+            size_bytes,
+        })
+    }
+
+    /// Dry-run only. `protected` must contain every referenced/backup digest
+    /// key and every active upload UUID (or exact staging/pending key). While
+    /// any upload is active, all digest candidates are withheld: the digest
+    /// path no longer identifies its upload after finalization. This deliberate
+    /// false negative avoids proposing active bytes. No file is deleted, and
+    /// unfamiliar names are not proposed for deletion.
+    pub fn reconcile(
+        &self,
+        protected: &HashSet<String>,
+        older_than: SystemTime,
+    ) -> Result<ReconcileReport, AssetIoError> {
+        if !protected.iter().all(|key| valid_protection_key(key)) {
+            return Err(AssetIoError::InvalidMetadata);
+        }
+        require_real_directory(&self.assets_root)?;
+        require_real_directory(&self.staging_root)?;
+        let active_uploads: HashSet<Uuid> = protected
+            .iter()
+            .filter_map(|key| protected_upload_id(key))
+            .collect();
+        let mut candidates = Vec::new();
+        if active_uploads.is_empty() {
+            let digest_root = self.assets_root.join("sha256");
+            for prefix_dir in read_real_directory(&digest_root)? {
+                let name = prefix_dir.file_name();
+                let Some(prefix) = name.to_str() else {
+                    continue;
+                };
+                if prefix.len() != 2
+                    || !prefix
+                        .bytes()
+                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+                {
+                    continue;
+                }
+                if !prefix_dir.file_type()?.is_dir() {
+                    continue;
+                }
+                for entry in read_real_directory(&prefix_dir.path())? {
+                    let Some(digest) = entry.file_name().to_str().map(str::to_owned) else {
+                        continue;
+                    };
+                    let key = format!("sha256/{prefix}/{digest}");
+                    if valid_digest_key(&key) {
+                        consider(
+                            &entry,
+                            key,
+                            None,
+                            protected,
+                            &active_uploads,
+                            older_than,
+                            &mut candidates,
+                        )?;
+                    }
+                }
+            }
+        }
+        for entry in read_real_directory(&self.staging_root)? {
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if let Some(upload) = stage_upload_id(&name) {
+                consider(
+                    &entry,
+                    format!("staging/{name}"),
+                    Some(upload),
+                    protected,
+                    &active_uploads,
+                    older_than,
+                    &mut candidates,
+                )?;
+            }
+        }
+        for entry in read_real_directory(&self.assets_root.join(".finalizing"))? {
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if let Some(upload) = pending_upload_id(&name) {
+                consider(
+                    &entry,
+                    format!(".finalizing/{name}"),
+                    Some(upload),
+                    protected,
+                    &active_uploads,
+                    older_than,
+                    &mut candidates,
+                )?;
+            }
+        }
+        candidates.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(ReconcileReport { candidates })
+    }
+
     fn open_checked(&self, blob: &VerifiedBlob) -> Result<File, AssetIoError> {
+        let digest_root = self.assets_root.join("sha256");
+        let prefix_root = digest_root.join(&blob.sha256[..2]);
+        for directory in [&digest_root, &prefix_root] {
+            match fs::symlink_metadata(directory) {
+                Ok(metadata) if metadata.file_type().is_dir() => {}
+                Ok(_) => return Err(AssetIoError::Corrupt(blob.storage_key.clone())),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    return Err(AssetIoError::Missing(blob.storage_key.clone()));
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
         let path = self.assets_root.join(&blob.storage_key);
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_file() => {}
@@ -189,6 +338,95 @@ impl FsAssetStore {
             }
         })
     }
+}
+
+fn canonical_uuid(text: &str) -> Option<Uuid> {
+    let id = Uuid::parse_str(text).ok()?;
+    (id.to_string() == text).then_some(id)
+}
+
+fn stage_upload_id(name: &str) -> Option<Uuid> {
+    if let Some((upload, incoming)) = name.split_once(".incoming-") {
+        canonical_uuid(incoming)?;
+        canonical_uuid(upload)
+    } else {
+        canonical_uuid(name)
+    }
+}
+
+fn pending_upload_id(name: &str) -> Option<Uuid> {
+    let (upload, pending) = name.split_once(".pending-")?;
+    canonical_uuid(pending)?;
+    canonical_uuid(upload)
+}
+
+fn valid_digest_key(key: &str) -> bool {
+    let mut parts = key.split('/');
+    let (Some("sha256"), Some(prefix), Some(digest), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    digest.len() == 64
+        && digest
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        && prefix == &digest[..2]
+}
+
+fn valid_protection_key(key: &str) -> bool {
+    valid_digest_key(key) || protected_upload_id(key).is_some()
+}
+
+fn protected_upload_id(key: &str) -> Option<Uuid> {
+    canonical_uuid(key)
+        .or_else(|| key.strip_prefix("staging/").and_then(stage_upload_id))
+        .or_else(|| key.strip_prefix(".finalizing/").and_then(pending_upload_id))
+}
+
+fn read_real_directory(path: &Path) -> Result<Vec<fs::DirEntry>, AssetIoError> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(error) => return Err(error.into()),
+    };
+    if !metadata.file_type().is_dir() {
+        return Err(AssetIoError::Corrupt(path.display().to_string()));
+    }
+    fs::read_dir(path)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(Into::into)
+}
+
+fn require_real_directory(path: &Path) -> Result<(), AssetIoError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_dir() {
+        return Err(AssetIoError::Corrupt(path.display().to_string()));
+    }
+    Ok(())
+}
+
+fn consider(
+    entry: &fs::DirEntry,
+    path: String,
+    upload: Option<Uuid>,
+    protected: &HashSet<String>,
+    active_uploads: &HashSet<Uuid>,
+    older_than: SystemTime,
+    candidates: &mut Vec<ReconcileCandidate>,
+) -> Result<(), AssetIoError> {
+    if protected.contains(&path) || upload.is_some_and(|id| active_uploads.contains(&id)) {
+        return Ok(());
+    }
+    let metadata = fs::symlink_metadata(entry.path())?;
+    if metadata.file_type().is_file() && metadata.modified()? < older_than {
+        candidates.push(ReconcileCandidate {
+            path,
+            modified_at: metadata.modified()?,
+            size_bytes: metadata.len(),
+        });
+    }
+    Ok(())
 }
 
 fn copy_and_hash(
