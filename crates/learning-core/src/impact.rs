@@ -90,6 +90,20 @@ enum StrictScope {
         release_id: Uuid,
     },
 }
+impl<'de> Deserialize<'de> for ImpactScope {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match StrictScope::deserialize(deserializer)? {
+            StrictScope::Reading { view, mode } => Self::Reading {
+                view: ReadingRef {
+                    view_id: view.view_id,
+                    revision_id: view.revision_id,
+                },
+                mode,
+            },
+            StrictScope::Release { release_id } => Self::Release { release_id },
+        })
+    }
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawImpactQuery {

@@ -7,6 +7,9 @@ use uuid::Uuid;
 #[derive(Default)]
 pub(super) struct FixedScope {
     pub members: BTreeMap<ImpactStart, ImpactMembership>,
+    /// Authorized, exact saved reading revisions. Fixed selections are
+    /// subsequently projected per view, preserving each review pairing.
+    pub reading_views: BTreeSet<ReadingRef>,
     /// Every root-to-composition occurrence prefix, including repeated child
     /// compositions. An empty prefix is the selected root itself.
     pub composition_paths: BTreeMap<CompositionRef, BTreeSet<Vec<Uuid>>>,
@@ -145,6 +148,7 @@ impl FixedScope {
                 );
             }
         }
+        self.reading_views.insert(view);
         Ok(())
     }
     fn add_personal(

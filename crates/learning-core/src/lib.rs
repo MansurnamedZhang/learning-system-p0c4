@@ -8,6 +8,8 @@ mod error;
 mod identity;
 mod impact;
 pub use impact::*;
+mod evidence_query;
+pub use evidence_query::*;
 mod lineage;
 pub use lineage::*;
 mod overlay;

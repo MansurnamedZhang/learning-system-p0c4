@@ -10,7 +10,7 @@ const INTERNAL_SCAN_LIMIT: usize = 100_000;
 
 #[derive(Clone)]
 pub struct QueryStore {
-    pool: PgPool,
+    pub(super) pool: PgPool,
 }
 impl QueryStore {
     pub fn new(pool: PgPool) -> Self {
