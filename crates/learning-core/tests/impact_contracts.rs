@@ -15,6 +15,13 @@ fn query() -> Value {
     json!({"start":{"type":"block","block_id":id(1),"revision_id":id(2)},
         "scope":{"type":"reading","view":{"view_id":id(3),"revision_id":id(4)},"mode":"fused"}})
 }
+fn context() -> ImpactPageContext {
+    ImpactPageContext {
+        start: block(2),
+        start_membership: ImpactMembership::Displayed,
+        actual_scope: ImpactScope::Release { release_id: id(55) },
+    }
+}
 
 #[test]
 fn query_defaults_and_strict_input() {
@@ -83,6 +90,8 @@ fn group(revision: u128, paths: usize) -> ImpactConsumerGroup {
                     }),
                     to: node.clone(),
                     family: ImpactFamily::Structural,
+                    dependency_role: None,
+                    dependency_position: None,
                     direction: None,
                     relation_type: None,
                     provenance: ImpactProvenance::Stored,
@@ -100,22 +109,26 @@ fn group(revision: u128, paths: usize) -> ImpactConsumerGroup {
 fn pages_keep_all_locations_and_paths_for_each_exact_consumer() {
     let groups = vec![group(9, 2), group(8, 1)];
     let mut budget = VisibleWorkBudget::new(4096);
-    let first = paginate_visible_groups(groups.clone(), None, 1, &mut budget).unwrap();
-    assert_eq!(first.consumers.len(), 1);
+    let first = paginate_visible_groups(groups.clone(), None, 1, &mut budget, &context()).unwrap();
+    assert_eq!(first.consumers().len(), 1);
     assert_eq!(
-        first.consumers[0].locations.len(),
-        first.consumers[0].explanations.len()
+        first.consumers()[0].locations.len(),
+        first.consumers()[0].explanations.len()
     );
-    assert_eq!(first.consumers[0].locations.len(), 1);
-    let PageStatus::Truncated { after } = first.status else {
+    assert_eq!(first.consumers()[0].locations.len(), 1);
+    let PageStatus::Truncated { after } = first.status() else {
         panic!("expected next page")
     };
     let mut next_budget = VisibleWorkBudget::new(4096);
-    let second = paginate_visible_groups(groups, Some(&after), 1, &mut next_budget).unwrap();
-    assert_eq!(second.consumers.len(), 1);
-    assert_eq!(second.consumers[0].locations.len(), 2);
-    assert_eq!(second.status, PageStatus::Complete);
-    assert_ne!(second.consumers[0].consumer, first.consumers[0].consumer);
+    let second =
+        paginate_visible_groups(groups, Some(after), 1, &mut next_budget, &context()).unwrap();
+    assert_eq!(second.consumers().len(), 1);
+    assert_eq!(second.consumers()[0].locations.len(), 2);
+    assert_eq!(second.status(), &PageStatus::Complete);
+    assert_ne!(
+        second.consumers()[0].consumer,
+        first.consumers()[0].consumer
+    );
 }
 
 #[test]
@@ -142,7 +155,7 @@ fn oversized_group_fails_without_partial_page() {
     let mut huge = group(8, 4097);
     huge.locations.clear();
     assert_eq!(
-        paginate_visible_groups(vec![huge], None, 1, &mut budget),
+        paginate_visible_groups(vec![huge], None, 1, &mut budget, &context()),
         Err(BudgetExceeded)
     );
 }
@@ -150,22 +163,28 @@ fn oversized_group_fails_without_partial_page() {
 #[test]
 fn cursor_is_visible_structured_and_nested_fields_are_strict() {
     let mut budget = VisibleWorkBudget::new(4096);
-    let page =
-        paginate_visible_groups(vec![group(8, 1), group(9, 1)], None, 1, &mut budget).unwrap();
-    let PageStatus::Truncated { after } = page.status else {
+    let page = paginate_visible_groups(
+        vec![group(8, 1), group(9, 1)],
+        None,
+        1,
+        &mut budget,
+        &context(),
+    )
+    .unwrap();
+    let PageStatus::Truncated { after } = page.status() else {
         panic!("missing cursor")
     };
     let mut v = query();
-    v["after"] = serde_json::to_value(&after).unwrap();
+    v["after"] = serde_json::to_value(after).unwrap();
     assert!(serde_json::from_value::<ImpactQuery>(v.clone()).is_ok());
     v["after"]["internal_offset"] = json!(1);
     assert!(serde_json::from_value::<ImpactQuery>(v).is_err());
     let mut v = query();
-    v["after"] = serde_json::to_value(&after).unwrap();
+    v["after"] = serde_json::to_value(after).unwrap();
     v["after"]["consumer"]["candidate_count"] = json!(3);
     assert!(serde_json::from_value::<ImpactQuery>(v).is_err());
     let mut v = query();
-    v["after"] = serde_json::to_value(&after).unwrap();
+    v["after"] = serde_json::to_value(after).unwrap();
     v["after"]["hops"] = json!(9);
     assert!(serde_json::from_value::<ImpactQuery>(v).is_err());
 }
@@ -178,21 +197,22 @@ fn exact_revisions_and_duplicate_consumer_fragments_merge_without_losing_paths()
         None,
         3,
         &mut budget,
+        &context(),
     )
     .unwrap();
-    assert_eq!(page.status, PageStatus::Complete);
-    assert_eq!(page.consumers.len(), 2);
+    assert_eq!(page.status(), &PageStatus::Complete);
+    assert_eq!(page.consumers().len(), 2);
     assert_eq!(
-        page.consumers[0].consumer,
+        page.consumers()[0].consumer,
         ImpactNode::Block(BlockRef {
             block_id: id(1),
             revision_id: id(8)
         })
     );
-    assert_eq!(page.consumers[0].locations.len(), 2);
-    assert_eq!(page.consumers[0].explanations.len(), 2);
+    assert_eq!(page.consumers()[0].locations.len(), 2);
+    assert_eq!(page.consumers()[0].explanations.len(), 2);
     assert_eq!(
-        page.consumers[1].consumer,
+        page.consumers()[1].consumer,
         ImpactNode::Block(BlockRef {
             block_id: id(1),
             revision_id: id(9)
@@ -232,15 +252,10 @@ fn visible_work_and_node_caps_are_inclusive() {
 
 #[test]
 fn budget_status_cannot_expose_a_partial_consumer() {
-    let scope = ImpactScope::Release { release_id: id(55) };
-    let result = ImpactResult::from_page(
+    let result = ImpactResult::budget_exceeded(
         block(2),
         ImpactMembership::Context,
-        scope,
-        ImpactPage {
-            consumers: vec![group(8, 1)],
-            status: PageStatus::BudgetExceeded,
-        },
+        ImpactScope::Release { release_id: id(55) },
     );
     assert!(result.consumers().is_empty());
     assert_eq!(result.status(), &PageStatus::BudgetExceeded);
@@ -248,4 +263,86 @@ fn budget_status_cannot_expose_a_partial_consumer() {
     assert_eq!(json["consumers"], json!([]));
     assert_eq!(json["status"]["type"], json!("budget_exceeded"));
     assert_eq!(json["start_membership"], json!("context"));
+}
+
+#[test]
+fn distinct_necessary_basis_and_target_edges_to_same_revision_survive() {
+    let mut consumer = group(8, 1);
+    let step = &mut consumer.explanations[0].steps[0];
+    step.family = ImpactFamily::Necessary;
+    step.location = None;
+    step.reason = ImpactReason::RequiresExactRevision;
+    // The persisted basis and target records have the same exact endpoints.
+    step.dependency_role = Some(DependencyRole::Basis);
+    step.dependency_position = Some(0);
+    let mut target = consumer.explanations[0].clone();
+    target.steps[0].dependency_role = Some(DependencyRole::Target);
+    target.steps[0].dependency_position = Some(1);
+    consumer.explanations.push(target);
+    let mut another_basis = consumer.explanations[0].clone();
+    another_basis.steps[0].dependency_position = Some(2);
+    consumer.explanations.push(another_basis);
+    let mut budget = VisibleWorkBudget::new(4096);
+    let page = paginate_visible_groups(vec![consumer], None, 1, &mut budget, &context()).unwrap();
+    assert_eq!(page.consumers()[0].explanations.len(), 3);
+}
+
+#[test]
+fn necessary_edge_identity_requires_role_and_saved_position_together() {
+    let mut step = group(8, 1).explanations.remove(0).steps.remove(0);
+    assert!(step.validate().is_ok());
+    step.dependency_position = Some(0);
+    assert!(step.validate().is_err());
+    step.family = ImpactFamily::Necessary;
+    assert!(step.validate().is_err());
+    step.dependency_role = Some(DependencyRole::Basis);
+    assert!(step.validate().is_ok());
+    step.dependency_position = None;
+    assert!(step.validate().is_err());
+}
+
+#[test]
+fn successful_page_budget_includes_full_result_envelope() {
+    let mut consumer = group(8, 1);
+    consumer.explanations[0].steps[0].location = None;
+    let initial_size = serde_json::to_vec(&consumer).unwrap().len();
+    let path = match &mut consumer.locations[0] {
+        ImpactLocation::Occurrence { path } => path,
+        _ => unreachable!(),
+    };
+    // UUID JSON array entries are 39 bytes apiece after the first member.
+    path.extend(std::iter::repeat_n(
+        id(100),
+        (MAX_PROJECTION_BYTES - initial_size) / 39,
+    ));
+    let group_size = serde_json::to_vec(&consumer).unwrap().len();
+    assert!(group_size <= MAX_PROJECTION_BYTES);
+    let mut budget = VisibleWorkBudget::new(4096);
+    assert_eq!(
+        paginate_visible_groups(vec![consumer.clone()], None, 1, &mut budget, &context()),
+        Err(BudgetExceeded)
+    );
+    let path = match &mut consumer.locations[0] {
+        ImpactLocation::Occurrence { path } => path,
+        _ => unreachable!(),
+    };
+    path.truncate(path.len() - 20);
+    let mut budget = VisibleWorkBudget::new(4096);
+    let result = paginate_visible_groups(vec![consumer], None, 1, &mut budget, &context()).unwrap();
+    assert!(serde_json::to_vec(&result).unwrap().len() <= MAX_PROJECTION_BYTES);
+}
+
+#[test]
+fn truncated_cursor_bytes_are_part_of_exact_payload_charge() {
+    let mut budget = VisibleWorkBudget::new(4096);
+    let result = paginate_visible_groups(
+        vec![group(8, 1), group(9, 1)],
+        None,
+        1,
+        &mut budget,
+        &context(),
+    )
+    .unwrap();
+    assert!(matches!(result.status(), PageStatus::Truncated { .. }));
+    assert_eq!(budget.bytes(), serde_json::to_vec(&result).unwrap().len());
 }

@@ -1,7 +1,7 @@
 //! Public shape and visible-only limits for bounded revision impact queries.
 use crate::{
-    BlockRef, CompositionRef, ContentError, EpistemicReviewRef, ExactRef, ReadingMode, ReadingRef,
-    RelationRef, RelationReviewRef, RelationType,
+    BlockRef, CompositionRef, ContentError, DependencyRole, EpistemicReviewRef, ExactRef,
+    ReadingMode, ReadingRef, RelationRef, RelationReviewRef, RelationType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -265,11 +265,29 @@ pub struct ImpactStep {
     pub from: ImpactNode,
     pub to: ImpactNode,
     pub family: ImpactFamily,
+    /// Stable source-row identity for a Necessary edge. Both fields are
+    /// required for that family and absent for every other family.
+    pub dependency_role: Option<DependencyRole>,
+    pub dependency_position: Option<u32>,
     pub direction: Option<TraversalDirection>,
     pub relation_type: Option<RelationType>,
     pub provenance: ImpactProvenance,
     pub location: Option<ImpactLocation>,
     pub reason: ImpactReason,
+}
+impl ImpactStep {
+    pub fn validate(&self) -> Result<(), ContentError> {
+        let has_identity = self.dependency_role.is_some() && self.dependency_position.is_some();
+        let no_identity = self.dependency_role.is_none() && self.dependency_position.is_none();
+        if (self.family == ImpactFamily::Necessary && !has_identity)
+            || (self.family != ImpactFamily::Necessary && !no_identity)
+        {
+            return Err(ContentError::Invalid(
+                "invalid_impact_dependency_identity".into(),
+            ));
+        }
+        Ok(())
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -363,11 +381,11 @@ pub enum PageStatus {
     Truncated { after: ImpactSortKey },
     BudgetExceeded,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ImpactPage {
-    pub consumers: Vec<ImpactConsumerGroup>,
-    pub status: PageStatus,
+#[derive(Debug, Clone)]
+pub struct ImpactPageContext {
+    pub start: ExactRef,
+    pub start_membership: ImpactMembership,
+    pub actual_scope: ImpactScope,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -379,23 +397,24 @@ pub struct ImpactResult {
     status: PageStatus,
 }
 impl ImpactResult {
-    pub fn from_page(
+    fn from_page(
         start: ExactRef,
         start_membership: ImpactMembership,
         actual_scope: ImpactScope,
-        page: ImpactPage,
+        consumers: Vec<ImpactConsumerGroup>,
+        status: PageStatus,
     ) -> Self {
-        let consumers = if matches!(&page.status, PageStatus::BudgetExceeded) {
+        let consumers = if matches!(&status, PageStatus::BudgetExceeded) {
             vec![]
         } else {
-            page.consumers
+            consumers
         };
         Self {
             start,
             start_membership,
             actual_scope,
             consumers,
-            status: page.status,
+            status,
         }
     }
     pub fn budget_exceeded(
@@ -515,7 +534,8 @@ pub fn paginate_visible_groups(
     after: Option<&ImpactSortKey>,
     limit: u16,
     budget: &mut VisibleWorkBudget,
-) -> Result<ImpactPage, BudgetExceeded> {
+    context: &ImpactPageContext,
+) -> Result<ImpactResult, BudgetExceeded> {
     if limit == 0 || limit > MAX_IMPACT_CONSUMERS {
         return Err(BudgetExceeded);
     }
@@ -566,5 +586,27 @@ pub fn paginate_visible_groups(
     } else {
         PageStatus::Complete
     };
-    Ok(ImpactPage { consumers, status })
+    let result = ImpactResult::from_page(
+        context.start.clone(),
+        context.start_membership,
+        context.actual_scope.clone(),
+        consumers,
+        status,
+    );
+    // Group bytes were already reserved atomically. Charge precisely the
+    // remainder: scope/start, JSON framing, status, and the visible cursor.
+    let group_bytes = result
+        .consumers
+        .iter()
+        .map(|g| {
+            serde_json::to_vec(g)
+                .expect("impact group serializes")
+                .len()
+        })
+        .sum::<usize>();
+    let full_bytes = serde_json::to_vec(&result)
+        .expect("impact result serializes")
+        .len();
+    budget.charge_payload_bytes(full_bytes.checked_sub(group_bytes).ok_or(BudgetExceeded)?)?;
+    Ok(result)
 }
