@@ -1,4 +1,5 @@
 mod projection;
+pub(crate) use projection::project as project_for_impact;
 mod read;
 pub(crate) mod selection;
 mod write;

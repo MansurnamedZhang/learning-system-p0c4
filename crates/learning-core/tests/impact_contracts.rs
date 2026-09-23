@@ -17,7 +17,7 @@ fn query() -> Value {
 }
 fn context() -> ImpactPageContext {
     ImpactPageContext {
-        start: block(2),
+        start: block(2).into(),
         start_membership: ImpactMembership::Displayed,
         actual_scope: ImpactScope::Release { release_id: id(55) },
     }
@@ -26,7 +26,7 @@ fn context() -> ImpactPageContext {
 #[test]
 fn query_defaults_and_strict_input() {
     let q: ImpactQuery = serde_json::from_value(query()).unwrap();
-    assert_eq!(q.start, block(2));
+    assert_eq!(q.start, ImpactStart::from(block(2)));
     assert_eq!(
         q.families,
         vec![ImpactFamily::Structural, ImpactFamily::Necessary]
@@ -67,6 +67,16 @@ fn query_defaults_and_strict_input() {
     let mut v = query();
     v["scope"]["mode"] = json!("current");
     assert!(serde_json::from_value::<ImpactQuery>(v).is_err());
+}
+
+#[test]
+fn exact_composition_can_be_a_strict_impact_start() {
+    let mut value = query();
+    value["start"] = json!({"type":"composition", "composition_id":id(70), "revision_id":id(71)});
+    let parsed: ImpactQuery = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&parsed.start).unwrap(), value["start"]);
+    value["start"]["extra"] = json!(true);
+    assert!(serde_json::from_value::<ImpactQuery>(value).is_err());
 }
 
 fn group(revision: u128, paths: usize) -> ImpactConsumerGroup {
@@ -253,7 +263,7 @@ fn visible_work_and_node_caps_are_inclusive() {
 #[test]
 fn budget_status_cannot_expose_a_partial_consumer() {
     let result = ImpactResult::budget_exceeded(
-        block(2),
+        block(2).into(),
         ImpactMembership::Context,
         ImpactScope::Release { release_id: id(55) },
     );

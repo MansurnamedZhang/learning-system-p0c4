@@ -45,9 +45,13 @@ pub enum ImpactMembership {
 // boundary uses exact wrappers so extra nested keys cannot become authority.
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-enum StrictExactRef {
+enum StrictImpactStart {
     Block {
         block_id: Uuid,
+        revision_id: Uuid,
+    },
+    Composition {
+        composition_id: Uuid,
         revision_id: Uuid,
     },
     Relation {
@@ -89,7 +93,7 @@ enum StrictScope {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawImpactQuery {
-    start: StrictExactRef,
+    start: StrictImpactStart,
     scope: StrictScope,
     #[serde(default, deserialize_with = "present_families")]
     families: Option<Vec<ImpactFamily>>,
@@ -120,7 +124,7 @@ fn present_families<'de, D: serde::Deserializer<'de>>(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "RawImpactQuery")]
 pub struct ImpactQuery {
-    pub start: ExactRef,
+    pub start: ImpactStart,
     pub scope: ImpactScope,
     pub families: Vec<ImpactFamily>,
     pub max_depth: u8,
@@ -132,34 +136,41 @@ impl TryFrom<RawImpactQuery> for ImpactQuery {
     type Error = ContentError;
     fn try_from(raw: RawImpactQuery) -> Result<Self, Self::Error> {
         let start = match raw.start {
-            StrictExactRef::Block {
+            StrictImpactStart::Block {
                 block_id,
                 revision_id,
-            } => ExactRef::Block(BlockRef {
+            } => ImpactStart::Block(BlockRef {
                 block_id,
                 revision_id,
             }),
-            StrictExactRef::Relation {
+            StrictImpactStart::Composition {
+                composition_id,
+                revision_id,
+            } => ImpactStart::Composition(CompositionRef {
+                composition_id,
+                revision_id,
+            }),
+            StrictImpactStart::Relation {
                 relation_id,
                 revision_id,
-            } => ExactRef::Relation(RelationRef {
+            } => ImpactStart::Relation(RelationRef {
                 relation_id,
                 revision_id,
             }),
-            StrictExactRef::RelationReview {
+            StrictImpactStart::RelationReview {
                 relation,
                 review_id,
-            } => ExactRef::RelationReview(RelationReviewRef {
+            } => ImpactStart::RelationReview(RelationReviewRef {
                 relation: RelationRef {
                     relation_id: relation.relation_id,
                     revision_id: relation.revision_id,
                 },
                 review_id,
             }),
-            StrictExactRef::EpistemicReview {
+            StrictImpactStart::EpistemicReview {
                 stream_id,
                 review_id,
-            } => ExactRef::EpistemicReview(EpistemicReviewRef {
+            } => ImpactStart::EpistemicReview(EpistemicReviewRef {
                 stream_id,
                 review_id,
             }),
@@ -195,6 +206,39 @@ impl TryFrom<RawImpactQuery> for ImpactQuery {
             work_limit: raw.work_limit,
             after: raw.after,
         })
+    }
+}
+
+/// B4's exact start domain includes compositions without changing B3's
+/// `ExactRef` registry, which contains only registered reference objects.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ImpactStart {
+    Block(BlockRef),
+    Composition(CompositionRef),
+    Relation(RelationRef),
+    RelationReview(RelationReviewRef),
+    EpistemicReview(EpistemicReviewRef),
+}
+impl From<ExactRef> for ImpactStart {
+    fn from(value: ExactRef) -> Self {
+        match value {
+            ExactRef::Block(v) => Self::Block(v),
+            ExactRef::Relation(v) => Self::Relation(v),
+            ExactRef::RelationReview(v) => Self::RelationReview(v),
+            ExactRef::EpistemicReview(v) => Self::EpistemicReview(v),
+        }
+    }
+}
+impl ImpactStart {
+    pub fn exact(&self) -> Option<ExactRef> {
+        match self {
+            Self::Block(v) => Some(ExactRef::Block(v.clone())),
+            Self::Composition(_) => None,
+            Self::Relation(v) => Some(ExactRef::Relation(v.clone())),
+            Self::RelationReview(v) => Some(ExactRef::RelationReview(v.clone())),
+            Self::EpistemicReview(v) => Some(ExactRef::EpistemicReview(v.clone())),
+        }
     }
 }
 impl ImpactQuery {
@@ -383,14 +427,14 @@ pub enum PageStatus {
 }
 #[derive(Debug, Clone)]
 pub struct ImpactPageContext {
-    pub start: ExactRef,
+    pub start: ImpactStart,
     pub start_membership: ImpactMembership,
     pub actual_scope: ImpactScope,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ImpactResult {
-    start: ExactRef,
+    start: ImpactStart,
     start_membership: ImpactMembership,
     actual_scope: ImpactScope,
     consumers: Vec<ImpactConsumerGroup>,
@@ -398,7 +442,7 @@ pub struct ImpactResult {
 }
 impl ImpactResult {
     fn from_page(
-        start: ExactRef,
+        start: ImpactStart,
         start_membership: ImpactMembership,
         actual_scope: ImpactScope,
         consumers: Vec<ImpactConsumerGroup>,
@@ -418,7 +462,7 @@ impl ImpactResult {
         }
     }
     pub fn budget_exceeded(
-        start: ExactRef,
+        start: ImpactStart,
         start_membership: ImpactMembership,
         actual_scope: ImpactScope,
     ) -> Self {
@@ -430,7 +474,7 @@ impl ImpactResult {
             status: PageStatus::BudgetExceeded,
         }
     }
-    pub fn start(&self) -> &ExactRef {
+    pub fn start(&self) -> &ImpactStart {
         &self.start
     }
     pub fn start_membership(&self) -> ImpactMembership {

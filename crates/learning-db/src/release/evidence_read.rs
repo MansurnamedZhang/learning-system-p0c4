@@ -2,11 +2,11 @@ use super::{ReleaseStore, manifest::collect, read};
 use crate::{overlay::model, request, storage};
 use learning_core::*;
 use uuid::Uuid;
-pub(super) async fn load(
+pub(super) async fn load_with_manifest(
     tx: &mut model::Tx<'_>,
     actor: Principal,
     id: Uuid,
-) -> Result<EvidenceRelease, ContentError> {
+) -> Result<(EvidenceRelease, super::manifest::Manifest), ContentError> {
     let basic = read::load(tx, actor, id).await?;
     let (version, sha): (i32, Option<String>) =
         sqlx::query_as("SELECT contract_version,manifest_sha256 FROM release WHERE id=$1")
@@ -41,16 +41,28 @@ pub(super) async fn load(
     {
         return Err(ContentError::Storage);
     }
-    Ok(EvidenceRelease {
-        release_id: id,
-        space_id: basic.space_id,
-        roots: basic.roots,
-        author_id: basic.author_id,
-        reason: basic.reason,
-        created_at: basic.created_at,
-        readings,
-        manifest_sha256: digest,
-    })
+    Ok((
+        EvidenceRelease {
+            release_id: id,
+            space_id: basic.space_id,
+            roots: basic.roots,
+            author_id: basic.author_id,
+            reason: basic.reason,
+            created_at: basic.created_at,
+            readings,
+            manifest_sha256: digest,
+        },
+        manifest,
+    ))
+}
+pub(super) async fn load(
+    tx: &mut model::Tx<'_>,
+    actor: Principal,
+    id: Uuid,
+) -> Result<EvidenceRelease, ContentError> {
+    load_with_manifest(tx, actor, id)
+        .await
+        .map(|(release, _)| release)
 }
 impl ReleaseStore {
     pub async fn read_evidence(
