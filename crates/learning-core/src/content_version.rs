@@ -1,6 +1,6 @@
 use crate::{
-    BlockRef, ContentError, Dependency, DependencyRole, ExactRef, Intent, RelationSelection,
-    TextDraft, TextPayload, canonical_json, hex_digest,
+    AssetRef, BlockRef, ContentError, Dependency, DependencyRole, ExactRef, Intent,
+    RelationSelection, TextDraft, TextPayload, canonical_json, hex_digest,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -246,6 +246,237 @@ impl ContentV2 {
             BodyV2::Text(_) => {}
         }
         result
+    }
+}
+
+/// Version 3 content is a separate contract until the shared write path can
+/// verify and persist its exact asset use in the same transaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BodyV3 {
+    Text(TextPayload),
+    Reference {
+        target: BlockRef,
+    },
+    RelationView {
+        selections: Vec<RelationSelection>,
+    },
+    Figure {
+        asset: AssetRef,
+        usage: String,
+        caption: String,
+        alt: String,
+        decorative: bool,
+    },
+    Attachment {
+        asset: AssetRef,
+        display_name: String,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum RawBodyV3 {
+    Text {
+        payload: TextPayload,
+    },
+    Reference {
+        target: BlockRef,
+    },
+    RelationView {
+        selections: Vec<RelationSelection>,
+    },
+    Figure {
+        asset: AssetRef,
+        usage: String,
+        caption: String,
+        alt: String,
+        decorative: bool,
+    },
+    Attachment {
+        asset: AssetRef,
+        display_name: String,
+    },
+}
+
+impl From<RawBodyV3> for BodyV3 {
+    fn from(raw: RawBodyV3) -> Self {
+        match raw {
+            RawBodyV3::Text { payload } => Self::Text(payload),
+            RawBodyV3::Reference { target } => Self::Reference { target },
+            RawBodyV3::RelationView { selections } => Self::RelationView { selections },
+            RawBodyV3::Figure {
+                asset,
+                usage,
+                caption,
+                alt,
+                decorative,
+            } => Self::Figure {
+                asset,
+                usage,
+                caption,
+                alt,
+                decorative,
+            },
+            RawBodyV3::Attachment {
+                asset,
+                display_name,
+            } => Self::Attachment {
+                asset,
+                display_name,
+            },
+        }
+    }
+}
+
+impl From<BodyV3> for RawBodyV3 {
+    fn from(body: BodyV3) -> Self {
+        match body {
+            BodyV3::Text(payload) => Self::Text { payload },
+            BodyV3::Reference { target } => Self::Reference { target },
+            BodyV3::RelationView { selections } => Self::RelationView { selections },
+            BodyV3::Figure {
+                asset,
+                usage,
+                caption,
+                alt,
+                decorative,
+            } => Self::Figure {
+                asset,
+                usage,
+                caption,
+                alt,
+                decorative,
+            },
+            BodyV3::Attachment {
+                asset,
+                display_name,
+            } => Self::Attachment {
+                asset,
+                display_name,
+            },
+        }
+    }
+}
+
+impl Serialize for BodyV3 {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        RawBodyV3::from(self.clone()).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for BodyV3 {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        RawBodyV3::deserialize(deserializer).map(Into::into)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "RawContentV3")]
+pub struct ContentV3 {
+    pub intent: Intent,
+    pub language: String,
+    pub title: String,
+    pub body: BodyV3,
+    pub basis_refs: Vec<ExactRef>,
+    pub requires_context: Vec<BlockRef>,
+    pub source_run: Option<BlockRef>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawContentV3 {
+    intent: Intent,
+    language: String,
+    title: String,
+    body: BodyV3,
+    basis_refs: Vec<ExactRef>,
+    requires_context: Vec<BlockRef>,
+    source_run: Option<BlockRef>,
+}
+
+impl TryFrom<RawContentV3> for ContentV3 {
+    type Error = ContentError;
+
+    fn try_from(raw: RawContentV3) -> Result<Self, Self::Error> {
+        let value = Self {
+            intent: raw.intent,
+            language: raw.language,
+            title: raw.title,
+            body: raw.body,
+            basis_refs: raw.basis_refs,
+            requires_context: raw.requires_context,
+            source_run: raw.source_run,
+        };
+        value.validate()?;
+        Ok(value)
+    }
+}
+
+impl ContentV3 {
+    fn as_v2(&self) -> ContentV2 {
+        let body = match &self.body {
+            BodyV3::Text(payload) => BodyV2::Text(payload.clone()),
+            BodyV3::Reference { target } => BodyV2::Reference {
+                target: target.clone(),
+            },
+            BodyV3::RelationView { selections } => BodyV2::RelationView {
+                selections: selections.clone(),
+            },
+            BodyV3::Figure { .. } | BodyV3::Attachment { .. } => BodyV2::Text(TextPayload {
+                format: crate::TextFormat::Markdown,
+                text: String::new(),
+            }),
+        };
+        ContentV2 {
+            intent: self.intent,
+            language: self.language.clone(),
+            title: self.title.clone(),
+            body,
+            basis_refs: self.basis_refs.clone(),
+            requires_context: self.requires_context.clone(),
+            source_run: self.source_run.clone(),
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), ContentError> {
+        self.as_v2().validate()?;
+        match &self.body {
+            BodyV3::Figure {
+                usage,
+                caption,
+                alt,
+                decorative,
+                ..
+            } => crate::asset::validate_figure(usage, caption, alt, *decorative),
+            BodyV3::Attachment { display_name, .. } => {
+                crate::asset::validate_attachment_name(display_name)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    pub fn dependencies(&self) -> Vec<Dependency> {
+        self.as_v2().dependencies()
+    }
+
+    pub fn asset_ref(&self) -> Option<&AssetRef> {
+        match &self.body {
+            BodyV3::Figure { asset, .. } | BodyV3::Attachment { asset, .. } => Some(asset),
+            _ => None,
+        }
+    }
+
+    pub fn digest(&self) -> String {
+        let mut stable = self.clone();
+        if let BodyV3::RelationView { selections } = &mut stable.body {
+            selections.sort();
+        }
+        hex_digest(
+            canonical_json(
+                &serde_json::json!({"domain":"content-v3","contract_version":3,"draft":stable}),
+            )
+            .as_bytes(),
+        )
     }
 }
 

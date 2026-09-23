@@ -1,4 +1,5 @@
 //! Versioned text content contracts. Authentication belongs to a trusted caller.
+mod asset;
 mod composition;
 mod content;
 mod content_version;
@@ -21,6 +22,7 @@ mod relation;
 mod release;
 pub use reading::*;
 mod placement_migration;
+pub use asset::*;
 pub use composition::*;
 pub use content::*;
 pub use content_version::*;
