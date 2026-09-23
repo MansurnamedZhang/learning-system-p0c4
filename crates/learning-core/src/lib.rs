@@ -6,6 +6,8 @@ mod digest;
 mod epistemic;
 mod error;
 mod identity;
+mod impact;
+pub use impact::*;
 mod lineage;
 pub use lineage::*;
 mod overlay;
