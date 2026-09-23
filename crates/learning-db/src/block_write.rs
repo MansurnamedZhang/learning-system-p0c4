@@ -1,7 +1,8 @@
 //! Transaction-only primitive shared by content and personal-reading writes.
 use crate::{COLUMNS, RevisionRow, storage};
 use learning_core::{
-    BlockRef, ContentDraft, ContentError, ContentRevision, ExactRef, Principal, Revision, TextDraft,
+    BlockRef, ContentDraft, ContentError, ContentRevision, ExactRef, JobInput, Principal, Revision,
+    TextDraft,
 };
 use sqlx::{Postgres, Transaction, types::Json};
 use uuid::Uuid;
@@ -89,6 +90,22 @@ pub(crate) async fn insert_content(
             .bind(r.block_id)
             .bind(r.revision_id)
             .bind(asset_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(storage)?;
+        let input = JobInput::asset_integrity(
+            r.actor.actor_id,
+            r.space_id,
+            BlockRef {
+                block_id: r.block_id,
+                revision_id: r.revision_id,
+            },
+        )?;
+        sqlx::query("INSERT INTO public.job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,'asset_integrity_requested',1,$3,$4,1)")
+            .bind(Uuid::new_v4())
+            .bind(input.business_key())
+            .bind(input.to_value())
+            .bind(r.actor.actor_id)
             .execute(&mut **tx)
             .await
             .map_err(storage)?;

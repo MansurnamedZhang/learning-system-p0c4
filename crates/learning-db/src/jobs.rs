@@ -28,10 +28,80 @@ struct JobRow {
     attempt_count: i32,
 }
 
+#[derive(sqlx::FromRow)]
+struct PendingEvent {
+    id: Uuid,
+    business_key: String,
+}
+
 impl JobStore {
     /// Construct with the restricted runtime pool.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    /// Move a bounded batch of pending business events to queued jobs.
+    /// Row locks partition the batch among concurrent dispatchers; insertion
+    /// and the dispatch marker commit together.
+    pub async fn dispatch_pending(&self, limit: usize) -> Result<usize, ContentError> {
+        let limit = limit.min(256);
+        if limit == 0 {
+            return Ok(0);
+        }
+        let mut tx = self.pool.begin().await.map_err(|_| ContentError::Storage)?;
+        sqlx::query("SET LOCAL statement_timeout='15s'")
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| ContentError::Storage)?;
+        let pending: Vec<PendingEvent> = sqlx::query_as(
+            "SELECT id,business_key FROM public.job_outbox \
+             WHERE dispatched_at IS NULL ORDER BY created_at,id \
+             LIMIT $1 FOR UPDATE SKIP LOCKED",
+        )
+        .bind(limit as i64)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| ContentError::Storage)?;
+        for event in &pending {
+            let inserted: Option<Uuid> = sqlx::query_scalar(
+                "INSERT INTO public.job(id,outbox_id,idempotency_key,status,attempt_count) \
+                 VALUES($1,$2,$3,'queued',0) \
+                 ON CONFLICT (outbox_id) DO NOTHING RETURNING id",
+            )
+            .bind(Uuid::new_v4())
+            .bind(event.id)
+            .bind(&event.business_key)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| ContentError::Storage)?;
+            if inserted.is_none() {
+                let existing: Option<(Uuid, String)> =
+                    sqlx::query_as("SELECT id,idempotency_key FROM public.job WHERE outbox_id=$1")
+                        .bind(event.id)
+                        .fetch_optional(&mut *tx)
+                        .await
+                        .map_err(|_| ContentError::Storage)?;
+                match existing {
+                    Some((_, key)) if key == event.business_key => {}
+                    _ => {
+                        return Err(ContentError::Invalid("job_outbox_identity_conflict".into()));
+                    }
+                }
+            }
+            let marked = sqlx::query(
+                "UPDATE public.job_outbox SET dispatched_at=clock_timestamp() \
+                 WHERE id=$1 AND dispatched_at IS NULL",
+            )
+            .bind(event.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| ContentError::Storage)?;
+            if marked.rows_affected() != 1 {
+                return Err(ContentError::Storage);
+            }
+        }
+        tx.commit().await.map_err(|_| ContentError::Storage)?;
+        Ok(pending.len())
     }
 
     pub async fn get(&self, id: Uuid) -> Result<Option<JobRecord>, ContentError> {
