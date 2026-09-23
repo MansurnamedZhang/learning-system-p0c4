@@ -9,6 +9,8 @@ mod error;
 mod identity;
 mod impact;
 pub use impact::*;
+mod job;
+pub use job::*;
 mod evidence_query;
 pub use evidence_query::*;
 mod lineage;

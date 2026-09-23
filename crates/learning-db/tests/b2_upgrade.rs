@@ -103,7 +103,7 @@ async fn genuine_five_store_b2_history_and_replays_survive_b3_upgrade() {
             .fetch_all(&admin)
             .await
             .unwrap();
-    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     assert_eq!(legacy_snapshot::snapshot(&admin, Some(old)).await, *old);
     let content = ContentStore::new(runtime.clone());
     let compositions = CompositionStore::new(runtime.clone());
