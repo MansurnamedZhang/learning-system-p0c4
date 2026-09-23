@@ -1,5 +1,7 @@
 mod support;
 
+use learning_core::{AssetRef, BodyV3, ContentDraft, ContentV3, CreateContent, Intent};
+use learning_db::VersionedContentStore;
 use sqlx::Row;
 use support::{TestRig, sqlstate};
 use uuid::Uuid;
@@ -73,16 +75,45 @@ async fn asset_and_resource_keys_reject_cross_space_links() {
     .await
     .unwrap_err();
     assert_eq!(sqlstate(&error).as_deref(), Some("23503"));
-    sqlx::query(
-        "INSERT INTO block_asset_use(space_id,block_id,revision_id,asset_id) VALUES($1,$2,$3,$4)",
+    let figure = VersionedContentStore::new(rig.runtime_pool.clone())
+        .create(
+            actor,
+            home,
+            CreateContent {
+                request_id: Uuid::new_v4(),
+                draft: ContentDraft::V3(ContentV3 {
+                    intent: Intent::Note,
+                    language: "en".into(),
+                    title: "schema fixture".into(),
+                    body: BodyV3::Figure {
+                        asset: AssetRef {
+                            space_id: home,
+                            asset_id: owned_asset,
+                        },
+                        usage: "diagram".into(),
+                        caption: String::new(),
+                        alt: "fixture".into(),
+                        decorative: false,
+                    },
+                    basis_refs: vec![],
+                    requires_context: vec![],
+                    source_run: None,
+                }),
+                reason: "schema fixture".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let linked: Uuid = sqlx::query_scalar(
+        "SELECT asset_id FROM block_asset_use WHERE space_id=$1 AND block_id=$2 AND revision_id=$3",
     )
     .bind(home)
-    .bind(block)
-    .bind(revision)
-    .bind(owned_asset)
-    .execute(&rig.admin_pool)
+    .bind(figure.block_id)
+    .bind(figure.revision_id)
+    .fetch_one(&rig.admin_pool)
     .await
     .unwrap();
+    assert_eq!(linked, owned_asset);
 
     let (other_block, _) = rig.seed_block(actor, home).await;
     let error = sqlx::query(
@@ -90,7 +121,7 @@ async fn asset_and_resource_keys_reject_cross_space_links() {
     )
     .bind(home)
     .bind(other_block)
-    .bind(revision)
+    .bind(figure.revision_id)
     .bind(owned_asset)
     .execute(&rig.admin_pool)
     .await

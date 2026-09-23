@@ -92,6 +92,7 @@ fn bodies(p: &VersionedReadingProjection) -> Vec<(BlockRef, String)> {
                     BodyV2::Text(p) => p.text.clone(),
                     _ => panic!("expected literal body"),
                 },
+                ContentDraft::V3(_) => panic!("B3 fixture expected v1/v2 literal body"),
             };
             Some((exact(r), text))
         })

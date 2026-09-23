@@ -59,7 +59,7 @@ impl ReleaseStore {
         if discovered
             .blocks
             .values()
-            .any(|(_, r)| matches!(r.draft, ContentDraft::V2(_)))
+            .any(|(_, r)| !matches!(r.draft, ContentDraft::V1(_)))
         {
             return Err(ContentError::Invalid("unsupported_content_version".into()));
         }

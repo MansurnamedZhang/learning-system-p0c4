@@ -181,6 +181,7 @@ fn validate_judgment(
     let intent = match target.draft {
         ContentDraft::V1(d) => d.intent,
         ContentDraft::V2(d) => d.intent,
+        ContentDraft::V3(d) => d.intent,
     };
     if !matches!(intent, Intent::Conjecture | Intent::Conclusion) {
         return Err(ContentError::Invalid(

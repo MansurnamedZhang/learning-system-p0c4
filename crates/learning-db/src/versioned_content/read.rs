@@ -73,7 +73,15 @@ fn preview(
         ContentDraft::V2(ContentV2 {
             body: BodyV2::Reference { target },
             ..
-        }) => {
+        }) => Some(target),
+        ContentDraft::V3(ContentV3 {
+            body: BodyV3::Reference { target },
+            ..
+        }) => Some(target),
+        _ => None,
+    };
+    let target = match target {
+        Some(target) => {
             if !closure
                 .objects
                 .contains_key(&ExactRef::Block(target.clone()))
@@ -86,7 +94,7 @@ fn preview(
                 PreviewTarget::Embedded(Box::new(preview(closure, target, &next)?))
             })
         }
-        _ => None,
+        None => None,
     };
     Ok(ReferencePreview { revision, target })
 }

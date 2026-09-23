@@ -67,6 +67,11 @@ impl VersionedContentStore {
         digest: String,
     ) -> Result<ContentRevision, ContentError> {
         let mut tx = request::begin(&self.pool, actor, request_id).await?;
+        let operation = if matches!(&draft, ContentDraft::V3(_)) {
+            "content_v3"
+        } else {
+            "content_v2"
+        };
         let roots: Vec<_> = draft.dependencies().into_iter().map(|d| d.target).collect();
         let discovered = references::load(&mut tx, actor, &roots).await?;
         let mut spaces = discovered.spaces();
@@ -78,7 +83,7 @@ impl VersionedContentStore {
                 "reference_authorization_changed".into(),
             ));
         }
-        if request::check(&mut tx, actor, request_id, &digest, "content_v2").await? {
+        if request::check(&mut tx, actor, request_id, &digest, operation).await? {
             let (block_id,revision_id):(Uuid,Uuid)=sqlx::query_as("SELECT r.block_id,r.id FROM public.mutation_receipt m JOIN public.block_revision r ON r.id=m.revision_id WHERE m.actor_id=$1 AND m.request_id=$2")
                 .bind(actor.actor_id).bind(request_id).fetch_one(&mut *tx).await.map_err(storage)?;
             let result = references::project(
@@ -154,7 +159,7 @@ impl VersionedContentStore {
                 .await
                 .map_err(storage)?;
         }
-        request::register(&mut tx, actor, request_id, &digest, "content_v2").await?;
+        request::register(&mut tx, actor, request_id, &digest, operation).await?;
         sqlx::query("INSERT INTO public.mutation_receipt(actor_id,request_id,request_sha256,revision_id) VALUES($1,$2,$3,$4)").bind(actor.actor_id).bind(request_id).bind(digest).bind(revision_id).execute(&mut *tx).await.map_err(storage)?;
         let result = references::project(
             &mut tx,

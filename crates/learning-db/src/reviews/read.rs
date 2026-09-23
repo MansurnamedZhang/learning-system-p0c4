@@ -51,6 +51,7 @@ impl ReviewStore {
             let source_run = match object.block()?.draft {
                 ContentDraft::V1(_) => None,
                 ContentDraft::V2(d) => d.source_run,
+                ContentDraft::V3(d) => d.source_run,
             };
             if let Some(group) = groups
                 .iter_mut()

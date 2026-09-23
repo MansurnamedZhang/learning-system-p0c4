@@ -179,6 +179,33 @@ fn asset_use_refs_preserve_exact_resource_version_and_block_identity() {
 }
 
 #[test]
+fn v3_draft_dispatch_preserves_frozen_v1_v2_wires_and_extracts_asset_separately() {
+    let literal = parsed(FIGURE_JSON);
+    let draft = ContentDraft::decode(3, literal.clone()).unwrap();
+    assert_eq!(draft.contract_version(), 3);
+    assert_eq!(serde_json::to_value(&draft).unwrap(), literal);
+    assert_eq!(
+        draft.asset_ref().unwrap().asset_id,
+        Uuid::parse_str(ASSET).unwrap()
+    );
+    assert_eq!(draft.dependencies(), Vec::<Dependency>::new());
+    assert_eq!(
+        draft.digest(),
+        serde_json::from_value::<ContentV3>(literal)
+            .unwrap()
+            .digest()
+    );
+    assert_eq!(
+        serde_json::to_string(&ContentDraft::decode(1, parsed(V1_JSON)).unwrap()).unwrap(),
+        V1_JSON
+    );
+    assert_eq!(
+        serde_json::to_string(&ContentDraft::decode(2, parsed(V2_JSON)).unwrap()).unwrap(),
+        V2_JSON
+    );
+}
+
+#[test]
 fn v3_rejects_unknown_fields_and_bad_common_metadata() {
     let mut value = parsed(ATTACHMENT_JSON);
     value["surprise"] = json!(true);

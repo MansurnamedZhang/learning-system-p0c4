@@ -249,8 +249,7 @@ impl ContentV2 {
     }
 }
 
-/// Version 3 content is a separate contract until the shared write path can
-/// verify and persist its exact asset use in the same transaction.
+/// Version 3 keeps asset identity separate from block dependencies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BodyV3 {
     Text(TextPayload),
@@ -484,6 +483,7 @@ impl ContentV3 {
 pub enum ContentDraft {
     V1(TextDraft),
     V2(ContentV2),
+    V3(ContentV3),
 }
 
 impl ContentDraft {
@@ -495,6 +495,9 @@ impl ContentDraft {
             2 => serde_json::from_value(value)
                 .map(Self::V2)
                 .map_err(|error| ContentError::Invalid(error.to_string())),
+            3 => serde_json::from_value(value)
+                .map(Self::V3)
+                .map_err(|error| ContentError::Invalid(error.to_string())),
             _ => invalid("unsupported_content_version"),
         }
     }
@@ -503,6 +506,7 @@ impl ContentDraft {
         match self {
             Self::V1(_) => 1,
             Self::V2(_) => 2,
+            Self::V3(_) => 3,
         }
     }
 
@@ -510,6 +514,7 @@ impl ContentDraft {
         match self {
             Self::V1(value) => value.validate(),
             Self::V2(value) => value.validate(),
+            Self::V3(value) => value.validate(),
         }
     }
 
@@ -523,6 +528,7 @@ impl ContentDraft {
                 }
                 hex_digest(canonical_json(&serde_json::json!({"domain":"content-v2","contract_version":2,"draft":stable})).as_bytes())
             }
+            Self::V3(value) => value.digest(),
         }
     }
 
@@ -530,6 +536,14 @@ impl ContentDraft {
         match self {
             Self::V1(_) => Vec::new(),
             Self::V2(value) => value.dependencies(),
+            Self::V3(value) => value.dependencies(),
+        }
+    }
+
+    pub fn asset_ref(&self) -> Option<&AssetRef> {
+        match self {
+            Self::V3(value) => value.asset_ref(),
+            Self::V1(_) | Self::V2(_) => None,
         }
     }
 }
@@ -690,6 +704,7 @@ impl Serialize for CreateContent {
         match &self.draft {
             ContentDraft::V1(value) => state.serialize_field("draft", value)?,
             ContentDraft::V2(value) => state.serialize_field("draft", value)?,
+            ContentDraft::V3(value) => state.serialize_field("draft", value)?,
         }
         state.serialize_field("reason", &self.reason)?;
         state.end()
@@ -706,6 +721,7 @@ impl Serialize for ReviseContent {
         match &self.draft {
             ContentDraft::V1(value) => state.serialize_field("draft", value)?,
             ContentDraft::V2(value) => state.serialize_field("draft", value)?,
+            ContentDraft::V3(value) => state.serialize_field("draft", value)?,
         }
         state.serialize_field("reason", &self.reason)?;
         state.end()
@@ -723,6 +739,7 @@ impl Serialize for ContentRevision {
         match &self.draft {
             ContentDraft::V1(value) => state.serialize_field("draft", value)?,
             ContentDraft::V2(value) => state.serialize_field("draft", value)?,
+            ContentDraft::V3(value) => state.serialize_field("draft", value)?,
         }
         state.serialize_field("content_sha256", &self.content_sha256)?;
         state.serialize_field("author_id", &self.author_id)?;
@@ -754,6 +771,7 @@ impl Serialize for ContentDraft {
         match self {
             Self::V1(value) => value.serialize(serializer),
             Self::V2(value) => value.serialize(serializer),
+            Self::V3(value) => value.serialize(serializer),
         }
     }
 }
