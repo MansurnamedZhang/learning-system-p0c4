@@ -1,5 +1,7 @@
 //! PostgreSQL persistence for the trusted application boundary.
+mod assets;
 mod authorization;
+pub use assets::{AssetMedia, AssetRecord, AssetStore, ResourceInput, SourceSegmentRef};
 mod block_write;
 mod lineage;
 pub use lineage::LineageStore;

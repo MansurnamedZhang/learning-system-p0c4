@@ -647,6 +647,7 @@ name = "learning-db"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "learning-assets",
  "learning-core",
  "serde_json",
  "sqlx",

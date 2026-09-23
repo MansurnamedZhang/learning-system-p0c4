@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+learning-assets = { path = "../learning-assets" }
 learning-core = { path = "../learning-core" }
 sqlx.workspace = true
 serde_json.workspace = true
