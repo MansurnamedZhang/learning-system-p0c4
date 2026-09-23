@@ -3,7 +3,7 @@
 mod relation_helpers;
 mod support;
 use learning_core::*;
-use learning_db::{LineageStore, RelationStore, ReviewStore, VersionedContentStore};
+use learning_db::{LineageStore, QueryStore, RelationStore, ReviewStore, VersionedContentStore};
 use serde_json::json;
 use support::{assembly as a, reading as h};
 use uuid::Uuid;
@@ -96,6 +96,24 @@ fn bodies(p: &VersionedReadingProjection) -> Vec<(BlockRef, String)> {
             Some((exact(r), text))
         })
         .collect()
+}
+
+fn impact_query(start: BlockRef, scope: ImpactScope) -> ImpactQuery {
+    ImpactQuery {
+        start: ImpactStart::Block(start),
+        scope,
+        families: vec![
+            ImpactFamily::Structural,
+            ImpactFamily::Necessary,
+            ImpactFamily::Semantic,
+            ImpactFamily::ReviewSelection,
+            ImpactFamily::Lineage,
+        ],
+        max_depth: 4,
+        limit: 50,
+        work_limit: 4096,
+        after: None,
+    }
 }
 
 #[tokio::test]
@@ -435,6 +453,501 @@ async fn synthetic_attention_fixed_evidence_history_revocation_restoration_and_s
     assert_eq!(released.manifest_sha256, expected_manifest);
     let actual_objects:Vec<(String,Uuid,Uuid)> = sqlx::query_as("SELECT kind,object_id,revision_id FROM release_manifest_object WHERE release_id=$1 ORDER BY kind,object_id,revision_id").bind(released.release_id).fetch_all(&r.admin_pool).await.unwrap();
     assert_eq!(actual_objects, objects);
+    // B4 reads the immutable Attention release through the same exact B3
+    // references. Expected edges and explanations are specified independently
+    // of the query output, including the counterexample's saved relation type.
+    let impact = QueryStore::new(r.runtime_pool.clone());
+    let released_scope = ImpactScope::Release {
+        release_id: released.release_id,
+    };
+    let selected_state = reading
+        .state(actor, selected.overlay.overlay_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let selected_editable = selected_state.editable.unwrap();
+    let placements = &selected_editable.groups[0].placements;
+    assert_eq!(placements.len(), 2);
+    assert_eq!(placements[0].block, href);
+    assert_eq!(placements[1].block, cref);
+    let h_location = ImpactLocation::Placement {
+        view_id: selected.view.view_id,
+        revision_id: selected.view.revision_id,
+        placement_id: placements[0].placement_id,
+    };
+    let reading_node = ImpactNode::Reading {
+        view_id: selected.view.view_id,
+        revision_id: selected.view.revision_id,
+    };
+    let release_node = ImpactNode::Release {
+        release_id: released.release_id,
+    };
+    let to_reading = ImpactStep {
+        from: ImpactNode::Block(href.clone()),
+        to: reading_node.clone(),
+        family: ImpactFamily::Structural,
+        dependency_role: None,
+        dependency_position: None,
+        direction: None,
+        relation_type: None,
+        lineage_type: None,
+        provenance: ImpactProvenance::FixedReadingSelection,
+        location: Some(h_location.clone()),
+        reason: ImpactReason::ReferencesOldRevision,
+    };
+    let to_release = ImpactStep {
+        from: reading_node.clone(),
+        to: release_node.clone(),
+        family: ImpactFamily::Structural,
+        dependency_role: None,
+        dependency_position: None,
+        direction: None,
+        relation_type: None,
+        lineage_type: None,
+        provenance: ImpactProvenance::Stored,
+        location: None,
+        reason: ImpactReason::ReferencesOldRevision,
+    };
+    for (scope, released) in [
+        (
+            ImpactScope::Reading {
+                view: selected.view.clone(),
+                mode: ReadingMode::Fused,
+            },
+            false,
+        ),
+        (released_scope.clone(), true),
+    ] {
+        let mut request = impact_query(href.clone(), scope);
+        request.families = vec![ImpactFamily::Structural];
+        request.max_depth = 2;
+        let result = impact.traverse(actor, request).await.unwrap().unwrap();
+        assert!(matches!(result.status(), PageStatus::Complete));
+        assert_eq!(result.start_membership(), ImpactMembership::Displayed);
+        assert_eq!(result.consumers().len(), if released { 2 } else { 1 });
+        let reading_group = result
+            .consumers()
+            .iter()
+            .find(|group| group.consumer == reading_node)
+            .unwrap();
+        assert_eq!(reading_group.locations, vec![h_location.clone()]);
+        assert_eq!(
+            reading_group.explanations,
+            vec![ImpactExplanation {
+                steps: vec![to_reading.clone()],
+            }]
+        );
+        if released {
+            let release_group = result
+                .consumers()
+                .iter()
+                .find(|group| group.consumer == release_node)
+                .unwrap();
+            assert_eq!(release_group.locations, vec![h_location.clone()]);
+            assert_eq!(
+                release_group.explanations,
+                vec![ImpactExplanation {
+                    steps: vec![to_reading.clone(), to_release.clone()],
+                }]
+            );
+        }
+    }
+    let c_location = ImpactLocation::Placement {
+        view_id: selected.view.view_id,
+        revision_id: selected.view.revision_id,
+        placement_id: placements[1].placement_id,
+    };
+    let c_reading_step = ImpactStep {
+        from: ImpactNode::Block(cref.clone()),
+        location: Some(c_location.clone()),
+        ..to_reading.clone()
+    };
+    let mut c_structural = impact_query(cref.clone(), released_scope.clone());
+    c_structural.families = vec![ImpactFamily::Structural];
+    c_structural.max_depth = 2;
+    let c_result = impact.traverse(actor, c_structural).await.unwrap().unwrap();
+    assert!(matches!(c_result.status(), PageStatus::Complete));
+    assert_eq!(c_result.consumers().len(), 2);
+    let c_reading_group = c_result
+        .consumers()
+        .iter()
+        .find(|group| group.consumer == reading_node)
+        .unwrap();
+    assert_eq!(c_reading_group.locations, vec![c_location.clone()]);
+    assert_eq!(
+        c_reading_group.explanations,
+        vec![ImpactExplanation {
+            steps: vec![c_reading_step.clone()],
+        }]
+    );
+    let c_release_group = c_result
+        .consumers()
+        .iter()
+        .find(|group| group.consumer == release_node)
+        .unwrap();
+    assert_eq!(c_release_group.locations, vec![c_location]);
+    assert_eq!(
+        c_release_group.explanations,
+        vec![ImpactExplanation {
+            steps: vec![c_reading_step, to_release.clone()],
+        }]
+    );
+    let original_location = ImpactLocation::Occurrence {
+        path: vec![doc.nodes[0].occurrence_id],
+    };
+    let original_to_doc = ImpactStep {
+        from: ImpactNode::Block(original_ref.clone()),
+        to: ImpactNode::Composition(doc.reference.clone()),
+        provenance: ImpactProvenance::Stored,
+        location: Some(original_location.clone()),
+        ..to_reading.clone()
+    };
+    let original_to_reading = ImpactStep {
+        from: ImpactNode::Block(original_ref.clone()),
+        location: Some(original_location.clone()),
+        ..to_reading.clone()
+    };
+    let doc_to_reading = ImpactStep {
+        from: ImpactNode::Composition(doc.reference.clone()),
+        location: None,
+        ..to_reading.clone()
+    };
+    let doc_to_release = ImpactStep {
+        from: ImpactNode::Composition(doc.reference.clone()),
+        ..to_release.clone()
+    };
+    let mut original_structural = impact_query(original_ref.clone(), released_scope.clone());
+    original_structural.families = vec![ImpactFamily::Structural];
+    original_structural.max_depth = 2;
+    let original_result = impact
+        .traverse(actor, original_structural)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(original_result.status(), PageStatus::Complete));
+    assert_eq!(original_result.consumers().len(), 3);
+    let composition_group = original_result
+        .consumers()
+        .iter()
+        .find(|group| group.consumer == ImpactNode::Composition(doc.reference.clone()))
+        .unwrap();
+    assert_eq!(composition_group.locations, vec![original_location.clone()]);
+    assert_eq!(
+        composition_group.explanations,
+        vec![ImpactExplanation {
+            steps: vec![original_to_doc.clone()],
+        }]
+    );
+    let original_reading_group = original_result
+        .consumers()
+        .iter()
+        .find(|group| group.consumer == reading_node)
+        .unwrap();
+    assert_eq!(
+        original_reading_group.locations,
+        vec![original_location.clone()]
+    );
+    assert_eq!(original_reading_group.explanations.len(), 2);
+    assert!(
+        original_reading_group
+            .explanations
+            .contains(&ImpactExplanation {
+                steps: vec![original_to_reading.clone()],
+            })
+    );
+    assert!(
+        original_reading_group
+            .explanations
+            .contains(&ImpactExplanation {
+                steps: vec![original_to_doc.clone(), doc_to_reading],
+            })
+    );
+    let original_release_group = original_result
+        .consumers()
+        .iter()
+        .find(|group| group.consumer == release_node)
+        .unwrap();
+    assert_eq!(original_release_group.locations, vec![original_location]);
+    assert_eq!(original_release_group.explanations.len(), 2);
+    assert!(
+        original_release_group
+            .explanations
+            .contains(&ImpactExplanation {
+                steps: vec![original_to_doc, doc_to_release],
+            })
+    );
+    assert!(
+        original_release_group
+            .explanations
+            .contains(&ImpactExplanation {
+                steps: vec![original_to_reading, to_release.clone()],
+            })
+    );
+    let local_evidence = impact
+        .evidence(
+            actor,
+            EvidenceQuery {
+                endpoint: href.clone(),
+                scope: released_scope.clone(),
+                include_dynamic: false,
+                limit: 50,
+                work_limit: 4096,
+                after: None,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        local_evidence.status(),
+        EvidencePageStatus::Complete
+    ));
+    assert_eq!(local_evidence.assertions().len(), 3);
+    assert_eq!(local_evidence.judgments().len(), 1);
+    for (from, relation, review, relation_type) in [
+        (
+            &e1,
+            &saved_relations[0],
+            &checked[0],
+            RelationType::Supports,
+        ),
+        (
+            &e2,
+            &saved_relations[1],
+            &checked[1],
+            RelationType::Supports,
+        ),
+        (&x, &saved_relations[2], &checked[2], RelationType::Opposes),
+    ] {
+        let assertion = local_evidence
+            .assertions()
+            .iter()
+            .find(|item| item.relation.reference == relation.reference)
+            .unwrap();
+        assert_eq!(assertion.relation.from, exact(from));
+        assert_eq!(assertion.relation.to, href);
+        assert_eq!(assertion.relation.relation_type, relation_type);
+        assert_eq!(assertion.relation.conditions, "protocol P only");
+        assert_eq!(
+            assertion.relation.rationale,
+            "human records toy observation"
+        );
+        assert_eq!(assertion.entry_direction, TraversalDirection::SavedReverse);
+        assert!(matches!(&assertion.sources[..],
+            [EvidenceSource::FixedReleaseSelection { view, review: Some(ReviewProjection::Available(found)) }]
+            if *view == selected.view && found.reference == review.reference
+                && found.explanation == "human checked synthetic record within P"));
+
+        let mut semantic_query = impact_query(exact(from), released_scope.clone());
+        semantic_query.families = vec![ImpactFamily::Semantic];
+        semantic_query.max_depth = 2;
+        let semantic_result = impact
+            .traverse(actor, semantic_query)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(semantic_result.status(), PageStatus::Complete));
+        assert_eq!(semantic_result.consumers().len(), 2);
+        let relation_node = ImpactNode::Relation(relation.reference.clone());
+        let entry = ImpactStep {
+            from: ImpactNode::Block(exact(from)),
+            to: relation_node.clone(),
+            family: ImpactFamily::Semantic,
+            dependency_role: None,
+            dependency_position: None,
+            direction: Some(TraversalDirection::SavedForward),
+            relation_type: Some(relation_type),
+            lineage_type: None,
+            provenance: ImpactProvenance::FixedReleaseManifest,
+            location: None,
+            reason: ImpactReason::SuggestReview,
+        };
+        let counterpart = ImpactStep {
+            from: relation_node.clone(),
+            to: ImpactNode::Block(href.clone()),
+            ..entry.clone()
+        };
+        let relation_group = semantic_result
+            .consumers()
+            .iter()
+            .find(|group| group.consumer == relation_node)
+            .unwrap();
+        assert!(relation_group.locations.is_empty());
+        assert_eq!(
+            relation_group.explanations,
+            vec![ImpactExplanation {
+                steps: vec![entry.clone()],
+            }]
+        );
+        let h_group = semantic_result
+            .consumers()
+            .iter()
+            .find(|group| group.consumer == ImpactNode::Block(href.clone()))
+            .unwrap();
+        assert!(h_group.locations.is_empty());
+        assert_eq!(
+            h_group.explanations,
+            vec![ImpactExplanation {
+                steps: vec![entry, counterpart],
+            }]
+        );
+
+        let result = impact
+            .traverse(actor, impact_query(exact(from), released_scope.clone()))
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(result.status(), PageStatus::Complete));
+        let conclusion_group = result
+            .consumers()
+            .iter()
+            .find(|group| group.consumer == ImpactNode::Block(cref.clone()))
+            .unwrap();
+        assert!(
+            conclusion_group
+                .explanations
+                .iter()
+                .any(|path| matches!(&path.steps[..],
+            [entry, counterpart, dependence]
+            if entry.from == ImpactNode::Block(exact(from))
+                && entry.to == ImpactNode::Relation(relation.reference.clone())
+                && entry.family == ImpactFamily::Semantic
+                && entry.direction == Some(TraversalDirection::SavedForward)
+                && entry.relation_type == Some(relation_type)
+                && entry.provenance == ImpactProvenance::FixedReleaseManifest
+                && entry.reason == ImpactReason::SuggestReview
+                && counterpart.from == ImpactNode::Relation(relation.reference.clone())
+                && counterpart.to == ImpactNode::Block(href.clone())
+                && counterpart.direction == Some(TraversalDirection::SavedForward)
+                && counterpart.relation_type == Some(relation_type)
+                && counterpart.provenance == ImpactProvenance::FixedReleaseManifest
+                && dependence.from == ImpactNode::Block(href.clone())
+                && dependence.to == ImpactNode::Block(cref.clone())
+                && dependence.family == ImpactFamily::Necessary
+                && dependence.dependency_role == Some(DependencyRole::Basis)
+                && dependence.dependency_position == Some(0)
+                && dependence.reason == ImpactReason::RequiresExactRevision))
+        );
+    }
+    assert!(matches!(&local_evidence.judgments()[0],
+        EvidenceJudgment::Available { views, review }
+        if views == &vec![selected.view.clone()] && review.reference == judgment.reference
+            && review.explanation == "E1 and E2 share R; X is counterevidence; no independence or truth inferred"));
+    let mut necessary_query = impact_query(href.clone(), released_scope.clone());
+    necessary_query.families = vec![ImpactFamily::Necessary];
+    necessary_query.max_depth = 1;
+    let necessary_result = impact
+        .traverse(actor, necessary_query)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(necessary_result.status(), PageStatus::Complete));
+    assert_eq!(necessary_result.consumers().len(), 5);
+    for (consumer, role, position) in [
+        (
+            ImpactNode::Relation(saved_relations[0].reference.clone()),
+            DependencyRole::Target,
+            1,
+        ),
+        (
+            ImpactNode::Relation(saved_relations[1].reference.clone()),
+            DependencyRole::Target,
+            1,
+        ),
+        (
+            ImpactNode::Relation(saved_relations[2].reference.clone()),
+            DependencyRole::Target,
+            1,
+        ),
+        (
+            ImpactNode::EpistemicReview(judgment.reference.clone()),
+            DependencyRole::Target,
+            0,
+        ),
+        (ImpactNode::Block(cref.clone()), DependencyRole::Basis, 0),
+    ] {
+        let group = necessary_result
+            .consumers()
+            .iter()
+            .find(|group| group.consumer == consumer)
+            .unwrap();
+        assert!(group.locations.is_empty());
+        assert_eq!(
+            group.explanations,
+            vec![ImpactExplanation {
+                steps: vec![ImpactStep {
+                    from: ImpactNode::Block(href.clone()),
+                    to: consumer,
+                    family: ImpactFamily::Necessary,
+                    dependency_role: Some(role),
+                    dependency_position: Some(position),
+                    direction: None,
+                    relation_type: None,
+                    lineage_type: None,
+                    provenance: ImpactProvenance::Stored,
+                    location: None,
+                    reason: ImpactReason::RequiresExactRevision,
+                }],
+            }]
+        );
+    }
+    let mut selected_nodes = vec![];
+    for (relation, review) in saved_relations.iter().zip(&checked) {
+        selected_nodes.push((
+            ImpactStart::Relation(relation.reference.clone()),
+            ImpactNode::Relation(relation.reference.clone()),
+        ));
+        selected_nodes.push((
+            ImpactStart::RelationReview(review.reference.clone()),
+            ImpactNode::RelationReview(review.reference.clone()),
+        ));
+    }
+    selected_nodes.push((
+        ImpactStart::EpistemicReview(judgment.reference.clone()),
+        ImpactNode::EpistemicReview(judgment.reference.clone()),
+    ));
+    for (start, node) in selected_nodes {
+        let result = impact
+            .traverse(
+                actor,
+                ImpactQuery {
+                    start,
+                    scope: released_scope.clone(),
+                    families: vec![ImpactFamily::ReviewSelection],
+                    max_depth: 1,
+                    limit: 50,
+                    work_limit: 4096,
+                    after: None,
+                },
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(result.status(), PageStatus::Complete));
+        assert_eq!(result.start_membership(), ImpactMembership::Selected);
+        assert_eq!(result.consumers().len(), 1);
+        let group = &result.consumers()[0];
+        assert_eq!(group.consumer, reading_node);
+        assert!(group.locations.is_empty());
+        assert_eq!(
+            group.explanations,
+            vec![ImpactExplanation {
+                steps: vec![ImpactStep {
+                    from: node,
+                    to: reading_node.clone(),
+                    family: ImpactFamily::ReviewSelection,
+                    dependency_role: None,
+                    dependency_position: None,
+                    direction: None,
+                    relation_type: None,
+                    lineage_type: None,
+                    provenance: ImpactProvenance::FixedReleaseManifest,
+                    location: None,
+                    reason: ImpactReason::SelectedEvidence,
+                }],
+            }]
+        );
+    }
     let next = content
         .revise(
             actor,
@@ -461,6 +974,31 @@ async fn synthetic_attention_fixed_evidence_history_revocation_restoration_and_s
         vec![ExactRef::Block(original_ref.clone())],
         None,
     );
+    assert_eq!(next.block_id, href.block_id);
+    for scope in [
+        ImpactScope::Reading {
+            view: selected.view.clone(),
+            mode: ReadingMode::Fused,
+        },
+        released_scope.clone(),
+    ] {
+        // The mutable head has advanced, but neither saved view nor release
+        // acquired H@2. An exact H@1 impact query remains available.
+        assert!(
+            impact
+                .traverse(actor, impact_query(exact(&next), scope.clone()))
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            impact
+                .traverse(actor, impact_query(href.clone(), scope))
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
     let next_judgment = reviews
         .append(
             actor,
@@ -531,6 +1069,71 @@ async fn synthetic_attention_fixed_evidence_history_revocation_restoration_and_s
         .await
         .unwrap();
     r.revoke(actor, source_space).await;
+    let hidden_scope = ImpactScope::Reading {
+        view: selected.view.clone(),
+        mode: ReadingMode::Fused,
+    };
+    let hidden_evidence = impact
+        .evidence(
+            actor,
+            EvidenceQuery {
+                endpoint: href.clone(),
+                scope: hidden_scope.clone(),
+                include_dynamic: false,
+                limit: 50,
+                work_limit: 4096,
+                after: None,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        hidden_evidence.status(),
+        EvidencePageStatus::Complete
+    ));
+    assert_eq!(hidden_evidence.assertions().len(), 1);
+    assert_eq!(
+        hidden_evidence.assertions()[0].relation.reference,
+        saved_relations[2].reference
+    );
+    assert_eq!(hidden_evidence.judgments(), &[EvidenceJudgment::Incomplete]);
+    let hidden_b4_wire = serde_json::to_string(&hidden_evidence).unwrap();
+    for secret in [
+        e1.block_id.to_string(),
+        e2.block_id.to_string(),
+        judgment.reference.review_id.to_string(),
+        saved_relations[0].reference.relation_id.to_string(),
+        source_space.to_string(),
+    ] {
+        assert!(!hidden_b4_wire.contains(&secret));
+    }
+    assert!(
+        impact
+            .traverse(actor, impact_query(exact(&e1), released_scope.clone()))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        impact
+            .traverse(actor, impact_query(href.clone(), released_scope.clone()))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let mut hidden_structural = impact_query(href.clone(), hidden_scope);
+    hidden_structural.families = vec![ImpactFamily::Structural];
+    hidden_structural.max_depth = 2;
+    let visible_h = impact
+        .traverse(actor, hidden_structural)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(visible_h.status(), PageStatus::Complete));
+    assert_eq!(visible_h.consumers().len(), 1);
+    assert_eq!(visible_h.consumers()[0].consumer, reading_node);
+    assert_eq!(visible_h.consumers()[0].locations, vec![h_location.clone()]);
     for reference in [exact(&e1), exact(&e2), cref.clone(), exact(&card)] {
         assert_eq!(content.read(actor, reference).await.unwrap(), None);
     }
@@ -616,6 +1219,29 @@ async fn synthetic_attention_fixed_evidence_history_revocation_restoration_and_s
         None
     );
     r.grant(actor, source_space, false).await;
+    let restored_evidence = impact
+        .evidence(
+            actor,
+            EvidenceQuery {
+                endpoint: href.clone(),
+                scope: released_scope.clone(),
+                include_dynamic: false,
+                limit: 50,
+                work_limit: 4096,
+                after: None,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored_evidence, local_evidence);
+    assert!(
+        impact
+            .traverse(actor, impact_query(exact(&e1), released_scope.clone()))
+            .await
+            .unwrap()
+            .is_some()
+    );
     assert_snapshot(
         &reading
             .read_versioned(actor, selected.view.clone(), ReadingMode::Fused)
@@ -695,6 +1321,99 @@ async fn synthetic_attention_fixed_evidence_history_revocation_restoration_and_s
         assert_eq!(link.from, split.outputs[i]);
         assert_eq!(link.to, cref);
         assert_eq!(json!(link.relation_type), json!("split_from"));
+    }
+    let mut historical_lineage = impact_query(cref.clone(), released_scope.clone());
+    historical_lineage.families = vec![ImpactFamily::Lineage];
+    historical_lineage.max_depth = 2;
+    let historical_result = impact
+        .traverse(actor, historical_lineage)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(historical_result.status(), PageStatus::Complete));
+    assert!(historical_result.consumers().is_empty());
+
+    let split_doc = r
+        .compositions()
+        .save(
+            actor,
+            space,
+            a::doc(vec![
+                NodeTarget::Block(cref.clone()),
+                NodeTarget::Block(split.outputs[0].clone()),
+                NodeTarget::Block(split.outputs[1].clone()),
+            ]),
+        )
+        .await
+        .unwrap();
+    let split_reading = reading
+        .create(actor, space, h::create(split_doc.reference))
+        .await
+        .unwrap();
+    let mut current_lineage = impact_query(
+        cref.clone(),
+        ImpactScope::Reading {
+            view: split_reading.view,
+            mode: ReadingMode::Original,
+        },
+    );
+    current_lineage.families = vec![ImpactFamily::Lineage];
+    current_lineage.max_depth = 2;
+    let current_result = impact
+        .traverse(actor, current_lineage)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(current_result.status(), PageStatus::Complete));
+    assert_eq!(current_result.consumers().len(), 3);
+    let operation_node = ImpactNode::Lineage {
+        operation_id: split.operation_id,
+    };
+    let input_step = ImpactStep {
+        from: ImpactNode::Block(cref.clone()),
+        to: operation_node.clone(),
+        family: ImpactFamily::Lineage,
+        dependency_role: None,
+        dependency_position: None,
+        direction: Some(TraversalDirection::SavedReverse),
+        relation_type: None,
+        lineage_type: Some(SystemLineageType::SplitFrom),
+        provenance: ImpactProvenance::Stored,
+        location: None,
+        reason: ImpactReason::DerivedFrom,
+    };
+    let operation_group = current_result
+        .consumers()
+        .iter()
+        .find(|group| group.consumer == operation_node)
+        .unwrap();
+    assert!(operation_group.locations.is_empty());
+    assert_eq!(
+        operation_group.explanations,
+        vec![ImpactExplanation {
+            steps: vec![input_step.clone()],
+        }]
+    );
+    for output in &split.outputs {
+        let output_group = current_result
+            .consumers()
+            .iter()
+            .find(|group| group.consumer == ImpactNode::Block(output.clone()))
+            .unwrap();
+        assert!(output_group.locations.is_empty());
+        assert_eq!(
+            output_group.explanations,
+            vec![ImpactExplanation {
+                steps: vec![
+                    input_step.clone(),
+                    ImpactStep {
+                        from: operation_node.clone(),
+                        to: ImpactNode::Block(output.clone()),
+                        ..input_step.clone()
+                    },
+                ],
+            }]
+        );
     }
     assert_body(
         &content.read(actor, cref).await.unwrap().unwrap(),

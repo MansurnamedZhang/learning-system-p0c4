@@ -121,16 +121,7 @@ impl QueryStore {
             if query.families.contains(&ImpactFamily::Necessary)
                 && let Some(exact) = query.start.exact()
             {
-                necessary(
-                    &mut tx,
-                    actor,
-                    &exact,
-                    &fixed,
-                    &mut session,
-                    &mut budget,
-                    &mut groups,
-                )
-                .await?;
+                necessary(&mut tx, actor, &exact, &fixed, &mut budget, &mut groups).await?;
             }
             Ok::<(), DirectError>(())
         }
@@ -450,7 +441,6 @@ async fn necessary(
     actor: Principal,
     start: &ExactRef,
     fixed: &scope::FixedScope,
-    session: &mut references::Session,
     budget: &mut VisibleWorkBudget,
     groups: &mut BTreeMap<ImpactNode, ImpactConsumerGroup>,
 ) -> Result<(), DirectError> {
@@ -516,7 +506,12 @@ async fn necessary(
             {
                 continue;
             }
-            if !session.authorize(tx, actor, &source).await? {
+            // The fixed-scope loader uses its own operation session. Each
+            // visible reverse candidate still needs its complete B3 closure
+            // (including independent cyclic-root depth validation), but
+            // unrelated candidates must not accumulate one B3 work budget.
+            let mut candidate_session = references::Session::default();
+            if !candidate_session.authorize(tx, actor, &source).await? {
                 continue;
             }
             let role: DependencyRole = serde_json::from_value(serde_json::Value::String(role))
