@@ -1,6 +1,6 @@
-# P0-C1 原件与图片块边界（待总验收）
+# P0-C1 原件与图片块边界
 
-本文件记录 C1 当前实现的预期契约；通过独立审查和隔离 Linux/Compose 总验收后，才可标记 `P0_C1_VERIFIED / NOT_PRODUCTION`。
+本文件记录已验收的 C1 契约；隔离 Linux/Compose 与独立审查证据见[验证记录](p0c1-verification.md)。当前状态为 `P0_C1_VERIFIED / NOT_PRODUCTION`。
 
 ## 权威对象与读取
 
