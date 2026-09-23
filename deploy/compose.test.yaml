@@ -30,6 +30,8 @@ services:
     secrets: [admin_password, runtime_password]
     volumes:
       - test_evidence:/evidence
+      - test_assets:/assets
+      - test_staging:/staging
     depends_on:
       pg: {condition: service_healthy}
     networks: [test]
@@ -38,6 +40,8 @@ networks:
 volumes:
   test_pg:
   test_evidence:
+  test_assets:
+  test_staging:
 secrets:
   postgres_password: {file: ../.runtime/secrets/postgres_password}
   admin_password: {file: ../.runtime/secrets/admin_password}
