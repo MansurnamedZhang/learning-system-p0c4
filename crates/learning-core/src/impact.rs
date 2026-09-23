@@ -1,7 +1,7 @@
 //! Public shape and visible-only limits for bounded revision impact queries.
 use crate::{
     BlockRef, CompositionRef, ContentError, DependencyRole, EpistemicReviewRef, ExactRef,
-    ReadingMode, ReadingRef, RelationRef, RelationReviewRef, RelationType,
+    ReadingMode, ReadingRef, RelationRef, RelationReviewRef, RelationType, SystemLineageType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -329,6 +329,9 @@ pub struct ImpactStep {
     pub dependency_position: Option<u32>,
     pub direction: Option<TraversalDirection>,
     pub relation_type: Option<RelationType>,
+    /// System provenance is distinct from editable semantic relation types.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lineage_type: Option<SystemLineageType>,
     pub provenance: ImpactProvenance,
     pub location: Option<ImpactLocation>,
     pub reason: ImpactReason,
@@ -343,6 +346,9 @@ impl ImpactStep {
             return Err(ContentError::Invalid(
                 "invalid_impact_dependency_identity".into(),
             ));
+        }
+        if (self.family == ImpactFamily::Lineage) != self.lineage_type.is_some() {
+            return Err(ContentError::Invalid("invalid_impact_lineage_type".into()));
         }
         Ok(())
     }

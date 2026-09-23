@@ -20,7 +20,7 @@ impl LineageStore {
         Ok(saved)
     }
 }
-pub(super) async fn load(
+pub(crate) async fn load(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,
     operation_id: Uuid,

@@ -1,6 +1,8 @@
 mod read;
 mod write;
 
+pub(crate) use read::load as load_for_impact;
+
 #[derive(Clone)]
 pub struct LineageStore {
     pool: sqlx::PgPool,

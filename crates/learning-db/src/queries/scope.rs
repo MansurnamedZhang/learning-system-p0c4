@@ -16,6 +16,10 @@ pub(super) struct FixedScope {
     /// The exact saved base of a readable fixed view. Manifest anchors never
     /// add this edge, and personal-only access does not expose the base.
     pub reading_bases: BTreeMap<CompositionRef, BTreeSet<ImpactNode>>,
+    /// Root-relative occurrence paths for each exact fixed reading source.
+    /// Release roots and other readings may contain the same composition at
+    /// different prefixes; their paths must not enter this reading's edge.
+    pub reading_source_paths: BTreeMap<ImpactNode, BTreeSet<Vec<Uuid>>>,
     pub placements: BTreeMap<BlockRef, Vec<ImpactLocation>>,
     pub reading_locations: BTreeMap<BlockRef, Vec<(ImpactNode, ImpactLocation)>>,
     pub compositions: BTreeMap<CompositionRef, CompositionRevision>,
@@ -38,7 +42,7 @@ impl FixedScope {
         &mut self,
         snapshot: VersionedCompositionSnapshot,
         displayed: bool,
-    ) -> Result<(), ContentError> {
+    ) -> Result<BTreeSet<Vec<Uuid>>, ContentError> {
         let revisions: BTreeMap<_, _> = snapshot
             .compositions
             .into_iter()
@@ -46,6 +50,7 @@ impl FixedScope {
             .collect();
         let mut stack = vec![(snapshot.root, Vec::<Uuid>::new())];
         let mut seen_occurrences = 0usize;
+        let mut source_paths = BTreeSet::new();
         while let Some((reference, path)) = stack.pop() {
             let composition = revisions.get(&reference).ok_or(ContentError::Storage)?;
             self.member(
@@ -64,6 +69,7 @@ impl FixedScope {
                 }
                 let mut next = path.clone();
                 next.push(node.occurrence_id);
+                source_paths.insert(next.clone());
                 match &node.target {
                     NodeTarget::Composition(child) => stack.push((child.clone(), next)),
                     NodeTarget::Block(block) if displayed => self.member(
@@ -74,7 +80,7 @@ impl FixedScope {
                 }
             }
         }
-        Ok(())
+        Ok(source_paths)
     }
     async fn add_reading(
         &mut self,
@@ -99,7 +105,9 @@ impl FixedScope {
                 .entry(source.root.clone())
                 .or_default()
                 .insert(reading_node.clone());
-            self.add_snapshot(source, false)?;
+            let source_paths = self.add_snapshot(source, false)?;
+            self.reading_source_paths
+                .insert(reading_node.clone(), source_paths);
         }
         for item in projection.items {
             match item {

@@ -104,6 +104,7 @@ fn group(revision: u128, paths: usize) -> ImpactConsumerGroup {
                     dependency_position: None,
                     direction: None,
                     relation_type: None,
+                    lineage_type: None,
                     provenance: ImpactProvenance::Stored,
                     location: Some(ImpactLocation::Occurrence {
                         path: vec![id(100 + i as u128)],
@@ -261,6 +262,22 @@ fn visible_work_and_node_caps_are_inclusive() {
 }
 
 #[test]
+fn visible_edge_and_explanation_caps_are_inclusive() {
+    let mut edges = VisibleWorkBudget::new(MAX_VISIBLE_WORK);
+    for _ in 0..MAX_VISIBLE_EDGES {
+        edges.charge_edge().unwrap();
+    }
+    assert_eq!(edges.edges(), MAX_VISIBLE_EDGES);
+    assert_eq!(edges.charge_edge(), Err(BudgetExceeded));
+
+    let mut paths = VisibleWorkBudget::new(MAX_VISIBLE_WORK);
+    for _ in 0..MAX_EXPLANATION_PATHS {
+        paths.charge_path().unwrap();
+    }
+    assert_eq!(paths.charge_path(), Err(BudgetExceeded));
+}
+
+#[test]
 fn budget_status_cannot_expose_a_partial_consumer() {
     let result = ImpactResult::budget_exceeded(
         block(2).into(),
@@ -308,6 +325,29 @@ fn necessary_edge_identity_requires_role_and_saved_position_together() {
     step.dependency_role = Some(DependencyRole::Basis);
     assert!(step.validate().is_ok());
     step.dependency_position = None;
+    assert!(step.validate().is_err());
+}
+
+#[test]
+fn lineage_type_is_exactly_required_for_lineage_steps_without_changing_other_step_json() {
+    let mut step = group(8, 1).explanations.remove(0).steps.remove(0);
+    assert!(
+        serde_json::to_value(&step)
+            .unwrap()
+            .get("lineage_type")
+            .is_none()
+    );
+    assert!(step.validate().is_ok());
+    step.lineage_type = Some(SystemLineageType::SplitFrom);
+    assert!(step.validate().is_err());
+    step.family = ImpactFamily::Lineage;
+    step.reason = ImpactReason::DerivedFrom;
+    assert!(step.validate().is_ok());
+    assert_eq!(
+        serde_json::to_value(&step).unwrap()["lineage_type"],
+        json!("split_from")
+    );
+    step.lineage_type = None;
     assert!(step.validate().is_err());
 }
 

@@ -161,7 +161,7 @@ impl QueryStore {
     }
 }
 
-enum DirectError {
+pub(super) enum DirectError {
     Budget,
     Storage(ContentError),
 }
@@ -170,13 +170,13 @@ impl From<ContentError> for DirectError {
         Self::Storage(internal_error(e))
     }
 }
-fn internal_error(error: ContentError) -> ContentError {
+pub(super) fn internal_error(error: ContentError) -> ContentError {
     match error {
         ContentError::Invalid(code) if code == "reference_budget_exceeded" => ContentError::Storage,
         other => other,
     }
 }
-fn node(reference: &ImpactStart) -> ImpactNode {
+pub(super) fn node(reference: &ImpactStart) -> ImpactNode {
     match reference {
         ImpactStart::Block(r) => ImpactNode::Block(r.clone()),
         ImpactStart::Composition(r) => ImpactNode::Composition(r.clone()),
@@ -185,7 +185,7 @@ fn node(reference: &ImpactStart) -> ImpactNode {
         ImpactStart::EpistemicReview(r) => ImpactNode::EpistemicReview(r.clone()),
     }
 }
-fn append(
+pub(super) fn append(
     groups: &mut BTreeMap<ImpactNode, ImpactConsumerGroup>,
     budget: &mut VisibleWorkBudget,
     step: ImpactStep,
@@ -220,12 +220,13 @@ fn structural_step(start: &BlockRef, to: ImpactNode, location: ImpactLocation) -
         dependency_position: None,
         direction: None,
         relation_type: None,
+        lineage_type: None,
         provenance: ImpactProvenance::Stored,
         location: Some(location),
         reason: ImpactReason::ReferencesOldRevision,
     }
 }
-async fn structural(
+pub(super) async fn structural(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,
     start: &BlockRef,
@@ -314,7 +315,7 @@ async fn structural(
     Ok(())
 }
 
-async fn structural_composition(
+pub(super) async fn structural_composition(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,
     start: &CompositionRef,
@@ -381,6 +382,7 @@ async fn structural_composition(
                         dependency_position: None,
                         direction: None,
                         relation_type: None,
+                        lineage_type: None,
                         provenance: ImpactProvenance::Stored,
                         location: Some(location),
                         reason: ImpactReason::ReferencesOldRevision,
@@ -411,6 +413,7 @@ async fn structural_composition(
                     dependency_position: None,
                     direction: None,
                     relation_type: None,
+                    lineage_type: None,
                     provenance: ImpactProvenance::Stored,
                     location: None,
                     reason: ImpactReason::ReferencesOldRevision,
@@ -431,6 +434,7 @@ async fn structural_composition(
                     dependency_position: None,
                     direction: None,
                     relation_type: None,
+                    lineage_type: None,
                     provenance: ImpactProvenance::FixedReadingSelection,
                     location: None,
                     reason: ImpactReason::ReferencesOldRevision,
@@ -530,6 +534,7 @@ async fn necessary(
                     dependency_position: Some(position),
                     direction: None,
                     relation_type: None,
+                    lineage_type: None,
                     provenance: ImpactProvenance::Stored,
                     location: None,
                     reason: ImpactReason::RequiresExactRevision,
