@@ -27,7 +27,7 @@ services:
     mem_limit: 4g
     environment:
       CARGO_BUILD_JOBS: 4
-    secrets: [admin_password, runtime_password]
+    secrets: [admin_password, runtime_password, postgres_password]
     volumes:
       - test_evidence:/evidence
       - test_assets:/assets

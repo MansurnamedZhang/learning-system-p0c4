@@ -3,6 +3,7 @@ set -eu
 # Generated secret files contain hexadecimal passwords, so URL encoding is unambiguous.
 export TEST_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_test"
 export TEST_DATABASE_URL="postgres://learning_runtime:$(cat /run/secrets/runtime_password)@pg/learning_test"
+export TEST_SUPERUSER_DATABASE_URL="postgres://postgres:$(cat /run/secrets/postgres_password)@pg/learning_test"
 export TEST_UPGRADE_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_upgrade_test"
 export TEST_UPGRADE_DATABASE_URL="postgres://learning_runtime:$(cat /run/secrets/runtime_password)@pg/learning_upgrade_test"
 export TEST_B1_UPGRADE_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_b1_upgrade_test"

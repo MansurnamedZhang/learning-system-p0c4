@@ -70,6 +70,27 @@ impl JobStore {
         &self.pool
     }
 
+    /// Enumerate a bounded set of potentially runnable jobs. Claim remains
+    /// the atomic authority check, so overlapping workers may see the same
+    /// identifier without duplicating an attempt.
+    pub async fn runnable_ids(&self, limit: usize) -> Result<Vec<Uuid>, ContentError> {
+        let limit = limit.min(256);
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        sqlx::query_scalar(
+            "SELECT id FROM public.job \
+             WHERE status='queued' \
+                OR (status='retry_wait' AND next_attempt_at<=clock_timestamp()) \
+                OR (status='running' AND lease_expires_at<=clock_timestamp()) \
+             ORDER BY created_at,id LIMIT $1",
+        )
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|_| ContentError::Storage)
+    }
+
     /// Atomically claim one known queued, due, or expired job. The database
     /// chooses eligibility and expiry; a new token fences every attempt.
     pub async fn claim(
