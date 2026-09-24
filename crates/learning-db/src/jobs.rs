@@ -1,6 +1,7 @@
-//! Read-only job inspection. Transfer, claim, and completion live in later tasks.
+//! Durable event transfer and fenced job state transitions.
 use learning_core::{ContentError, JobInput, JobStatus};
 use sqlx::{PgPool, types::Json};
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -16,6 +17,29 @@ pub struct JobRecord {
     pub input: JobInput,
     pub status: JobStatus,
     pub attempt_count: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JobFailureClass {
+    TransientStorage,
+    InvalidInput,
+}
+
+impl JobFailureClass {
+    fn database_values(self) -> (&'static str, bool) {
+        match self {
+            Self::TransientStorage => ("transient_storage", true),
+            Self::InvalidInput => ("invalid_input", false),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct JobLease {
+    pub job_id: Uuid,
+    pub token: Uuid,
+    pub attempt_count: i32,
+    pub lease_expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -38,6 +62,104 @@ impl JobStore {
     /// Construct with the restricted runtime pool.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    /// Atomically claim one known queued, due, or expired job. The database
+    /// chooses eligibility and expiry; a new token fences every attempt.
+    pub async fn claim(
+        &self,
+        job_id: Uuid,
+        lease: Duration,
+    ) -> Result<Option<JobLease>, ContentError> {
+        let lease_ms = checked_lease_ms(lease)?;
+        sqlx::query_as("SELECT job_id,token,attempts AS attempt_count,expires_at AS lease_expires_at FROM public.p0c2_claim_job($1,$2)")
+            .bind(job_id)
+            .bind(lease_ms)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)
+    }
+
+    pub async fn renew(
+        &self,
+        job_id: Uuid,
+        token: Uuid,
+        lease: Duration,
+    ) -> Result<bool, ContentError> {
+        let lease_ms = checked_lease_ms(lease)?;
+        sqlx::query_scalar("SELECT public.p0c2_renew_job($1,$2,$3)")
+            .bind(job_id)
+            .bind(token)
+            .bind(lease_ms)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)
+    }
+
+    pub async fn checkpoint(
+        &self,
+        job_id: Uuid,
+        token: Uuid,
+        checkpoint: serde_json::Value,
+    ) -> Result<bool, ContentError> {
+        sqlx::query_scalar("SELECT public.p0c2_checkpoint_job($1,$2,$3)")
+            .bind(job_id)
+            .bind(token)
+            .bind(Json(checkpoint))
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)
+    }
+
+    /// Commit the fenced digest for the current attempt. A future processor
+    /// result row must be inserted in this same transaction, with a false
+    /// fencing result rolling that insertion back.
+    pub async fn succeed(
+        &self,
+        job_id: Uuid,
+        token: Uuid,
+        digest: &str,
+    ) -> Result<bool, ContentError> {
+        if digest.len() != 64
+            || !digest
+                .as_bytes()
+                .iter()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+        {
+            return Err(ContentError::Invalid("invalid_job_output_digest".into()));
+        }
+        sqlx::query_scalar("SELECT public.p0c2_succeed_job($1,$2,$3)")
+            .bind(job_id)
+            .bind(token)
+            .bind(digest)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)
+    }
+
+    pub async fn fail(
+        &self,
+        job_id: Uuid,
+        token: Uuid,
+        class: JobFailureClass,
+    ) -> Result<bool, ContentError> {
+        let (name, retryable) = class.database_values();
+        sqlx::query_scalar("SELECT public.p0c2_fail_job($1,$2,$3,$4)")
+            .bind(job_id)
+            .bind(token)
+            .bind(name)
+            .bind(retryable)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)
+    }
+
+    pub async fn cancel(&self, job_id: Uuid) -> Result<bool, ContentError> {
+        sqlx::query_scalar("SELECT public.p0c2_cancel_job($1)")
+            .bind(job_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)
     }
 
     /// Move a bounded batch of pending business events to queued jobs.
@@ -130,4 +252,13 @@ impl JobStore {
         })
         .transpose()
     }
+}
+
+fn checked_lease_ms(lease: Duration) -> Result<i64, ContentError> {
+    let millis = i64::try_from(lease.as_millis())
+        .map_err(|_| ContentError::Invalid("invalid_job_lease_duration".into()))?;
+    if !(1..=300_000).contains(&millis) {
+        return Err(ContentError::Invalid("invalid_job_lease_duration".into()));
+    }
+    Ok(millis)
 }

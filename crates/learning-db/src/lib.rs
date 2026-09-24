@@ -4,7 +4,7 @@ mod authorization;
 pub use assets::{AssetMedia, AssetRecord, AssetStore, ResourceInput, SourceSegmentRef};
 mod block_write;
 mod jobs;
-pub use jobs::{JobRecord, JobStore};
+pub use jobs::{JobFailureClass, JobLease, JobRecord, JobStore};
 mod lineage;
 pub use lineage::LineageStore;
 mod composition;
