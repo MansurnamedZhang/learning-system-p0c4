@@ -19,6 +19,15 @@ pub struct ResourceVersionRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceSegmentRef {
+    pub space_id: Uuid,
+    pub resource_id: Uuid,
+    pub version_id: Uuid,
+    pub segment_id: Uuid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AssetUseRef {
     Block(BlockRef),

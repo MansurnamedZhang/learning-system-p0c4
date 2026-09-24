@@ -17,7 +17,7 @@
 - 原样包必须包含完整已授权父/前序链、位置身份与锚、精确关系/审查、必要资产元数据；缺授权或缺原件直接拒绝 `exact_import_v1`，不拼造缺边。`reading_copy_v1` 永不能导入。
 - 共享预算：精确引用最多 2048 对象/4096 边/深度 32/正文 8 MiB；组合最多深度 16/4096 occurrences/2048 对象/正文 8 MiB。目录包最多 2048 文件、单个 JSON 8 MiB、JSON 合计 64 MiB、单原件 128 MiB、原件合计 512 MiB；超限显式失败。所有数字作为代码常量与格式文档固定，并在单包范围累计。
 - 权威格式 v1 使用规范 UTF-8 JSON：对象键按字节序排序、无多余空白、数值/时间用已定义序列化；每行完整记录单独 SHA-256，manifest 按路径排序记录 `path,size,sha256`，不把作业时间和随机 ID 放入权威摘要。目录只允许程序生成的 ASCII 类型/UUID/SHA 路径、普通文件和固定名单；拒绝符号链接/重解析点、未知文件、碰撞和路径穿越。
-- 固定目录路径：`manifest.json`、`objects/<table>/<uuid>[__<uuid>...].json`、`assets/sha256/<前两位>/<64位摘要>`、`validation.json`，可选 `reading.html`/`reading.md`。manifest 的 `files` 收录除自身以外的每个文件。数据库 `timestamptz` 用 UTC RFC3339 微秒精度；所有 UUID 小写连字符格式；JSON 不使用浮点 NaN/Infinity。包文件名和目录结构只由固定 table enum 与已验证身份生成。
+- 固定目录路径：`manifest.json`、`objects/<table>/<typed-pk-token>[__<typed-pk-token>...].json`、`assets/sha256/<前两位>/<64位摘要>`、`validation.json`，可选 `reading.html`/`reading.md`。PK token 按数据库主键列顺序使用 `u-<小写连字符 UUID>`、`k-<闭集 reference kind>` 或 `p-<无前导零的非负十进制位置>`；不接收任意文本、负数、溢出或非规范拼写。这覆盖 `reference_object` 的 kind 与 selection/dependency 的 position，避免不同主键碰撞。manifest 的 `files` 收录除自身以外的每个文件。数据库 `timestamptz` 用 UTC RFC3339 微秒精度；JSON 不使用浮点 NaN/Infinity。包文件名和目录结构只由固定 table enum 与已验证身份生成。
 - 目标导入新容器的 head 指向包内所选精确修订；已有容器 head/published/last_release 永不改动。完整规范记录相同复用，任一不可变字段不同则全包拒绝；任何失败不得出现半可见阅读。
 - C3 不搬运 release、lineage operation、迁移决策、收据、job/outbox/result、用户/空间/grant；C4 处理整库恢复。P1 HTTP/UI 与生产部署均不在本计划。
 
@@ -84,9 +84,11 @@ pub enum SnapshotTable { Asset, Resource, ResourceVersion, SourceSegment,
     RelationRevision, RelationReviewHead, RelationReview, EpistemicStream,
     EpistemicReview, ReadingView, ReadingViewRevision,
     ReadingRelationSelection, ReadingEpistemicSelection }
+pub enum ReferenceKind { Block, Relation, RelationReview, EpistemicReview }
+pub enum SnapshotIdentityPart { Uuid(Uuid), Kind(ReferenceKind), Position(u32) }
 pub struct SnapshotRow {
     pub table: SnapshotTable,
-    pub identity: Vec<Uuid>,
+    pub identity: Vec<SnapshotIdentityPart>,
     pub immutable_values: serde_json::Value,
     pub sha256: String,
 }
@@ -111,6 +113,8 @@ pub enum CopyItem {
     Omitted,
 }
 pub fn canonical_record_hash(value: &serde_json::Value) -> String;
+pub fn snapshot_object_path(table: SnapshotTable, identity: &[SnapshotIdentityPart]) -> Result<String, ContentError>;
+pub fn parse_snapshot_object_path(path: &str) -> Result<(SnapshotTable, Vec<SnapshotIdentityPart>), ContentError>;
 ```
 
 `ResourceVersionRef` 已在 `learning-core::asset`，`SourceSegmentRef` 目前在 `learning-db::assets`；此任务把后者的纯身份类型移到 core 并从 db 重导出，保持现有路径兼容。`ReadingCopyManifest` 只有新生成的本地 `copy_id`，没有精确 root 字段。`ReadingCopy` 只有文本和固定 `Omitted` 标记，没有原身份；同一不可见组件只给一个标记，不能按隐藏对象逐个输出。`SnapshotRow.immutable_values` 对修订/附属行包含全部列；对 block/composition/overlay/reading/relation/stream 等容器按规格中的逐表身份字段编码，明确排除可变 head/published/last_release。现有容器只比这些不变字段，不因后续 head 不同误判冲突。`reference_object`/`reference_dependency` 是精确派生索引，包中逐行记录期望值；导入时 block/relation/review 触发器生成 registry，显式插入依赖行，在事务末核对两者。`SnapshotRow` 和 `SnapshotAssetUse` 定义在 core，供 DB 与 assets crate 共用；`learning-assets/Cargo.toml` 追加对 `learning-core`、`serde_json` 的依赖，不形成循环。

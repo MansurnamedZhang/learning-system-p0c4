@@ -2,6 +2,7 @@ mod read;
 mod write;
 
 use learning_assets::FsAssetStore;
+pub use learning_core::SourceSegmentRef;
 use learning_core::{AssetRef, ContentError};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -27,14 +28,6 @@ pub struct ResourceInput {
     pub space_id: Uuid,
     pub resource_id: Option<Uuid>,
     pub display_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceSegmentRef {
-    pub space_id: Uuid,
-    pub resource_id: Uuid,
-    pub version_id: Uuid,
-    pub segment_id: Uuid,
 }
 
 #[derive(Clone)]
