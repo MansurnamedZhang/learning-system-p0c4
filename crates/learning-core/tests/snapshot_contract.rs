@@ -89,6 +89,42 @@ fn copy_has_no_exact_root() {
 }
 
 #[test]
+fn reading_copy_rejects_exact_object_paths_even_when_structurally_valid() {
+    let object_path = snapshot_object_path(
+        SnapshotTable::BlockRevision,
+        &[SnapshotIdentityPart::Uuid(id(42))],
+    )
+    .unwrap();
+    let object_file = json!({
+        "path": object_path,
+        "size": 10,
+        "sha256": "a".repeat(64)
+    });
+    let copy = json!({
+        "capability": "reading_copy_v1", "format_version": 1,
+        "copy_id": id(3), "files": [object_file.clone()]
+    });
+    assert!(serde_json::from_value::<SnapshotManifest>(copy).is_err());
+
+    let exact = json!({
+        "capability": "exact_import_v1", "format_version": 1,
+        "root": {"view_id": id(1), "revision_id": id(2)},
+        "files": [object_file], "requires_destination_assets": false
+    });
+    assert!(serde_json::from_value::<SnapshotManifest>(exact).is_ok());
+
+    let copy_only = json!({
+        "capability": "reading_copy_v1", "format_version": 1,
+        "copy_id": id(3), "files": [
+            {"path": format!("assets/sha256/aa/{}", "a".repeat(64)), "size": 10, "sha256": "a".repeat(64)},
+            {"path": "reading.md", "size": 10, "sha256": "b".repeat(64)},
+            {"path": "validation.json", "size": 10, "sha256": "c".repeat(64)}
+        ]
+    });
+    assert!(serde_json::from_value::<SnapshotManifest>(copy_only).is_ok());
+}
+
+#[test]
 fn budget_is_package_wide() {
     let mut budget = SnapshotBudget::default();
     for _ in 0..2048 {

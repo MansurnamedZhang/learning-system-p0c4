@@ -138,6 +138,7 @@ impl TryFrom<RawReadingCopyManifest> for ReadingCopyManifest {
             return Err("unsupported_snapshot_format_version".into());
         }
         validate_manifest_files(&raw.files)?;
+        validate_copy_manifest_files(&raw.files)?;
         Ok(Self {
             format_version: raw.format_version,
             copy_id: raw.copy_id,
@@ -577,4 +578,17 @@ fn validate_manifest_files(files: &[SnapshotFile]) -> Result<(), String> {
             .map_err(|_| "snapshot_limit_exceeded".to_string())?;
     }
     Ok(())
+}
+
+fn validate_copy_manifest_files(files: &[SnapshotFile]) -> Result<(), String> {
+    if files.iter().all(|file| {
+        matches!(
+            file.path.as_str(),
+            "reading.html" | "reading.md" | "validation.json"
+        ) || file.path.starts_with("assets/sha256/")
+    }) {
+        Ok(())
+    } else {
+        Err("invalid_reading_copy_file".into())
+    }
 }
