@@ -1,4 +1,5 @@
 mod read;
+pub(crate) use read::read_for_use_in_tx;
 mod write;
 
 use learning_assets::FsAssetStore;

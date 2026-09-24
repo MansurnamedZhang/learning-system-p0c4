@@ -25,6 +25,8 @@ mod reviews;
 pub use reviews::ReviewStore;
 mod release;
 mod request;
+mod snapshot;
+pub use snapshot::{SnapshotPlan, SnapshotStore};
 mod versioned_content;
 pub use versioned_content::VersionedContentStore;
 mod write;

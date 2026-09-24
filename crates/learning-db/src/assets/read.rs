@@ -38,13 +38,13 @@ async fn authorized_row(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,
     use_ref: AssetUseRef,
+    session: &mut references::Session,
 ) -> Result<Option<AssetRow>, ContentError> {
     let row = match use_ref {
         AssetUseRef::Block(block) => {
             // Match the existing exact-reference read contract: a visible root
             // with a hidden necessary dependency is not readable either.
-            if !references::Session::default()
-                .authorize(tx, actor, &ExactRef::Block(block.clone()))
+            if !session.authorize(tx, actor, &ExactRef::Block(block.clone()))
                 .await?
             {
                 return Ok(None);
@@ -84,6 +84,18 @@ async fn authorized_row(
     Ok(row)
 }
 
+/// Shared-transaction resolver for package planning; no independent snapshot.
+pub(crate) async fn read_for_use_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    use_ref: AssetUseRef,
+    session: &mut references::Session,
+) -> Result<Option<AssetRecord>, ContentError> {
+    Ok(authorized_row(tx, actor, use_ref, session)
+        .await?
+        .map(AssetRow::record))
+}
+
 impl AssetStore {
     /// Resolve an exact, authorized block revision or resource version. A
     /// hidden use and a nonexistent use are indistinguishable to callers.
@@ -93,7 +105,8 @@ impl AssetStore {
         use_ref: AssetUseRef,
     ) -> Result<Option<AssetRecord>, ContentError> {
         let mut tx = request::begin_read(&self.pool).await?;
-        let row = authorized_row(&mut tx, actor, use_ref).await?;
+        let row =
+            authorized_row(&mut tx, actor, use_ref, &mut references::Session::default()).await?;
         tx.commit().await.map_err(storage)?;
         Ok(row.map(AssetRow::record))
     }
@@ -106,7 +119,8 @@ impl AssetStore {
         use_ref: AssetUseRef,
     ) -> Result<Option<File>, ContentError> {
         let mut tx = request::begin_read(&self.pool).await?;
-        let row = authorized_row(&mut tx, actor, use_ref).await?;
+        let row =
+            authorized_row(&mut tx, actor, use_ref, &mut references::Session::default()).await?;
         let Some(row) = row else {
             tx.commit().await.map_err(storage)?;
             return Ok(None);
