@@ -45,6 +45,18 @@ impl JobInput {
         )
     }
 
+    pub fn actor_id(&self) -> Uuid {
+        self.actor_id
+    }
+
+    pub fn space_id(&self) -> Uuid {
+        self.space_id
+    }
+
+    pub fn block(&self) -> &BlockRef {
+        &self.block
+    }
+
     pub fn to_value(&self) -> Value {
         json!({
             "version": 1,

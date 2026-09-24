@@ -15,6 +15,7 @@ pub struct JobRecord {
     pub outbox_id: Uuid,
     pub idempotency_key: String,
     pub input: JobInput,
+    pub processor_version: i32,
     pub status: JobStatus,
     pub attempt_count: i32,
 }
@@ -48,6 +49,7 @@ struct JobRow {
     outbox_id: Uuid,
     idempotency_key: String,
     input: Json<serde_json::Value>,
+    processor_version: i32,
     status: String,
     attempt_count: i32,
 }
@@ -62,6 +64,10 @@ impl JobStore {
     /// Construct with the restricted runtime pool.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    pub(crate) fn pool(&self) -> &PgPool {
+        &self.pool
     }
 
     /// Atomically claim one known queued, due, or expired job. The database
@@ -228,7 +234,7 @@ impl JobStore {
 
     pub async fn get(&self, id: Uuid) -> Result<Option<JobRecord>, ContentError> {
         let row: Option<JobRow> = sqlx::query_as(
-            "SELECT j.id,j.outbox_id,j.idempotency_key,o.payload AS input,j.status,j.attempt_count
+            "SELECT j.id,j.outbox_id,j.idempotency_key,o.payload AS input,o.processor_version,j.status,j.attempt_count
                FROM public.job j JOIN public.job_outbox o ON o.id=j.outbox_id
               WHERE j.id=$1",
         )
@@ -246,6 +252,7 @@ impl JobStore {
                 outbox_id: row.outbox_id,
                 idempotency_key: row.idempotency_key,
                 input,
+                processor_version: row.processor_version,
                 status: JobStatus::parse(&row.status)?,
                 attempt_count: row.attempt_count,
             })

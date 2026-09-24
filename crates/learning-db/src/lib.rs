@@ -5,6 +5,8 @@ pub use assets::{AssetMedia, AssetRecord, AssetStore, ResourceInput, SourceSegme
 mod block_write;
 mod jobs;
 pub use jobs::{JobFailureClass, JobLease, JobRecord, JobStore};
+mod job_processor;
+pub use job_processor::{AssetIntegrityProcessor, AssetProcessOutcome, PreparedAssetIntegrity};
 mod lineage;
 pub use lineage::LineageStore;
 mod composition;

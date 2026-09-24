@@ -2,7 +2,7 @@ mod read;
 mod write;
 
 use learning_assets::FsAssetStore;
-use learning_core::AssetRef;
+use learning_core::{AssetRef, ContentError};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -48,5 +48,12 @@ impl AssetStore {
     /// to the same immutable assets volume that finalized the VerifiedBlob.
     pub fn new(pool: PgPool, files: FsAssetStore) -> Self {
         Self { pool, files }
+    }
+
+    pub(crate) fn verify_record_bytes(&self, record: &AssetRecord) -> Result<(), ContentError> {
+        self.files
+            .open_record(&record.storage_key, &record.sha256, record.byte_size)
+            .map(|_| ())
+            .map_err(crate::storage)
     }
 }
