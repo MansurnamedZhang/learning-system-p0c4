@@ -47,6 +47,13 @@ fn v2(basis: Vec<BlockRef>) -> ContentDraft {
         source_run: None,
     })
 }
+fn conjecture_v2() -> ContentDraft {
+    let mut draft = v2(vec![]);
+    if let ContentDraft::V2(content) = &mut draft {
+        content.intent = Intent::Conjecture;
+    }
+    draft
+}
 async fn content(
     r: &TestRig,
     actor: Principal,
@@ -127,7 +134,7 @@ async fn exact_rows_preserve_ancestors_unplaced_anchors_evidence_and_two_asset_u
             ReviseContent {
                 request_id: Uuid::new_v4(),
                 base_revision_id: first.revision_id,
-                draft: v2(vec![]),
+                draft: conjecture_v2(),
                 reason: "new revision".into(),
             },
         )
@@ -603,20 +610,19 @@ async fn personal_scope_without_a_fixed_overlay_revision_is_not_exportable() {
 async fn hidden_epistemic_predecessor_and_selected_relation_are_rejected() {
     let (r, actor, space, doc, saved) = h::fixture().await;
     let (other, foreign) = r.seed_actor_space(true).await;
+    // can_write=false grants read access to the evidence until revoke below.
     r.grant(actor, foreign, false).await;
     let secret = r
         .store
         .create(other, foreign, support::command("old private evidence"))
         .await
         .unwrap();
-    let NodeTarget::Block(target) = doc.nodes[0].target.clone() else {
-        panic!()
-    };
+    let target = content(&r, actor, space, conjecture_v2()).await;
     let reviews = ReviewStore::new(r.runtime_pool.clone());
     let mut command = AppendEpistemicReview {
         request_id: Uuid::new_v4(),
         scope: RelationScope::Space { space_id: space },
-        target,
+        target: exact(&target),
         expected_previous: None,
         state: EpistemicState::Testing,
         relations: vec![],
@@ -639,7 +645,7 @@ async fn hidden_epistemic_predecessor_and_selected_relation_are_rejected() {
                 expected_overlay_revision: saved.overlay.revision_id,
                 expected_reading_view_revision: saved.view.revision_id,
                 selections: vec![],
-                epistemic_reviews: vec![current.reference],
+                epistemic_reviews: vec![current.reference.clone()],
                 reason: "fixed review".into(),
             },
         )
@@ -651,6 +657,15 @@ async fn hidden_epistemic_predecessor_and_selected_relation_are_rejected() {
         .await
         .unwrap();
     r.revoke(actor, foreign).await;
+    let visible = h::store(&r)
+        .read_versioned(actor, selected.view.clone(), ReadingMode::Fused)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(visible.source, SourceProjection::Available { .. }));
+    assert!(matches!(visible.evidence.epistemic_reviews.as_slice(),
+        [ReviewProjection::Available(review)]
+        if review.reference == current.reference && review.previous.is_none() && review.evidence.is_empty()));
     assert!(matches!(
         store.plan_exact(actor, &request(selected.view)).await,
         Err(ContentError::NotFound)
