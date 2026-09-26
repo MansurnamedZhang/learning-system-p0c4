@@ -90,6 +90,113 @@ async fn queued() -> (
 }
 
 #[tokio::test]
+async fn completion_as_non_owner_runtime_preserves_grant_and_lease_boundaries() {
+    let (rig, actor, space, _, jobs, id, _) = queued().await;
+    assert_completion_privilege_boundary(&rig.runtime_pool).await;
+    let lease = jobs
+        .claim_snapshot(id, Duration::from_secs(30))
+        .await
+        .unwrap()
+        .unwrap();
+    // Read access is enough for export; can_write=false must not mean revoked.
+    sqlx::query("UPDATE public.space_grant SET can_write=false WHERE actor_id=$1 AND space_id=$2")
+        .bind(actor.actor_id)
+        .bind(space)
+        .execute(&rig.admin_pool)
+        .await
+        .unwrap();
+    assert!(!complete_via_runtime(&rig, id, Uuid::new_v4(), &[space]).await);
+    // A missing required space must prevent completion even with a valid token.
+    assert!(!complete_via_runtime(&rig, id, lease.token, &[space, Uuid::new_v4()]).await);
+    let unchanged: (String, bool) = sqlx::query_as(
+        "SELECT status, EXISTS(SELECT 1 FROM public.snapshot_export_result WHERE job_id=$1)
+         FROM public.job WHERE id=$1",
+    )
+    .bind(id)
+    .fetch_one(&rig.runtime_pool)
+    .await
+    .unwrap();
+    assert_eq!(unchanged, ("snapshot_running".into(), false));
+    assert!(complete_via_runtime(&rig, id, lease.token, &[space]).await);
+    let published: (String, Uuid, String, String) = sqlx::query_as(
+        "SELECT j.status, r.stage_token, j.output_digest, r.manifest_sha256
+         FROM public.job j JOIN public.snapshot_export_result r ON r.job_id=j.id WHERE j.id=$1",
+    )
+    .bind(id)
+    .fetch_one(&rig.runtime_pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        published,
+        (
+            "succeeded".into(),
+            lease.token,
+            "a".repeat(64),
+            "a".repeat(64)
+        )
+    );
+}
+
+async fn assert_completion_privilege_boundary(pool: &sqlx::PgPool) {
+    // A superuser/owner connection or an overprivileged function owner would
+    // hide the nested SECURITY DEFINER permission failure seen on Linux.
+    let boundary: (bool, bool, bool, bool, bool) = sqlx::query_as(
+        "SELECT current_user::regrole::oid <> p.proowner AND NOT r.rolsuper,
+                p.prosecdef AND p.proowner = t.relowner,
+                has_table_privilege(p.proowner, t.oid, 'SELECT'),
+                has_function_privilege(p.proowner, 'public.lock_space_grant(uuid,uuid)', 'EXECUTE'),
+                has_column_privilege(current_user, 'public.space_grant', 'can_write', 'UPDATE')
+         FROM pg_proc p JOIN pg_class t ON t.oid = 'public.space_grant'::regclass
+         JOIN pg_roles r ON r.rolname = current_user
+         WHERE p.oid = 'public.p0c3_complete_snapshot_job(uuid,uuid,text,text,text,uuid[])'::regprocedure",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(boundary, (true, true, true, false, false));
+}
+
+async fn complete_via_runtime(
+    rig: &support::TestRig,
+    id: Uuid,
+    token: Uuid,
+    spaces: &[Uuid],
+) -> bool {
+    sqlx::query_scalar("SELECT public.p0c3_complete_snapshot_job($1,$2,'exact_import_v1',$3,$4,$5)")
+        .bind(id)
+        .bind(token)
+        .bind("a".repeat(64))
+        .bind("b".repeat(64))
+        .bind(spaces)
+        .fetch_one(&rig.runtime_pool)
+        .await
+        .expect(
+            "completion must recheck grant rows under its definer without a helper EXECUTE grant",
+        )
+}
+
+#[tokio::test]
+async fn completion_as_runtime_rejects_revoked_grant_without_publishing() {
+    let (rig, actor, space, _, jobs, id, _) = queued().await;
+    let lease = jobs
+        .claim_snapshot(id, Duration::from_secs(30))
+        .await
+        .unwrap()
+        .unwrap();
+    rig.revoke(actor, space).await;
+    assert!(!complete_via_runtime(&rig, id, lease.token, &[space]).await);
+    let unchanged: (String, bool) = sqlx::query_as(
+        "SELECT status, EXISTS(SELECT 1 FROM public.snapshot_export_result WHERE job_id=$1)
+         FROM public.job WHERE id=$1",
+    )
+    .bind(id)
+    .fetch_one(&rig.runtime_pool)
+    .await
+    .unwrap();
+    assert_eq!(unchanged, ("snapshot_running".into(), false));
+}
+
+#[tokio::test]
 async fn old_worker_cannot_consume_snapshot_attempt_new_worker_can() {
     let (_, _, _, _, jobs, id, _) = queued().await;
     assert!(!jobs.runnable_ids(256).await.unwrap().contains(&id));
@@ -911,6 +1018,7 @@ async fn fresh_0013_database_upgrades_actual_constraints_without_changing_c2_sta
         .bind(Uuid::new_v4()).bind(snapshot.business_key()).bind(snapshot.to_value()).bind(actor).execute(&runtime).await.unwrap_err();
     assert_eq!(support::sqlstate(&rejected).as_deref(), Some("23514"));
     MIGRATOR.run(&admin).await.unwrap();
+    assert_completion_privilege_boundary(&runtime).await;
     let after: Vec<(i64, Vec<u8>)> = sqlx::query_as(
         "SELECT version,checksum FROM _sqlx_migrations WHERE version<=13 ORDER BY version",
     )

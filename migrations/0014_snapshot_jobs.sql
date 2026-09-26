@@ -334,7 +334,11 @@ BEGIN
  -- The trusted Rust boundary supplies the complete freshly replanned closure.
  -- Recheck locks here too; all are acquired in stable UUID order.
  FOR required IN SELECT DISTINCT unnest(p_spaces) ORDER BY 1 LOOP
-   IF public.lock_space_grant(initiator,required) IS NULL THEN RETURN false; END IF;
+   -- This definer owns space_grant, but does not have EXECUTE on the
+   -- auth-lock-owned helper. Preserve its existence check and row lock here.
+   PERFORM 1 FROM public.space_grant AS g
+   WHERE g.actor_id=initiator AND g.space_id=required FOR SHARE;
+   IF NOT FOUND THEN RETURN false; END IF;
  END LOOP;
  IF NOT public.p0c3_succeed_snapshot_job(p_job_id,p_token,p_manifest) THEN RETURN false; END IF;
  INSERT INTO public.snapshot_export_result(job_id,stage_token,capability,manifest_sha256,plan_sha256,required_spaces)
