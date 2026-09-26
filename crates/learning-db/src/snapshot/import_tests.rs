@@ -6,7 +6,7 @@ use uuid::Uuid;
 fn u(n: u128) -> Uuid {
     Uuid::from_u128(n)
 }
-fn fixture() -> (Vec<SnapshotRow>, ReadingRef, Principal) {
+pub(super) fn fixture() -> (Vec<SnapshotRow>, ReadingRef, Principal) {
     let time = "2026-09-24T00:00:00.000000Z";
     let content = json!({"kind":"text","intent":"note","language":"en","title":"Title","payload":{"format":"markdown","text":"Original"}});
     let draft = ContentDraft::decode(1, content.clone()).unwrap();
@@ -302,7 +302,7 @@ fn preflight_preserves_bounded_necessary_reference_cycles() {
 
 // The package contains immutable historical revisions and selections; no
 // mutable review-head state is present or consulted by preflight.
-fn epistemic_fixture(
+pub(super) fn epistemic_fixture(
     intent: Intent,
     kind: RelationType,
     target_id: u128,

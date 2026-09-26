@@ -27,8 +27,8 @@ mod release;
 mod request;
 mod snapshot;
 pub use snapshot::{
-    PreparedSnapshotExport, PreparedSnapshotImport, SnapshotDelivery, SnapshotImportStore,
-    SnapshotPlan, SnapshotStore, StagedSnapshotExport,
+    PreparedSnapshotExport, PreparedSnapshotImport, SnapshotDelivery, SnapshotImportReceipt,
+    SnapshotImportStore, SnapshotPlan, SnapshotStore, StagedSnapshotExport,
 };
 mod versioned_content;
 pub use versioned_content::VersionedContentStore;

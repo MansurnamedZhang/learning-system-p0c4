@@ -1,8 +1,11 @@
 //! Exact snapshot planning. All database reads share one read-only snapshot.
 mod import;
+mod import_plan;
 mod import_rows;
 mod import_schema;
+mod import_write;
 pub use import::{PreparedSnapshotImport, SnapshotImportStore};
+pub use import_write::SnapshotImportReceipt;
 mod jobs;
 pub use jobs::{PreparedSnapshotExport, SnapshotDelivery, StagedSnapshotExport};
 mod rows;

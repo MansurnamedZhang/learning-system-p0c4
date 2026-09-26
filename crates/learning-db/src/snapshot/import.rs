@@ -16,21 +16,22 @@ use std::{
 use uuid::Uuid;
 
 pub struct SnapshotImportStore {
-    pool: PgPool,
-    files: FsAssetStore,
+    pub(super) pool: PgPool,
+    pub(super) files: FsAssetStore,
 }
 
 /// No public constructor or mutable fields: only this preflight can mint it.
 pub struct PreparedSnapshotImport {
-    manifest: ExactSnapshotManifest,
-    rows: Vec<SnapshotRow>,
-    assets: Vec<VerifiedImportAsset>,
+    pub(super) manifest: ExactSnapshotManifest,
+    pub(super) manifest_sha256: String,
+    pub(super) rows: Vec<SnapshotRow>,
+    pub(super) assets: Vec<VerifiedImportAsset>,
 }
-struct VerifiedImportAsset {
+pub(super) struct VerifiedImportAsset {
     reference: AssetRef,
-    sha256: String,
-    byte_size: u64,
-    source: File,
+    pub(super) sha256: String,
+    pub(super) byte_size: u64,
+    pub(super) source: File,
 }
 impl PreparedSnapshotImport {
     pub fn manifest(&self) -> &ExactSnapshotManifest {
@@ -72,108 +73,14 @@ impl SnapshotImportStore {
             .into_iter()
             .collect();
         let mut tx = request::begin_read(&self.pool).await?;
-        let actor_exists: bool =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.app_user WHERE id=$1)")
-                .bind(actor.actor_id)
-                .fetch_one(&mut *tx)
-                .await
-                .map_err(storage)?;
-        if !actor_exists {
-            return Err(ContentError::NotFound);
-        }
-        let mut users = BTreeSet::from([actor.actor_id]);
-        for row in &verified.rows {
-            for link in import_schema::links(row.table)
-                .iter()
-                .filter(|l| l.target == "app_user")
-            {
-                users.insert(id(&row.immutable_values, link.columns[0])?);
-            }
-        }
-        let existing: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM public.app_user WHERE id=ANY($1)")
-                .bind(users.iter().copied().collect::<Vec<_>>())
-                .fetch_one(&mut *tx)
-                .await
-                .map_err(storage)?;
-        if existing != users.len() as i64 {
-            return Err(ContentError::NotFound);
-        }
+        check_identities(&mut tx, actor, &package).await?;
         let mut assets = vec![];
         let mut originals = OriginalBudget::default();
         for row in &verified.rows {
             let values = &row.immutable_values;
-            let schema_ok:bool=sqlx::query_scalar(&format!("WITH t AS (SELECT (jsonb_populate_record(NULL::public.{},$1)).*) SELECT ({}) IS NOT FALSE FROM t", rows::table_name(row.table),import_schema::checks(row.table)))
-                .bind(values).fetch_one(&mut *tx).await.map_err(|_|invalid())?;
-            if !schema_ok {
-                return Err(invalid());
-            }
-
-            let present = lookup(&mut tx, row).await?;
-            let natural = import_schema::unique_key(row.table);
-            if !natural.is_empty()
-                && (row.table != SnapshotTable::OverlayGroup || values["placed"] == true)
-            {
-                let filter = natural
-                    .iter()
-                    .map(|k| format!("coalesce(to_jsonb(t.{k}),'null'::jsonb)=($1::jsonb->'{k}')"))
-                    .collect::<Vec<_>>()
-                    .join(" AND ");
-                let active = if row.table == SnapshotTable::OverlayGroup {
-                    " AND t.placed"
-                } else {
-                    ""
-                };
-                let collision: Option<Value> = sqlx::query_scalar(&format!(
-                    "SELECT to_jsonb(t) FROM public.{} t WHERE {filter}{active}",
-                    rows::table_name(row.table)
-                ))
-                .bind(values)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(storage)?;
-                if let Some(other) = collision {
-                    authorize_existing(&mut tx, actor, row.table, &other).await?;
-                    if rows::record(row.table, other).map_err(storage)? != *row {
-                        return Err(ContentError::IdentityConflict);
-                    }
-                }
-            }
-
-            // Check the actual target object's scope BEFORE reporting any
-            // identity collision; package-supplied scope cannot authorize it.
-            if let Some(target) = &present {
-                authorize_existing(&mut tx, actor, row.table, target).await?;
-            }
-            let (space, mut owner) = package_scope(&package, row.table, values)?;
-            // Authorized reuse of another reviewer's already-existing space
-            // stream does not mint a judgment on their behalf.
-            if present.is_some()
-                && matches!(
-                    row.table,
-                    SnapshotTable::EpistemicStream | SnapshotTable::EpistemicReview
-                )
-            {
-                let stream = if row.table == SnapshotTable::EpistemicStream {
-                    values
-                } else {
-                    package.one(
-                        SnapshotTable::EpistemicStream,
-                        &["id"],
-                        &[values["stream_id"].clone()],
-                    )?
-                };
-                if stream["overlay_id"].is_null() {
-                    owner = None;
-                }
-            }
-            let require_write = present.is_none() || row.table == SnapshotTable::Overlay;
-            grant(&mut tx, actor, space, owner, require_write).await?;
-            if let Some(target) = &present
-                && rows::record(row.table, target.clone()).map_err(storage)? != *row
-            {
-                return Err(ContentError::IdentityConflict);
-            }
+            let checked = check_row(&mut tx, actor, &package, row).await?;
+            let present = checked.present;
+            let space = checked.space;
             if row.table == SnapshotTable::Asset {
                 let sha256 = values["sha256"].as_str().ok_or_else(invalid)?.to_owned();
                 let byte_size = values["byte_size"].as_u64().ok_or_else(invalid)?;
@@ -216,10 +123,133 @@ impl SnapshotImportStore {
         tx.commit().await.map_err(storage)?;
         Ok(PreparedSnapshotImport {
             manifest,
+            manifest_sha256: stage.manifest_sha256().to_owned(),
             rows: verified.rows,
             assets,
         })
     }
+}
+
+pub(super) async fn check_identities(
+    tx: &mut rows::Tx<'_>,
+    actor: Principal,
+    package: &Package<'_>,
+) -> Result<(), ContentError> {
+    let actor_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.app_user WHERE id=$1)")
+            .bind(actor.actor_id)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(storage)?;
+    if !actor_exists {
+        return Err(ContentError::NotFound);
+    }
+    let mut users = BTreeSet::from([actor.actor_id]);
+    for row in package.rows {
+        for link in import_schema::links(row.table)
+            .iter()
+            .filter(|l| l.target == "app_user")
+        {
+            users.insert(id(&row.immutable_values, link.columns[0])?);
+        }
+    }
+    let existing: i64 = sqlx::query_scalar("SELECT count(*) FROM public.app_user WHERE id=ANY($1)")
+        .bind(users.iter().copied().collect::<Vec<_>>())
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(storage)?;
+    if existing != users.len() as i64 {
+        return Err(ContentError::NotFound);
+    }
+    Ok(())
+}
+pub(super) struct CheckedRow {
+    pub present: Option<Value>,
+    pub space: Uuid,
+    pub require_write: bool,
+}
+pub(super) async fn check_row(
+    tx: &mut rows::Tx<'_>,
+    actor: Principal,
+    package: &Package<'_>,
+    row: &SnapshotRow,
+) -> Result<CheckedRow, ContentError> {
+    let values = &row.immutable_values;
+    let schema_ok:bool=sqlx::query_scalar(&format!("WITH t AS (SELECT (jsonb_populate_record(NULL::public.{},$1)).*) SELECT ({}) IS NOT FALSE FROM t", rows::table_name(row.table),import_schema::checks(row.table)))
+                .bind(values).fetch_one(&mut **tx).await.map_err(|_|invalid())?;
+    if !schema_ok {
+        return Err(invalid());
+    }
+
+    let present = lookup(tx, row).await?;
+    let natural = import_schema::unique_key(row.table);
+    if !natural.is_empty() && (row.table != SnapshotTable::OverlayGroup || values["placed"] == true)
+    {
+        let filter = natural
+            .iter()
+            .map(|k| format!("coalesce(to_jsonb(t.{k}),'null'::jsonb)=($1::jsonb->'{k}')"))
+            .collect::<Vec<_>>()
+            .join(" AND ");
+        let active = if row.table == SnapshotTable::OverlayGroup {
+            " AND t.placed"
+        } else {
+            ""
+        };
+        let collision: Option<Value> = sqlx::query_scalar(&format!(
+            "SELECT to_jsonb(t) FROM public.{} t WHERE {filter}{active}",
+            rows::table_name(row.table)
+        ))
+        .bind(values)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(storage)?;
+        if let Some(other) = collision {
+            authorize_existing(tx, actor, row.table, &other).await?;
+            if rows::record(row.table, other).map_err(storage)? != *row {
+                return Err(ContentError::IdentityConflict);
+            }
+        }
+    }
+
+    // Check the actual target object's scope BEFORE reporting any
+    // identity collision; package-supplied scope cannot authorize it.
+    if let Some(target) = &present {
+        authorize_existing(tx, actor, row.table, target).await?;
+    }
+    let (space, mut owner) = package_scope(package, row.table, values)?;
+    // Authorized reuse of another reviewer's already-existing space
+    // stream does not mint a judgment on their behalf.
+    if present.is_some()
+        && matches!(
+            row.table,
+            SnapshotTable::EpistemicStream | SnapshotTable::EpistemicReview
+        )
+    {
+        let stream = if row.table == SnapshotTable::EpistemicStream {
+            values
+        } else {
+            package.one(
+                SnapshotTable::EpistemicStream,
+                &["id"],
+                &[values["stream_id"].clone()],
+            )?
+        };
+        if stream["overlay_id"].is_null() {
+            owner = None;
+        }
+    }
+    let require_write = present.is_none() || row.table == SnapshotTable::Overlay;
+    grant(tx, actor, space, owner, require_write).await?;
+    if let Some(target) = &present
+        && rows::record(row.table, target.clone()).map_err(storage)? != *row
+    {
+        return Err(ContentError::IdentityConflict);
+    }
+    Ok(CheckedRow {
+        present,
+        space,
+        require_write,
+    })
 }
 
 #[derive(Default)]

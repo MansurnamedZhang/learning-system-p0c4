@@ -175,6 +175,18 @@ impl FsAssetStore {
         self.put_from_reader(upload_id, &mut input, declaration)
     }
 
+    /// Ingest an already-open trusted source without reopening a path.
+    /// Rewinds first because cloned File handles can share their current offset.
+    pub fn put_from_open_file(
+        &self,
+        upload_id: Uuid,
+        source: &mut File,
+        declaration: UploadDeclaration,
+    ) -> Result<VerifiedBlob, AssetIoError> {
+        source.seek(SeekFrom::Start(0))?;
+        self.put_from_reader(upload_id, source, declaration)
+    }
+
     fn put_from_reader(
         &self,
         upload_id: Uuid,
@@ -630,6 +642,37 @@ mod tests {
     impl Drop for TestRoot {
         fn drop(&mut self) {
             fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+
+    #[test]
+    fn retained_file_ingestion_rewinds_shared_offsets_without_reopening_path() {
+        let root = TestRoot::new();
+        let store = FsAssetStore::new(root.0.join("assets"), root.0.join("uploads")).unwrap();
+        let source = root.0.join("source");
+        fs::write(&source, b"retained immutable original").unwrap();
+        let mut input = File::open(&source).unwrap();
+        let mut alias = input.try_clone().unwrap();
+        alias.seek(SeekFrom::End(0)).unwrap();
+        fs::remove_file(&source).unwrap();
+        for file in [&mut input, &mut alias] {
+            let blob = store
+                .put_from_open_file(
+                    Uuid::new_v4(),
+                    file,
+                    UploadDeclaration {
+                        expected_size_bytes: 27,
+                        max_size_bytes: 27,
+                    },
+                )
+                .unwrap();
+            let mut output = String::new();
+            store
+                .open(&blob)
+                .unwrap()
+                .read_to_string(&mut output)
+                .unwrap();
+            assert_eq!(output, "retained immutable original");
         }
     }
 
