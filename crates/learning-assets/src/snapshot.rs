@@ -110,7 +110,10 @@ fn map_asset(error: AssetIoError) -> SnapshotIoError {
     }
 }
 
-fn validate_asset_declarations(assets: &[SnapshotAssetUse]) -> Result<(), SnapshotIoError> {
+fn validate_asset_declarations(
+    assets: &[SnapshotAssetUse],
+    include_originals: bool,
+) -> Result<(), SnapshotIoError> {
     let mut seen = BTreeMap::new();
     let mut total = 0u64;
     for asset in assets {
@@ -123,14 +126,14 @@ fn validate_asset_declarations(assets: &[SnapshotAssetUse]) -> Result<(), Snapsh
         {
             return Err(SnapshotIoError::InvalidPackage);
         }
-        if asset.byte_size > SNAPSHOT_MAX_ASSET_FILE_BYTES as u64 {
+        if include_originals && asset.byte_size > SNAPSHOT_MAX_ASSET_FILE_BYTES as u64 {
             return Err(SnapshotIoError::LimitExceeded);
         }
         if let Some(previous) = seen.insert(asset.storage_key.as_str(), asset.byte_size) {
             if previous != asset.byte_size {
                 return Err(SnapshotIoError::InvalidPackage);
             }
-        } else {
+        } else if include_originals {
             total = total
                 .checked_add(asset.byte_size)
                 .ok_or(SnapshotIoError::LimitExceeded)?;
@@ -153,7 +156,7 @@ pub fn stage_snapshot(
     if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
         return Err(SnapshotIoError::InvalidPackage);
     }
-    validate_asset_declarations(assets)?;
+    validate_asset_declarations(assets, !manifest.requires_destination_assets)?;
     let mut writer = StageWriter::new(root, job_id)?;
     let result = (|| {
         let mut seen = BTreeSet::new();
@@ -967,19 +970,87 @@ mod budget_tests {
     }
 
     #[test]
-    fn declared_original_budget_accepts_exact_limits_and_rejects_one_byte_over() {
+    fn included_original_budget_applies_only_to_package_bytes() {
         let one = SNAPSHOT_MAX_ASSET_FILE_BYTES as u64;
         let at_total = (1..=4).map(|n| asset(n, one)).collect::<Vec<_>>();
-        assert!(validate_asset_declarations(&at_total).is_ok());
+        assert!(validate_asset_declarations(&at_total, true).is_ok());
         assert!(matches!(
-            validate_asset_declarations(&[asset(1, one + 1)]),
+            validate_asset_declarations(&[asset(1, one + 1)], true),
             Err(SnapshotIoError::LimitExceeded)
         ));
         let mut over_total = at_total;
         over_total.push(asset(5, 1));
         assert!(matches!(
-            validate_asset_declarations(&over_total),
+            validate_asset_declarations(&over_total, true),
             Err(SnapshotIoError::LimitExceeded)
         ));
+        assert!(validate_asset_declarations(&over_total, false).is_ok());
+        assert!(validate_asset_declarations(&[asset(1, one + 1)], false).is_ok());
+        let five_full = (1..=5).map(|n| asset(n, one)).collect::<Vec<_>>();
+        assert!(validate_asset_declarations(&five_full, false).is_ok());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn real_original_streams_enforce_single_and_aggregate_limits_without_publication() {
+        use std::os::unix::fs::PermissionsExt;
+
+        struct Root(std::path::PathBuf);
+        impl Drop for Root {
+            fn drop(&mut self) {
+                std::fs::remove_dir_all(&self.0).unwrap();
+            }
+        }
+        let root = Root(std::env::temp_dir().join(format!("snapshot-stream-{}", Uuid::new_v4())));
+        std::fs::create_dir(&root.0).unwrap();
+        std::fs::set_permissions(&root.0, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let name = |n: u128| {
+            let sha256 = format!("{n:064x}");
+            format!("assets/sha256/{}/{}", &sha256[..2], sha256)
+        };
+
+        let mut writer = StageWriter::new(&root.0, Uuid::new_v4()).unwrap();
+        let one = SNAPSHOT_MAX_ASSET_FILE_BYTES as u64;
+        for n in 1..=4 {
+            writer
+                .write_stream(&name(n), &mut std::io::repeat(n as u8).take(one))
+                .unwrap();
+            assert_eq!(writer.files.last().unwrap().size, one);
+            assert_eq!(
+                open_staged_file(&writer.partial, &name(n))
+                    .unwrap()
+                    .metadata()
+                    .unwrap()
+                    .len(),
+                one
+            );
+        }
+        assert_eq!(writer.asset_bytes, SNAPSHOT_MAX_ASSET_BYTES);
+        assert!(matches!(
+            writer.write_stream(&name(5), &mut std::io::repeat(5).take(1)),
+            Err(SnapshotIoError::LimitExceeded)
+        ));
+        assert!(!std::fs::read_dir(&root.0).unwrap().any(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".ready")
+        }));
+        writer.discard();
+
+        let mut writer = StageWriter::new(&root.0, Uuid::new_v4()).unwrap();
+        assert!(matches!(
+            writer.write_stream(&name(6), &mut std::io::repeat(6).take(one + 1)),
+            Err(SnapshotIoError::LimitExceeded)
+        ));
+        assert!(!std::fs::read_dir(&root.0).unwrap().any(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".ready")
+        }));
+        writer.discard();
     }
 }

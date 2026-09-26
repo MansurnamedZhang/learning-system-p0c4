@@ -182,7 +182,7 @@ fn package_file_count_accepts_2048_and_rejects_2049_without_publication() {
 }
 
 #[test]
-fn original_declarations_accept_exact_limits_and_reject_over_without_publication() {
+fn metadata_only_ignores_original_byte_budget_but_included_originals_do_not() {
     let root = Temp::new();
     let packages = root.0.join("packages");
     private_dir(&packages);
@@ -190,13 +190,15 @@ fn original_declarations_accept_exact_limits_and_reject_over_without_publication
     let (row, file) = exact_row();
     let one = learning_core::SNAPSHOT_MAX_ASSET_FILE_BYTES as u64;
     let at_total = (1..=4).map(|n| declared_asset(n, one)).collect::<Vec<_>>();
-    // Metadata-only packages exercise the declared original budget without materializing 512 MiB.
+    let mut over_total = at_total;
+    over_total.push(declared_asset(5, one));
+    // None of these originals enters a metadata-only directory package.
     let accepted = stage_snapshot(
         &packages,
         Uuid::new_v4(),
         &exact_manifest(vec![file.clone()], true),
         std::slice::from_ref(&row),
-        &at_total,
+        &over_total,
         &store,
     )
     .unwrap();
@@ -216,8 +218,6 @@ fn original_declarations_accept_exact_limits_and_reject_over_without_publication
     ));
     assert_eq!(ready_count(&packages), 1);
 
-    let mut over_total = at_total;
-    over_total.push(declared_asset(5, 1));
     assert!(matches!(
         stage_snapshot(
             &packages,
