@@ -110,6 +110,38 @@ fn map_asset(error: AssetIoError) -> SnapshotIoError {
     }
 }
 
+fn validate_asset_declarations(assets: &[SnapshotAssetUse]) -> Result<(), SnapshotIoError> {
+    let mut seen = BTreeMap::new();
+    let mut total = 0u64;
+    for asset in assets {
+        if asset.sha256.len() != 64
+            || !asset
+                .sha256
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            || asset.storage_key != format!("sha256/{}/{}", &asset.sha256[..2], asset.sha256)
+        {
+            return Err(SnapshotIoError::InvalidPackage);
+        }
+        if asset.byte_size > SNAPSHOT_MAX_ASSET_FILE_BYTES as u64 {
+            return Err(SnapshotIoError::LimitExceeded);
+        }
+        if let Some(previous) = seen.insert(asset.storage_key.as_str(), asset.byte_size) {
+            if previous != asset.byte_size {
+                return Err(SnapshotIoError::InvalidPackage);
+            }
+        } else {
+            total = total
+                .checked_add(asset.byte_size)
+                .ok_or(SnapshotIoError::LimitExceeded)?;
+            if total > SNAPSHOT_MAX_ASSET_BYTES as u64 {
+                return Err(SnapshotIoError::LimitExceeded);
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn stage_snapshot(
     root: &Path,
     job_id: Uuid,
@@ -121,27 +153,9 @@ pub fn stage_snapshot(
     if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
         return Err(SnapshotIoError::InvalidPackage);
     }
+    validate_asset_declarations(assets)?;
     let mut writer = StageWriter::new(root, job_id)?;
     let result = (|| {
-        let mut declared_assets = BTreeMap::new();
-        for asset in assets {
-            if asset.sha256.len() != 64
-                || !asset
-                    .sha256
-                    .bytes()
-                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-                || asset.storage_key != format!("sha256/{}/{}", &asset.sha256[..2], asset.sha256)
-                || asset.byte_size > SNAPSHOT_MAX_ASSET_FILE_BYTES as u64
-            {
-                return Err(SnapshotIoError::InvalidPackage);
-            }
-            if let Some(previous) =
-                declared_assets.insert(&asset.storage_key, (&asset.sha256, asset.byte_size))
-                && previous != (&asset.sha256, asset.byte_size)
-            {
-                return Err(SnapshotIoError::InvalidPackage);
-            }
-        }
         let mut seen = BTreeSet::new();
         for row in rows {
             let name = snapshot_object_path(row.table, &row.identity)
@@ -511,6 +525,9 @@ impl StageWriter {
         manifest: &SnapshotManifest,
     ) -> Result<SnapshotDirectory, SnapshotIoError> {
         self.files.sort_by(|a, b| a.path.cmp(&b.path));
+        if self.files.len() + 1 > SNAPSHOT_MAX_FILES {
+            return Err(SnapshotIoError::LimitExceeded);
+        }
         if manifest_files(manifest) != self.files {
             return Err(SnapshotIoError::InvalidPackage);
         }
@@ -925,4 +942,44 @@ fn escape_html(value: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use learning_core::{AssetRef, AssetUseRef, BlockRef};
+
+    fn asset(n: u128, bytes: u64) -> SnapshotAssetUse {
+        let sha256 = format!("{n:064x}");
+        SnapshotAssetUse {
+            use_ref: AssetUseRef::Block(BlockRef {
+                block_id: Uuid::from_u128(n),
+                revision_id: Uuid::from_u128(n),
+            }),
+            asset: AssetRef {
+                space_id: Uuid::from_u128(1),
+                asset_id: Uuid::from_u128(n),
+            },
+            storage_key: format!("sha256/{}/{}", &sha256[..2], sha256),
+            sha256,
+            byte_size: bytes,
+        }
+    }
+
+    #[test]
+    fn declared_original_budget_accepts_exact_limits_and_rejects_one_byte_over() {
+        let one = SNAPSHOT_MAX_ASSET_FILE_BYTES as u64;
+        let at_total = (1..=4).map(|n| asset(n, one)).collect::<Vec<_>>();
+        assert!(validate_asset_declarations(&at_total).is_ok());
+        assert!(matches!(
+            validate_asset_declarations(&[asset(1, one + 1)]),
+            Err(SnapshotIoError::LimitExceeded)
+        ));
+        let mut over_total = at_total;
+        over_total.push(asset(5, 1));
+        assert!(matches!(
+            validate_asset_declarations(&over_total),
+            Err(SnapshotIoError::LimitExceeded)
+        ));
+    }
 }

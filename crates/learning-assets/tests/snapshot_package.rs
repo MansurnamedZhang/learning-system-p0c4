@@ -75,7 +75,10 @@ fn stream(bytes: &[u8]) -> Box<dyn Read> {
     Box::new(Cursor::new(bytes.to_vec()))
 }
 fn exact_row() -> (SnapshotRow, SnapshotFile) {
-    let id = Uuid::from_u128(10);
+    exact_row_id(10)
+}
+fn exact_row_id(n: u128) -> (SnapshotRow, SnapshotFile) {
+    let id = Uuid::from_u128(n);
     let immutable_values =
         serde_json::json!({"id": id.to_string(), "space_id": Uuid::from_u128(1).to_string()});
     let row = SnapshotRow {
@@ -103,6 +106,134 @@ fn exact_manifest(files: Vec<SnapshotFile>, metadata_only: bool) -> ExactSnapsho
         files,
         requires_destination_assets: metadata_only,
     }
+}
+fn declared_asset(n: u128, size: u64) -> SnapshotAssetUse {
+    let sha256 = format!("{n:064x}");
+    SnapshotAssetUse {
+        use_ref: AssetUseRef::Block(BlockRef {
+            block_id: Uuid::from_u128(n),
+            revision_id: Uuid::from_u128(n),
+        }),
+        asset: AssetRef {
+            space_id: Uuid::from_u128(1),
+            asset_id: Uuid::from_u128(n),
+        },
+        storage_key: format!("sha256/{}/{}", &sha256[..2], sha256),
+        sha256,
+        byte_size: size,
+    }
+}
+fn ready_count(root: &std::path::Path) -> usize {
+    fs::read_dir(root)
+        .unwrap()
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".ready")
+        })
+        .count()
+}
+
+#[test]
+fn package_file_count_accepts_2048_and_rejects_2049_without_publication() {
+    let root = Temp::new();
+    let packages = root.0.join("packages");
+    private_dir(&packages);
+    let store = FsAssetStore::new(root.0.join("assets"), root.0.join("uploads")).unwrap();
+    let build = |count: usize| {
+        let (rows, mut files): (Vec<_>, Vec<_>) =
+            (1..=count).map(|n| exact_row_id(n as u128)).unzip();
+        files.sort_by(|a, b| a.path.cmp(&b.path));
+        (rows, files)
+    };
+    let (rows, files) = build(learning_core::SNAPSHOT_MAX_FILES - 2);
+    let accepted = stage_snapshot(
+        &packages,
+        Uuid::new_v4(),
+        &exact_manifest(files, true),
+        &rows,
+        &[],
+        &store,
+    )
+    .unwrap();
+    assert_eq!(verify_snapshot(&accepted).unwrap().files.len() + 1, 2048);
+    assert_eq!(ready_count(&packages), 1);
+
+    let (rows, files) = build(learning_core::SNAPSHOT_MAX_FILES - 1);
+    assert!(matches!(
+        stage_snapshot(
+            &packages,
+            Uuid::new_v4(),
+            &exact_manifest(files, true),
+            &rows,
+            &[],
+            &store,
+        ),
+        Err(SnapshotIoError::LimitExceeded)
+    ));
+    assert_eq!(
+        ready_count(&packages),
+        1,
+        "over-limit package must not publish"
+    );
+}
+
+#[test]
+fn original_declarations_accept_exact_limits_and_reject_over_without_publication() {
+    let root = Temp::new();
+    let packages = root.0.join("packages");
+    private_dir(&packages);
+    let store = FsAssetStore::new(root.0.join("assets"), root.0.join("uploads")).unwrap();
+    let (row, file) = exact_row();
+    let one = learning_core::SNAPSHOT_MAX_ASSET_FILE_BYTES as u64;
+    let at_total = (1..=4).map(|n| declared_asset(n, one)).collect::<Vec<_>>();
+    // Metadata-only packages exercise the declared original budget without materializing 512 MiB.
+    let accepted = stage_snapshot(
+        &packages,
+        Uuid::new_v4(),
+        &exact_manifest(vec![file.clone()], true),
+        std::slice::from_ref(&row),
+        &at_total,
+        &store,
+    )
+    .unwrap();
+    assert!(verify_snapshot(&accepted).is_ok());
+    assert_eq!(ready_count(&packages), 1);
+
+    assert!(matches!(
+        stage_snapshot(
+            &packages,
+            Uuid::new_v4(),
+            &exact_manifest(vec![file.clone()], false),
+            std::slice::from_ref(&row),
+            &[declared_asset(1, one + 1)],
+            &store,
+        ),
+        Err(SnapshotIoError::LimitExceeded)
+    ));
+    assert_eq!(ready_count(&packages), 1);
+
+    let mut over_total = at_total;
+    over_total.push(declared_asset(5, 1));
+    assert!(matches!(
+        stage_snapshot(
+            &packages,
+            Uuid::new_v4(),
+            &exact_manifest(vec![file], false),
+            &[row],
+            &over_total,
+            &store,
+        ),
+        Err(SnapshotIoError::LimitExceeded)
+    ));
+    assert_eq!(
+        ready_count(&packages),
+        1,
+        "over-limit originals must not publish"
+    );
 }
 
 #[test]
@@ -175,7 +306,7 @@ fn rejects_extra_files_corrupt_content_and_reparse_points() {
 }
 
 #[test]
-fn rejects_symlink_in_sealed_package_when_platform_allows_creation() {
+fn rejects_symlink_in_sealed_package() {
     let root = Temp::new();
     let stage = stage_reading_copy(&root.0, Uuid::from_u128(7), &copy_manifest(), &copy()).unwrap();
     let named = fs::read_dir(&root.0)
@@ -188,16 +319,11 @@ fn rejects_symlink_in_sealed_package_when_platform_allows_creation() {
     let outside = root.0.join("outside");
     fs::write(&outside, b"secret").unwrap();
     fs::remove_file(named.join("reading.md")).unwrap();
-    #[cfg(windows)]
-    let created = std::os::windows::fs::symlink_file(&outside, named.join("reading.md"));
-    #[cfg(unix)]
-    let created = std::os::unix::fs::symlink(&outside, named.join("reading.md"));
-    if created.is_ok() {
-        assert!(matches!(
-            verify_snapshot(&stage),
-            Err(SnapshotIoError::InvalidPackage)
-        ));
-    }
+    std::os::unix::fs::symlink(&outside, named.join("reading.md")).unwrap();
+    assert!(matches!(
+        verify_snapshot(&stage),
+        Err(SnapshotIoError::InvalidPackage)
+    ));
 }
 
 #[cfg(unix)]
