@@ -838,17 +838,34 @@ async fn symlink_replacement_after_staging_is_rejected_without_database_changes(
 async fn private_overlay_revision_id_never_reports_an_identity_collision() {
     let _serial = SERIAL.lock().await;
     let (rig, actor, space, doc, saved) = support::reading::fixture().await;
-    let (other, _) = rig.seed_actor_space(true).await;
-    sqlx::query("INSERT INTO space_grant(actor_id,space_id,can_write) VALUES($1,$2,true)")
-        .bind(other.actor_id)
-        .bind(space)
-        .execute(&rig.admin_pool)
-        .await
-        .unwrap();
+    let (other, other_space) = rig.seed_actor_space(true).await;
+    // Reading creation requires ownership of its destination space. The other
+    // actor only needs read access to the original document's space.
+    // Conversely, the importer can read the private revision's actual space:
+    // missing overlay-owner traversal must not be masked by a missing grant.
+    sqlx::query(
+        "INSERT INTO space_grant(actor_id,space_id,can_write) VALUES($1,$2,false),($3,$4,false)",
+    )
+    .bind(other.actor_id)
+    .bind(space)
+    .bind(actor.actor_id)
+    .bind(other_space)
+    .execute(&rig.admin_pool)
+    .await
+    .unwrap();
     let private = support::reading::store(&rig)
-        .create(other, space, support::reading::create(doc.reference))
+        .create(other, other_space, support::reading::create(doc.reference))
         .await
         .unwrap();
+    let actual_scope: (Uuid, Uuid, bool) = sqlx::query_as(
+        "SELECT o.space_id,o.owner_id,g.can_write FROM overlay_revision r JOIN overlay o ON o.id=r.overlay_id JOIN space_grant g ON g.space_id=o.space_id AND g.actor_id=$1 WHERE r.id=$2",
+    )
+    .bind(actor.actor_id)
+    .bind(private.overlay.revision_id)
+    .fetch_one(&rig.admin_pool)
+    .await
+    .unwrap();
+    assert_eq!(actual_scope, (other_space, other.actor_id, false));
     let plan = SnapshotStore::new(rig.runtime_pool.clone())
         .plan_exact(actor, &request(saved.view.clone()))
         .await
