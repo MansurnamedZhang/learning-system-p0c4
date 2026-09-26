@@ -189,7 +189,9 @@ fn failure_to_copy_into_assets_never_returns_a_blob() {
 
 fn make_old(path: &std::path::Path) {
     let old = SystemTime::now() - Duration::from_secs(7200);
-    fs::File::open(path)
+    fs::OpenOptions::new()
+        .write(true)
+        .open(path)
         .unwrap()
         .set_times(fs::FileTimes::new().set_modified(old))
         .unwrap();

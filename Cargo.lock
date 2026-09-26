@@ -626,6 +626,7 @@ name = "learning-assets"
 version = "0.1.0"
 dependencies = [
  "learning-core",
+ "libc",
  "serde_json",
  "sha2",
  "thiserror",

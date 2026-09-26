@@ -86,6 +86,30 @@ pub struct FsAssetStore {
 }
 
 impl FsAssetStore {
+    /// Called only after the database has authorized the exact asset use.
+    /// Rehashes both the stored file and the bytes copied to the package.
+    pub(crate) fn copy_verified(
+        &self,
+        storage_key: &str,
+        sha256: &str,
+        size: u64,
+        target: &mut File,
+    ) -> Result<(), AssetIoError> {
+        let declared = i64::try_from(size).map_err(|_| AssetIoError::InvalidMetadata)?;
+        let mut source = self.open_record(storage_key, sha256, declared)?;
+        let (copied_hash, copied_size) = copy_and_hash(
+            &mut source,
+            target,
+            UploadDeclaration {
+                expected_size_bytes: size,
+                max_size_bytes: size,
+            },
+        )?;
+        if copied_hash != sha256 || copied_size != size {
+            return Err(AssetIoError::Corrupt(storage_key.into()));
+        }
+        Ok(())
+    }
     pub fn new(assets_root: PathBuf, staging_root: PathBuf) -> Result<Self, AssetIoError> {
         fs::create_dir_all(&assets_root)?;
         fs::create_dir_all(&staging_root)?;
