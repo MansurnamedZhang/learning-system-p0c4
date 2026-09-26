@@ -445,3 +445,122 @@ fn preflight_accepts_valid_historical_epistemic_semantics() {
         }
     }
 }
+
+fn edit_judgment(rows: &mut Vec<SnapshotRow>, edit: impl FnOnce(&mut serde_json::Value)) {
+    let row = rows
+        .iter_mut()
+        .find(|r| r.table == SnapshotTable::EpistemicReview)
+        .unwrap();
+    edit(&mut row.immutable_values);
+    let v = &row.immutable_values;
+    let command = AppendEpistemicReview {
+        request_id: u(60),
+        scope: RelationScope::Space { space_id: u(2) },
+        target: BlockRef {
+            block_id: u(30),
+            revision_id: u(31),
+        },
+        expected_previous: None,
+        state: serde_json::from_value(v["state"].clone()).unwrap(),
+        relations: serde_json::from_value(v["relations"].clone()).unwrap(),
+        evidence: serde_json::from_value(v["evidence"].clone()).unwrap(),
+        conditions: v["conditions"].as_str().unwrap().into(),
+        explanation: v["explanation"].as_str().unwrap().into(),
+    };
+    command.validate().unwrap();
+    *row = super::rows::record(row.table, v.clone()).unwrap();
+    // Keep hashes and exact ordered dependencies valid, so failures can only
+    // exercise the historical judgment rule rather than stale fixture data.
+    rows.retain(|r| {
+        r.table != SnapshotTable::ReferenceDependency
+            || r.immutable_values["source_kind"] != "epistemic_review"
+    });
+    for (position, dep) in command.dependencies().iter().enumerate() {
+        let (kind, object, revision) = crate::references::key(&dep.target);
+        rows.push(super::rows::record(SnapshotTable::ReferenceDependency,json!({"source_kind":"epistemic_review","source_object_id":u(60),"source_revision_id":u(61),"position":position,"role":dep.role,"target_kind":kind,"target_object_id":object,"target_revision_id":revision})).unwrap());
+    }
+}
+
+#[test]
+fn historical_basis_rejects_empty_selected_relations() {
+    for kind in [RelationType::Supports, RelationType::Opposes] {
+        let (mut rows, root, actor) = epistemic_fixture(Intent::Conjecture, kind, 30, true);
+        edit_judgment(&mut rows, |v| v["relations"] = json!([]));
+        assert!(
+            Package { rows: &rows }.validate(&root, actor).is_err(),
+            "{kind:?}"
+        );
+    }
+}
+#[test]
+fn historical_basis_rejects_wrong_direction() {
+    for kind in [RelationType::Supports, RelationType::Opposes] {
+        let (mut rows, root, actor) = epistemic_fixture(Intent::Conjecture, kind, 30, true);
+        edit_judgment(&mut rows, |v| {
+            v["state"] = json!(if kind == RelationType::Supports {
+                EpistemicState::RefutedWithinScope
+            } else {
+                EpistemicState::SupportedWithinScope
+            })
+        });
+        assert!(
+            Package { rows: &rows }.validate(&root, actor).is_err(),
+            "{kind:?}"
+        );
+    }
+}
+#[test]
+fn historical_basis_rejects_missing_selected_review() {
+    for kind in [RelationType::Supports, RelationType::Opposes] {
+        let (mut rows, root, actor) = epistemic_fixture(Intent::Conjecture, kind, 30, true);
+        edit_judgment(&mut rows, |v| v["relations"][0]["review"] = json!(null));
+        assert!(
+            Package { rows: &rows }.validate(&root, actor).is_err(),
+            "{kind:?}"
+        );
+    }
+}
+#[test]
+fn historical_basis_rejects_non_reviewed_selected_review() {
+    for kind in [RelationType::Supports, RelationType::Opposes] {
+        for state in [
+            RelationReviewState::Unreviewed,
+            RelationReviewState::NeedsRecheck,
+            RelationReviewState::Withdrawn,
+        ] {
+            let (mut rows, root, actor) = epistemic_fixture(Intent::Conjecture, kind, 30, true);
+            let row = rows
+                .iter_mut()
+                .find(|r| r.table == SnapshotTable::RelationReview)
+                .unwrap();
+            row.immutable_values["state"] = json!(state);
+            *row = super::rows::record(row.table, row.immutable_values.clone()).unwrap();
+            assert!(
+                Package { rows: &rows }.validate(&root, actor).is_err(),
+                "{kind:?}/{state:?}"
+            );
+        }
+    }
+}
+#[test]
+fn historical_basis_accepts_selected_review_before_later_withdrawal() {
+    for kind in [RelationType::Supports, RelationType::Opposes] {
+        let (mut rows, root, actor) = epistemic_fixture(Intent::Conclusion, kind, 30, true);
+        let mut later = rows
+            .iter()
+            .find(|r| r.table == SnapshotTable::RelationReview)
+            .unwrap()
+            .immutable_values
+            .clone();
+        later["id"] = json!(u(23));
+        later["previous_review_id"] = json!(u(22));
+        later["state"] = json!(RelationReviewState::Withdrawn);
+        later["created_at"] = json!("2026-09-25T00:00:00.000000Z");
+        rows.push(super::rows::record(SnapshotTable::RelationReview, later).unwrap());
+        rows.push(super::rows::record(SnapshotTable::ReferenceObject,json!({"kind":"relation_review","object_id":u(21),"revision_id":u(23),"space_id":u(2)})).unwrap());
+        rows.push(super::rows::record(SnapshotTable::ReferenceDependency,json!({"source_kind":"relation_review","source_object_id":u(21),"source_revision_id":u(23),"position":0,"role":"target","target_kind":"relation","target_object_id":u(20),"target_revision_id":u(21)})).unwrap());
+        // The selected review is still immutable Reviewed @22. The newer
+        // withdrawal @23 cannot rewrite that historical judgment's basis.
+        Package { rows: &rows }.validate(&root, actor).unwrap();
+    }
+}

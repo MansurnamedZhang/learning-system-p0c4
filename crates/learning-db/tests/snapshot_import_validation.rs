@@ -984,3 +984,86 @@ async fn metadata_only_five_max_size_assets_verify_all_destination_bytes() {
     ));
     assert_eq!(counts(&rig).await, before);
 }
+
+#[tokio::test]
+async fn historical_reviewed_basis_survives_a_changed_current_review_head() {
+    let _serial = SERIAL.lock().await;
+    let (rig, actor, space, _, saved) = support::reading::fixture().await;
+    let evidence = rig
+        .store
+        .create(actor, space, support::command("evidence"))
+        .await
+        .unwrap();
+    let mut command = support::command("historical conjecture");
+    command.draft.intent = Intent::Conjecture;
+    let target = rig.store.create(actor, space, command).await.unwrap();
+    let relations = learning_db::RelationStore::new(rig.runtime_pool.clone());
+    let relation = relations
+        .save(
+            actor,
+            relations::save(
+                space,
+                relations::exact(&evidence),
+                relations::exact(&target),
+            ),
+        )
+        .await
+        .unwrap();
+    let selected = relations
+        .review(actor, relations::review(&relation))
+        .await
+        .unwrap();
+    let judgment = learning_db::ReviewStore::new(rig.runtime_pool.clone())
+        .append(
+            actor,
+            AppendEpistemicReview {
+                request_id: Uuid::new_v4(),
+                scope: RelationScope::Space { space_id: space },
+                target: relations::exact(&target),
+                expected_previous: None,
+                state: EpistemicState::SupportedWithinScope,
+                relations: vec![RelationSelection {
+                    relation: relation.reference.clone(),
+                    review: Some(selected.reference.clone()),
+                }],
+                evidence: vec![relations::exact(&evidence)],
+                conditions: "historical conditions".into(),
+                explanation: "reviewed at creation".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let reading = support::reading::store(&rig)
+        .select_relations(
+            actor,
+            saved.overlay.overlay_id,
+            SelectRelations {
+                request_id: Uuid::new_v4(),
+                expected_overlay_revision: saved.overlay.revision_id,
+                expected_reading_view_revision: saved.view.revision_id,
+                selections: vec![],
+                epistemic_reviews: vec![judgment.reference],
+                reason: "historical snapshot".into(),
+            },
+        )
+        .await
+        .unwrap();
+    let plan = SnapshotStore::new(rig.runtime_pool.clone())
+        .plan_exact(actor, &request(reading.view))
+        .await
+        .unwrap();
+    let files = Files::new();
+    let staged = files.stage(&plan);
+    let mut withdraw = relations::review(&relation);
+    withdraw.expected_previous = Some(selected.reference.review_id);
+    withdraw.state = RelationReviewState::Withdrawn;
+    let later = relations.review(actor, withdraw).await.unwrap();
+    let head:Uuid = sqlx::query_scalar("SELECT head_review_id FROM relation_review_head WHERE relation_id=$1 AND relation_revision_id=$2")
+        .bind(relation.reference.relation_id).bind(relation.reference.revision_id).fetch_one(&rig.admin_pool).await.unwrap();
+    assert_eq!(head, later.reference.review_id);
+    assert_ne!(head, selected.reference.review_id);
+    let store = SnapshotImportStore::new(rig.runtime_pool.clone(), files.store.clone());
+    let before = counts(&rig).await;
+    store.validate_exact(actor, &staged).await.unwrap();
+    assert_eq!(counts(&rig).await, before);
+}

@@ -222,6 +222,12 @@ impl<'a> Package<'a> {
         if !matches!(intent, Intent::Conjecture | Intent::Conclusion) {
             return Err(invalid());
         }
+        let direction = match command.state {
+            EpistemicState::SupportedWithinScope => Some(RelationType::Supports),
+            EpistemicState::RefutedWithinScope => Some(RelationType::Opposes),
+            _ => None,
+        };
+        let mut has_reviewed_basis = false;
         for selection in &command.relations {
             let identity = self.one(
                 SnapshotTable::Relation,
@@ -246,6 +252,24 @@ impl<'a> Package<'a> {
             } else if from != command.target && to != command.target {
                 return Err(invalid());
             }
+            if direction == Some(kind)
+                && let Some(selected) = &selection.review
+            {
+                let review = self.one(
+                    SnapshotTable::RelationReview,
+                    &["relation_id", "relation_revision_id", "id"],
+                    &[
+                        json!(selected.relation.relation_id),
+                        json!(selected.relation.revision_id),
+                        json!(selected.review_id),
+                    ],
+                )?;
+                let state: RelationReviewState = decode(review["state"].clone())?;
+                has_reviewed_basis |= state == RelationReviewState::Reviewed;
+            }
+        }
+        if direction.is_some() && !has_reviewed_basis {
+            return Err(invalid());
         }
         Ok(())
     }
