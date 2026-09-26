@@ -99,6 +99,25 @@ impl Target {
     fn store(&self) -> SnapshotImportStore {
         SnapshotImportStore::new(self.runtime.clone(), self.files.store.clone())
     }
+    async fn pinned_store(&self) -> (SnapshotImportStore, i32) {
+        // One physical connection fixes the import transaction's waiter PID;
+        // do not infer its identity from another role's query text.
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .max_lifetime(None)
+            .idle_timeout(None)
+            .connect_with((*self.runtime.connect_options()).clone())
+            .await
+            .unwrap();
+        let pid = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        (
+            SnapshotImportStore::new(pool, self.files.store.clone()),
+            pid,
+        )
+    }
     async fn provision(&self, actor: Principal, space: Uuid) {
         sqlx::query("INSERT INTO app_user(id) VALUES($1)")
             .bind(actor.actor_id)
@@ -250,6 +269,167 @@ fn rehash(plan: &mut SnapshotPlan) {
         });
     }
     plan.manifest.files.sort_by(|a, b| a.path.cmp(&b.path));
+}
+
+#[tokio::test]
+async fn admin_lock_observer_handles_private_runtime_query_text() {
+    let rig = support::TestRig::from_env().await;
+    let admin_can_read_all: bool = sqlx::query_scalar(
+        "SELECT rolsuper OR pg_has_role(current_user,'pg_read_all_stats','USAGE') FROM pg_roles WHERE rolname=current_user",
+    ).fetch_one(&rig.admin_pool).await.unwrap();
+    assert!(
+        !admin_can_read_all,
+        "probe requires the ordinary isolated admin role"
+    );
+    let admin_role: String = sqlx::query_scalar("SELECT current_user::text")
+        .fetch_one(&rig.admin_pool)
+        .await
+        .unwrap();
+    let mut runtime = rig.runtime_pool.begin().await.unwrap();
+    let (runtime_pid, runtime_role): (i32, String) =
+        sqlx::query_as("SELECT pg_backend_pid(),current_user::text")
+            .fetch_one(&mut *runtime)
+            .await
+            .unwrap();
+    assert_ne!(admin_role, runtime_role);
+    let admin_inherits_runtime: bool = sqlx::query_scalar(
+        "SELECT pg_has_role(current_user,(SELECT oid FROM pg_roles WHERE rolname=$1),'USAGE')",
+    )
+    .bind(&runtime_role)
+    .fetch_one(&rig.admin_pool)
+    .await
+    .unwrap();
+    assert!(
+        !admin_inherits_runtime,
+        "fixture prerequisite: admin must not inherit the runtime role"
+    );
+    sqlx::query("SELECT 1 /* task6_private_runtime_query_probe */")
+        .execute(&mut *runtime)
+        .await
+        .unwrap();
+    let visible_to_old_probe: bool = sqlx::query_scalar(
+        "SELECT coalesce(query LIKE '%task6_private_runtime_query_probe%',false) FROM pg_stat_activity WHERE pid=$1 AND datid=(SELECT oid FROM pg_database WHERE datname=current_database())",
+    ).bind(runtime_pid).fetch_one(&rig.admin_pool).await.unwrap();
+    assert!(
+        !visible_to_old_probe,
+        "cross-role query text must not be needed by the lock observer"
+    );
+    let key = advisory_key();
+    let mut gate = rig.admin_pool.begin().await.unwrap();
+    let blocker: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *gate)
+        .await
+        .unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock($1::bigint)")
+        .bind(key)
+        .execute(&mut *gate)
+        .await
+        .unwrap();
+    let waiter = tokio::spawn(async move {
+        sqlx::query("SELECT pg_advisory_xact_lock($1::bigint)")
+            .bind(key)
+            .execute(&mut *runtime)
+            .await
+            .unwrap();
+        runtime.commit().await.unwrap();
+    });
+    wait_blocked(
+        &rig.admin_pool,
+        runtime_pid,
+        blocker,
+        ExpectedLock::Advisory(key),
+    )
+    .await;
+    let observer: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&rig.admin_pool)
+        .await
+        .unwrap();
+    assert_ne!(observer, blocker);
+    assert!(
+        !is_blocked(
+            &rig.admin_pool,
+            runtime_pid,
+            observer,
+            ExpectedLock::Advisory(key)
+        )
+        .await
+    );
+    assert!(
+        !is_blocked(
+            &rig.admin_pool,
+            observer,
+            blocker,
+            ExpectedLock::Advisory(key)
+        )
+        .await
+    );
+    assert!(
+        !is_blocked(
+            &rig.admin_pool,
+            runtime_pid,
+            blocker,
+            ExpectedLock::Advisory(key ^ 1)
+        )
+        .await
+    );
+    assert!(
+        !is_blocked(
+            &rig.admin_pool,
+            runtime_pid,
+            blocker,
+            ExpectedLock::Transaction
+        )
+        .await
+    );
+    gate.commit().await.unwrap();
+    waiter.await.unwrap();
+
+    // Row waits expose the owning transaction ID, not necessarily a tuple lock.
+    let (actor, space) = rig.seed_actor_space(true).await;
+    let mut deletion = rig.admin_pool.begin().await.unwrap();
+    let blocker: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *deletion)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM space_grant WHERE actor_id=$1 AND space_id=$2")
+        .bind(actor.actor_id)
+        .bind(space)
+        .execute(&mut *deletion)
+        .await
+        .unwrap();
+    let mut runtime = rig.runtime_pool.begin().await.unwrap();
+    let runtime_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *runtime)
+        .await
+        .unwrap();
+    let waiter = tokio::spawn(async move {
+        let grant: Option<bool> = sqlx::query_scalar("SELECT public.lock_space_grant($1,$2)")
+            .bind(actor.actor_id)
+            .bind(space)
+            .fetch_one(&mut *runtime)
+            .await
+            .unwrap();
+        assert_eq!(grant, Some(true));
+        runtime.commit().await.unwrap();
+    });
+    wait_blocked(
+        &rig.admin_pool,
+        runtime_pid,
+        blocker,
+        ExpectedLock::Transaction,
+    )
+    .await;
+    assert!(
+        !is_blocked(
+            &rig.admin_pool,
+            runtime_pid,
+            blocker,
+            ExpectedLock::Advisory(key)
+        )
+        .await
+    );
+    deletion.rollback().await.unwrap();
+    waiter.await.unwrap();
 }
 
 #[tokio::test]
@@ -450,20 +630,33 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
     let right = store_b.validate_exact(actor, &stage).await.unwrap();
     // Hold the first transaction after its complete row insertion and final
     // checks. A separate reader still sees no half-published reading or rows.
-    sqlx::raw_sql("CREATE FUNCTION public.test_import_visibility() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(627016); RETURN NEW; END $$; CREATE TRIGGER test_import_visibility BEFORE INSERT ON public.snapshot_import_batch FOR EACH ROW EXECUTE FUNCTION public.test_import_visibility();").execute(&b.admin).await.unwrap();
+    let visibility_key = advisory_key();
+    sqlx::raw_sql(&format!("CREATE FUNCTION public.test_import_visibility() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock({visibility_key}::bigint); RETURN NEW; END $$; CREATE TRIGGER test_import_visibility BEFORE INSERT ON public.snapshot_import_batch FOR EACH ROW EXECUTE FUNCTION public.test_import_visibility();")).execute(&b.admin).await.unwrap();
     let mut gate = b.admin.begin().await.unwrap();
-    sqlx::query("SELECT pg_advisory_xact_lock(627016)")
+    let blocker: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *gate)
+        .await
+        .unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock($1::bigint)")
+        .bind(visibility_key)
         .execute(&mut *gate)
         .await
         .unwrap();
-    let left_store = b.store();
+    let (left_store, left_pid) = b.pinned_store().await;
     let right_store = b.store();
     let left_request = Uuid::new_v4();
     let right_request = Uuid::new_v4();
     let l = tokio::spawn(async move { left_store.import_exact(actor, left_request, left).await });
+    wait_blocked(
+        &b.admin,
+        left_pid,
+        blocker,
+        ExpectedLock::Advisory(visibility_key),
+    )
+    .await;
+    // Start the second import while the first is demonstrably uncommitted.
     let r =
         tokio::spawn(async move { right_store.import_exact(actor, right_request, right).await });
-    wait_blocked(&b.admin, "INSERT INTO public.snapshot_import_batch").await;
     assert!(counts(&b, &plan).await.into_values().all(|n| n == 0));
     assert!(matches!(
         learning_db::ReadingStore::new(b.runtime.clone())
@@ -923,15 +1116,58 @@ async fn newer_heads_and_publication_survive(
     );
     assert_eq!(heads(t).await, before);
 }
-async fn wait_blocked(admin: &PgPool, needle: &str) {
+#[derive(Clone, Copy, Debug)]
+enum ExpectedLock {
+    Advisory(i64),
+    Transaction,
+}
+fn advisory_key() -> i64 {
+    // Per invocation, not a global fixed key shared with another parallel test.
+    (Uuid::new_v4().as_u128() as u64 & i64::MAX as u64) as i64
+}
+async fn is_blocked(admin: &PgPool, waiter: i32, blocker: i32, expected: ExpectedLock) -> bool {
+    let key = match expected {
+        ExpectedLock::Advisory(key) => Some(key),
+        ExpectedLock::Transaction => None,
+    };
+    sqlx::query_scalar(
+        "SELECT EXISTS(
+          SELECT 1 FROM pg_locks w
+          JOIN pg_stat_activity wa ON wa.pid=w.pid
+          JOIN pg_locks h ON h.pid=$2 AND h.granted AND h.mode='ExclusiveLock'
+          JOIN pg_stat_activity ha ON ha.pid=h.pid AND ha.datid=wa.datid
+          WHERE w.pid=$1 AND w.pid<>h.pid AND NOT w.granted
+            AND wa.datid=(SELECT oid FROM pg_database WHERE datname=current_database())
+            AND $2=ANY(pg_blocking_pids(w.pid))
+            AND (
+              ($3::bigint IS NOT NULL AND w.locktype='advisory' AND h.locktype='advisory'
+                AND w.mode='ExclusiveLock' AND w.database=wa.datid AND h.database=w.database
+                AND w.classid::bigint=(($3::bigint >> 32) & 4294967295::bigint)
+                AND w.objid::bigint=($3::bigint & 4294967295::bigint) AND w.objsubid=1
+                AND h.classid=w.classid AND h.objid=w.objid AND h.objsubid=w.objsubid)
+              OR ($3::bigint IS NULL AND w.locktype='transactionid' AND h.locktype='transactionid'
+                AND w.mode='ShareLock' AND w.transactionid=h.transactionid)
+            ))",
+    )
+    .bind(waiter)
+    .bind(blocker)
+    .bind(key)
+    .fetch_one(admin)
+    .await
+    .unwrap()
+}
+async fn wait_blocked(admin: &PgPool, waiter: i32, blocker: i32, expected: ExpectedLock) {
     for _ in 0..500 {
-        let waiting:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND query LIKE $1 AND cardinality(pg_blocking_pids(pid))>0)").bind(format!("%{needle}%")).fetch_one(admin).await.unwrap();
-        if waiting {
+        if is_blocked(admin, waiter, blocker, expected).await {
             return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
-    panic!("expected controlled database lock wait: {needle}");
+    let locks: Vec<Value> = sqlx::query_scalar("SELECT to_jsonb(l) FROM pg_locks l WHERE pid=ANY($1) AND (NOT granted OR locktype IN ('advisory','transactionid'))")
+        .bind(vec![waiter, blocker]).fetch_all(admin).await.unwrap();
+    panic!(
+        "expected {expected:?} wait: waiter={waiter}, blocker={blocker}, observed_locks={locks:?}"
+    );
 }
 async fn grant_lock_races(
     t: &Target,
@@ -944,16 +1180,20 @@ async fn grant_lock_races(
     let prepared = t.store().validate_exact(actor, stage).await.unwrap();
     let before = counts(t, plan).await;
     let mut revoke = t.admin.begin().await.unwrap();
+    let revoke_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *revoke)
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM space_grant WHERE actor_id=$1 AND space_id=$2")
         .bind(actor.actor_id)
         .bind(space)
         .execute(&mut *revoke)
         .await
         .unwrap();
-    let store = t.store();
+    let (store, import_pid) = t.pinned_store().await;
     let task =
         tokio::spawn(async move { store.import_exact(actor, Uuid::new_v4(), prepared).await });
-    wait_blocked(&t.admin, "lock_space_grant").await;
+    wait_blocked(&t.admin, import_pid, revoke_pid, ExpectedLock::Transaction).await;
     revoke.commit().await.unwrap();
     assert!(matches!(task.await.unwrap(), Err(ContentError::NotFound)));
     assert_eq!(counts(t, plan).await, before);
@@ -965,27 +1205,44 @@ async fn grant_lock_races(
         .unwrap();
     // Import owns the grants first; block its final receipt so a concurrent revoke
     // can be observed waiting for exactly that transaction's grant locks.
-    sqlx::raw_sql("CREATE FUNCTION public.test_import_pause() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(627015); RETURN NEW; END $$; CREATE TRIGGER test_import_pause BEFORE INSERT ON snapshot_import_batch FOR EACH ROW EXECUTE FUNCTION public.test_import_pause();").execute(&t.admin).await.unwrap();
+    let pause_key = advisory_key();
+    sqlx::raw_sql(&format!("CREATE FUNCTION public.test_import_pause() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock({pause_key}::bigint); RETURN NEW; END $$; CREATE TRIGGER test_import_pause BEFORE INSERT ON snapshot_import_batch FOR EACH ROW EXECUTE FUNCTION public.test_import_pause();")).execute(&t.admin).await.unwrap();
     let mut gate = t.admin.begin().await.unwrap();
-    sqlx::query("SELECT pg_advisory_xact_lock(627015)")
+    let gate_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *gate)
+        .await
+        .unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock($1::bigint)")
+        .bind(pause_key)
         .execute(&mut *gate)
         .await
         .unwrap();
     let prepared = t.store().validate_exact(actor, stage).await.unwrap();
-    let store = t.store();
+    let (store, import_pid) = t.pinned_store().await;
     let task =
         tokio::spawn(async move { store.import_exact(actor, Uuid::new_v4(), prepared).await });
-    wait_blocked(&t.admin, "INSERT INTO public.snapshot_import_batch").await;
-    let admin = t.admin.clone();
+    wait_blocked(
+        &t.admin,
+        import_pid,
+        gate_pid,
+        ExpectedLock::Advisory(pause_key),
+    )
+    .await;
+    let mut revocation = t.admin.begin().await.unwrap();
+    let revoke_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *revocation)
+        .await
+        .unwrap();
     let revoker = tokio::spawn(async move {
         sqlx::query("DELETE FROM space_grant WHERE actor_id=$1 AND space_id=$2")
             .bind(actor.actor_id)
             .bind(space)
-            .execute(&admin)
+            .execute(&mut *revocation)
             .await
             .unwrap();
+        revocation.commit().await.unwrap();
     });
-    wait_blocked(&t.admin, "DELETE FROM space_grant").await;
+    wait_blocked(&t.admin, revoke_pid, import_pid, ExpectedLock::Transaction).await;
     gate.commit().await.unwrap();
     assert!(task.await.unwrap().unwrap().reused);
     revoker.await.unwrap();
