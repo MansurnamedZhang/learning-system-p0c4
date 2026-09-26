@@ -1,4 +1,4 @@
-//! Restricted asset-integrity Worker. It dispatches durable events, claims
+//! Restricted asset-integrity and snapshot Worker. It dispatches durable events, claims
 //! jobs through the database-clock lease boundary, and never writes a result
 //! without the Task 4 processor's current-authorization/fencing checks.
 use learning_assets::FsAssetStore;
@@ -232,7 +232,13 @@ async fn run_loop(
         jobs.dispatch_pending(256)
             .await
             .map_err(|_| "event dispatch failed")?;
-        let candidates = jobs.runnable_ids(64).await.map_err(|_| "job scan failed")?;
+        let mut candidates = jobs.runnable_ids(64).await.map_err(|_| "job scan failed")?;
+        candidates.extend(
+            snapshots
+                .runnable_export_ids(64)
+                .await
+                .map_err(|_| "snapshot scan failed")?,
+        );
         for job_id in candidates {
             let claim = tokio::select! {
                 () = &mut stop => return Ok(()),

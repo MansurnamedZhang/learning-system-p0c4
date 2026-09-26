@@ -81,6 +81,77 @@ CREATE TABLE public.snapshot_export_request (
 REVOKE ALL ON public.snapshot_export_request FROM PUBLIC;
 GRANT SELECT,INSERT ON public.snapshot_export_request TO learning_runtime;
 
+-- C3 runnable states are invisible to the deployed C2 binary's fixed scan.
+ALTER TABLE public.job DROP CONSTRAINT job_status_check;
+ALTER TABLE public.job ADD CONSTRAINT job_status_check CHECK(status IN
+ ('queued','running','retry_wait','snapshot_queued','snapshot_running','snapshot_retry_wait','succeeded','failed','cancelled'));
+ALTER TABLE public.job DROP CONSTRAINT job_check;
+ALTER TABLE public.job DROP CONSTRAINT job_check1;
+ALTER TABLE public.job DROP CONSTRAINT job_check2;
+ALTER TABLE public.job ADD CONSTRAINT job_check CHECK (
+ (status IN ('running','snapshot_running') AND attempt_count>0 AND lease_token IS NOT NULL AND lease_expires_at IS NOT NULL)
+ OR (status NOT IN ('running','snapshot_running') AND lease_token IS NULL AND lease_expires_at IS NULL));
+ALTER TABLE public.job ADD CONSTRAINT job_check1 CHECK (
+ (status IN ('retry_wait','snapshot_retry_wait') AND next_attempt_at IS NOT NULL)
+ OR (status NOT IN ('retry_wait','snapshot_retry_wait') AND next_attempt_at IS NULL));
+ALTER TABLE public.job ADD CONSTRAINT job_check2 CHECK (status NOT IN ('queued','snapshot_queued') OR
+ (attempt_count=0 AND last_error_class IS NULL AND output_digest IS NULL AND checkpoint IS NULL));
+CREATE INDEX job_snapshot_runnable ON public.job(status,next_attempt_at,created_at,id)
+ WHERE status IN ('snapshot_queued','snapshot_retry_wait','snapshot_running');
+
+CREATE OR REPLACE FUNCTION public.p0c2_guard_job()
+RETURNS trigger LANGUAGE plpgsql
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE is_snapshot boolean; new_state text; old_state text;
+BEGIN
+    SELECT e.event_type='snapshot_export_requested' INTO is_snapshot FROM public.job_outbox e WHERE e.id=NEW.outbox_id;
+    IF is_snapshot IS TRUE THEN
+        IF TG_OP='INSERT' THEN
+            NEW.id := NEW.outbox_id;
+            IF NEW.status='queued' THEN NEW.status := 'snapshot_queued'; END IF;
+        END IF;
+        IF NEW.status NOT IN ('snapshot_queued','snapshot_running','snapshot_retry_wait','succeeded','failed','cancelled') THEN
+            RAISE EXCEPTION 'wrong snapshot job state family' USING ERRCODE='23514';
+        END IF;
+        new_state := replace(NEW.status,'snapshot_','');
+        IF TG_OP='UPDATE' THEN old_state := replace(OLD.status,'snapshot_',''); END IF;
+    ELSE
+        IF NEW.status NOT IN ('queued','running','retry_wait','succeeded','failed','cancelled') THEN
+            RAISE EXCEPTION 'wrong asset job state family' USING ERRCODE='23514';
+        END IF;
+        new_state := NEW.status;
+        IF TG_OP='UPDATE' THEN old_state := OLD.status; END IF;
+    END IF;
+    IF TG_OP = 'INSERT' THEN
+        IF new_state <> 'queued' OR NEW.attempt_count <> 0 THEN
+            RAISE EXCEPTION 'job must start queued' USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        IF NEW.id IS DISTINCT FROM OLD.id
+           OR NEW.outbox_id IS DISTINCT FROM OLD.outbox_id
+           OR NEW.idempotency_key IS DISTINCT FROM OLD.idempotency_key
+           OR NEW.created_at IS DISTINCT FROM OLD.created_at
+           OR old_state IN ('succeeded','failed','cancelled')
+           OR (old_state = 'queued' AND new_state NOT IN ('running','cancelled'))
+           OR (old_state = 'running' AND new_state NOT IN
+               ('running','retry_wait','succeeded','failed','cancelled'))
+           OR (old_state = 'retry_wait' AND new_state NOT IN
+               ('running','cancelled'))
+           OR (old_state IN ('queued','retry_wait') AND new_state = 'running'
+               AND NEW.attempt_count <> OLD.attempt_count + 1)
+           OR (old_state = 'running' AND new_state = 'running'
+               AND ((NEW.lease_token IS NOT DISTINCT FROM OLD.lease_token
+                        AND NEW.attempt_count <> OLD.attempt_count)
+                   OR (NEW.lease_token IS DISTINCT FROM OLD.lease_token
+                        AND (OLD.lease_expires_at > clock_timestamp()
+                             OR NEW.attempt_count <> OLD.attempt_count + 1))))
+           OR (new_state <> 'running' AND NEW.attempt_count <> OLD.attempt_count) THEN
+            RAISE EXCEPTION 'invalid job transition' USING ERRCODE = '23514';
+        END IF;
+        NEW.updated_at := clock_timestamp();
+    END IF;
+    RETURN NEW;
+END $$;
 CREATE OR REPLACE FUNCTION public.p0c2_claim_job(p_job_id uuid, p_lease_ms bigint)
 RETURNS TABLE(job_id uuid, token uuid, attempts integer, expires_at timestamptz)
 LANGUAGE plpgsql SECURITY DEFINER
@@ -122,20 +193,20 @@ BEGIN
     UPDATE public.job AS j
        SET status = 'failed', lease_token = NULL, lease_expires_at = NULL,
            last_error_class = 'lease_expired', output_digest = NULL
-     WHERE j.id = p_job_id AND EXISTS (SELECT 1 FROM public.job_outbox e WHERE e.id=j.outbox_id AND e.event_type='snapshot_export_requested') AND j.status = 'running'
+     WHERE j.id = p_job_id AND EXISTS (SELECT 1 FROM public.job_outbox e WHERE e.id=j.outbox_id AND e.event_type='snapshot_export_requested') AND j.status = 'snapshot_running'
        AND j.lease_expires_at <= clock_timestamp() AND j.attempt_count >= 3;
 
     RETURN QUERY
     UPDATE public.job AS j
-       SET status = 'running', attempt_count = j.attempt_count + 1,
+       SET status = 'snapshot_running', attempt_count = j.attempt_count + 1,
            lease_token = pg_catalog.gen_random_uuid(),
            lease_expires_at = clock_timestamp() + p_lease_ms * interval '1 millisecond',
            next_attempt_at = NULL, last_error_class = NULL,
            output_digest = NULL
      WHERE j.id = p_job_id AND EXISTS (SELECT 1 FROM public.job_outbox e WHERE e.id=j.outbox_id AND e.event_type='snapshot_export_requested') AND j.attempt_count < 3
-       AND (j.status = 'queued'
-         OR (j.status = 'retry_wait' AND j.next_attempt_at <= clock_timestamp())
-         OR (j.status = 'running' AND j.lease_expires_at <= clock_timestamp()))
+       AND (j.status = 'snapshot_queued'
+         OR (j.status = 'snapshot_retry_wait' AND j.next_attempt_at <= clock_timestamp())
+         OR (j.status = 'snapshot_running' AND j.lease_expires_at <= clock_timestamp()))
      RETURNING j.id, j.lease_token, j.attempt_count, j.lease_expires_at;
 END $$;
 
@@ -163,6 +234,92 @@ END $$;
 CREATE TRIGGER p0c3_guard_snapshot_result_change BEFORE INSERT OR UPDATE OR DELETE ON public.snapshot_export_result
  FOR EACH ROW EXECUTE FUNCTION public.p0c3_guard_snapshot_result();
 
+CREATE FUNCTION public.p0c3_renew_snapshot_job(p_job_id uuid, p_token uuid, p_lease_ms bigint)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF p_lease_ms IS NULL OR p_lease_ms NOT BETWEEN 1 AND 300000 THEN
+        RAISE EXCEPTION 'invalid lease duration' USING ERRCODE = '22023';
+    END IF;
+    UPDATE public.job AS j
+       SET lease_expires_at = clock_timestamp() + p_lease_ms * interval '1 millisecond'
+     WHERE j.id = p_job_id AND j.status = 'snapshot_running' AND j.lease_token = p_token
+       AND j.lease_expires_at > clock_timestamp();
+    RETURN FOUND;
+END $$;
+
+CREATE FUNCTION public.p0c3_checkpoint_snapshot_job(p_job_id uuid, p_token uuid, p_checkpoint jsonb)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF jsonb_typeof(p_checkpoint) IS DISTINCT FROM 'object'
+       OR octet_length(p_checkpoint::text) > 16384 THEN
+        RAISE EXCEPTION 'invalid checkpoint' USING ERRCODE = '22023';
+    END IF;
+    UPDATE public.job AS j SET checkpoint = p_checkpoint
+     WHERE j.id = p_job_id AND j.status = 'snapshot_running' AND j.lease_token = p_token
+       AND j.lease_expires_at > clock_timestamp();
+    RETURN FOUND;
+END $$;
+
+CREATE FUNCTION public.p0c3_succeed_snapshot_job(p_job_id uuid, p_token uuid, p_digest text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF p_digest IS NULL OR p_digest !~ '^[0-9a-f]{64}$' THEN
+        RAISE EXCEPTION 'invalid output digest' USING ERRCODE = '22023';
+    END IF;
+    UPDATE public.job AS j
+       SET status = 'succeeded', lease_token = NULL, lease_expires_at = NULL,
+           next_attempt_at = NULL, last_error_class = NULL,
+           output_digest = p_digest
+     WHERE j.id = p_job_id AND j.status = 'snapshot_running' AND j.lease_token = p_token
+       AND j.lease_expires_at > clock_timestamp();
+    RETURN FOUND;
+END $$;
+
+CREATE FUNCTION public.p0c3_fail_snapshot_job(
+    p_job_id uuid, p_token uuid, p_error_class text, p_retryable boolean
+)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF ((p_error_class = 'transient_storage' AND p_retryable IS TRUE)
+        OR (p_error_class = 'invalid_input' AND p_retryable IS FALSE)) IS NOT TRUE THEN
+        RAISE EXCEPTION 'invalid failure class' USING ERRCODE = '22023';
+    END IF;
+    UPDATE public.job AS j
+       SET status = CASE WHEN p_retryable AND j.attempt_count < 3
+                         THEN 'snapshot_retry_wait' ELSE 'failed' END,
+           lease_token = NULL, lease_expires_at = NULL,
+           next_attempt_at = CASE WHEN p_retryable AND j.attempt_count < 3
+                THEN clock_timestamp() + CASE j.attempt_count
+                    WHEN 1 THEN interval '1 second' ELSE interval '2 seconds' END
+                ELSE NULL END,
+           last_error_class = p_error_class, output_digest = NULL
+     WHERE j.id = p_job_id AND j.status = 'snapshot_running' AND j.lease_token = p_token
+       AND j.lease_expires_at > clock_timestamp();
+    RETURN FOUND;
+END $$;
+
+CREATE FUNCTION public.p0c3_cancel_snapshot_job(p_job_id uuid)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    UPDATE public.job AS j
+       SET status = 'cancelled', lease_token = NULL, lease_expires_at = NULL,
+           next_attempt_at = NULL, output_digest = NULL
+     WHERE j.id = p_job_id AND j.status IN ('snapshot_queued', 'snapshot_running', 'snapshot_retry_wait');
+    RETURN FOUND;
+END $$;
+
+REVOKE ALL ON FUNCTION public.p0c3_renew_snapshot_job(uuid,uuid,bigint),
+ public.p0c3_checkpoint_snapshot_job(uuid,uuid,jsonb),public.p0c3_succeed_snapshot_job(uuid,uuid,text),
+ public.p0c3_fail_snapshot_job(uuid,uuid,text,boolean),public.p0c3_cancel_snapshot_job(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.p0c3_renew_snapshot_job(uuid,uuid,bigint),
+ public.p0c3_checkpoint_snapshot_job(uuid,uuid,jsonb),public.p0c3_succeed_snapshot_job(uuid,uuid,text),
+ public.p0c3_fail_snapshot_job(uuid,uuid,text,boolean),public.p0c3_cancel_snapshot_job(uuid) TO learning_runtime;
+
 CREATE FUNCTION public.p0c3_complete_snapshot_job(p_job_id uuid,p_token uuid,p_capability text,p_manifest text,p_plan text,p_spaces uuid[])
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE initiator uuid; expected_capability text; required uuid;
@@ -179,7 +336,7 @@ BEGIN
  FOR required IN SELECT DISTINCT unnest(p_spaces) ORDER BY 1 LOOP
    IF public.lock_space_grant(initiator,required) IS NULL THEN RETURN false; END IF;
  END LOOP;
- IF NOT public.p0c2_succeed_job(p_job_id,p_token,p_manifest) THEN RETURN false; END IF;
+ IF NOT public.p0c3_succeed_snapshot_job(p_job_id,p_token,p_manifest) THEN RETURN false; END IF;
  INSERT INTO public.snapshot_export_result(job_id,stage_token,capability,manifest_sha256,plan_sha256,required_spaces)
  VALUES(p_job_id,p_token,p_capability,p_manifest,p_plan,p_spaces);
  RETURN true;
@@ -192,18 +349,3 @@ REVOKE ALL ON FUNCTION public.p0c3_canonical_json(jsonb),public.p0c3_uuid_object
 GRANT EXECUTE ON FUNCTION public.p0c3_canonical_json(jsonb),public.p0c3_uuid_object(jsonb,text[]),
  public.p0c3_valid_job_payload(text,integer,jsonb,uuid,text),public.p0c3_claim_snapshot_job(uuid,bigint),
  public.p0c3_complete_snapshot_job(uuid,uuid,text,text,text,uuid[]) TO learning_runtime;
-
--- An old dispatcher chooses a random ID. Normalize C3 IDs in the database so
--- enqueue's reserved identifier remains usable with either dispatcher version.
-CREATE FUNCTION public.p0c3_snapshot_job_identity() RETURNS trigger
-LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
-BEGIN
- IF EXISTS(SELECT 1 FROM public.job_outbox e WHERE e.id=NEW.outbox_id AND e.event_type='snapshot_export_requested') THEN
-   NEW.id := NEW.outbox_id;
- END IF;
- RETURN NEW;
-END $$;
-CREATE TRIGGER p0c3_snapshot_job_identity BEFORE INSERT ON public.job FOR EACH ROW
- EXECUTE FUNCTION public.p0c3_snapshot_job_identity();
-REVOKE ALL ON FUNCTION public.p0c3_snapshot_job_identity() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.p0c3_snapshot_job_identity() TO learning_runtime;

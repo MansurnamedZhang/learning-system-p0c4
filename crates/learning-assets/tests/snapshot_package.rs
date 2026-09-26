@@ -754,7 +754,24 @@ fn job_attempt_reopen_rejects_wrong_hash_symlinks_and_does_not_replace_other_att
             .unwrap()
             .is_empty()
     );
-    reopened.stage_copy(second, &copy()).unwrap();
+    let retry = reopened.stage_copy(second, &copy()).unwrap();
+    assert_eq!(
+        retry.manifest_sha256(),
+        hash,
+        "retry token must not enter the logical manifest"
+    );
+    assert!(
+        root.0
+            .join(job.to_string())
+            .join(format!("{first}.ready"))
+            .is_dir()
+    );
+    assert!(
+        root.0
+            .join(job.to_string())
+            .join(format!("{second}.ready"))
+            .is_dir()
+    );
     assert!(reopened.stage_copy(first, &copy()).is_err());
     assert!(reopened.reopen(first, &hash).is_ok());
     let alias = Uuid::new_v4();

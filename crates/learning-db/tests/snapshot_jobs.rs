@@ -1,3 +1,5 @@
+#[path = "support/relation_store.rs"]
+mod relations;
 mod support;
 
 use learning_core::{JobInput, ReadingMode, ReadingRef, SnapshotRequest};
@@ -90,7 +92,8 @@ async fn queued() -> (
 #[tokio::test]
 async fn old_worker_cannot_consume_snapshot_attempt_new_worker_can() {
     let (_, _, _, _, jobs, id, _) = queued().await;
-    assert!(jobs.runnable_ids(256).await.unwrap().contains(&id));
+    assert!(!jobs.runnable_ids(256).await.unwrap().contains(&id));
+    assert!(jobs.runnable_snapshot_ids(256).await.unwrap().contains(&id));
     assert!(
         jobs.claim(id, Duration::from_secs(30))
             .await
@@ -157,6 +160,23 @@ async fn database_and_rust_reject_same_malformed_snapshot_payloads_and_keep_asse
             .await
             .unwrap();
     assert!(good);
+    let mismatched: bool =
+        sqlx::query_scalar("SELECT p0c3_valid_job_payload('snapshot_export_requested',1,$1,$2,$3)")
+            .bind(&value)
+            .bind(actor.actor_id)
+            .bind(format!(
+                "snapshot-export:v1:{}:{}:{}",
+                actor.actor_id,
+                space,
+                "0".repeat(64)
+            ))
+            .fetch_one(&rig.runtime_pool)
+            .await
+            .unwrap();
+    assert!(
+        !mismatched,
+        "valid payload must still reject a mismatched key"
+    );
     let asset = JobInput::asset_integrity(
         actor.actor_id,
         space,
@@ -205,14 +225,38 @@ async fn database_and_rust_reject_same_malformed_snapshot_payloads_and_keep_asse
         v["request"][key] = bad;
         malformed.push(v);
     }
+    let mut nested = value.clone();
+    nested["request"]["reading"]["unknown"] = json!(true);
+    malformed.push(nested);
+    let mut changed = value.clone();
+    changed["request"]["include_originals"] = json!(false);
+    let changed_valid: bool =
+        sqlx::query_scalar("SELECT p0c3_valid_job_payload('snapshot_export_requested',1,$1,$2,$3)")
+            .bind(&changed)
+            .bind(actor.actor_id)
+            .bind(format!(
+                "snapshot-export:v1:{}:{}:{}",
+                actor.actor_id,
+                space,
+                learning_core::canonical_record_hash(&changed["request"])
+            ))
+            .fetch_one(&rig.runtime_pool)
+            .await
+            .unwrap();
+    assert!(changed_valid);
     for v in malformed {
         assert!(JobInput::from_value(v.clone()).is_err());
         let valid: bool = sqlx::query_scalar(
             "SELECT p0c3_valid_job_payload('snapshot_export_requested',1,$1,$2,$3)",
         )
-        .bind(v)
+        .bind(&v)
         .bind(actor.actor_id)
-        .bind(input.business_key())
+        .bind(format!(
+            "snapshot-export:v1:{}:{}:{}",
+            actor.actor_id,
+            space,
+            learning_core::canonical_record_hash(&v["request"])
+        ))
         .fetch_one(&rig.runtime_pool)
         .await
         .unwrap();
@@ -256,6 +300,198 @@ async fn legacy_dispatcher_random_id_is_normalized_only_for_c3() {
             .is_none()
     );
     assert_eq!(jobs.get(id).await.unwrap().unwrap().attempt_count, 0);
+}
+
+#[tokio::test]
+async fn sixty_four_c3_jobs_cannot_starve_legacy_c2_scan_and_generic_calls_are_inert() {
+    let rig = support::TestRig::from_env().await;
+    let (actor, space) = rig.seed_actor_space(true).await;
+    let jobs = JobStore::new(rig.runtime_pool.clone());
+    let mut snapshots = vec![];
+    for _ in 0..64 {
+        let mut req = request();
+        req.reading.view_id = Uuid::new_v4();
+        let input = JobInput::snapshot_export(actor.actor_id, space, req).unwrap();
+        let event = Uuid::new_v4();
+        sqlx::query("INSERT INTO job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,'snapshot_export_requested',1,$3,$4,1)")
+            .bind(event).bind(input.business_key()).bind(input.to_value()).bind(actor.actor_id).execute(&rig.runtime_pool).await.unwrap();
+        snapshots.push(event);
+    }
+    let asset = JobInput::asset_integrity(
+        actor.actor_id,
+        space,
+        learning_core::BlockRef {
+            block_id: Uuid::new_v4(),
+            revision_id: Uuid::new_v4(),
+        },
+    )
+    .unwrap();
+    let event = Uuid::new_v4();
+    sqlx::query("INSERT INTO job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,'asset_integrity_requested',1,$3,$4,1)")
+        .bind(event).bind(asset.business_key()).bind(asset.to_value()).bind(actor.actor_id).execute(&rig.runtime_pool).await.unwrap();
+    let mut dispatch = rig.runtime_pool.begin().await.unwrap();
+    for (position, id) in snapshots.iter().chain(std::iter::once(&event)).enumerate() {
+        sqlx::query("INSERT INTO job(id,outbox_id,idempotency_key,status,attempt_count,created_at) SELECT $1,id,business_key,'queued',0,'1900-01-01'::timestamptz + $3 * interval '1 millisecond' FROM job_outbox WHERE id=$2")
+            .bind(Uuid::new_v4()).bind(id).bind(position as i64).execute(&mut *dispatch).await.unwrap();
+        sqlx::query("UPDATE job_outbox SET dispatched_at=clock_timestamp() WHERE id=$1")
+            .bind(id)
+            .execute(&mut *dispatch)
+            .await
+            .unwrap();
+    }
+    dispatch.commit().await.unwrap();
+    let asset_id: Uuid = sqlx::query_scalar("SELECT id FROM job WHERE outbox_id=$1")
+        .bind(event)
+        .fetch_one(&rig.runtime_pool)
+        .await
+        .unwrap();
+    // Exact query compiled into the deployed old binary, not a new helper.
+    let legacy:Vec<Uuid>=sqlx::query_scalar("SELECT id FROM public.job WHERE status='queued' OR (status='retry_wait' AND next_attempt_at<=clock_timestamp()) OR (status='running' AND lease_expires_at<=clock_timestamp()) ORDER BY created_at,id LIMIT 64")
+        .fetch_all(&rig.runtime_pool).await.unwrap();
+    assert!(legacy.contains(&asset_id));
+    assert!(legacy.iter().all(|id| !snapshots.contains(id)));
+    assert!(jobs.runnable_ids(64).await.unwrap().contains(&asset_id));
+    assert_eq!(jobs.runnable_snapshot_ids(64).await.unwrap().len(), 64);
+    assert!(
+        SnapshotStore::new(rig.runtime_pool.clone())
+            .runnable_export_ids(64)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let c2_wrong=sqlx::query("UPDATE job SET status='snapshot_running',attempt_count=1,lease_token=gen_random_uuid(),lease_expires_at=clock_timestamp()+interval '30 seconds' WHERE id=$1").bind(asset_id).execute(&rig.admin_pool).await.unwrap_err();
+    assert_eq!(support::sqlstate(&c2_wrong).as_deref(), Some("23514"));
+    let id = snapshots[0];
+    let lease = jobs
+        .claim_snapshot(id, Duration::from_secs(30))
+        .await
+        .unwrap()
+        .unwrap();
+    let c3_wrong = sqlx::query("UPDATE job SET status='running' WHERE id=$1")
+        .bind(id)
+        .execute(&rig.admin_pool)
+        .await
+        .unwrap_err();
+    assert_eq!(support::sqlstate(&c3_wrong).as_deref(), Some("23514"));
+    for name in [
+        "p0c2_renew_job",
+        "p0c2_checkpoint_job",
+        "p0c2_succeed_job",
+        "p0c2_fail_job",
+        "p0c2_cancel_job",
+    ] {
+        let sql = match name {
+            "p0c2_renew_job" => "SELECT p0c2_renew_job($1,$2,30000)",
+            "p0c2_checkpoint_job" => "SELECT p0c2_checkpoint_job($1,$2,'{}'::jsonb)",
+            "p0c2_succeed_job" => "SELECT p0c2_succeed_job($1,$2,repeat('a',64))",
+            "p0c2_fail_job" => "SELECT p0c2_fail_job($1,$2,'invalid_input',false)",
+            _ => "SELECT p0c2_cancel_job($1) WHERE $2::uuid IS NOT NULL",
+        };
+        let accepted: bool = sqlx::query_scalar(sql)
+            .bind(id)
+            .bind(lease.token)
+            .fetch_one(&rig.runtime_pool)
+            .await
+            .unwrap();
+        assert!(!accepted, "{name}");
+    }
+    assert_eq!(
+        jobs.get(id).await.unwrap().unwrap().status,
+        learning_core::JobStatus::Running
+    );
+    assert!(
+        jobs.renew(id, lease.token, Duration::from_secs(30))
+            .await
+            .unwrap()
+    );
+    assert!(
+        jobs.checkpoint(id, lease.token, json!({"copy":1}))
+            .await
+            .unwrap()
+    );
+    assert!(
+        jobs.fail(
+            id,
+            lease.token,
+            learning_db::JobFailureClass::TransientStorage
+        )
+        .await
+        .unwrap()
+    );
+    assert_eq!(
+        jobs.get(id).await.unwrap().unwrap().status,
+        learning_core::JobStatus::RetryWait
+    );
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let second = jobs
+        .claim_snapshot(id, Duration::from_secs(30))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(second.attempt_count, 2);
+    sqlx::query(
+        "UPDATE job SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    )
+    .bind(id)
+    .execute(&rig.admin_pool)
+    .await
+    .unwrap();
+    let third = jobs
+        .claim_snapshot(id, Duration::from_secs(30))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(third.attempt_count, 3);
+    sqlx::query(
+        "UPDATE job SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    )
+    .bind(id)
+    .execute(&rig.admin_pool)
+    .await
+    .unwrap();
+    assert!(
+        jobs.claim(id, Duration::from_secs(30))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let status: String = sqlx::query_scalar("SELECT status FROM job WHERE id=$1")
+        .bind(id)
+        .fetch_one(&rig.runtime_pool)
+        .await
+        .unwrap();
+    assert_eq!(status, "snapshot_running");
+    assert!(
+        jobs.claim_snapshot(id, Duration::from_secs(30))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        jobs.get(id).await.unwrap().unwrap().status,
+        learning_core::JobStatus::Failed
+    );
+    let cancel = snapshots[1];
+    assert!(jobs.cancel(cancel).await.unwrap());
+    assert_eq!(
+        jobs.get(cancel).await.unwrap().unwrap().status,
+        learning_core::JobStatus::Cancelled
+    );
+    let succeed = snapshots[2];
+    let current = jobs
+        .claim_snapshot(succeed, Duration::from_secs(30))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        jobs.succeed(succeed, current.token, &"b".repeat(64))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        jobs.get(succeed).await.unwrap().unwrap().status,
+        learning_core::JobStatus::Succeeded
+    );
 }
 
 mod integration {
@@ -503,5 +739,344 @@ mod integration {
             AssetProcessOutcome::Failed
         );
         assert!(store.deliver_export(actor, id).await.is_err());
+    }
+    #[tokio::test]
+    async fn selected_v2_reading_enqueues_processes_and_delivers_safe_copy() {
+        use learning_core::*;
+        use learning_db::RelationStore;
+        let (rig, actor, space, _, saved) = support::reading::fixture().await;
+        let from = rig
+            .store
+            .create(actor, space, support::command("Evidence source"))
+            .await
+            .unwrap();
+        let to = rig
+            .store
+            .create(actor, space, support::command("Evidence target"))
+            .await
+            .unwrap();
+        let rel = RelationStore::new(rig.runtime_pool.clone())
+            .save(
+                actor,
+                relations::save(space, relations::exact(&from), relations::exact(&to)),
+            )
+            .await
+            .unwrap();
+        let review = RelationStore::new(rig.runtime_pool.clone())
+            .review(actor, relations::review(&rel))
+            .await
+            .unwrap();
+        let reading = support::reading::store(&rig);
+        let selected = reading
+            .select_relations(
+                actor,
+                saved.overlay.overlay_id,
+                SelectRelations {
+                    request_id: Uuid::new_v4(),
+                    expected_overlay_revision: saved.overlay.revision_id,
+                    expected_reading_view_revision: saved.view.revision_id,
+                    selections: vec![RelationSelection {
+                        relation: rel.reference.clone(),
+                        review: Some(review.reference.clone()),
+                    }],
+                    epistemic_reviews: vec![],
+                    reason: "v2 copy regression".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let projection = reading
+            .read_versioned(actor, selected.view.clone(), ReadingMode::Fused)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(projection.contract_version, 2);
+        let (store, _root) = storage(SnapshotStore::new(rig.runtime_pool.clone()));
+        let jobs = JobStore::new(rig.runtime_pool.clone());
+        let mut req = request();
+        req.reading = selected.view;
+        req.include_personal = false;
+        let id = store
+            .enqueue_export(actor, Uuid::new_v4(), req)
+            .await
+            .unwrap();
+        jobs.dispatch_pending(256).await.unwrap();
+        let lease = jobs
+            .claim_snapshot(id, Duration::from_secs(30))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            store.process_snapshot_export(&lease).await.unwrap(),
+            AssetProcessOutcome::Succeeded
+        );
+        let delivery = store.deliver_export(actor, id).await.unwrap();
+        for (name, mut file) in delivery.files {
+            use std::io::Read;
+            let mut body = String::new();
+            file.read_to_string(&mut body).unwrap();
+            assert!(!body.contains(&rel.reference.relation_id.to_string()));
+            assert!(!body.contains("checked within stated conditions"));
+            if name == "reading.md" {
+                assert!(body.contains('K') && body.contains('M'));
+            }
+            if name == "manifest.json" {
+                let manifest: SnapshotManifest = serde_json::from_str(&body).unwrap();
+                assert!(matches!(manifest, SnapshotManifest::ReadingCopyV1(_)));
+            }
+        }
+    }
+}
+
+// Requires a separately provisioned EMPTY database. It never resets an existing
+// database and exercises the actual baseline constraints before applying 0014.
+#[tokio::test]
+async fn fresh_0013_database_upgrades_actual_constraints_without_changing_c2_state() {
+    use learning_db::MIGRATOR;
+    let admin_url = std::env::var("TEST_C3_UPGRADE_ADMIN_DATABASE_URL")
+        .expect("dedicated fresh C3 upgrade admin DSN required");
+    let runtime_url = std::env::var("TEST_C3_UPGRADE_DATABASE_URL")
+        .expect("dedicated fresh C3 upgrade runtime DSN required");
+    let admin = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&admin_url)
+        .await
+        .unwrap();
+    let empty:bool=sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NULL AND to_regclass('public.job') IS NULL").fetch_one(&admin).await.unwrap();
+    assert!(
+        empty,
+        "upgrade fixture must start empty; no existing schema is reset"
+    );
+    let baseline = sqlx::migrate::Migrator {
+        migrations: std::borrow::Cow::Owned(
+            MIGRATOR
+                .iter()
+                .filter(|m| m.version <= 13)
+                .cloned()
+                .collect(),
+        ),
+        ..sqlx::migrate::Migrator::DEFAULT
+    };
+    baseline.run(&admin).await.unwrap();
+    let names:Vec<String>=sqlx::query_scalar("SELECT conname::text FROM pg_constraint WHERE conrelid='public.job'::regclass AND conname=ANY($1) ORDER BY conname")
+        .bind(vec!["job_check","job_check1","job_check2","job_status_check"]).fetch_all(&admin).await.unwrap();
+    assert_eq!(
+        names,
+        vec!["job_check", "job_check1", "job_check2", "job_status_check"]
+    );
+    let checksums: Vec<(i64, Vec<u8>)> =
+        sqlx::query_as("SELECT version,checksum FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&admin)
+            .await
+            .unwrap();
+    assert_eq!(checksums.len(), 13);
+    let runtime = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&runtime_url)
+        .await
+        .unwrap();
+    let actor = Uuid::new_v4();
+    let space = Uuid::new_v4();
+    sqlx::query("INSERT INTO app_user(id) VALUES($1)")
+        .bind(actor)
+        .execute(&admin)
+        .await
+        .unwrap();
+    let input = JobInput::asset_integrity(
+        actor,
+        space,
+        learning_core::BlockRef {
+            block_id: Uuid::new_v4(),
+            revision_id: Uuid::new_v4(),
+        },
+    )
+    .unwrap();
+    let event = Uuid::new_v4();
+    sqlx::query("INSERT INTO job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,'asset_integrity_requested',1,$3,$4,1)")
+        .bind(event).bind(input.business_key()).bind(input.to_value()).bind(actor).execute(&runtime).await.unwrap();
+    let jobs = JobStore::new(runtime.clone());
+    jobs.dispatch_pending(1).await.unwrap();
+    let job: Uuid = sqlx::query_scalar("SELECT id FROM job WHERE outbox_id=$1")
+        .bind(event)
+        .fetch_one(&runtime)
+        .await
+        .unwrap();
+    let lease = jobs
+        .claim(job, Duration::from_secs(300))
+        .await
+        .unwrap()
+        .unwrap();
+    let snapshot = JobInput::snapshot_export(actor, space, request()).unwrap();
+    let rejected=sqlx::query("INSERT INTO job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,'snapshot_export_requested',1,$3,$4,1)")
+        .bind(Uuid::new_v4()).bind(snapshot.business_key()).bind(snapshot.to_value()).bind(actor).execute(&runtime).await.unwrap_err();
+    assert_eq!(support::sqlstate(&rejected).as_deref(), Some("23514"));
+    MIGRATOR.run(&admin).await.unwrap();
+    let after: Vec<(i64, Vec<u8>)> = sqlx::query_as(
+        "SELECT version,checksum FROM _sqlx_migrations WHERE version<=13 ORDER BY version",
+    )
+    .fetch_all(&admin)
+    .await
+    .unwrap();
+    assert_eq!(after, checksums);
+    let saved:(serde_json::Value,String,String)=sqlx::query_as("SELECT e.payload,e.business_key,j.status FROM job_outbox e JOIN job j ON j.outbox_id=e.id WHERE e.id=$1").bind(event).fetch_one(&runtime).await.unwrap();
+    assert_eq!(
+        saved,
+        (input.to_value(), input.business_key(), "running".into())
+    );
+    assert!(
+        jobs.renew(job, lease.token, Duration::from_secs(30))
+            .await
+            .unwrap()
+    );
+    assert!(
+        jobs.succeed(job, lease.token, &"a".repeat(64))
+            .await
+            .unwrap()
+    );
+    let c3 = Uuid::new_v4();
+    sqlx::query("INSERT INTO job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,'snapshot_export_requested',1,$3,$4,1)")
+        .bind(c3).bind(snapshot.business_key()).bind(snapshot.to_value()).bind(actor).execute(&runtime).await.unwrap();
+    jobs.dispatch_pending(1).await.unwrap();
+    let state: String = sqlx::query_scalar("SELECT status FROM job WHERE id=$1")
+        .bind(c3)
+        .fetch_one(&runtime)
+        .await
+        .unwrap();
+    assert_eq!(state, "snapshot_queued");
+    assert!(
+        jobs.claim(c3, Duration::from_secs(30))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        jobs.claim_snapshot(c3, Duration::from_secs(30))
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn c2_and_c3_failure_cancellation_and_stale_token_semantics_match() {
+    use learning_core::JobStatus;
+    use learning_db::JobFailureClass;
+    let rig = support::TestRig::from_env().await;
+    let (actor, space) = rig.seed_actor_space(true).await;
+    let jobs = JobStore::new(rig.runtime_pool.clone());
+    for snapshot in [false, true] {
+        for cancel_retry in [false, true] {
+            let input = if snapshot {
+                let mut req = request();
+                req.reading.view_id = Uuid::new_v4();
+                JobInput::snapshot_export(actor.actor_id, space, req).unwrap()
+            } else {
+                JobInput::asset_integrity(
+                    actor.actor_id,
+                    space,
+                    learning_core::BlockRef {
+                        block_id: Uuid::new_v4(),
+                        revision_id: Uuid::new_v4(),
+                    },
+                )
+                .unwrap()
+            };
+            let event = Uuid::new_v4();
+            let kind = if snapshot {
+                "snapshot_export_requested"
+            } else {
+                "asset_integrity_requested"
+            };
+            let mut tx = rig.runtime_pool.begin().await.unwrap();
+            sqlx::query("INSERT INTO job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,$3,1,$4,$5,1)")
+                .bind(event).bind(input.business_key()).bind(kind).bind(input.to_value()).bind(actor.actor_id).execute(&mut *tx).await.unwrap();
+            sqlx::query("INSERT INTO job(id,outbox_id,idempotency_key,status,attempt_count) VALUES($1,$1,$2,'queued',0)")
+                .bind(event).bind(input.business_key()).execute(&mut *tx).await.unwrap();
+            sqlx::query("UPDATE job_outbox SET dispatched_at=clock_timestamp() WHERE id=$1")
+                .bind(event)
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            tx.commit().await.unwrap();
+            let lease = if snapshot {
+                jobs.claim_snapshot(event, Duration::from_secs(30)).await
+            } else {
+                jobs.claim(event, Duration::from_secs(30)).await
+            }
+            .unwrap()
+            .unwrap();
+            let stale = Uuid::new_v4();
+            assert!(
+                !jobs
+                    .renew(event, stale, Duration::from_secs(30))
+                    .await
+                    .unwrap()
+            );
+            assert!(!jobs.checkpoint(event, stale, json!({})).await.unwrap());
+            assert!(!jobs.succeed(event, stale, &"a".repeat(64)).await.unwrap());
+            assert!(
+                !jobs
+                    .fail(event, stale, JobFailureClass::InvalidInput)
+                    .await
+                    .unwrap()
+            );
+            let class = if cancel_retry {
+                JobFailureClass::TransientStorage
+            } else {
+                JobFailureClass::InvalidInput
+            };
+            assert!(jobs.fail(event, lease.token, class).await.unwrap());
+            assert_eq!(
+                jobs.get(event).await.unwrap().unwrap().status,
+                if cancel_retry {
+                    JobStatus::RetryWait
+                } else {
+                    JobStatus::Failed
+                }
+            );
+            let row:(Option<Uuid>,Option<String>,Option<String>,bool)=sqlx::query_as("SELECT lease_token,last_error_class,output_digest,next_attempt_at IS NOT NULL FROM job WHERE id=$1")
+                .bind(event).fetch_one(&rig.runtime_pool).await.unwrap();
+            assert_eq!(
+                row,
+                (
+                    None,
+                    Some(
+                        if cancel_retry {
+                            "transient_storage"
+                        } else {
+                            "invalid_input"
+                        }
+                        .into()
+                    ),
+                    None,
+                    cancel_retry
+                )
+            );
+            assert_eq!(jobs.cancel(event).await.unwrap(), cancel_retry);
+            assert_eq!(
+                jobs.get(event).await.unwrap().unwrap().status,
+                if cancel_retry {
+                    JobStatus::Cancelled
+                } else {
+                    JobStatus::Failed
+                }
+            );
+            assert!(!jobs.cancel(event).await.unwrap());
+            assert!(
+                !jobs
+                    .fail(event, lease.token, JobFailureClass::InvalidInput)
+                    .await
+                    .unwrap()
+            );
+            assert!(
+                !jobs
+                    .succeed(event, lease.token, &"a".repeat(64))
+                    .await
+                    .unwrap()
+            );
+            let pending:bool=sqlx::query_scalar("SELECT next_attempt_at IS NOT NULL OR lease_token IS NOT NULL OR lease_expires_at IS NOT NULL FROM job WHERE id=$1")
+                .bind(event).fetch_one(&rig.runtime_pool).await.unwrap();
+            assert!(!pending);
+        }
     }
 }

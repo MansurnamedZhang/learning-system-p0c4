@@ -149,3 +149,28 @@ fn original_and_no_personal_modes_never_emit_personal_evidence() {
         assert!(!json.contains(forbidden));
     }
 }
+
+#[test]
+fn v2_copy_crops_personal_content_and_rejects_unknown_future_versions() {
+    let mut p = projection();
+    p.contract_version = 2;
+    let copy = sanitize_reading_copy(&p, ReadingMode::Fused, false)
+        .expect("v2 evidence readings must support safe cropping");
+    assert_eq!(
+        copy.items,
+        vec![
+            CopyItem::Heading {
+                title: "Chapter".into()
+            },
+            CopyItem::Content {
+                intent: "note".into(),
+                title: "Title".into(),
+                display_text: "Original".into()
+            },
+            CopyItem::Omitted,
+        ]
+    );
+    assert!(copy.evidence.is_empty());
+    p.contract_version = 3;
+    assert!(sanitize_reading_copy(&p, ReadingMode::Fused, false).is_err());
+}

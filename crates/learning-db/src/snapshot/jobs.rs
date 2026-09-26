@@ -78,6 +78,15 @@ impl SnapshotStore {
         self
     }
 
+    pub async fn runnable_export_ids(&self, limit: usize) -> Result<Vec<Uuid>, ContentError> {
+        if self.export_storage.is_none() {
+            return Ok(vec![]);
+        }
+        JobStore::new(self.pool.clone())
+            .runnable_snapshot_ids(limit)
+            .await
+    }
+
     /// An unconfigured worker leaves C3 jobs queued rather than consuming retries.
     pub async fn claim_export(
         &self,

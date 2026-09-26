@@ -93,6 +93,7 @@ impl SnapshotDirectory {
 /// typed UUIDs, never caller supplied paths. Each lease gets an isolated package.
 pub struct SnapshotJobDirectory {
     dir: Dir,
+    copy_id: Uuid,
 }
 impl SnapshotJobDirectory {
     pub fn open(root: &Path, job: Uuid) -> Result<Self, SnapshotIoError> {
@@ -109,7 +110,7 @@ impl SnapshotJobDirectory {
             },
             Err(error) => return Err(error.into()),
         };
-        Ok(Self { dir })
+        Ok(Self { dir, copy_id: job })
     }
     pub fn stage_exact(
         &self,
@@ -134,12 +135,12 @@ impl SnapshotJobDirectory {
     ) -> Result<SnapshotDirectory, SnapshotIoError> {
         let manifest = ReadingCopyManifest {
             format_version: SNAPSHOT_FORMAT_VERSION,
-            copy_id: token,
+            copy_id: self.copy_id,
             files: vec![],
         };
         stage_copy_writer(
             StageWriter::in_directory(self.dir.try_clone()?, token)?,
-            token,
+            self.copy_id,
             &manifest,
             copy,
         )
@@ -829,7 +830,7 @@ pub fn sanitize_reading_copy(
     mode: ReadingMode,
     include_personal: bool,
 ) -> Result<ReadingCopy, ContentError> {
-    if projection.contract_version != 1 {
+    if !matches!(projection.contract_version, 1 | 2) {
         return Err(ContentError::Invalid("unsupported_content_version".into()));
     }
     let mut items = Vec::new();

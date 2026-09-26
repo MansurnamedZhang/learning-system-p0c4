@@ -91,6 +91,13 @@ impl JobStore {
         .map_err(|_| ContentError::Storage)
     }
 
+    /// C3 has a disjoint bounded scan, so no prefix of C3 jobs can fill the
+    /// deployed C2 binary's fixed queued/running/retry_wait scan.
+    pub async fn runnable_snapshot_ids(&self, limit: usize) -> Result<Vec<Uuid>, ContentError> {
+        sqlx::query_scalar("SELECT id FROM public.job WHERE status='snapshot_queued' OR (status='snapshot_retry_wait' AND next_attempt_at<=clock_timestamp()) OR (status='snapshot_running' AND lease_expires_at<=clock_timestamp()) ORDER BY created_at,id LIMIT $1")
+            .bind(limit.min(256) as i64).fetch_all(&self.pool).await.map_err(|_|ContentError::Storage)
+    }
+
     /// Atomically claim one known queued, due, or expired job. The database
     /// chooses eligibility and expiry; a new token fences every attempt.
     pub async fn claim(
@@ -123,7 +130,7 @@ impl JobStore {
         lease: Duration,
     ) -> Result<bool, ContentError> {
         let lease_ms = checked_lease_ms(lease)?;
-        sqlx::query_scalar("SELECT public.p0c2_renew_job($1,$2,$3)")
+        sqlx::query_scalar("SELECT CASE WHEN EXISTS (SELECT 1 FROM public.job j JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND e.event_type='snapshot_export_requested') THEN public.p0c3_renew_snapshot_job($1,$2,$3) ELSE public.p0c2_renew_job($1,$2,$3) END")
             .bind(job_id)
             .bind(token)
             .bind(lease_ms)
@@ -138,7 +145,7 @@ impl JobStore {
         token: Uuid,
         checkpoint: serde_json::Value,
     ) -> Result<bool, ContentError> {
-        sqlx::query_scalar("SELECT public.p0c2_checkpoint_job($1,$2,$3)")
+        sqlx::query_scalar("SELECT CASE WHEN EXISTS (SELECT 1 FROM public.job j JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND e.event_type='snapshot_export_requested') THEN public.p0c3_checkpoint_snapshot_job($1,$2,$3) ELSE public.p0c2_checkpoint_job($1,$2,$3) END")
             .bind(job_id)
             .bind(token)
             .bind(Json(checkpoint))
@@ -164,7 +171,7 @@ impl JobStore {
         {
             return Err(ContentError::Invalid("invalid_job_output_digest".into()));
         }
-        sqlx::query_scalar("SELECT public.p0c2_succeed_job($1,$2,$3)")
+        sqlx::query_scalar("SELECT CASE WHEN EXISTS (SELECT 1 FROM public.job j JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND e.event_type='snapshot_export_requested') THEN public.p0c3_succeed_snapshot_job($1,$2,$3) ELSE public.p0c2_succeed_job($1,$2,$3) END")
             .bind(job_id)
             .bind(token)
             .bind(digest)
@@ -180,7 +187,7 @@ impl JobStore {
         class: JobFailureClass,
     ) -> Result<bool, ContentError> {
         let (name, retryable) = class.database_values();
-        sqlx::query_scalar("SELECT public.p0c2_fail_job($1,$2,$3,$4)")
+        sqlx::query_scalar("SELECT CASE WHEN EXISTS (SELECT 1 FROM public.job j JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND e.event_type='snapshot_export_requested') THEN public.p0c3_fail_snapshot_job($1,$2,$3,$4) ELSE public.p0c2_fail_job($1,$2,$3,$4) END")
             .bind(job_id)
             .bind(token)
             .bind(name)
@@ -191,7 +198,7 @@ impl JobStore {
     }
 
     pub async fn cancel(&self, job_id: Uuid) -> Result<bool, ContentError> {
-        sqlx::query_scalar("SELECT public.p0c2_cancel_job($1)")
+        sqlx::query_scalar("SELECT CASE WHEN EXISTS (SELECT 1 FROM public.job j JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND e.event_type='snapshot_export_requested') THEN public.p0c3_cancel_snapshot_job($1) ELSE public.p0c2_cancel_job($1) END")
             .bind(job_id)
             .fetch_one(&self.pool)
             .await
@@ -277,13 +284,22 @@ impl JobStore {
             if input.business_key() != row.idempotency_key {
                 return Err(ContentError::Invalid("job_input_key_mismatch".into()));
             }
+            let status = match (&input, row.status.as_str()) {
+                (JobInput::SnapshotExport { .. }, "snapshot_queued") => JobStatus::Queued,
+                (JobInput::SnapshotExport { .. }, "snapshot_running") => JobStatus::Running,
+                (JobInput::SnapshotExport { .. }, "snapshot_retry_wait") => JobStatus::RetryWait,
+                (JobInput::SnapshotExport { .. }, "queued" | "running" | "retry_wait") => {
+                    return Err(ContentError::Invalid("wrong_job_state_family".into()));
+                }
+                _ => JobStatus::parse(&row.status)?,
+            };
             Ok(JobRecord {
                 id: row.id,
                 outbox_id: row.outbox_id,
                 idempotency_key: row.idempotency_key,
                 input,
                 processor_version: row.processor_version,
-                status: JobStatus::parse(&row.status)?,
+                status,
                 attempt_count: row.attempt_count,
             })
         })
