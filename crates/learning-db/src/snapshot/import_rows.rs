@@ -198,6 +198,57 @@ impl<'a> Package<'a> {
             revision_id: id(v, &format!("{prefix}revision_id"))?,
         })
     }
+    // Validate stable writer semantics against the imported immutable closure.
+    // Current review heads may have changed since this historical judgment.
+    fn judgment(&self, command: &AppendEpistemicReview) -> Result<(), ContentError> {
+        let target = self.one(
+            SnapshotTable::BlockRevision,
+            &["block_id", "id"],
+            &[
+                serde_json::json!(command.target.block_id),
+                serde_json::json!(command.target.revision_id),
+            ],
+        )?;
+        let draft = ContentDraft::decode(
+            target["contract_version"].as_u64().ok_or_else(invalid)? as u32,
+            target["content"].clone(),
+        )
+        .map_err(|_| invalid())?;
+        let intent = match draft {
+            ContentDraft::V1(d) => d.intent,
+            ContentDraft::V2(d) => d.intent,
+            ContentDraft::V3(d) => d.intent,
+        };
+        if !matches!(intent, Intent::Conjecture | Intent::Conclusion) {
+            return Err(invalid());
+        }
+        for selection in &command.relations {
+            let identity = self.one(
+                SnapshotTable::Relation,
+                &["id"],
+                &[serde_json::json!(selection.relation.relation_id)],
+            )?;
+            let revision = self.one(
+                SnapshotTable::RelationRevision,
+                &["relation_id", "id"],
+                &[
+                    serde_json::json!(selection.relation.relation_id),
+                    serde_json::json!(selection.relation.revision_id),
+                ],
+            )?;
+            let kind: RelationType = decode(identity["type"].clone())?;
+            let from = self.block_ref(revision, "from_")?;
+            let to = self.block_ref(revision, "to_")?;
+            if matches!(kind, RelationType::Supports | RelationType::Opposes) {
+                if to != command.target || !command.evidence.contains(&from) {
+                    return Err(invalid());
+                }
+            } else if from != command.target && to != command.target {
+                return Err(invalid());
+            }
+        }
+        Ok(())
+    }
     fn semantic(&self, row: &SnapshotRow) -> Result<(), ContentError> {
         use SnapshotTable::*;
         let v = &row.immutable_values;
@@ -400,6 +451,7 @@ impl<'a> Package<'a> {
                     explanation: text(v, "explanation")?.into(),
                 };
                 command.validate().map_err(|_| invalid())?;
+                self.judgment(&command)?;
                 deps = command.dependencies();
                 exact = Some(ExactRef::EpistemicReview(EpistemicReviewRef {
                     stream_id: id(v, "stream_id")?,

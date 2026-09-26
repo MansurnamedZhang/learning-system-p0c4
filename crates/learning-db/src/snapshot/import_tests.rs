@@ -144,8 +144,7 @@ fn preflight_checks_canonical_fields_identity_and_business_digests() {
         Err(ContentError::NotFound)
     ));
 }
-#[test]
-fn preflight_requires_exact_reference_dependency_and_review_head() {
+fn relation_fixture() -> (Vec<SnapshotRow>, ReadingRef, Principal) {
     let (mut rows, root, actor) = fixture();
     let relation = u(20);
     let revision = u(21);
@@ -220,6 +219,12 @@ fn preflight_requires_exact_reference_dependency_and_review_head() {
     ] {
         rows.push(super::rows::record(table, value).unwrap());
     }
+    (rows, root, actor)
+}
+
+#[test]
+fn preflight_requires_exact_reference_dependency_and_review_head() {
+    let (rows, root, actor) = relation_fixture();
     Package { rows: &rows }.validate(&root, actor).unwrap();
     for table in [
         SnapshotTable::ReferenceDependency,
@@ -293,4 +298,150 @@ fn preflight_preserves_bounded_necessary_reference_cycles() {
         rows.push(super::rows::record(SnapshotTable::ReferenceDependency,json!({"source_kind":"block","source_object_id":block,"source_revision_id":revision,"position":0,"role":"basis","target_kind":"block","target_object_id":target,"target_revision_id":target_revision})).unwrap());
     }
     Package { rows: &rows }.validate(&root, actor).unwrap();
+}
+
+// The package contains immutable historical revisions and selections; no
+// mutable review-head state is present or consulted by preflight.
+fn epistemic_fixture(
+    intent: Intent,
+    kind: RelationType,
+    target_id: u128,
+    evidence: bool,
+) -> (Vec<SnapshotRow>, ReadingRef, Principal) {
+    let (mut rows, root, actor) = relation_fixture();
+    // A third target permits a relation unrelated to the judgment target.
+    for table in [
+        SnapshotTable::Block,
+        SnapshotTable::BlockRevision,
+        SnapshotTable::ReferenceObject,
+    ] {
+        let source = rows.iter().find(|r| r.table == table).unwrap();
+        let mut v = source.immutable_values.clone();
+        for key in ["id", "block_id", "object_id", "revision_id"] {
+            if v.get(key) == Some(&json!(u(3))) {
+                v[key] = json!(u(40));
+            } else if v.get(key) == Some(&json!(u(4))) {
+                v[key] = json!(u(41));
+            }
+        }
+        rows.push(super::rows::record(table, v).unwrap());
+    }
+    for row in &mut rows {
+        let v = &mut row.immutable_values;
+        if row.table == SnapshotTable::BlockRevision && v["block_id"] == json!(u(target_id)) {
+            v["content"]["intent"] = json!(intent);
+            v["content_sha256"] = json!(
+                ContentDraft::decode(1, v["content"].clone())
+                    .unwrap()
+                    .digest()
+            );
+        }
+        if row.table == SnapshotTable::Relation {
+            v["type"] = json!(kind);
+        }
+        if row.table == SnapshotTable::RelationRevision {
+            v["content_sha256"] = json!(canonical_record_hash(&json!({
+                "domain":"relation-content-v1", "scope":RelationScope::Space { space_id:u(2) },
+                "type":kind,"from":BlockRef {block_id:u(3),revision_id:u(4)},
+                "to":BlockRef {block_id:u(30),revision_id:u(31)},"rationale":"r","conditions":"c"
+            })));
+        }
+        *row = super::rows::record(row.table, v.clone()).unwrap();
+    }
+    let target = BlockRef {
+        block_id: u(target_id),
+        revision_id: u(target_id + 1),
+    };
+    let relation = RelationRef {
+        relation_id: u(20),
+        revision_id: u(21),
+    };
+    let command = AppendEpistemicReview {
+        request_id: u(60),
+        scope: RelationScope::Space { space_id: u(2) },
+        target: target.clone(),
+        expected_previous: None,
+        state: match kind {
+            RelationType::Supports => EpistemicState::SupportedWithinScope,
+            RelationType::Opposes => EpistemicState::RefutedWithinScope,
+            _ => EpistemicState::Testing,
+        },
+        relations: vec![RelationSelection {
+            relation: relation.clone(),
+            review: Some(RelationReviewRef {
+                relation,
+                review_id: u(22),
+            }),
+        }],
+        evidence: if evidence {
+            vec![BlockRef {
+                block_id: u(3),
+                revision_id: u(4),
+            }]
+        } else {
+            vec![]
+        },
+        conditions: "historical conditions".into(),
+        explanation: "historical judgment".into(),
+    };
+    command.validate().unwrap();
+    for (table, v) in [
+        (
+            SnapshotTable::EpistemicStream,
+            json!({"id":u(60),"space_id":u(2),"overlay_id":null,"target_space_id":u(2),"target_block_id":target.block_id,"target_revision_id":target.revision_id,"actor_id":u(1)}),
+        ),
+        (
+            SnapshotTable::EpistemicReview,
+            json!({"id":u(61),"space_id":u(2),"stream_id":u(60),"previous_review_id":null,"state":command.state,"relations":command.relations,"evidence":command.evidence,"conditions":command.conditions,"explanation":command.explanation,"reviewer_id":u(1),"created_at":"2026-09-24T00:00:00.000000Z"}),
+        ),
+        (
+            SnapshotTable::ReferenceObject,
+            json!({"kind":"epistemic_review","object_id":u(60),"revision_id":u(61),"space_id":u(2)}),
+        ),
+    ] {
+        rows.push(super::rows::record(table, v).unwrap());
+    }
+    for (position, dep) in command.dependencies().iter().enumerate() {
+        let (kind, object, revision) = crate::references::key(&dep.target);
+        rows.push(super::rows::record(SnapshotTable::ReferenceDependency,json!({"source_kind":"epistemic_review","source_object_id":u(60),"source_revision_id":u(61),"position":position,"role":dep.role,"target_kind":kind,"target_object_id":object,"target_revision_id":revision})).unwrap());
+    }
+    (rows, root, actor)
+}
+
+#[test]
+fn preflight_rejects_non_judgment_target_intent() {
+    let (rows, root, actor) = epistemic_fixture(Intent::Note, RelationType::Supports, 30, true);
+    assert!(Package { rows: &rows }.validate(&root, actor).is_err());
+}
+#[test]
+fn preflight_rejects_epistemic_support_direction_or_missing_evidence() {
+    for kind in [RelationType::Supports, RelationType::Opposes] {
+        for (target, evidence) in [(3, true), (30, false)] {
+            let (rows, root, actor) = epistemic_fixture(Intent::Conjecture, kind, target, evidence);
+            assert!(
+                Package { rows: &rows }.validate(&root, actor).is_err(),
+                "{kind:?}/{target}/{evidence}"
+            );
+        }
+    }
+}
+#[test]
+fn preflight_rejects_epistemic_relation_unrelated_to_target() {
+    let (rows, root, actor) =
+        epistemic_fixture(Intent::Conclusion, RelationType::RelatedTo, 40, false);
+    assert!(Package { rows: &rows }.validate(&root, actor).is_err());
+}
+#[test]
+fn preflight_accepts_valid_historical_epistemic_semantics() {
+    for intent in [Intent::Conjecture, Intent::Conclusion] {
+        for (kind, target, evidence) in [
+            (RelationType::Supports, 30, true),
+            (RelationType::Opposes, 30, true),
+            (RelationType::RelatedTo, 3, false),
+            (RelationType::RelatedTo, 30, false),
+        ] {
+            let (rows, root, actor) = epistemic_fixture(intent, kind, target, evidence);
+            Package { rows: &rows }.validate(&root, actor).unwrap();
+        }
+    }
 }

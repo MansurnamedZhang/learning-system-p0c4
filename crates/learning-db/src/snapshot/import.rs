@@ -100,8 +100,7 @@ impl SnapshotImportStore {
             return Err(ContentError::NotFound);
         }
         let mut assets = vec![];
-        let mut bytes = 0u64;
-        let mut digests = BTreeSet::new();
+        let mut originals = OriginalBudget::default();
         for row in &verified.rows {
             let values = &row.immutable_values;
             let schema_ok:bool=sqlx::query_scalar(&format!("WITH t AS (SELECT (jsonb_populate_record(NULL::public.{},$1)).*) SELECT ({}) IS NOT FALSE FROM t", rows::table_name(row.table),import_schema::checks(row.table)))
@@ -178,12 +177,7 @@ impl SnapshotImportStore {
             if row.table == SnapshotTable::Asset {
                 let sha256 = values["sha256"].as_str().ok_or_else(invalid)?.to_owned();
                 let byte_size = values["byte_size"].as_u64().ok_or_else(invalid)?;
-                if digests.insert(sha256.clone()) {
-                    bytes = bytes.checked_add(byte_size).ok_or_else(invalid)?;
-                }
-                if bytes > SNAPSHOT_MAX_ASSET_BYTES as u64 {
-                    return Err(invalid());
-                }
+                originals.account(manifest.requires_destination_assets, &sha256, byte_size)?;
                 let source = if manifest.requires_destination_assets {
                     let target = present.as_ref().ok_or(ContentError::NotFound)?;
                     self.files
@@ -228,6 +222,33 @@ impl SnapshotImportStore {
     }
 }
 
+#[derive(Default)]
+struct OriginalBudget {
+    bytes: u64,
+    digests: BTreeSet<String>,
+}
+impl OriginalBudget {
+    fn account(
+        &mut self,
+        destination_only: bool,
+        digest: &str,
+        size: u64,
+    ) -> Result<(), ContentError> {
+        // Only originals carried by this package consume the included-byte
+        // budget. Destination-only assets are still individually verified.
+        if destination_only {
+            return Ok(());
+        }
+        if self.digests.insert(digest.to_owned()) {
+            self.bytes = self.bytes.checked_add(size).ok_or_else(invalid)?;
+        }
+        if self.bytes > SNAPSHOT_MAX_ASSET_BYTES as u64 {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+}
+
 async fn lookup(tx: &mut rows::Tx<'_>, row: &SnapshotRow) -> Result<Option<Value>, ContentError> {
     let keys = rows::primary_key(row.table);
     let condition = keys
@@ -265,7 +286,8 @@ async fn grant(
 fn parent_scope(table: SnapshotTable) -> Option<(SnapshotTable, &'static str, &'static str)> {
     use SnapshotTable::*;
     match table {
-        OverlayGroupIdentity
+        OverlayRevision
+        | OverlayGroupIdentity
         | OverlayPlacementIdentity
         | OverlayGroup
         | OverlayPlacement
@@ -382,5 +404,54 @@ async fn authorize_existing(
             .await?;
         }
         return Ok(());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn overlay_revision_authorization_follows_actual_overlay_owner() {
+        assert_eq!(
+            parent_scope(SnapshotTable::OverlayRevision),
+            Some((SnapshotTable::Overlay, "overlay_id", "id"))
+        );
+    }
+    #[test]
+    fn metadata_only_originals_do_not_consume_included_byte_budget() {
+        let mut budget = OriginalBudget::default();
+        for n in 0..5 {
+            budget
+                .account(
+                    true,
+                    &format!("{n:064x}"),
+                    SNAPSHOT_MAX_ASSET_FILE_BYTES as u64,
+                )
+                .unwrap();
+        }
+        assert_eq!(budget.bytes, 0);
+    }
+    #[test]
+    fn included_originals_enforce_unique_byte_budget() {
+        let mut budget = OriginalBudget::default();
+        for n in 0..4 {
+            let digest = format!("{n:064x}");
+            budget
+                .account(false, &digest, SNAPSHOT_MAX_ASSET_FILE_BYTES as u64)
+                .unwrap();
+            budget
+                .account(false, &digest, SNAPSHOT_MAX_ASSET_FILE_BYTES as u64)
+                .unwrap();
+        }
+        assert_eq!(budget.bytes, SNAPSHOT_MAX_ASSET_BYTES as u64);
+        assert!(
+            budget
+                .account(
+                    false,
+                    &format!("{:064x}", 5),
+                    SNAPSHOT_MAX_ASSET_FILE_BYTES as u64
+                )
+                .is_err()
+        );
     }
 }

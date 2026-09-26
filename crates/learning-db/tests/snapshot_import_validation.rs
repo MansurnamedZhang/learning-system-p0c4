@@ -811,10 +811,176 @@ async fn symlink_replacement_after_staging_is_rejected_without_database_changes(
         .join(snapshot_object_path(row.table, &row.identity).unwrap());
     let outside = files.root.join("outside.json");
     fs::copy(&path, &outside).unwrap();
+    // Staging seals table directories to 0500. As their owner, deliberately
+    // make only this fixture parent writable before replacing its child.
+    // Restore the seal so the rejection exercises the symlink itself.
+    use std::os::unix::fs::PermissionsExt;
+    let parent = path.parent().unwrap();
+    let sealed = fs::metadata(parent).unwrap().permissions();
+    assert_eq!(sealed.mode() & 0o777, 0o500);
+    fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).unwrap();
     fs::remove_file(&path).unwrap();
     std::os::unix::fs::symlink(&outside, &path).unwrap();
+    fs::set_permissions(parent, sealed).unwrap();
+    assert!(
+        fs::symlink_metadata(&path)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
     let store = SnapshotImportStore::new(rig.runtime_pool.clone(), files.store.clone());
     let before = counts(&rig).await;
     assert!(store.validate_exact(actor, &staged).await.is_err());
+    assert_eq!(counts(&rig).await, before);
+}
+
+#[tokio::test]
+async fn private_overlay_revision_id_never_reports_an_identity_collision() {
+    let _serial = SERIAL.lock().await;
+    let (rig, actor, space, doc, saved) = support::reading::fixture().await;
+    let (other, _) = rig.seed_actor_space(true).await;
+    sqlx::query("INSERT INTO space_grant(actor_id,space_id,can_write) VALUES($1,$2,true)")
+        .bind(other.actor_id)
+        .bind(space)
+        .execute(&rig.admin_pool)
+        .await
+        .unwrap();
+    let private = support::reading::store(&rig)
+        .create(other, space, support::reading::create(doc.reference))
+        .await
+        .unwrap();
+    let plan = SnapshotStore::new(rig.runtime_pool.clone())
+        .plan_exact(actor, &request(saved.view.clone()))
+        .await
+        .unwrap();
+    let files = Files::new();
+    let store = SnapshotImportStore::new(rig.runtime_pool.clone(), files.store.clone());
+    for candidate in [Uuid::new_v4(), private.overlay.revision_id] {
+        let mut probe = plan.clone();
+        let new_view_revision = Uuid::new_v4();
+        for row in &mut probe.rows {
+            if row.table == SnapshotTable::OverlayRevision {
+                row.immutable_values["id"] = json!(candidate);
+                row.identity = vec![SnapshotIdentityPart::Uuid(candidate)];
+            }
+            if row.table == SnapshotTable::ReadingViewRevision {
+                row.immutable_values["id"] = json!(new_view_revision);
+                row.immutable_values["overlay_revision_id"] = json!(candidate);
+                row.identity = vec![SnapshotIdentityPart::Uuid(new_view_revision)];
+            }
+        }
+        probe.manifest.root.revision_id = new_view_revision;
+        rehash(&mut probe);
+        let before = counts(&rig).await;
+        let result = store.validate_exact(actor, &files.stage(&probe)).await;
+        if candidate == private.overlay.revision_id {
+            // The supplied overlay belongs to the importer, but authorization
+            // must traverse the existing revision's actual private overlay.
+            assert!(matches!(result, Err(ContentError::NotFound)));
+        } else {
+            // Fresh immutable revisions remain valid import candidates.
+            assert!(result.is_ok());
+        }
+        assert_eq!(counts(&rig).await, before);
+    }
+}
+
+#[tokio::test]
+async fn metadata_only_five_max_size_assets_verify_all_destination_bytes() {
+    use learning_assets::UploadDeclaration;
+    use learning_db::{AssetMedia, AssetStore, ResourceInput};
+    use std::io::Write;
+    let _serial = SERIAL.lock().await;
+    let (rig, actor, space, _, saved) = support::reading::fixture().await;
+    let files = Files::new();
+    let asset_store = AssetStore::new(rig.runtime_pool.clone(), files.store.clone());
+    let mut export = request(saved.view);
+    export.include_originals = false;
+    let size = SNAPSHOT_MAX_ASSET_FILE_BYTES as u64;
+    let mut last_asset = None;
+    for n in 0..5u8 {
+        // Sparse input plus the store's streaming copy avoids a 128 MiB Vec.
+        // Distinct first bytes produce five unique 128 MiB originals.
+        let source = files.root.join(format!("large-{n}.bin"));
+        let mut input = fs::File::create(&source).unwrap();
+        input.set_len(size).unwrap();
+        input.write_all(&[n]).unwrap();
+        drop(input);
+        let blob = files
+            .store
+            .put_from_file(
+                Uuid::new_v4(),
+                &source,
+                UploadDeclaration {
+                    expected_size_bytes: size,
+                    max_size_bytes: size,
+                },
+            )
+            .unwrap();
+        let asset = asset_store
+            .register_verified(
+                actor,
+                space,
+                Uuid::new_v4(),
+                blob,
+                AssetMedia {
+                    media_type: "application/octet-stream".into(),
+                    original_file_name: format!("large-{n}.bin"),
+                },
+            )
+            .await
+            .unwrap();
+        let resource = asset_store
+            .link_resource_version(
+                actor,
+                ResourceInput {
+                    space_id: space,
+                    resource_id: None,
+                    display_name: format!("large {n}"),
+                },
+                asset.reference.clone(),
+            )
+            .await
+            .unwrap();
+        export.resource_versions.push(resource);
+        last_asset = Some(asset.reference.asset_id);
+        fs::remove_file(source).unwrap();
+    }
+    let plan = SnapshotStore::new(rig.runtime_pool.clone())
+        .plan_exact(actor, &export)
+        .await
+        .unwrap();
+    assert!(plan.manifest.requires_destination_assets);
+    assert!(
+        plan.manifest
+            .files
+            .iter()
+            .all(|f| !f.path.starts_with("assets/"))
+    );
+    let staged = files.stage(&plan);
+    let store = SnapshotImportStore::new(rig.runtime_pool.clone(), files.store.clone());
+    let before = counts(&rig).await;
+    let prepared = store.validate_exact(actor, &staged).await.unwrap();
+    assert_eq!(prepared.assets().count(), 5);
+    assert_eq!(
+        prepared.assets().map(|(_, _, bytes)| bytes).sum::<u64>(),
+        5 * size
+    );
+    assert_eq!(counts(&rig).await, before);
+    let key: String =
+        sqlx::query_scalar("SELECT storage_key FROM asset WHERE space_id=$1 AND id=$2")
+            .bind(space)
+            .bind(last_asset.unwrap())
+            .fetch_one(&rig.runtime_pool)
+            .await
+            .unwrap();
+    let path = files.root.join("assets").join(key);
+    let mut corrupt = fs::OpenOptions::new().write(true).open(path).unwrap();
+    corrupt.write_all(&[255]).unwrap();
+    drop(corrupt);
+    assert!(matches!(
+        store.validate_exact(actor, &staged).await,
+        Err(ContentError::NotFound)
+    ));
     assert_eq!(counts(&rig).await, before);
 }
