@@ -147,6 +147,18 @@ pub(super) fn record(table: SnapshotTable, mut values: Value) -> Result<Snapshot
             .map_err(storage)?;
         *time = Value::String(canonical_snapshot_timestamp(parsed.with_timezone(&Utc)));
     }
+    if table == SnapshotTable::BlockRevision {
+        let version = values["contract_version"]
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or(ContentError::Storage)?;
+        let draft = ContentDraft::decode(version, values["content"].clone())?;
+        if values["content_sha256"].as_str() != Some(draft.digest().as_str()) {
+            return Err(ContentError::Invalid(
+                "snapshot_business_digest_mismatch".into(),
+            ));
+        }
+    }
     let identity = primary_key(table)
         .iter()
         .map(|key| {
@@ -229,4 +241,21 @@ pub(super) async fn dependency_target(
         }
         _ => return Err(ContentError::Storage),
     })
+}
+
+#[cfg(test)]
+mod import_record_tests {
+    use super::*;
+    #[test]
+    fn import_record_rejects_body_tampering_even_with_recomputed_full_row_hash() {
+        let content = serde_json::json!({"kind":"text","intent":"note","language":"en","title":"Title","payload":{"format":"markdown","text":"original"}});
+        let draft = ContentDraft::decode(1, content.clone()).unwrap();
+        let mut value = serde_json::json!({"id":Uuid::new_v4(),"contract_version":1,"content":content,"content_sha256":draft.digest()});
+        assert!(record(SnapshotTable::BlockRevision, value.clone()).is_ok());
+        value["content"]["payload"]["text"] = serde_json::json!("tampered");
+        assert!(
+            record(SnapshotTable::BlockRevision, value).is_err(),
+            "full-record hashing cannot replace business digest validation"
+        );
+    }
 }

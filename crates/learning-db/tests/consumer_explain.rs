@@ -50,6 +50,7 @@ fn fixture_error_class(error: &ContentError) -> &'static str {
         ContentError::PublicationConflict { .. } => "publication_conflict",
         ContentError::ReadingConflict { .. } => "reading_conflict",
         ContentError::IdempotencyConflict => "idempotency_conflict",
+        ContentError::IdentityConflict => "identity_conflict",
         ContentError::Storage => "storage",
     }
 }

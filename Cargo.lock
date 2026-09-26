@@ -652,6 +652,7 @@ dependencies = [
  "chrono",
  "learning-assets",
  "learning-core",
+ "serde",
  "serde_json",
  "sqlx",
  "tokio",

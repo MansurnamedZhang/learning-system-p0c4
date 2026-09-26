@@ -1,0 +1,296 @@
+use super::{import_rows::Package, rows};
+use learning_core::*;
+use serde_json::json;
+use uuid::Uuid;
+
+fn u(n: u128) -> Uuid {
+    Uuid::from_u128(n)
+}
+fn fixture() -> (Vec<SnapshotRow>, ReadingRef, Principal) {
+    let time = "2026-09-24T00:00:00.000000Z";
+    let content = json!({"kind":"text","intent":"note","language":"en","title":"Title","payload":{"format":"markdown","text":"Original"}});
+    let draft = ContentDraft::decode(1, content.clone()).unwrap();
+    let nodes = vec![Occurrence {
+        occurrence_id: u(11),
+        target: NodeTarget::Block(BlockRef {
+            block_id: u(3),
+            revision_id: u(4),
+        }),
+    }];
+    let edit = EditableReading {
+        base: CompositionRef {
+            composition_id: u(5),
+            revision_id: u(6),
+        },
+        title: "Personal".into(),
+        groups: vec![],
+    };
+    let data = vec![
+        (
+            SnapshotTable::Block,
+            json!({"id":u(3),"space_id":u(2),"created_at":time}),
+        ),
+        (
+            SnapshotTable::BlockRevision,
+            json!({"id":u(4),"space_id":u(2),"block_id":u(3),"parent_revision_id":null,"content":content,"content_sha256":draft.digest(),"author_id":u(1),"reason":"initial","created_at":time,"contract_version":1}),
+        ),
+        (
+            SnapshotTable::ReferenceObject,
+            json!({"kind":"block","object_id":u(3),"revision_id":u(4),"space_id":u(2)}),
+        ),
+        (
+            SnapshotTable::Composition,
+            json!({"id":u(5),"space_id":u(2),"kind":"document","created_at":time}),
+        ),
+        (
+            SnapshotTable::CompositionRevision,
+            json!({"id":u(6),"space_id":u(2),"composition_id":u(5),"parent_revision_id":null,"kind":"document","title":"Document","content_sha256":composition_digest(CompositionKind::Document,"Document",&nodes),"author_id":u(1),"reason":"initial","created_at":time}),
+        ),
+        (
+            SnapshotTable::CompositionOccurrence,
+            json!({"composition_revision_id":u(6),"space_id":u(2),"composition_id":u(5),"occurrence_id":u(11),"position":0,"block_space_id":u(2),"block_id":u(3),"block_revision_id":u(4),"child_space_id":null,"child_composition_id":null,"child_revision_id":null}),
+        ),
+        (
+            SnapshotTable::Overlay,
+            json!({"id":u(7),"space_id":u(2),"owner_id":u(1),"root_composition_id":u(5)}),
+        ),
+        (
+            SnapshotTable::OverlayRevision,
+            json!({"id":u(8),"overlay_id":u(7),"space_id":u(2),"root_composition_id":u(5),"source_space_id":u(2),"base_revision_id":u(6),"parent_revision_id":null,"title":"Personal","content_sha256":edit.digest(),"author_id":u(1),"reason":"initial","created_at":time}),
+        ),
+        (
+            SnapshotTable::ReadingView,
+            json!({"id":u(9),"overlay_id":u(7)}),
+        ),
+        (
+            SnapshotTable::ReadingViewRevision,
+            json!({"id":u(10),"view_id":u(9),"overlay_id":u(7),"overlay_revision_id":u(8),"parent_revision_id":null,"author_id":u(1),"created_at":time,"contract_version":1,"evidence":null}),
+        ),
+    ];
+    (
+        data.into_iter()
+            .map(|(t, v)| rows::record(t, v).unwrap())
+            .collect(),
+        ReadingRef {
+            view_id: u(9),
+            revision_id: u(10),
+        },
+        Principal { actor_id: u(1) },
+    )
+}
+#[test]
+fn valid_preflight_rows_and_missing_required_closure() {
+    let (rows, root, actor) = fixture();
+    Package { rows: &rows }.validate(&root, actor).unwrap();
+    for i in 0..rows.len() {
+        let mut missing = rows.clone();
+        missing.remove(i);
+        assert!(
+            Package { rows: &missing }.validate(&root, actor).is_err(),
+            "missing {:?}",
+            rows[i].table
+        );
+    }
+}
+#[test]
+fn preflight_checks_canonical_fields_identity_and_business_digests() {
+    let (rows, root, actor) = fixture();
+    for (table, key, value) in [
+        (
+            SnapshotTable::BlockRevision,
+            "parent_revision_id",
+            json!(u(99)),
+        ),
+        (SnapshotTable::BlockRevision, "contract_version", json!(99)),
+        (
+            SnapshotTable::CompositionRevision,
+            "content_sha256",
+            json!("a".repeat(64)),
+        ),
+        (
+            SnapshotTable::OverlayRevision,
+            "title",
+            json!("changed but old business digest"),
+        ),
+        (
+            SnapshotTable::ReadingViewRevision,
+            "contract_version",
+            json!(3),
+        ),
+        (
+            SnapshotTable::BlockRevision,
+            "created_at",
+            json!("2026-09-24T00:00:00Z"),
+        ),
+    ] {
+        let mut bad = rows.clone();
+        let row = bad.iter_mut().find(|r| r.table == table).unwrap();
+        row.immutable_values[key] = value;
+        row.sha256 = canonical_record_hash(&row.immutable_values);
+        assert!(
+            Package { rows: &bad }.validate(&root, actor).is_err(),
+            "{table:?}/{key}"
+        );
+    }
+    let mut bad = rows.clone();
+    bad[0].immutable_values["extra"] = json!(true);
+    bad[0].sha256 = canonical_record_hash(&bad[0].immutable_values);
+    assert!(Package { rows: &bad }.validate(&root, actor).is_err());
+    let mut bad = rows.clone();
+    bad[0].identity = vec![SnapshotIdentityPart::Uuid(u(999))];
+    assert!(Package { rows: &bad }.validate(&root, actor).is_err());
+    assert!(matches!(
+        Package { rows: &rows }.validate(&root, Principal { actor_id: u(99) }),
+        Err(ContentError::NotFound)
+    ));
+}
+#[test]
+fn preflight_requires_exact_reference_dependency_and_review_head() {
+    let (mut rows, root, actor) = fixture();
+    let relation = u(20);
+    let revision = u(21);
+    let review = u(22);
+    let from = BlockRef {
+        block_id: u(3),
+        revision_id: u(4),
+    };
+    // A second block is a separate endpoint, including its required registry.
+    for table in [
+        SnapshotTable::Block,
+        SnapshotTable::BlockRevision,
+        SnapshotTable::ReferenceObject,
+    ] {
+        let mut row = rows.iter().find(|r| r.table == table).unwrap().clone();
+        for key in ["id", "block_id", "object_id", "revision_id"] {
+            if let Some(v) = row.immutable_values.get_mut(key) {
+                if *v == json!(u(3)) {
+                    *v = json!(u(30));
+                } else if *v == json!(u(4)) {
+                    *v = json!(u(31));
+                }
+            }
+        }
+        rows.push(super::rows::record(table, row.immutable_values).unwrap());
+    }
+    let to = BlockRef {
+        block_id: u(30),
+        revision_id: u(31),
+    };
+    let scope = RelationScope::Space { space_id: u(2) };
+    let hash = canonical_record_hash(
+        &json!({"domain":"relation-content-v1","scope":scope,"type":"supports","from":from,"to":to,"rationale":"r","conditions":"c"}),
+    );
+    for (table, value) in [
+        (
+            SnapshotTable::Relation,
+            json!({"id":relation,"space_id":u(2),"overlay_id":null,"type":"supports","origin":"user_asserted","from_block_id":u(3),"to_block_id":u(30),"created_at":"2026-09-24T00:00:00.000000Z"}),
+        ),
+        (
+            SnapshotTable::RelationRevision,
+            json!({"id":revision,"space_id":u(2),"relation_id":relation,"parent_revision_id":null,"from_space_id":u(2),"from_block_id":u(3),"from_revision_id":u(4),"to_space_id":u(2),"to_block_id":u(30),"to_revision_id":u(31),"rationale":"r","conditions":"c","content_sha256":hash,"author_id":u(1),"created_at":"2026-09-24T00:00:00.000000Z"}),
+        ),
+        (
+            SnapshotTable::ReferenceObject,
+            json!({"kind":"relation","object_id":relation,"revision_id":revision,"space_id":u(2)}),
+        ),
+        (
+            SnapshotTable::ReferenceDependency,
+            json!({"source_kind":"relation","source_object_id":relation,"source_revision_id":revision,"position":0,"role":"target","target_kind":"block","target_object_id":u(3),"target_revision_id":u(4)}),
+        ),
+        (
+            SnapshotTable::ReferenceDependency,
+            json!({"source_kind":"relation","source_object_id":relation,"source_revision_id":revision,"position":1,"role":"target","target_kind":"block","target_object_id":u(30),"target_revision_id":u(31)}),
+        ),
+        (
+            SnapshotTable::RelationReviewHead,
+            json!({"relation_id":relation,"relation_revision_id":revision}),
+        ),
+        (
+            SnapshotTable::RelationReview,
+            json!({"id":review,"space_id":u(2),"relation_id":relation,"relation_revision_id":revision,"previous_review_id":null,"state":"reviewed","explanation":"checked","reviewer_id":u(1),"created_at":"2026-09-24T00:00:00.000000Z"}),
+        ),
+        (
+            SnapshotTable::ReferenceObject,
+            json!({"kind":"relation_review","object_id":revision,"revision_id":review,"space_id":u(2)}),
+        ),
+        (
+            SnapshotTable::ReferenceDependency,
+            json!({"source_kind":"relation_review","source_object_id":revision,"source_revision_id":review,"position":0,"role":"target","target_kind":"relation","target_object_id":relation,"target_revision_id":revision}),
+        ),
+    ] {
+        rows.push(super::rows::record(table, value).unwrap());
+    }
+    Package { rows: &rows }.validate(&root, actor).unwrap();
+    for table in [
+        SnapshotTable::ReferenceDependency,
+        SnapshotTable::RelationReviewHead,
+    ] {
+        let mut bad = rows.clone();
+        let i = bad.iter().position(|r| r.table == table).unwrap();
+        bad.remove(i);
+        assert!(Package { rows: &bad }.validate(&root, actor).is_err());
+    }
+}
+
+#[test]
+fn preflight_preserves_bounded_necessary_reference_cycles() {
+    let (mut rows, root, actor) = fixture();
+    let mut second = rows
+        .iter()
+        .find(|r| r.table == SnapshotTable::Block)
+        .unwrap()
+        .clone();
+    second.immutable_values["id"] = json!(u(30));
+    rows.push(super::rows::record(second.table, second.immutable_values).unwrap());
+    let mut revision = rows
+        .iter()
+        .find(|r| r.table == SnapshotTable::BlockRevision)
+        .unwrap()
+        .clone();
+    revision.immutable_values["id"] = json!(u(31));
+    revision.immutable_values["block_id"] = json!(u(30));
+    rows.push(super::rows::record(revision.table, revision.immutable_values).unwrap());
+    rows.push(
+        super::rows::record(
+            SnapshotTable::ReferenceObject,
+            json!({"kind":"block","object_id":u(30),"revision_id":u(31),"space_id":u(2)}),
+        )
+        .unwrap(),
+    );
+    for (block, revision, target, target_revision) in
+        [(u(3), u(4), u(30), u(31)), (u(30), u(31), u(3), u(4))]
+    {
+        let draft = ContentDraft::V2(ContentV2 {
+            intent: Intent::Note,
+            language: "en".into(),
+            title: "cycle".into(),
+            body: BodyV2::Text(TextPayload {
+                format: TextFormat::Markdown,
+                text: "cycle".into(),
+            }),
+            basis_refs: vec![ExactRef::Block(BlockRef {
+                block_id: target,
+                revision_id: target_revision,
+            })],
+            requires_context: vec![],
+            source_run: None,
+        });
+        let row = rows
+            .iter_mut()
+            .find(|r| {
+                r.table == SnapshotTable::BlockRevision
+                    && r.immutable_values["id"] == json!(revision)
+            })
+            .unwrap();
+        row.immutable_values["content"] = serde_json::to_value(match &draft {
+            ContentDraft::V2(v) => v,
+            _ => unreachable!(),
+        })
+        .unwrap();
+        row.immutable_values["contract_version"] = json!(2);
+        row.immutable_values["content_sha256"] = json!(draft.digest());
+        *row = super::rows::record(row.table, row.immutable_values.clone()).unwrap();
+        rows.push(super::rows::record(SnapshotTable::ReferenceDependency,json!({"source_kind":"block","source_object_id":block,"source_revision_id":revision,"position":0,"role":"basis","target_kind":"block","target_object_id":target,"target_revision_id":target_revision})).unwrap());
+    }
+    Package { rows: &rows }.validate(&root, actor).unwrap();
+}

@@ -1,4 +1,8 @@
 //! Exact snapshot planning. All database reads share one read-only snapshot.
+mod import;
+mod import_rows;
+mod import_schema;
+pub use import::{PreparedSnapshotImport, SnapshotImportStore};
 mod jobs;
 pub use jobs::{PreparedSnapshotExport, SnapshotDelivery, StagedSnapshotExport};
 mod rows;
@@ -53,3 +57,6 @@ impl SnapshotStore {
         Ok(plan)
     }
 }
+
+#[cfg(test)]
+mod import_tests;

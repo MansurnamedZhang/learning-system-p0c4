@@ -8,6 +8,7 @@ license.workspace = true
 learning-assets = { path = "../learning-assets" }
 learning-core = { path = "../learning-core" }
 sqlx.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
 tokio.workspace = true

@@ -16,6 +16,8 @@ pub enum ContentError {
     },
     #[error("幂等请求标识已用于其它内容")]
     IdempotencyConflict,
+    #[error("快照身份与目标内容冲突")]
+    IdentityConflict,
     #[error("存储服务暂时不可用")]
     Storage,
 }
