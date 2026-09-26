@@ -2,7 +2,10 @@
 //! jobs through the database-clock lease boundary, and never writes a result
 //! without the Task 4 processor's current-authorization/fencing checks.
 use learning_assets::FsAssetStore;
-use learning_db::{AssetIntegrityProcessor, AssetProcessOutcome, AssetStore, JobLease, JobStore};
+use learning_core::JobInput;
+use learning_db::{
+    AssetIntegrityProcessor, AssetProcessOutcome, AssetStore, JobLease, JobStore, SnapshotStore,
+};
 use learning_worker::ensure_restricted_runtime;
 use sqlx::{
     PgPool,
@@ -55,22 +58,33 @@ async fn run() -> Result<(), String> {
     let files = FsAssetStore::new(asset_root, staging_root)
         .map_err(|_| "asset store path is unavailable")?;
     let jobs = JobStore::new(pool.clone());
+    let snapshot_root = env::var_os("SNAPSHOT_ROOT").map(PathBuf::from);
+    if snapshot_root
+        .as_ref()
+        .is_some_and(|root| !root.is_absolute())
+    {
+        return Err("SNAPSHOT_ROOT must be absolute".into());
+    }
+    let mut snapshots = SnapshotStore::new(pool.clone());
+    if let Some(root) = snapshot_root {
+        snapshots = snapshots.with_export_storage(root, files.clone());
+    }
     let processor = AssetIntegrityProcessor::new(AssetStore::new(pool, files), jobs.clone());
     match mode {
         Mode::Once { job_id, lease_ms } => {
             jobs.dispatch_pending(256)
                 .await
                 .map_err(|_| "event dispatch failed")?;
-            if let Some(lease) = jobs
-                .claim(job_id, Duration::from_millis(lease_ms))
-                .await
-                .map_err(|_| "job claim failed")?
+            if let Some(lease) =
+                claim_available(&jobs, &snapshots, job_id, Duration::from_millis(lease_ms))
+                    .await
+                    .map_err(|_| "job claim failed")?
             {
-                process_claim(&jobs, &processor, lease, lease_ms).await?;
+                process_claim(&jobs, &processor, &snapshots, lease, lease_ms).await?;
             }
         }
         Mode::Run { poll_ms, lease_ms } => {
-            run_loop(&jobs, &processor, poll_ms, lease_ms).await?;
+            run_loop(&jobs, &processor, &snapshots, poll_ms, lease_ms).await?;
         }
     }
     Ok(())
@@ -191,9 +205,22 @@ fn contains_canonical_asset(root: &Path) -> Result<bool, String> {
     Ok(false)
 }
 
+async fn claim_available(
+    jobs: &JobStore,
+    snapshots: &SnapshotStore,
+    id: Uuid,
+    duration: Duration,
+) -> Result<Option<JobLease>, learning_core::ContentError> {
+    match jobs.claim(id, duration).await? {
+        Some(lease) => Ok(Some(lease)),
+        None => snapshots.claim_export(id, duration).await,
+    }
+}
+
 async fn run_loop(
     jobs: &JobStore,
     processor: &AssetIntegrityProcessor,
+    snapshots: &SnapshotStore,
     poll_ms: u64,
     lease_ms: u64,
 ) -> Result<(), String> {
@@ -209,12 +236,12 @@ async fn run_loop(
         for job_id in candidates {
             let claim = tokio::select! {
                 () = &mut stop => return Ok(()),
-                claim = jobs.claim(job_id, Duration::from_millis(lease_ms)) => {
+                claim = claim_available(jobs, snapshots, job_id, Duration::from_millis(lease_ms)) => {
                     claim.map_err(|_| "job claim failed")?
                 }
             };
             if let Some(lease) = claim {
-                process_claim(jobs, processor, lease, lease_ms).await?;
+                process_claim(jobs, processor, snapshots, lease, lease_ms).await?;
             }
         }
         tokio::select! {
@@ -227,6 +254,7 @@ async fn run_loop(
 async fn process_claim(
     jobs: &JobStore,
     processor: &AssetIntegrityProcessor,
+    snapshots: &SnapshotStore,
     lease: JobLease,
     lease_ms: u64,
 ) -> Result<(), String> {
@@ -250,10 +278,14 @@ async fn process_claim(
             }
         }
     });
-    let outcome = processor
-        .process(&lease)
-        .await
-        .map_err(|_| "asset processor failed");
+    let outcome = match jobs.get(lease.job_id).await {
+        Ok(Some(job)) => match job.input {
+            JobInput::AssetIntegrity { .. } => processor.process(&lease).await,
+            JobInput::SnapshotExport { .. } => snapshots.process_snapshot_export(&lease).await,
+        }
+        .map_err(|_| "job processor failed"),
+        _ => Err("claimed job unavailable"),
+    };
     let _ = stop_sender.send(());
     heartbeat
         .await

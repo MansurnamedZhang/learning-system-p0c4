@@ -1,6 +1,7 @@
 #![cfg(windows)]
 use learning_assets::{
-    FsAssetStore, SnapshotIoError, stage_incoming, stage_reading_copy, stage_snapshot,
+    FsAssetStore, SnapshotIoError, SnapshotJobDirectory, stage_incoming, stage_reading_copy,
+    stage_snapshot,
 };
 use learning_core::{
     ExactSnapshotManifest, ReadingCopy, ReadingCopyManifest, ReadingRef, SNAPSHOT_FORMAT_VERSION,
@@ -44,5 +45,6 @@ fn windows_staging_fails_before_any_file_or_directory_side_effect() {
         stage_snapshot(&root, id, &exact, &[], &[], &store),
         Err(SnapshotIoError::InvalidPackage)
     ));
+    assert!(SnapshotJobDirectory::open(&root, id).is_err());
     assert!(!root.exists());
 }

@@ -31,6 +31,7 @@ struct Collector {
     assets: BTreeMap<AssetUseRef, SnapshotAssetUse>,
     asset_files: BTreeMap<String, SnapshotFile>,
     include_originals: bool,
+    required_spaces: BTreeSet<Uuid>,
     // Historical/necessary edges are distinct from composition occurrence walks.
     exact_edges: BTreeMap<Node, BTreeSet<Node>>,
     history_parents: BTreeMap<Node, Node>,
@@ -47,6 +48,16 @@ pub(super) async fn collect(
     actor: Principal,
     input: &SnapshotRequest,
 ) -> Result<SnapshotPlan, ContentError> {
+    collect_authorized(tx, actor, input)
+        .await
+        .map(|(plan, _)| plan)
+}
+
+pub(super) async fn collect_authorized(
+    tx: &mut Tx<'_>,
+    actor: Principal,
+    input: &SnapshotRequest,
+) -> Result<(SnapshotPlan, Vec<(Uuid, bool)>), ContentError> {
     let root = model::load_view(tx, actor, input.reading.clone()).await?;
     let mut collector = Collector {
         actor,
@@ -59,6 +70,7 @@ pub(super) async fn collect(
         assets: BTreeMap::new(),
         asset_files: BTreeMap::new(),
         include_originals: input.include_originals,
+        required_spaces: BTreeSet::new(),
         exact_edges: BTreeMap::new(),
         history_parents: BTreeMap::new(),
         compositions: BTreeMap::new(),
@@ -128,11 +140,20 @@ pub(super) async fn collect(
     {
         return Err(limit());
     }
-    Ok(SnapshotPlan {
-        manifest,
-        rows: collector.rows.into_values().collect(),
-        assets: collector.assets.into_values().collect(),
-    })
+    let required_spaces = collector
+        .required_spaces
+        .iter()
+        .map(|s| (*s, false))
+        .chain(collector.session.spaces())
+        .collect();
+    Ok((
+        SnapshotPlan {
+            manifest,
+            rows: collector.rows.into_values().collect(),
+            assets: collector.assets.into_values().collect(),
+        },
+        required_spaces,
+    ))
 }
 
 impl Collector {
@@ -171,7 +192,7 @@ impl Collector {
         self.composition_roots.insert(reference.clone());
         self.enqueue(Node::Composition(reference));
     }
-    async fn grant(&self, tx: &mut Tx<'_>, space: Uuid) -> Result<(), ContentError> {
+    async fn grant(&mut self, tx: &mut Tx<'_>, space: Uuid) -> Result<(), ContentError> {
         let present: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM public.space_grant WHERE actor_id=$1 AND space_id=$2)",
         )
@@ -181,6 +202,7 @@ impl Collector {
         .await
         .map_err(storage)?;
         if present {
+            self.required_spaces.insert(space);
             Ok(())
         } else {
             Err(ContentError::NotFound)
@@ -353,7 +375,8 @@ impl Collector {
     ) -> Result<(), ContentError> {
         // Reuse the existing direct authorization/materialization primitive. The
         // package owns its cumulative occurrence/depth/object accounting.
-        let (_, typed) = closure::load_composition(tx, self.actor, reference).await?;
+        let (space, typed) = closure::load_composition(tx, self.actor, reference).await?;
+        self.required_spaces.insert(space);
         let row = rows::one(
             tx,
             SnapshotTable::CompositionRevision,
@@ -840,6 +863,7 @@ mod tests {
             assets: BTreeMap::new(),
             asset_files: BTreeMap::new(),
             include_originals: false,
+            required_spaces: BTreeSet::new(),
             exact_edges: BTreeMap::new(),
             history_parents: BTreeMap::new(),
             compositions: BTreeMap::new(),

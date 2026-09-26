@@ -1,25 +1,43 @@
-//! Versioned input and state vocabulary for durable work.
-use crate::{BlockRef, ContentError};
+//! Versioned inputs; the C2 asset wire representation and business key are frozen.
+use crate::{
+    BlockRef, ContentError, SNAPSHOT_MAX_OBJECTS, SnapshotRequest, canonical_json, hex_digest,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JobInput {
-    actor_id: Uuid,
-    space_id: Uuid,
-    block: BlockRef,
+pub enum JobInput {
+    AssetIntegrity {
+        actor_id: Uuid,
+        space_id: Uuid,
+        block: BlockRef,
+    },
+    SnapshotExport {
+        actor_id: Uuid,
+        space_id: Uuid,
+        request: SnapshotRequest,
+    },
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawJobInput {
+struct RawAssetInput {
     version: u32,
     kind: String,
     actor_id: Uuid,
     space_id: Uuid,
     block_id: Uuid,
     revision_id: Uuid,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSnapshotInput {
+    version: u32,
+    kind: String,
+    actor_id: Uuid,
+    space_id: Uuid,
+    request: SnapshotRequest,
 }
 
 impl JobInput {
@@ -29,60 +47,135 @@ impl JobInput {
         block: BlockRef,
     ) -> Result<Self, ContentError> {
         if [actor_id, space_id, block.block_id, block.revision_id].contains(&Uuid::nil()) {
-            return Err(ContentError::Invalid("invalid_job_input".into()));
+            return Err(invalid());
         }
-        Ok(Self {
+        Ok(Self::AssetIntegrity {
             actor_id,
             space_id,
             block,
         })
     }
-
-    pub fn business_key(&self) -> String {
-        format!(
-            "asset-integrity:v1:{}:{}:{}",
-            self.space_id, self.block.block_id, self.block.revision_id
-        )
-    }
-
-    pub fn actor_id(&self) -> Uuid {
-        self.actor_id
-    }
-
-    pub fn space_id(&self) -> Uuid {
-        self.space_id
-    }
-
-    pub fn block(&self) -> &BlockRef {
-        &self.block
-    }
-
-    pub fn to_value(&self) -> Value {
-        json!({
-            "version": 1,
-            "kind": "asset_integrity",
-            "actor_id": self.actor_id,
-            "space_id": self.space_id,
-            "block_id": self.block.block_id,
-            "revision_id": self.block.revision_id,
+    pub fn snapshot_export(
+        actor_id: Uuid,
+        space_id: Uuid,
+        request: SnapshotRequest,
+    ) -> Result<Self, ContentError> {
+        if [
+            actor_id,
+            space_id,
+            request.reading.view_id,
+            request.reading.revision_id,
+        ]
+        .contains(&Uuid::nil())
+            || request
+                .resource_versions
+                .len()
+                .saturating_add(request.source_segments.len())
+                > SNAPSHOT_MAX_OBJECTS
+            || request
+                .resource_versions
+                .iter()
+                .any(|r| [r.space_id, r.resource_id, r.version_id].contains(&Uuid::nil()))
+            || request.source_segments.iter().any(|r| {
+                [r.space_id, r.resource_id, r.version_id, r.segment_id].contains(&Uuid::nil())
+            })
+        {
+            return Err(invalid());
+        }
+        Ok(Self::SnapshotExport {
+            actor_id,
+            space_id,
+            request,
         })
     }
-
-    pub fn from_value(value: Value) -> Result<Self, ContentError> {
-        let raw: RawJobInput = serde_json::from_value(value)
-            .map_err(|_| ContentError::Invalid("invalid_job_input".into()))?;
-        if raw.version != 1 || raw.kind != "asset_integrity" {
-            return Err(ContentError::Invalid("unknown_job_input_version".into()));
+    pub fn business_key(&self) -> String {
+        match self {
+            Self::AssetIntegrity {
+                space_id, block, ..
+            } => format!(
+                "asset-integrity:v1:{space_id}:{}:{}",
+                block.block_id, block.revision_id
+            ),
+            Self::SnapshotExport {
+                actor_id,
+                space_id,
+                request,
+            } => format!(
+                "snapshot-export:v1:{actor_id}:{space_id}:{}",
+                hex_digest(canonical_json(&json!(request)).as_bytes())
+            ),
         }
-        Self::asset_integrity(
-            raw.actor_id,
-            raw.space_id,
-            BlockRef {
-                block_id: raw.block_id,
-                revision_id: raw.revision_id,
-            },
-        )
     }
+    pub fn actor_id(&self) -> Uuid {
+        match self {
+            Self::AssetIntegrity { actor_id, .. } | Self::SnapshotExport { actor_id, .. } => {
+                *actor_id
+            }
+        }
+    }
+    pub fn space_id(&self) -> Uuid {
+        match self {
+            Self::AssetIntegrity { space_id, .. } | Self::SnapshotExport { space_id, .. } => {
+                *space_id
+            }
+        }
+    }
+    pub fn asset_block(&self) -> Option<&BlockRef> {
+        match self {
+            Self::AssetIntegrity { block, .. } => Some(block),
+            Self::SnapshotExport { .. } => None,
+        }
+    }
+    pub fn to_value(&self) -> Value {
+        match self {
+            Self::AssetIntegrity {
+                actor_id,
+                space_id,
+                block,
+            } => {
+                json!({"version":1,"kind":"asset_integrity","actor_id":actor_id,"space_id":space_id,"block_id":block.block_id,"revision_id":block.revision_id})
+            }
+            Self::SnapshotExport {
+                actor_id,
+                space_id,
+                request,
+            } => {
+                json!({"version":1,"kind":"snapshot_export","actor_id":actor_id,"space_id":space_id,"request":request})
+            }
+        }
+    }
+    pub fn from_value(value: Value) -> Result<Self, ContentError> {
+        if value.get("kind").and_then(Value::as_str) == Some("snapshot_export") {
+            let raw: RawSnapshotInput =
+                serde_json::from_value(value.clone()).map_err(|_| invalid())?;
+            if raw.version != 1 || raw.kind != "snapshot_export" {
+                return Err(invalid());
+            }
+            let input = Self::snapshot_export(raw.actor_id, raw.space_id, raw.request)?;
+            // C3 accepts only canonical UUID spellings, strict nested objects and the
+            // exact wire types also accepted by the database CHECK.
+            if input.to_value() != value {
+                return Err(invalid());
+            }
+            Ok(input)
+        } else {
+            let raw: RawAssetInput = serde_json::from_value(value).map_err(|_| invalid())?;
+            if raw.version != 1 || raw.kind != "asset_integrity" {
+                return Err(ContentError::Invalid("unknown_job_input_version".into()));
+            }
+            Self::asset_integrity(
+                raw.actor_id,
+                raw.space_id,
+                BlockRef {
+                    block_id: raw.block_id,
+                    revision_id: raw.revision_id,
+                },
+            )
+        }
+    }
+}
+fn invalid() -> ContentError {
+    ContentError::Invalid("invalid_job_input".into())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

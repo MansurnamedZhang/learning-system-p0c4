@@ -89,6 +89,76 @@ impl SnapshotDirectory {
     }
 }
 
+/// Trusted service-root-relative job storage. Job and attempt identities are
+/// typed UUIDs, never caller supplied paths. Each lease gets an isolated package.
+pub struct SnapshotJobDirectory {
+    dir: Dir,
+}
+impl SnapshotJobDirectory {
+    pub fn open(root: &Path, job: Uuid) -> Result<Self, SnapshotIoError> {
+        let root = Dir::open_private_root(root)?;
+        let name = job.to_string();
+        let dir = match root.open_dir(&name) {
+            Ok(dir) => dir,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => match root.create_dir(&name) {
+                Ok(dir) => dir,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                    root.open_dir(&name)?
+                }
+                Err(error) => return Err(error.into()),
+            },
+            Err(error) => return Err(error.into()),
+        };
+        Ok(Self { dir })
+    }
+    pub fn stage_exact(
+        &self,
+        token: Uuid,
+        manifest: &ExactSnapshotManifest,
+        rows: &[SnapshotRow],
+        assets: &[SnapshotAssetUse],
+        files: &FsAssetStore,
+    ) -> Result<SnapshotDirectory, SnapshotIoError> {
+        stage_exact_writer(
+            StageWriter::in_directory(self.dir.try_clone()?, token)?,
+            manifest,
+            rows,
+            assets,
+            files,
+        )
+    }
+    pub fn stage_copy(
+        &self,
+        token: Uuid,
+        copy: &ReadingCopy,
+    ) -> Result<SnapshotDirectory, SnapshotIoError> {
+        let manifest = ReadingCopyManifest {
+            format_version: SNAPSHOT_FORMAT_VERSION,
+            copy_id: token,
+            files: vec![],
+        };
+        stage_copy_writer(
+            StageWriter::in_directory(self.dir.try_clone()?, token)?,
+            token,
+            &manifest,
+            copy,
+        )
+    }
+    /// Reopen after restart, requiring the winning database manifest digest.
+    pub fn reopen(
+        &self,
+        token: Uuid,
+        expected_sha256: &str,
+    ) -> Result<SnapshotDirectory, SnapshotIoError> {
+        let stage = SnapshotDirectory {
+            dir: self.dir.open_dir(&format!("{token}.ready"))?,
+            manifest_sha256: expected_sha256.into(),
+        };
+        verify_snapshot(&stage)?;
+        Ok(stage)
+    }
+}
+
 fn manifest_files(manifest: &SnapshotManifest) -> &[SnapshotFile] {
     match manifest {
         SnapshotManifest::ExactImportV1(value) => &value.files,
@@ -153,12 +223,27 @@ pub fn stage_snapshot(
     assets: &[SnapshotAssetUse],
     files: &FsAssetStore,
 ) -> Result<SnapshotDirectory, SnapshotIoError> {
-    if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
-        return Err(SnapshotIoError::InvalidPackage);
-    }
-    validate_asset_declarations(assets, !manifest.requires_destination_assets)?;
-    let mut writer = StageWriter::new(root, job_id)?;
+    stage_exact_writer(
+        StageWriter::new(root, job_id)?,
+        manifest,
+        rows,
+        assets,
+        files,
+    )
+}
+
+fn stage_exact_writer(
+    mut writer: StageWriter,
+    manifest: &ExactSnapshotManifest,
+    rows: &[SnapshotRow],
+    assets: &[SnapshotAssetUse],
+    files: &FsAssetStore,
+) -> Result<SnapshotDirectory, SnapshotIoError> {
     let result = (|| {
+        if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
+            return Err(SnapshotIoError::InvalidPackage);
+        }
+        validate_asset_declarations(assets, !manifest.requires_destination_assets)?;
         let mut seen = BTreeSet::new();
         for row in rows {
             let name = snapshot_object_path(row.table, &row.identity)
@@ -220,14 +305,21 @@ pub fn stage_reading_copy(
     manifest: &ReadingCopyManifest,
     copy: &ReadingCopy,
 ) -> Result<SnapshotDirectory, SnapshotIoError> {
-    if manifest.format_version != SNAPSHOT_FORMAT_VERSION
-        || manifest.copy_id != copy_id
-        || !manifest.files.is_empty()
-    {
-        return Err(SnapshotIoError::InvalidPackage);
-    }
-    let mut writer = StageWriter::new(root, copy_id)?;
+    stage_copy_writer(StageWriter::new(root, copy_id)?, copy_id, manifest, copy)
+}
+fn stage_copy_writer(
+    mut writer: StageWriter,
+    copy_id: Uuid,
+    manifest: &ReadingCopyManifest,
+    copy: &ReadingCopy,
+) -> Result<SnapshotDirectory, SnapshotIoError> {
     let result = (|| {
+        if manifest.format_version != SNAPSHOT_FORMAT_VERSION
+            || manifest.copy_id != copy_id
+            || !manifest.files.is_empty()
+        {
+            return Err(SnapshotIoError::InvalidPackage);
+        }
         let markdown = render_markdown(copy);
         let html = render_html(copy);
         writer.write_stream("reading.md", &mut markdown.as_bytes())?;
@@ -424,19 +516,22 @@ impl StageWriter {
         #[cfg(target_os = "linux")]
         {
             let root = Dir::open_private_root(root).map_err(|_| SnapshotIoError::InvalidPackage)?;
-            let partial_name = format!("{id}.partial-{}", Uuid::new_v4());
-            let partial = root.create_dir(&partial_name)?;
-            Ok(Self {
-                root,
-                partial,
-                partial_name,
-                ready_name: format!("{id}.ready"),
-                files: vec![],
-                json_bytes: 0,
-                asset_bytes: 0,
-                names: BTreeSet::new(),
-            })
+            Self::in_directory(root, id)
         }
+    }
+    fn in_directory(root: Dir, id: Uuid) -> Result<Self, SnapshotIoError> {
+        let partial_name = format!("{id}.partial-{}", Uuid::new_v4());
+        let partial = root.create_dir(&partial_name)?;
+        Ok(Self {
+            root,
+            partial,
+            partial_name,
+            ready_name: format!("{id}.ready"),
+            files: vec![],
+            json_bytes: 0,
+            asset_bytes: 0,
+            names: BTreeSet::new(),
+        })
     }
     fn write_stream(&mut self, name: &str, source: &mut dyn Read) -> Result<(), SnapshotIoError> {
         self.begin(name)?;

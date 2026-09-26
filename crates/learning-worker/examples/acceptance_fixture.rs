@@ -480,8 +480,20 @@ mod tests {
         assert_eq!(job.attempt_count, 0);
         assert_eq!(job.input.actor_id(), seeded.actor_id);
         assert_eq!(job.input.space_id(), seeded.space_id);
-        assert_eq!(job.input.block().block_id, seeded.block_id);
-        assert_eq!(job.input.block().revision_id, seeded.revision_id);
+        assert_eq!(
+            job.input
+                .asset_block()
+                .expect("asset job required")
+                .block_id,
+            seeded.block_id
+        );
+        assert_eq!(
+            job.input
+                .asset_block()
+                .expect("asset job required")
+                .revision_id,
+            seeded.revision_id
+        );
         let row: (i64, i64, i64) = sqlx::query_as(
             "SELECT (SELECT count(*) FROM public.job_outbox WHERE id=$1),\
                     (SELECT count(*) FROM public.block_asset_use WHERE space_id=$2 AND block_id=$3 AND revision_id=$4 AND asset_id=$5),\

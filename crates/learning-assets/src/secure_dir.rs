@@ -338,6 +338,9 @@ mod platform {
         ))
     }
     impl Dir {
+        pub(crate) fn open_private_root(_: &Path) -> io::Result<Self> {
+            unsupported()
+        }
         pub(crate) fn open_owned_root(_: &Path) -> io::Result<Self> {
             unsupported()
         }

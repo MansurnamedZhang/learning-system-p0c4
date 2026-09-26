@@ -1,4 +1,6 @@
 //! Exact snapshot planning. All database reads share one read-only snapshot.
+mod jobs;
+pub use jobs::{PreparedSnapshotExport, SnapshotDelivery, StagedSnapshotExport};
 mod rows;
 mod walk;
 
@@ -18,11 +20,15 @@ pub struct SnapshotPlan {
 #[derive(Clone)]
 pub struct SnapshotStore {
     pool: PgPool,
+    export_storage: Option<(std::path::PathBuf, learning_assets::FsAssetStore)>,
 }
 impl SnapshotStore {
     /// Use the non-owner runtime pool. This API collects no user/space/grant rows.
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            export_storage: None,
+        }
     }
 
     pub async fn plan_exact(

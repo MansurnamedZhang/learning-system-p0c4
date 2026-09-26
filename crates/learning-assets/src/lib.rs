@@ -7,6 +7,6 @@ pub use fs::{
     VerifiedBlob,
 };
 pub use snapshot::{
-    SnapshotDirectory, SnapshotIoError, VerifiedSnapshot, sanitize_reading_copy, stage_incoming,
-    stage_reading_copy, stage_snapshot, verify_snapshot,
+    SnapshotDirectory, SnapshotIoError, SnapshotJobDirectory, VerifiedSnapshot,
+    sanitize_reading_copy, stage_incoming, stage_reading_copy, stage_snapshot, verify_snapshot,
 };

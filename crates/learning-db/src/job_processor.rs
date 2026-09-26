@@ -64,7 +64,11 @@ impl AssetIntegrityProcessor {
             actor_id: job.input.actor_id(),
         };
         let space_id = job.input.space_id();
-        let block = job.input.block().clone();
+        let block = job
+            .input
+            .asset_block()
+            .ok_or_else(|| ContentError::Invalid("wrong_job_kind".into()))?
+            .clone();
         let use_ref = AssetUseRef::Block(block.clone());
         let asset = self
             .assets

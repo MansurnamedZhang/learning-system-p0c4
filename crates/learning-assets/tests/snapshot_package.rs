@@ -1,7 +1,7 @@
 #![cfg(target_os = "linux")]
 use learning_assets::{
-    FsAssetStore, SnapshotIoError, UploadDeclaration, stage_incoming, stage_reading_copy,
-    stage_snapshot, verify_snapshot,
+    FsAssetStore, SnapshotIoError, SnapshotJobDirectory, UploadDeclaration, stage_incoming,
+    stage_reading_copy, stage_snapshot, verify_snapshot,
 };
 use learning_core::{
     AssetRef, AssetUseRef, BlockRef, CopyItem, ExactSnapshotManifest, ReadingCopy,
@@ -731,4 +731,35 @@ fn reading_renderers_escape_markup_and_unsafe_links() {
         .unwrap();
     assert!(!md.contains("]("));
     assert!(md.contains("\\]\\("));
+}
+
+#[test]
+fn job_attempt_reopen_rejects_wrong_hash_symlinks_and_does_not_replace_other_attempts() {
+    let root = Temp::new();
+    let job = Uuid::new_v4();
+    let first = Uuid::new_v4();
+    let second = Uuid::new_v4();
+    let directory = SnapshotJobDirectory::open(&root.0, job).unwrap();
+    let stage = directory.stage_copy(first, &copy()).unwrap();
+    let hash = stage.manifest_sha256().to_owned();
+    drop(stage);
+    drop(directory);
+    let reopened = SnapshotJobDirectory::open(&root.0, job).unwrap();
+    assert!(reopened.reopen(first, &"a".repeat(64)).is_err());
+    assert!(
+        !reopened
+            .reopen(first, &hash)
+            .unwrap()
+            .open_verified_files()
+            .unwrap()
+            .is_empty()
+    );
+    reopened.stage_copy(second, &copy()).unwrap();
+    assert!(reopened.stage_copy(first, &copy()).is_err());
+    assert!(reopened.reopen(first, &hash).is_ok());
+    let alias = Uuid::new_v4();
+    std::os::unix::fs::symlink(root.0.join(job.to_string()), root.0.join(alias.to_string()))
+        .unwrap();
+    assert!(SnapshotJobDirectory::open(&root.0, alias).is_err());
+    fs::remove_file(root.0.join(alias.to_string())).unwrap();
 }

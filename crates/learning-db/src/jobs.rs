@@ -107,6 +107,15 @@ impl JobStore {
             .map_err(|_| ContentError::Storage)
     }
 
+    /// Claim only C3 export jobs; old workers retain the C2-only claim function.
+    pub async fn claim_snapshot(
+        &self,
+        job_id: Uuid,
+        lease: Duration,
+    ) -> Result<Option<JobLease>, ContentError> {
+        sqlx::query_as("SELECT job_id,token,attempts AS attempt_count,expires_at AS lease_expires_at FROM public.p0c3_claim_snapshot_job($1,$2)")
+            .bind(job_id).bind(checked_lease_ms(lease)?).fetch_optional(&self.pool).await.map_err(|_| ContentError::Storage)
+    }
     pub async fn renew(
         &self,
         job_id: Uuid,
