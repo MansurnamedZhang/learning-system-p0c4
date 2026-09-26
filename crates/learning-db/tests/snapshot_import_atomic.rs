@@ -8,7 +8,7 @@ use learning_core::*;
 use learning_db::{MIGRATOR, SnapshotImportStore, SnapshotPlan};
 use serde_json::{Value, json};
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::{fs, io::Read, path::PathBuf};
+use std::{collections::BTreeMap, fs, io::Read, path::PathBuf};
 use uuid::Uuid;
 
 struct Files {
@@ -122,7 +122,7 @@ impl Target {
 fn table(t: SnapshotTable) -> String {
     serde_json::to_value(t).unwrap().as_str().unwrap().into()
 }
-async fn counts(target: &Target, plan: &SnapshotPlan) -> Vec<i64> {
+async fn counts(target: &Target, plan: &SnapshotPlan) -> BTreeMap<String, i64> {
     let mut tables = plan
         .rows
         .iter()
@@ -149,9 +149,10 @@ async fn counts(target: &Target, plan: &SnapshotPlan) -> Vec<i64> {
         ]
         .map(str::to_owned),
     );
-    let mut counts = vec![];
+    let mut counts = BTreeMap::new();
     for t in tables {
-        counts.push(
+        counts.insert(
+            t.clone(),
             sqlx::query_scalar(&format!("SELECT count(*) FROM public.{t}"))
                 .fetch_one(&target.admin)
                 .await
@@ -159,6 +160,27 @@ async fn counts(target: &Target, plan: &SnapshotPlan) -> Vec<i64> {
         );
     }
     counts
+}
+async fn assert_import_state(
+    target: &Target,
+    actor: Principal,
+    plan: &SnapshotPlan,
+    baseline: &BTreeMap<String, i64>,
+    receipts: &BTreeMap<Uuid, String>,
+) {
+    let mut expected = baseline.clone();
+    expected.insert("snapshot_import_batch".into(), receipts.len() as i64);
+    assert_eq!(counts(target, plan).await, expected);
+    let actual: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT request_id,manifest_sha256,status FROM snapshot_import_batch WHERE actor_id=$1 ORDER BY request_id",
+    ).bind(actor.actor_id).fetch_all(&target.runtime).await.unwrap();
+    assert_eq!(
+        actual,
+        receipts
+            .iter()
+            .map(|(request, digest)| (*request, digest.clone(), "succeeded".into()))
+            .collect::<Vec<_>>()
+    );
 }
 async fn verify_rows(target: &Target, plan: &SnapshotPlan) {
     for expected in &plan.rows {
@@ -253,10 +275,14 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
     );
     verify_rows(&a, &plan).await;
     let stable = counts(&a, &plan).await;
+    let mut receipts = BTreeMap::from([(request, stage.manifest_sha256().to_owned())]);
+    assert_import_state(&a, actor, &plan, &stable, &receipts).await;
     let stable_heads = heads(&a).await;
     for id in [request, Uuid::new_v4()] {
         let p = store.validate_exact(actor, &stage).await.unwrap();
         assert!(store.import_exact(actor, id, p).await.unwrap().reused);
+        receipts.insert(id, stage.manifest_sha256().to_owned());
+        assert_import_state(&a, actor, &plan, &stable, &receipts).await;
     }
     assert_eq!(heads(&a).await, stable_heads);
     // Same request and different requests are serialized without duplicate rows.
@@ -264,11 +290,16 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
         let left = store.validate_exact(actor, &stage).await.unwrap();
         let right = store.validate_exact(actor, &stage).await.unwrap();
         let id = Uuid::new_v4();
+        let other_id = if same_request { id } else { Uuid::new_v4() };
         let (l, r) = tokio::join!(
             store.import_exact(actor, id, left),
-            store.import_exact(actor, if same_request { id } else { Uuid::new_v4() }, right)
+            store.import_exact(actor, other_id, right)
         );
         assert!(l.unwrap().reused && r.unwrap().reused);
+        for request in [id, other_id] {
+            receipts.insert(request, stage.manifest_sha256().to_owned());
+        }
+        assert_import_state(&a, actor, &plan, &stable, &receipts).await;
     }
     // Different valid package, same request: existing receipt binding is immutable.
     let mut different = plan.clone();
@@ -285,6 +316,7 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
         Err(ContentError::IdempotencyConflict)
     ));
     assert_eq!(counts(&a, &plan).await, before);
+    assert_import_state(&a, actor, &plan, &stable, &receipts).await;
     let left = store.validate_exact(actor, &stage).await.unwrap();
     let right = store.validate_exact(actor, &metadata).await.unwrap();
     let contested = Uuid::new_v4();
@@ -309,6 +341,8 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
         saved_hash,
         l.as_ref().or(r.as_ref()).unwrap().manifest_sha256
     );
+    receipts.insert(contested, saved_hash);
+    assert_import_state(&a, actor, &plan, &stable, &receipts).await;
     // Metadata-only preflight cannot later restore deleted target bytes from its retained inode.
     let p = store.validate_exact(actor, &metadata).await.unwrap();
     let asset = plan
@@ -424,11 +458,13 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
         .unwrap();
     let left_store = b.store();
     let right_store = b.store();
-    let l = tokio::spawn(async move { left_store.import_exact(actor, Uuid::new_v4(), left).await });
+    let left_request = Uuid::new_v4();
+    let right_request = Uuid::new_v4();
+    let l = tokio::spawn(async move { left_store.import_exact(actor, left_request, left).await });
     let r =
-        tokio::spawn(async move { right_store.import_exact(actor, Uuid::new_v4(), right).await });
+        tokio::spawn(async move { right_store.import_exact(actor, right_request, right).await });
     wait_blocked(&b.admin, "INSERT INTO public.snapshot_import_batch").await;
-    assert!(counts(&b, &plan).await.into_iter().all(|n| n == 0));
+    assert!(counts(&b, &plan).await.into_values().all(|n| n == 0));
     assert!(matches!(
         learning_db::ReadingStore::new(b.runtime.clone())
             .read_versioned(actor, plan.manifest.root.clone(), ReadingMode::Fused)
@@ -438,6 +474,11 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
     gate.commit().await.unwrap();
     let (l, r) = (l.await.unwrap(), r.await.unwrap());
     assert_ne!(l.unwrap().reused, r.unwrap().reused);
+    let b_receipts = BTreeMap::from([
+        (left_request, stage.manifest_sha256().to_owned()),
+        (right_request, stage.manifest_sha256().to_owned()),
+    ]);
+    assert_import_state(&b, actor, &plan, &stable, &b_receipts).await;
     sqlx::raw_sql("DROP TRIGGER test_import_visibility ON public.snapshot_import_batch; DROP FUNCTION public.test_import_visibility();").execute(&b.admin).await.unwrap();
     verify_rows(&b, &plan).await;
     let projected = learning_db::ReadingStore::new(source.runtime_pool.clone())
@@ -488,8 +529,9 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
             .unwrap();
         assert_eq!(count, 0);
     }
-    assert_eq!(stable.len(), counts(&a, &plan).await.len());
+    assert_import_state(&a, actor, &plan, &stable, &receipts).await;
     assert_eq!(heads(&a).await, stable_heads);
+    unexpected_registry_rejects_and_rolls_back(&a, actor, space, &plan, &original).await;
     reused_extra_index_and_private_owner_fail(&a, actor, &plan, &stage).await;
     newer_heads_and_publication_survive(&b, actor, space, &plan, &stage).await;
     grant_lock_races(&a, actor, space, &plan, &stage).await;
@@ -624,6 +666,85 @@ async fn natural_key_collision_after_prepare(
         .unwrap();
     }
 }
+async fn unexpected_registry_rejects_and_rolls_back(
+    target: &Target,
+    actor: Principal,
+    space: Uuid,
+    plan: &SnapshotPlan,
+    source: &Files,
+) {
+    // Obtain a legitimate spare registry row through an ordinary writer. The
+    // admin-only corruption below changes its revision: INSERT-time registry
+    // checks would reject a directly inserted bad triple. No trigger is disabled.
+    let spare = learning_db::ContentStore::new(target.runtime.clone())
+        .create(
+            actor,
+            space,
+            support::command("registry corruption fixture"),
+        )
+        .await
+        .unwrap();
+    let registry = plan
+        .rows
+        .iter()
+        .find(|r| {
+            r.table == SnapshotTable::ReferenceObject && r.immutable_values["kind"] == "block"
+        })
+        .unwrap();
+    let revision: Uuid =
+        serde_json::from_value(registry.immutable_values["revision_id"].clone()).unwrap();
+    let mut extended = plan.clone();
+    let mut resource = plan
+        .rows
+        .iter()
+        .find(|r| r.table == SnapshotTable::Resource)
+        .unwrap()
+        .clone();
+    let resource_id = Uuid::new_v4();
+    resource.immutable_values["id"] = json!(resource_id);
+    resource.identity[1] = SnapshotIdentityPart::Uuid(resource_id);
+    extended.rows.push(resource);
+    rehash(&mut extended);
+    let stage = source.stage(&extended);
+    let prepared = target.store().validate_exact(actor, &stage).await.unwrap();
+    sqlx::query("UPDATE reference_object SET revision_id=$1 WHERE kind='block' AND object_id=$2 AND revision_id=$3")
+        .bind(revision).bind(spare.block_id).bind(spare.revision_id)
+        .execute(&target.admin).await.unwrap();
+    let before = counts(target, &extended).await;
+    let before_heads = heads(target).await;
+    let request = Uuid::new_v4();
+    assert!(
+        matches!(target.store().import_exact(actor, request, prepared).await,
+        Err(ContentError::Invalid(message)) if message == "invalid_snapshot_import")
+    );
+    assert_eq!(counts(target, &extended).await, before);
+    assert_eq!(heads(target).await, before_heads);
+    let receipt: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM snapshot_import_batch WHERE actor_id=$1 AND request_id=$2)",
+    )
+    .bind(actor.actor_id)
+    .bind(request)
+    .fetch_one(&target.runtime)
+    .await
+    .unwrap();
+    assert!(!receipt);
+    let inserted: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM resource WHERE space_id=$1 AND id=$2)")
+            .bind(space)
+            .bind(resource_id)
+            .fetch_one(&target.runtime)
+            .await
+            .unwrap();
+    assert!(
+        !inserted,
+        "new early-table row must roll back on late registry refusal"
+    );
+    // Restore only the deliberately corrupted registry key.
+    sqlx::query("UPDATE reference_object SET revision_id=$1 WHERE kind='block' AND object_id=$2 AND revision_id=$3")
+        .bind(spare.revision_id).bind(spare.block_id).bind(revision)
+        .execute(&target.admin).await.unwrap();
+}
+
 async fn reused_extra_index_and_private_owner_fail(
     t: &Target,
     actor: Principal,

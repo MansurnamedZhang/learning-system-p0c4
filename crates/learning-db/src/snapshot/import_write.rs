@@ -233,6 +233,22 @@ async fn exact_children(
     .fetch_all(&mut **tx)
     .await
     .map_err(storage)?;
+    compare_children(package, table, columns, values, actual)
+}
+
+fn registry_scope() -> &'static [&'static str] {
+    // A typed revision must have exactly its package registry set, including
+    // rejection of a second registration under a different object identity.
+    &["kind", "revision_id"]
+}
+
+fn compare_children(
+    package: &Package<'_>,
+    table: SnapshotTable,
+    columns: &[&str],
+    values: &[Value],
+    actual: Vec<Value>,
+) -> Result<(), ContentError> {
     let expected = package.matching(table, columns, values);
     if actual.len() != expected.len() {
         return Err(invalid());
@@ -254,6 +270,12 @@ async fn verify_invariants(
         let v = &row.immutable_values;
         match row.table {
             ReferenceObject => {
+                let scope = registry_scope();
+                let values = scope
+                    .iter()
+                    .map(|column| v[*column].clone())
+                    .collect::<Vec<_>>();
+                exact_children(tx, package, ReferenceObject, scope, &values).await?;
                 sqlx::query("SELECT public.b3_check_object($1,$2,$3)")
                     .bind(v["kind"].as_str().ok_or_else(invalid)?)
                     .bind(id(v, "object_id")?)
@@ -338,4 +360,84 @@ async fn verify_invariants(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_comparison_rejects_extra_object_for_included_typed_revision() {
+        let (rows, _, _) = super::super::import_tests::fixture();
+        let package = Package { rows: &rows };
+        let expected = rows
+            .iter()
+            .find(|r| r.table == SnapshotTable::ReferenceObject)
+            .unwrap();
+        let mut extra = expected.immutable_values.clone();
+        extra["object_id"] = json!(Uuid::new_v4());
+        let target = [expected.immutable_values.clone(), extra];
+        let columns = registry_scope();
+        let values = columns
+            .iter()
+            .map(|c| expected.immutable_values[*c].clone())
+            .collect::<Vec<_>>();
+        // Use the production query's exact predicate to select target rows.
+        let actual = target
+            .into_iter()
+            .filter(|row| columns.iter().zip(&values).all(|(c, v)| row[*c] == *v))
+            .collect();
+        assert!(matches!(
+            compare_children(
+                &package,
+                SnapshotTable::ReferenceObject,
+                columns,
+                &values,
+                actual
+            ),
+            Err(ContentError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn registry_comparison_preserves_unrelated_revisions_and_types() {
+        let (rows, _, _) = super::super::import_tests::fixture();
+        let package = Package { rows: &rows };
+        let expected = rows
+            .iter()
+            .find(|r| r.table == SnapshotTable::ReferenceObject)
+            .unwrap();
+        let mut newer = expected.immutable_values.clone();
+        newer["revision_id"] = json!(Uuid::new_v4());
+        let mut other_type = expected.immutable_values.clone();
+        other_type["kind"] = json!("relation");
+        let target = [expected.immutable_values.clone(), newer, other_type];
+        let columns = registry_scope();
+        let values = columns
+            .iter()
+            .map(|c| expected.immutable_values[*c].clone())
+            .collect::<Vec<_>>();
+        let actual = target
+            .into_iter()
+            .filter(|row| columns.iter().zip(&values).all(|(c, v)| row[*c] == *v))
+            .collect();
+        compare_children(
+            &package,
+            SnapshotTable::ReferenceObject,
+            columns,
+            &values,
+            actual,
+        )
+        .unwrap();
+        assert!(
+            compare_children(
+                &package,
+                SnapshotTable::ReferenceObject,
+                columns,
+                &values,
+                vec![]
+            )
+            .is_err()
+        );
+    }
 }
