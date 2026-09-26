@@ -1035,7 +1035,7 @@ async fn c2_and_c3_failure_cancellation_and_stale_token_semantics_match() {
                 }
             );
             let row:(Option<Uuid>,Option<String>,Option<String>,bool)=sqlx::query_as("SELECT lease_token,last_error_class,output_digest,next_attempt_at IS NOT NULL FROM job WHERE id=$1")
-                .bind(event).fetch_one(&rig.runtime_pool).await.unwrap();
+                .bind(event).fetch_one(&rig.admin_pool).await.unwrap();
             assert_eq!(
                 row,
                 (
@@ -1075,7 +1075,7 @@ async fn c2_and_c3_failure_cancellation_and_stale_token_semantics_match() {
                     .unwrap()
             );
             let pending:bool=sqlx::query_scalar("SELECT next_attempt_at IS NOT NULL OR lease_token IS NOT NULL OR lease_expires_at IS NOT NULL FROM job WHERE id=$1")
-                .bind(event).fetch_one(&rig.runtime_pool).await.unwrap();
+                .bind(event).fetch_one(&rig.admin_pool).await.unwrap();
             assert!(!pending);
         }
     }
