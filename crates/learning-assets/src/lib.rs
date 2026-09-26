@@ -1,4 +1,5 @@
 mod fs;
+mod secure_dir;
 mod snapshot;
 
 pub use fs::{

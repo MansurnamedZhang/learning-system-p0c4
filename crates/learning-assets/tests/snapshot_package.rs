@@ -1,3 +1,4 @@
+#![cfg(target_os = "linux")]
 use learning_assets::{
     FsAssetStore, SnapshotIoError, UploadDeclaration, stage_incoming, stage_reading_copy,
     stage_snapshot, verify_snapshot,
@@ -10,21 +11,40 @@ use learning_core::{
 };
 use std::{
     fs,
-    io::{Cursor, Read},
+    io::{Cursor, Read, Write},
     path::PathBuf,
 };
 use uuid::Uuid;
 
 struct Temp(PathBuf);
+fn private_dir(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::create_dir(path).unwrap();
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+}
+fn writable_tree(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = fs::symlink_metadata(path) {
+        if meta.file_type().is_dir() {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+            for entry in fs::read_dir(path).unwrap() {
+                writable_tree(&entry.unwrap().path());
+            }
+        } else if meta.file_type().is_file() {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+        }
+    }
+}
 impl Temp {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!("snapshot-package-{}", Uuid::new_v4()));
-        fs::create_dir(&path).unwrap();
+        private_dir(&path);
         Self(path)
     }
 }
 impl Drop for Temp {
     fn drop(&mut self) {
+        writable_tree(&self.0);
         fs::remove_dir_all(&self.0).unwrap();
     }
 }
@@ -92,7 +112,10 @@ fn deterministic_copy_and_verified_stream_round_trip() {
     let first = stage_reading_copy(&a.0, Uuid::from_u128(7), &copy_manifest(), &copy()).unwrap();
     let second = stage_reading_copy(&b.0, Uuid::from_u128(7), &copy_manifest(), &copy()).unwrap();
     assert_eq!(first.manifest_sha256(), second.manifest_sha256());
+    assert!(verify_snapshot(&first).is_ok());
+    assert!(verify_snapshot(&first).is_ok());
     let files = first.open_verified_files().unwrap();
+    assert_eq!(first.open_verified_files().unwrap().len(), files.len());
     assert!(files.iter().any(|(name, _)| name == "manifest.json"));
     let incoming = stage_incoming(
         &b.0,
@@ -140,6 +163,7 @@ fn rejects_extra_files_corrupt_content_and_reparse_points() {
         .unwrap()
         .unwrap()
         .path();
+    writable_tree(&named);
     fs::write(named.join("unexpected"), b"secret").unwrap();
     assert!(matches!(
         verify_snapshot(&stage),
@@ -160,6 +184,7 @@ fn rejects_symlink_in_sealed_package_when_platform_allows_creation() {
         .unwrap()
         .unwrap()
         .path();
+    writable_tree(&named);
     let outside = root.0.join("outside");
     fs::write(&outside, b"secret").unwrap();
     fs::remove_file(named.join("reading.md")).unwrap();
@@ -181,8 +206,8 @@ fn incoming_reads_open_handle_when_source_name_is_replaced_with_symlink() {
     let root = Temp::new();
     let source_root = root.0.join("source-packages");
     let package_root = root.0.join("packages");
-    fs::create_dir(&source_root).unwrap();
-    fs::create_dir(&package_root).unwrap();
+    private_dir(&source_root);
+    private_dir(&package_root);
     let original =
         stage_reading_copy(&source_root, Uuid::from_u128(7), &copy_manifest(), &copy()).unwrap();
     let mut files = original.open_verified_files().unwrap();
@@ -271,12 +296,165 @@ fn interrupted_input_never_creates_ready_package() {
     }));
 }
 
+struct CrashReader(bool);
+impl Read for CrashReader {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        if self.0 {
+            std::process::exit(73);
+        }
+        self.0 = true;
+        out[..4].copy_from_slice(b"part");
+        Ok(4)
+    }
+}
+#[test]
+fn process_exit_before_seal_never_publishes() {
+    if let Ok(root) = std::env::var("SNAPSHOT_CRASH_ROOT") {
+        let _ = stage_incoming(
+            std::path::Path::new(&root),
+            [(
+                "reading.md".into(),
+                Box::new(CrashReader(false)) as Box<dyn Read>,
+            )]
+            .into_iter(),
+        );
+        panic!("child should have exited while copying");
+    }
+    let root = Temp::new();
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .arg("--exact")
+        .arg("process_exit_before_seal_never_publishes")
+        .env("SNAPSHOT_CRASH_ROOT", &root.0)
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(73));
+    let names = fs::read_dir(&root.0)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    assert!(names.iter().any(|name| name.contains(".partial-")));
+    assert!(!names.iter().any(|name| name.ends_with(".ready")));
+}
+
+#[test]
+fn rejects_aggregate_json_budget_before_publication() {
+    let root = Temp::new();
+    let files = (0..9).map(|n| {
+        let name = format!("objects/block/u-{}.json", Uuid::from_u128(n + 1));
+        (
+            name,
+            Box::new(std::io::repeat(b'x').take(learning_core::SNAPSHOT_MAX_JSON_FILE_BYTES as u64))
+                as Box<dyn Read>,
+        )
+    });
+    assert!(matches!(
+        stage_incoming(&root.0, files),
+        Err(SnapshotIoError::LimitExceeded)
+    ));
+    assert!(!fs::read_dir(&root.0).unwrap().any(|entry| {
+        entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .ends_with(".ready")
+    }));
+}
+
+#[test]
+fn rejects_premature_eof_against_declared_manifest_length() {
+    let source_root = Temp::new();
+    let target_root = Temp::new();
+    let source = stage_reading_copy(
+        &source_root.0,
+        Uuid::from_u128(7),
+        &copy_manifest(),
+        &copy(),
+    )
+    .unwrap();
+    let files = source
+        .open_verified_files()
+        .unwrap()
+        .into_iter()
+        .map(|(name, mut file)| {
+            if name == "reading.md" {
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes).unwrap();
+                bytes.pop();
+                (name, Box::new(Cursor::new(bytes)) as Box<dyn Read>)
+            } else {
+                (name, Box::new(file) as Box<dyn Read>)
+            }
+        });
+    assert!(matches!(
+        stage_incoming(&target_root.0, files),
+        Err(SnapshotIoError::InvalidPackage)
+    ));
+}
+
+#[test]
+fn private_root_and_sealed_delivery_are_enforced() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = Temp::new();
+    fs::set_permissions(&root.0, fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(matches!(
+        stage_reading_copy(&root.0, Uuid::from_u128(7), &copy_manifest(), &copy()),
+        Err(SnapshotIoError::InvalidPackage)
+    ));
+    assert_eq!(fs::read_dir(&root.0).unwrap().count(), 0);
+    fs::set_permissions(&root.0, fs::Permissions::from_mode(0o700)).unwrap();
+    let stage = stage_reading_copy(&root.0, Uuid::from_u128(7), &copy_manifest(), &copy()).unwrap();
+    let mut delivered = stage.open_verified_files().unwrap();
+    let (_, handle) = delivered
+        .iter_mut()
+        .find(|(name, _)| name == "reading.md")
+        .unwrap();
+    let mut original = Vec::new();
+    handle.read_to_end(&mut original).unwrap();
+    assert!(
+        handle.write_all(b"attack").is_err(),
+        "delivery memfd must be sealed"
+    );
+    let named = fs::read_dir(&root.0)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    writable_tree(&named);
+    fs::write(named.join("reading.md"), b"changed after delivery").unwrap();
+    use std::io::{Seek, SeekFrom};
+    handle.seek(SeekFrom::Start(0)).unwrap();
+    let mut still_original = Vec::new();
+    handle.read_to_end(&mut still_original).unwrap();
+    assert_eq!(still_original, original);
+}
+
+#[test]
+fn verified_package_keeps_its_directory_handle_after_ready_name_is_replaced() {
+    let root = Temp::new();
+    let stage = stage_reading_copy(&root.0, Uuid::from_u128(7), &copy_manifest(), &copy()).unwrap();
+    let ready = fs::read_dir(&root.0)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let moved = root.0.join("retained-package");
+    fs::rename(&ready, &moved).unwrap();
+    let decoy = root.0.join("decoy");
+    private_dir(&decoy);
+    fs::write(decoy.join("reading.md"), b"external replacement").unwrap();
+    std::os::unix::fs::symlink(&decoy, &ready).unwrap();
+    assert!(verify_snapshot(&stage).is_ok());
+    assert_eq!(stage.open_verified_files().unwrap().len(), 4);
+}
+
 #[test]
 fn stages_exact_rows_using_planned_canonical_bytes() {
     let root = Temp::new();
     let store = FsAssetStore::new(root.0.join("assets"), root.0.join("asset-staging")).unwrap();
     let package_root = root.0.join("packages");
-    fs::create_dir(&package_root).unwrap();
+    private_dir(&package_root);
     let (row, file) = exact_row();
     let stage = stage_snapshot(
         &package_root,
@@ -303,7 +481,7 @@ fn missing_and_corrupt_asset_bytes_never_publish() {
     let root = Temp::new();
     let store = FsAssetStore::new(root.0.join("assets"), root.0.join("asset-staging")).unwrap();
     let package_root = root.0.join("packages");
-    fs::create_dir(&package_root).unwrap();
+    private_dir(&package_root);
     let bytes = b"asset bytes";
     let sha = hex_digest(bytes);
     let source = root.0.join("source");

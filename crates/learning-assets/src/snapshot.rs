@@ -1,6 +1,9 @@
 //! Private, ordinary-directory packages. Incoming bytes are accepted only as
 //! already-open streams; a caller-controlled directory path is never traversed.
-use crate::{AssetIoError, FsAssetStore};
+use crate::{
+    AssetIoError, FsAssetStore,
+    secure_dir::{Dir, EntryKind, sealed_delivery},
+};
 use learning_core::{
     BodyV2, BodyV3, ContentDraft, ContentError, CopyItem, ExactSnapshotManifest, ReadingCopy,
     ReadingCopyManifest, ReadingItemData, ReadingMode, ReviewProjection, SNAPSHOT_FORMAT_VERSION,
@@ -12,9 +15,9 @@ use learning_core::{
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, File, OpenOptions},
-    io::{self, Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
+    fs::File,
+    io::{self, Read, Write},
+    path::Path,
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -35,7 +38,7 @@ pub enum SnapshotIoError {
 
 #[derive(Debug)]
 pub struct SnapshotDirectory {
-    path: PathBuf,
+    dir: Dir,
     manifest_sha256: String,
 }
 
@@ -64,7 +67,7 @@ impl SnapshotDirectory {
         names
             .into_iter()
             .map(|name| {
-                let mut file = open_staged_file(&self.path, &name)?;
+                let file = open_staged_file(&self.dir, &name)?;
                 // Recheck the opened handle after verification; no named-path reopen
                 // can silently swap bytes between validation and delivery.
                 let expected = if name == "manifest.json" {
@@ -76,11 +79,10 @@ impl SnapshotDirectory {
                         .ok_or(SnapshotIoError::InvalidPackage)?;
                     (entry.sha256.as_str(), Some(entry.size))
                 };
-                let (hash, size) = hash_reader(&mut file, size_limit(&name)?)?;
+                let (file, hash, size) = sealed_delivery(file, size_limit(&name)?)?;
                 if hash != expected.0 || expected.1.is_some_and(|n| n != size) {
                     return Err(SnapshotIoError::InvalidPackage);
                 }
-                file.seek(SeekFrom::Start(0))?;
                 Ok((name, file))
             })
             .collect()
@@ -271,8 +273,7 @@ pub fn stage_incoming(
 }
 
 pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, SnapshotIoError> {
-    require_directory(&stage.path)?;
-    let manifest_bytes = read_staged(&stage.path, "manifest.json", SNAPSHOT_MAX_JSON_FILE_BYTES)?;
+    let manifest_bytes = read_staged(&stage.dir, "manifest.json", SNAPSHOT_MAX_JSON_FILE_BYTES)?;
     if hex_digest(&manifest_bytes) != stage.manifest_sha256 {
         return Err(SnapshotIoError::InvalidPackage);
     }
@@ -304,13 +305,7 @@ pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, Sn
         .collect::<BTreeSet<_>>();
     let mut found = BTreeSet::new();
     let mut found_dirs = BTreeSet::new();
-    collect_names(
-        &stage.path,
-        &stage.path,
-        &expected_dirs,
-        &mut found_dirs,
-        &mut found,
-    )?;
+    collect_names(&stage.dir, "", &expected_dirs, &mut found_dirs, &mut found)?;
     if found_dirs != expected_dirs {
         return Err(SnapshotIoError::InvalidPackage);
     }
@@ -332,7 +327,7 @@ pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, Sn
             if entry.path != format!("assets/sha256/{}/{}", &entry.sha256[..2], entry.sha256) {
                 return Err(SnapshotIoError::InvalidPackage);
             }
-            let mut file = open_staged_file(&stage.path, &entry.path)?;
+            let mut file = open_staged_file(&stage.dir, &entry.path)?;
             let (hash, size) = hash_reader(&mut file, limit)?;
             if entry.size != size || entry.sha256 != hash {
                 return Err(SnapshotIoError::CorruptAsset);
@@ -341,7 +336,7 @@ pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, Sn
                 .checked_add(size as usize)
                 .ok_or(SnapshotIoError::LimitExceeded)?;
         } else {
-            let bytes = read_staged(&stage.path, &entry.path, limit)?;
+            let bytes = read_staged(&stage.dir, &entry.path, limit)?;
             if entry.size != bytes.len() as u64 || entry.sha256 != hex_digest(&bytes) {
                 return Err(SnapshotIoError::InvalidPackage);
             }
@@ -393,9 +388,10 @@ pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, Sn
 }
 
 struct StageWriter {
-    root: PathBuf,
-    partial: PathBuf,
-    ready: PathBuf,
+    root: Dir,
+    partial: Dir,
+    partial_name: String,
+    ready_name: String,
     files: Vec<SnapshotFile>,
     json_bytes: usize,
     asset_bytes: usize,
@@ -403,28 +399,33 @@ struct StageWriter {
 }
 impl StageWriter {
     fn new(root: &Path, id: Uuid) -> Result<Self, SnapshotIoError> {
-        require_directory(root)?;
-        let partial = root.join(format!("{id}.partial-{}", Uuid::new_v4()));
-        create_private_dir(&partial)?;
-        sync_dir(root)?;
-        Ok(Self {
-            root: root.into(),
-            partial,
-            ready: root.join(format!("{id}.ready")),
-            files: vec![],
-            json_bytes: 0,
-            asset_bytes: 0,
-            names: BTreeSet::new(),
-        })
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (root, id);
+            Err(SnapshotIoError::InvalidPackage)
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let root = Dir::open_private_root(root).map_err(|_| SnapshotIoError::InvalidPackage)?;
+            let partial_name = format!("{id}.partial-{}", Uuid::new_v4());
+            let partial = root.create_dir(&partial_name)?;
+            Ok(Self {
+                root,
+                partial,
+                partial_name,
+                ready_name: format!("{id}.ready"),
+                files: vec![],
+                json_bytes: 0,
+                asset_bytes: 0,
+                names: BTreeSet::new(),
+            })
+        }
     }
     fn write_stream(&mut self, name: &str, source: &mut dyn Read) -> Result<(), SnapshotIoError> {
         self.begin(name)?;
         let limit = size_limit(name)?;
-        let path = self.file_path(name)?;
-        let mut target = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&path)?;
+        let (parent, leaf) = self.file_parent(name)?;
+        let mut target = parent.create_file(&leaf)?;
         let (sha256, size) = copy_hash_bounded(source, &mut target, limit)?;
         target.sync_all()?;
         self.record(name, size, sha256)?;
@@ -442,11 +443,8 @@ impl StageWriter {
         {
             return Err(SnapshotIoError::InvalidPackage);
         }
-        let path = self.file_path(name)?;
-        let mut target = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&path)?;
+        let (parent, leaf) = self.file_parent(name)?;
+        let mut target = parent.create_file(&leaf)?;
         store
             .copy_verified(
                 &asset.storage_key,
@@ -468,19 +466,17 @@ impl StageWriter {
         }
         Ok(())
     }
-    fn file_path(&self, name: &str) -> Result<PathBuf, SnapshotIoError> {
+    fn file_parent(&self, name: &str) -> Result<(Dir, String), SnapshotIoError> {
         let parts = name.split('/').collect::<Vec<_>>();
-        let mut dir = self.partial.clone();
+        let mut dir = self.partial.try_clone()?;
         for part in &parts[..parts.len() - 1] {
-            dir.push(part);
-            if !dir.exists() {
-                create_private_dir(&dir)?;
-                sync_dir(dir.parent().ok_or(SnapshotIoError::InvalidPackage)?)?;
-            } else {
-                require_directory(&dir)?;
-            }
+            dir = match dir.open_dir(part) {
+                Ok(child) => child,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => dir.create_dir(part)?,
+                Err(error) => return Err(error.into()),
+            };
         }
-        Ok(dir.join(parts[parts.len() - 1]))
+        Ok((dir, parts[parts.len() - 1].into()))
     }
     fn record(&mut self, name: &str, size: u64, sha256: String) -> Result<(), SnapshotIoError> {
         let length = usize::try_from(size).map_err(|_| SnapshotIoError::LimitExceeded)?;
@@ -536,23 +532,20 @@ impl StageWriter {
             return Err(SnapshotIoError::InvalidPackage);
         }
         sync_tree(&self.partial)?;
+        seal_tree(&self.partial)?;
         let stage = SnapshotDirectory {
-            path: self.partial.clone(),
+            dir: self.partial.try_clone()?,
             manifest_sha256: hash.clone(),
         };
         verify_snapshot(&stage)?;
-        if self.ready.exists() {
-            return Err(SnapshotIoError::InvalidPackage);
-        }
-        fs::rename(&self.partial, &self.ready)?;
-        sync_dir(&self.root)?;
+        self.root.rename(&self.partial_name, &self.ready_name)?;
         Ok(SnapshotDirectory {
-            path: self.ready.clone(),
+            dir: self.partial.try_clone()?,
             manifest_sha256: hash,
         })
     }
     fn discard(&self) {
-        let _ = fs::remove_dir_all(&self.partial);
+        let _ = self.root.remove_tree(&self.partial_name);
     }
 }
 
@@ -635,129 +628,82 @@ fn hash_reader(source: &mut File, limit: usize) -> Result<(String, u64), Snapsho
     }
     Ok((format!("{:x}", hash.finalize()), size as u64))
 }
-fn read_staged(root: &Path, name: &str, limit: usize) -> Result<Vec<u8>, SnapshotIoError> {
+fn read_staged(root: &Dir, name: &str, limit: usize) -> Result<Vec<u8>, SnapshotIoError> {
     let mut file = open_staged_file(root, name)?;
     bounded_read(&mut file, limit)
 }
-fn open_staged_file(root: &Path, name: &str) -> Result<File, SnapshotIoError> {
+fn open_staged_file(root: &Dir, name: &str) -> Result<File, SnapshotIoError> {
     valid_name(name)?;
-    let mut path = root.to_path_buf();
     let parts = name.split('/').collect::<Vec<_>>();
+    let mut dir = root.try_clone()?;
     for part in &parts[..parts.len() - 1] {
-        path.push(part);
-        require_directory(&path)?;
+        dir = dir
+            .open_dir(part)
+            .map_err(|_| SnapshotIoError::InvalidPackage)?;
     }
-    path.push(parts[parts.len() - 1]);
-    let meta = fs::symlink_metadata(&path)?;
-    if !real_file(&meta) {
-        return Err(SnapshotIoError::InvalidPackage);
-    }
-    let file = nofollow_open(&path)?;
-    if !real_file(&file.metadata()?) {
-        return Err(SnapshotIoError::InvalidPackage);
-    }
-    Ok(file)
+    dir.open_file(parts[parts.len() - 1])
+        .map_err(|_| SnapshotIoError::InvalidPackage)
 }
-#[cfg(windows)]
-fn nofollow_open(path: &Path) -> io::Result<File> {
-    use std::os::windows::fs::OpenOptionsExt;
-    // FILE_FLAG_OPEN_REPARSE_POINT. symlink_metadata above rejects the point.
-    OpenOptions::new()
-        .read(true)
-        .custom_flags(0x0020_0000)
-        .open(path)
-}
-#[cfg(unix)]
-fn nofollow_open(path: &Path) -> io::Result<File> {
-    use std::os::unix::fs::OpenOptionsExt;
-    OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(path)
-}
-fn require_directory(path: &Path) -> Result<(), SnapshotIoError> {
-    if !real_dir(&fs::symlink_metadata(path)?) {
-        return Err(SnapshotIoError::InvalidPackage);
-    }
-    Ok(())
-}
-fn real_file(meta: &fs::Metadata) -> bool {
-    meta.file_type().is_file() && !is_reparse(meta)
-}
-fn real_dir(meta: &fs::Metadata) -> bool {
-    meta.file_type().is_dir() && !is_reparse(meta)
-}
-#[cfg(windows)]
-fn is_reparse(meta: &fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    meta.file_attributes() & 0x0000_0400 != 0
-}
-#[cfg(not(windows))]
-fn is_reparse(_meta: &fs::Metadata) -> bool {
-    false
-}
-#[cfg(unix)]
-fn create_private_dir(path: &Path) -> io::Result<()> {
-    use std::os::unix::fs::DirBuilderExt;
-    let mut builder = fs::DirBuilder::new();
-    builder.mode(0o700).create(path)
-}
-#[cfg(windows)]
-fn create_private_dir(path: &Path) -> io::Result<()> {
-    fs::create_dir(path)
-}
-#[cfg(unix)]
-fn sync_dir(path: &Path) -> io::Result<()> {
-    File::open(path)?.sync_all()
-}
-#[cfg(windows)]
-fn sync_dir(_path: &Path) -> io::Result<()> {
-    Ok(())
-}
-fn sync_tree(path: &Path) -> Result<(), SnapshotIoError> {
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            sync_tree(&entry.path())?;
+fn sync_tree(dir: &Dir) -> Result<(), SnapshotIoError> {
+    for name in dir.list()? {
+        match dir.kind(&name)? {
+            EntryKind::Directory => sync_tree(&dir.open_dir(&name)?)?,
+            EntryKind::File => dir.open_file(&name)?.sync_all()?,
+            EntryKind::Other => return Err(SnapshotIoError::InvalidPackage),
         }
     }
-    sync_dir(path)?;
+    dir.sync()?;
+    Ok(())
+}
+fn seal_tree(dir: &Dir) -> Result<(), SnapshotIoError> {
+    for name in dir.list()? {
+        match dir.kind(&name)? {
+            EntryKind::Directory => seal_tree(&dir.open_dir(&name)?)?,
+            EntryKind::File => dir.seal_file(&name)?,
+            EntryKind::Other => return Err(SnapshotIoError::InvalidPackage),
+        }
+    }
+    dir.chmod(0o500)?;
+    dir.sync()?;
     Ok(())
 }
 fn collect_names(
-    root: &Path,
-    dir: &Path,
+    dir: &Dir,
+    prefix: &str,
     expected_dirs: &BTreeSet<String>,
     found_dirs: &mut BTreeSet<String>,
     names: &mut BTreeSet<String>,
 ) -> Result<(), SnapshotIoError> {
-    require_directory(dir)?;
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let meta = fs::symlink_metadata(&path)?;
-        if real_dir(&meta) {
-            let name = path
-                .strip_prefix(root)
-                .map_err(|_| SnapshotIoError::InvalidPackage)?
-                .to_string_lossy()
-                .replace('\\', "/");
-            if !expected_dirs.contains(&name) || !found_dirs.insert(name) {
-                return Err(SnapshotIoError::InvalidPackage);
-            }
-            collect_names(root, &path, expected_dirs, found_dirs, names)?;
-        } else if real_file(&meta) {
-            let name = path
-                .strip_prefix(root)
-                .map_err(|_| SnapshotIoError::InvalidPackage)?
-                .to_string_lossy()
-                .replace('\\', "/");
-            valid_name(&name)?;
-            if !names.insert(name) {
-                return Err(SnapshotIoError::InvalidPackage);
-            }
+    for leaf in dir.list()? {
+        let name = if prefix.is_empty() {
+            leaf.clone()
         } else {
-            return Err(SnapshotIoError::InvalidPackage);
+            format!("{prefix}/{leaf}")
+        };
+        match dir.kind(&leaf)? {
+            EntryKind::Directory => {
+                if !expected_dirs.contains(&name) || !found_dirs.insert(name) {
+                    return Err(SnapshotIoError::InvalidPackage);
+                }
+                collect_names(
+                    &dir.open_dir(&leaf)?,
+                    &if prefix.is_empty() {
+                        leaf.clone()
+                    } else {
+                        format!("{prefix}/{leaf}")
+                    },
+                    expected_dirs,
+                    found_dirs,
+                    names,
+                )?;
+            }
+            EntryKind::File => {
+                valid_name(&name)?;
+                if !names.insert(name) {
+                    return Err(SnapshotIoError::InvalidPackage);
+                }
+            }
+            EntryKind::Other => return Err(SnapshotIoError::InvalidPackage),
         }
     }
     Ok(())

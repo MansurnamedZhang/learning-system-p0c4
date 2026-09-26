@@ -1,3 +1,4 @@
+use crate::secure_dir::Dir;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
@@ -95,8 +96,43 @@ impl FsAssetStore {
         size: u64,
         target: &mut File,
     ) -> Result<(), AssetIoError> {
-        let declared = i64::try_from(size).map_err(|_| AssetIoError::InvalidMetadata)?;
-        let mut source = self.open_record(storage_key, sha256, declared)?;
+        self.copy_verified_with_hook(storage_key, sha256, size, target, || {})
+    }
+    fn copy_verified_with_hook(
+        &self,
+        storage_key: &str,
+        sha256: &str,
+        size: u64,
+        target: &mut File,
+        before_leaf_open: impl FnOnce(),
+    ) -> Result<(), AssetIoError> {
+        i64::try_from(size).map_err(|_| AssetIoError::InvalidMetadata)?;
+        if sha256.len() != 64
+            || !sha256
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            || storage_key != format!("sha256/{}/{}", &sha256[..2], sha256)
+        {
+            return Err(AssetIoError::InvalidMetadata);
+        }
+        let root = Dir::open_owned_root(&self.assets_root).map_err(AssetIoError::Io)?;
+        let digest_root = root
+            .open_dir("sha256")
+            .map_err(|e| snapshot_source_error(e, storage_key))?;
+        let prefix_root = digest_root
+            .open_dir(&sha256[..2])
+            .map_err(|e| snapshot_source_error(e, storage_key))?;
+        before_leaf_open();
+        let mut source = prefix_root
+            .open_file(sha256)
+            .map_err(|e| snapshot_source_error(e, storage_key))?;
+        let blob = VerifiedBlob {
+            storage_key: storage_key.into(),
+            sha256: sha256.into(),
+            size_bytes: size,
+        };
+        verify_file(&mut source, &blob)?;
+        source.seek(SeekFrom::Start(0))?;
         let (copied_hash, copied_size) = copy_and_hash(
             &mut source,
             target,
@@ -397,6 +433,16 @@ impl FsAssetStore {
     }
 }
 
+fn snapshot_source_error(error: io::Error, key: &str) -> AssetIoError {
+    if error.kind() == io::ErrorKind::NotFound {
+        AssetIoError::Missing(key.into())
+    } else if matches!(error.raw_os_error(), Some(40)) {
+        AssetIoError::Corrupt(key.into())
+    } else {
+        AssetIoError::Io(error)
+    }
+}
+
 fn canonical_uuid(text: &str) -> Option<Uuid> {
     let id = Uuid::parse_str(text).ok()?;
     (id.to_string() == text).then_some(id)
@@ -680,5 +726,46 @@ mod tests {
                 .exists(),
             "a failed second copy must not publish a digest object"
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn snapshot_copy_rejects_leaf_swapped_to_symlink_during_acquisition() {
+        let root = TestRoot::new();
+        let assets = root.0.join("assets");
+        let staging = root.0.join("staging");
+        let store = FsAssetStore::new(assets.clone(), staging).unwrap();
+        let source = root.0.join("source");
+        fs::write(&source, b"authorized").unwrap();
+        let blob = store
+            .put_from_file(
+                Uuid::new_v4(),
+                &source,
+                UploadDeclaration {
+                    expected_size_bytes: 10,
+                    max_size_bytes: 10,
+                },
+            )
+            .unwrap();
+        let secret = root.0.join("secret");
+        fs::write(&secret, b"outside target").unwrap();
+        let digest_path = assets.join(blob.storage_key());
+        let mut target = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(root.0.join("target"))
+            .unwrap();
+        let result = store.copy_verified_with_hook(
+            blob.storage_key(),
+            blob.sha256(),
+            blob.size_bytes(),
+            &mut target,
+            || {
+                fs::remove_file(&digest_path).unwrap();
+                std::os::unix::fs::symlink(&secret, &digest_path).unwrap();
+            },
+        );
+        assert!(matches!(result, Err(AssetIoError::Corrupt(_))));
+        assert_eq!(target.metadata().unwrap().len(), 0);
     }
 }
