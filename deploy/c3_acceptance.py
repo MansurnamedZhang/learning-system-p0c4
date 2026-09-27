@@ -1,9 +1,49 @@
 import json
+import ipaddress
 import pathlib
 import re
 
 
 SECRET_NAMES = ("postgres_password", "admin_password", "runtime_password")
+
+
+def check_test_subnet(value, docker_networks, host_routes):
+    """Require one unused RFC1918 /24 before creating the Compose project."""
+    try:
+        subnet = ipaddress.ip_network(value, strict=True)
+    except (TypeError, ValueError) as error:
+        raise ValueError("C3_TEST_SUBNET must be a canonical private IPv4 /24") from error
+    private = (ipaddress.ip_network("10.0.0.0/8"),
+               ipaddress.ip_network("172.16.0.0/12"),
+               ipaddress.ip_network("192.168.0.0/16"))
+    if subnet.version != 4 or subnet.prefixlen != 24 or not any(subnet.subnet_of(block) for block in private):
+        raise ValueError("C3_TEST_SUBNET must be a canonical private IPv4 /24")
+    occupied = []
+    try:
+        for network in docker_networks:
+            for config in network["IPAM"]["Config"] or []:
+                if config.get("Subnet"):
+                    occupied.append(ipaddress.ip_network(config["Subnet"], strict=False))
+        for route in host_routes:
+            if route.get("dst") and route["dst"] != "default":
+                occupied.append(ipaddress.ip_network(route["dst"], strict=False))
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("cannot verify Docker IPAM and host IPv4 routes") from error
+    if any(subnet.overlaps(other) for other in occupied if other.version == 4):
+        raise ValueError("C3_TEST_SUBNET overlaps Docker IPAM or a host IPv4 route")
+    return subnet
+
+
+def check_test_network_config(configuration, project, subnet):
+    try:
+        network = configuration["networks"]["test"]
+        config = network["ipam"]["config"]
+        valid = (network["name"] == f"{project}_test" and network["internal"] is True
+                 and len(config) == 1 and config[0]["subnet"] == str(subnet))
+    except (KeyError, TypeError, IndexError):
+        valid = False
+    if not valid:
+        raise ValueError("merged test network must be project-specific, internal, and use C3_TEST_SUBNET")
 
 
 def check_docker_identity(options):
@@ -267,6 +307,7 @@ def run_acceptance(root, evidence):
     import uuid
     project = os.environ["C3_PROJECT"]
     validate_project(project)
+    requested_subnet = os.environ.get("C3_TEST_SUBNET")
     if os.name != "posix":
         raise ValueError("real acceptance requires Linux")
     for key in ["C3_IMAGE", "C3_RUNTIME_IMAGE"]:
@@ -360,6 +401,10 @@ def run_acceptance(root, evidence):
             raise ValueError("named volume exists even without project label")
     if command("fresh-network-name", ["docker", "network", "inspect", f"{project}_test"], (0,1)).strip() not in ("", "[]"):
         raise ValueError("named network already exists")
+    network_ids = command("docker-network-list", ["docker", "network", "ls", "-q"]).split()
+    existing_networks = json.loads(command("docker-network-ipam", ["docker", "network", "inspect"] + network_ids)) if network_ids else []
+    host_routes = json.loads(command("host-ipv4-routes", ["ip", "-j", "-4", "route", "show", "table", "all"]))
+    subnet = check_test_subnet(requested_subnet, existing_networks, host_routes)
     cleanup_armed = False
     primary_failure = None
     outcome = "FAILED"
@@ -399,6 +444,7 @@ def run_acceptance(root, evidence):
         (evidence / "image-source-verified.json").write_text(json.dumps(expected, sort_keys=True))
         configuration = json.loads(command("config", compose + ["config", "--format", "json"]))
         check_pg_config(configuration, root)
+        check_test_network_config(configuration, project, subnet)
         command("initialize-private-volumes", compose + ["run", "--rm", "--no-deps", "c3-init"])
         command("postgres-start", compose + ["up", "-d", "--wait", "pg"])
         check_pg_mounts(inspect(f"{project}-pg-1"), root)

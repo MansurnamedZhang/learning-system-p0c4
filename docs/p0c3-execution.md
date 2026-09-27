@@ -62,11 +62,14 @@ driver 在任何命令证据落盘前，把六文件读入内存并核对格式�
 
 ```sh
 export C3_PROJECT=learning-system-p0c3-task7-<本批唯一随机后缀>
+export C3_TEST_SUBNET=10.251.200.0/24  # 示例；每批先核对 Docker IPAM 与宿主非默认 IPv4 路由
 export C3_IMAGE=sha256:<本批test镜像64位ID>
 export C3_RUNTIME_IMAGE=rust:1.97.0-bookworm@sha256:b5a086f64ffecaa4e283063184770107915756739598173e1f5712d6b34b84d0
 export C3_WORKER_BIN=/本批私有目录/learning-worker
-sudo --preserve-env=C3_PROJECT,C3_IMAGE,C3_RUNTIME_IMAGE,C3_WORKER_BIN python3 deploy/c3_acceptance.py --evidence /全新且在源码目录外的证据目录
+sudo --preserve-env=C3_PROJECT,C3_TEST_SUBNET,C3_IMAGE,C3_RUNTIME_IMAGE,C3_WORKER_BIN python3 deploy/c3_acceptance.py --evidence /全新且在源码目录外的证据目录
 ```
+
+`C3_TEST_SUBNET` 必须显式指定尚未使用的 RFC1918 IPv4 `/24` 网络地址（例如上面的值），不能使用主机地址或其他掩码。focus 与 full 各用独立的新项目及**不同的未占用子网**；运行前驱动读取当前 Docker 全部网络 IPAM 和宿主非默认 IPv4 路由，发现重叠就拒绝，随后核对合并 Compose 的项目专属 `test` 网络仍为 `internal: true` 且子网精确匹配。此方案不修改 Docker daemon 地址池。
 
 宿主运行者需要受控 sudo/root 与本机 Docker 权限，**任何容器不挂 Docker socket**。驱动调用的每条 Compose 命令均显式 `-p`，要求带随机后缀的新 task7 项目名，并检查已有容器/网络/卷标签及固定卷名；发现旧对象立即拒绝。它不负责上传、生产部署或修改主机服务。
 

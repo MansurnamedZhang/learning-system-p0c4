@@ -15,6 +15,30 @@ def worker_inspect():
                 "NetworkSettings":{"Networks":{"fresh_test":{}},"Ports":{}}}
 
 class AcceptancePolicy(unittest.TestCase):
+    def test_explicit_subnet_rejects_invalid_and_overlapping_ranges(self):
+        docker = [{'IPAM':{'Config':[{'Subnet':'172.20.0.0/16'}, {'Subnet':'fd00::/64'}]}},
+                  {'IPAM':{'Config':[{'Subnet':'10.251.202.0/23'}]}}]
+        routes = [{'dst':'default'}, {'dst':'10.251.201.128/25'}, {'dst':'192.168.8.0/24'}]
+        self.assertEqual(str(c3.check_test_subnet('10.251.200.0/24', docker, routes)), '10.251.200.0/24')
+        for value in ['', '10.251.200.1/24', '10.251.200.0/25', '8.8.8.0/24',
+                      '10.251.200.0/24,10.251.201.0/24', 'fd00::/24', '0.0.0.0/24',
+                      '172.20.1.0/24', '10.251.202.0/24', '10.251.201.0/24']:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                c3.check_test_subnet(value, docker, routes)
+
+    def test_merged_config_requires_internal_exact_explicit_subnet(self):
+        import copy
+        good = {'networks':{'test':{'name':'fresh_test','internal':True,
+                                    'ipam':{'config':[{'subnet':'10.251.200.0/24'}]}}}}
+        c3.check_test_network_config(good, 'fresh', '10.251.200.0/24')
+        for change in [{'internal':False}, {'name':'other_test'}, {'ipam':{'config':[]}},
+                       {'ipam':{'config':[{'subnet':'10.251.201.0/24'}]}},
+                       {'ipam':{'config':[{'subnet':'10.251.200.0/24'}, {'subnet':'10.251.201.0/24'}]}}]:
+            bad = copy.deepcopy(good)
+            bad['networks']['test'].update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                c3.check_test_network_config(bad, 'fresh', '10.251.200.0/24')
+
     def test_rootless_or_remapped_docker_rejected(self):
         c3.check_docker_identity(['name=seccomp,profile=builtin','name=cgroupns'])
         for options in [['name=rootless'],['name=userns'],None]:
@@ -111,11 +135,12 @@ class AcceptancePolicy(unittest.TestCase):
         def execute(argv, **kwargs):
             calls.append(argv)
             output, code = b'', 0
-            if argv[1] == 'context': output = b'"unix:///var/run/docker.sock"'
+            if argv[0] == 'ip': output = b'[]'
+            elif argv[1] == 'context': output = b'"unix:///var/run/docker.sock"'
             elif argv[1] == 'info': output = b'[]'
             elif argv[1] == 'ps': output = (project+'-pg-1').encode() if any('up' in x for x in calls) else b''
             elif 'id -u postgres; id -g postgres' in argv: output = b'999\n999\n'
-            elif 'config' in argv: output = json.dumps({'potential_config_value':'c'*64}).encode()
+            elif 'config' in argv: output = json.dumps({'potential_config_value':'c'*64, 'networks':{'test':{'name':project+'_test','internal':True,'ipam':{'config':[{'subnet':'10.251.200.0/24'}]}}}}).encode()
             elif 'up' in argv: code, output = 1, b'healthcheck failed'
             elif argv[1] == 'logs': code, output = 1, b'postgres://user:' + b'c'*64 + b'@pg/db'
             elif argv[1] == 'inspect': output = json.dumps([{'Config':{'Labels':{'com.docker.compose.project':project}},'State':{'Running':False}}]).encode()
@@ -124,7 +149,7 @@ class AcceptancePolicy(unittest.TestCase):
             directory = pathlib.Path(temp)
             binary = directory/'worker'; binary.write_bytes(b'fixture')
             output = directory/'evidence'
-            env = {'C3_PROJECT':project,'C3_IMAGE':'sha256:'+'a'*64,'C3_RUNTIME_IMAGE':'sha256:'+'b'*64,'C3_WORKER_BIN':str(binary)}
+            env = {'C3_PROJECT':project,'C3_IMAGE':'sha256:'+'a'*64,'C3_RUNTIME_IMAGE':'sha256:'+'b'*64,'C3_WORKER_BIN':str(binary),'C3_TEST_SUBNET':'10.251.200.0/24'}
             fake_os = SimpleNamespace(name='posix', environ=env)
             secrets = [b'c'*64]
             metadata = {f'.runtime/secrets/pg/{name}':None for name in c3.SECRET_NAMES}

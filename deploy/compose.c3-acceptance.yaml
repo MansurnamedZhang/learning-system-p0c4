@@ -101,6 +101,12 @@ services:
       - /gate:uid=65532,gid=65532,mode=0700
       - /tmp:mode=1777
     networks: [test]
+networks:
+  test:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${C3_TEST_SUBNET:?explicit unused private IPv4 /24 required}
 secrets:
   pg_postgres_password:
     file: ../.runtime/secrets/pg/postgres_password
