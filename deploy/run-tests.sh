@@ -1,25 +1,28 @@
 #!/bin/sh
 set -eu
-# Generated secret files contain hexadecimal passwords, so URL encoding is unambiguous.
-export TEST_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_test"
-export TEST_DATABASE_URL="postgres://learning_runtime:$(cat /run/secrets/runtime_password)@pg/learning_test"
-export TEST_SUPERUSER_DATABASE_URL="postgres://postgres:$(cat /run/secrets/postgres_password)@pg/learning_test"
-export TEST_UPGRADE_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_upgrade_test"
-export TEST_UPGRADE_DATABASE_URL="postgres://learning_runtime:$(cat /run/secrets/runtime_password)@pg/learning_upgrade_test"
-export TEST_B1_UPGRADE_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_b1_upgrade_test"
-export TEST_B1_UPGRADE_DATABASE_URL="postgres://learning_runtime:$(cat /run/secrets/runtime_password)@pg/learning_b1_upgrade_test"
-export TEST_B3_SCHEMA_UPGRADE_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_b3_schema_upgrade_test"
-export TEST_B3_SCHEMA_UPGRADE_DATABASE_URL="postgres://learning_runtime:$(cat /run/secrets/runtime_password)@pg/learning_b3_schema_upgrade_test"
-export TEST_B2_UPGRADE_ADMIN_DATABASE_URL="postgres://learning_admin:$(cat /run/secrets/admin_password)@pg/learning_b2_upgrade_test"
-export TEST_B2_UPGRADE_DATABASE_URL="postgres://learning_runtime:$(cat /run/secrets/runtime_password)@pg/learning_b2_upgrade_test"
+. /app/deploy/c3-env.sh
+# All logs belong to this new volume; failures retain their original exits.
+trap 'for c3_log in /evidence/*.json /evidence/*.log /evidence/*.exit; do if [ -f "$c3_log" ]; then sha256sum "$c3_log"; fi; done > /evidence/results.sha256' 0
+run_gate() {
+    c3_gate_name=$1
+    shift
+    printf '%s\n' "$*" > "/evidence/$c3_gate_name.command.log"
+    set +e
+    "$@" > "/evidence/$c3_gate_name.stdout.log" 2> "/evidence/$c3_gate_name.stderr.log"
+    c3_gate_status=$?
+    set -e
+    printf '%s\n' "$c3_gate_status" > "/evidence/$c3_gate_name.exit"
+    cat "/evidence/$c3_gate_name.stdout.log"
+    cat "/evidence/$c3_gate_name.stderr.log" >&2
+    return "$c3_gate_status"
+}
+# Refuse every pre-existing schema before any bootstrap/migration.
+run_gate empty-databases cargo run --offline --locked -p learning-worker --example c3_acceptance -- empty || exit $?
+cp /evidence/empty-databases.stdout.log /evidence/empty-databases.json
 export FIXTURE_EVIDENCE_DIR=/evidence
 . /app/deploy/bootstrap-fixtures.sh
-set +e
-cargo test --offline --locked --workspace -- --test-threads=1 > /evidence/workspace.stdout.log 2> /evidence/workspace.stderr.log
-status=$?
-set -e
-printf '%s\n' "$status" > /evidence/workspace.exit
-cat /evidence/workspace.stdout.log
-cat /evidence/workspace.stderr.log >&2
-sha256sum /evidence/*.json /evidence/*.log /evidence/*.exit > /evidence/results.sha256
-exit "$status"
+run_gate workspace cargo test --offline --locked --workspace -- --test-threads=1 || exit $?
+run_gate legacy-upgrades cargo run --offline --locked -p learning-worker --example c3_acceptance -- legacy-upgrades || exit $?
+cp /evidence/legacy-upgrades.stdout.log /evidence/legacy-upgrades.json
+run_gate fmt cargo fmt --all -- --check || exit $?
+run_gate clippy cargo clippy --offline --locked --workspace --all-targets -- -D warnings || exit $?

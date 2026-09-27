@@ -5,3 +5,5 @@
 *.sql text eol=lf
 *.sh text eol=lf
 *.yaml text eol=lf
+crates/learning-worker/examples/c3/attention.pdf binary
+crates/learning-worker/examples/c3/attention.png binary

@@ -22,4 +22,22 @@ GRANT CONNECT, TEMPORARY ON DATABASE learning_b3_schema_upgrade_test TO learning
 CREATE DATABASE learning_b2_upgrade_test OWNER learning_admin;
 REVOKE ALL ON DATABASE learning_b2_upgrade_test FROM PUBLIC;
 GRANT CONNECT, TEMPORARY ON DATABASE learning_b2_upgrade_test TO learning_admin, learning_runtime;
+CREATE DATABASE learning_c3_upgrade_test OWNER learning_admin;
+REVOKE ALL ON DATABASE learning_c3_upgrade_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE learning_c3_upgrade_test TO learning_admin, learning_runtime;
+CREATE DATABASE learning_import_a_test OWNER learning_admin;
+REVOKE ALL ON DATABASE learning_import_a_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE learning_import_a_test TO learning_admin, learning_runtime;
+CREATE DATABASE learning_import_b_test OWNER learning_admin;
+REVOKE ALL ON DATABASE learning_import_b_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE learning_import_b_test TO learning_admin, learning_runtime;
+CREATE DATABASE learning_import_upgrade_test OWNER learning_admin;
+REVOKE ALL ON DATABASE learning_import_upgrade_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE learning_import_upgrade_test TO learning_admin, learning_runtime;
+CREATE DATABASE learning_c3_source_test OWNER learning_admin;
+REVOKE ALL ON DATABASE learning_c3_source_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE learning_c3_source_test TO learning_admin, learning_runtime;
+CREATE DATABASE learning_c3_target_test OWNER learning_admin;
+REVOKE ALL ON DATABASE learning_c3_target_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE learning_c3_target_test TO learning_admin, learning_runtime;
 SQL
