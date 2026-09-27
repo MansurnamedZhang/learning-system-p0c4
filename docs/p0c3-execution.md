@@ -69,7 +69,7 @@ export C3_WORKER_BIN=/本批私有目录/learning-worker
 sudo --preserve-env=C3_PROJECT,C3_TEST_SUBNET,C3_IMAGE,C3_RUNTIME_IMAGE,C3_WORKER_BIN python3 deploy/c3_acceptance.py --evidence /全新且在源码目录外的证据目录
 ```
 
-`C3_TEST_SUBNET` 必须显式指定尚未使用的 RFC1918 IPv4 `/24` 网络地址（例如上面的值），不能使用主机地址或其他掩码。focus 与 full 各用独立的新项目及**不同的未占用子网**；运行前驱动读取当前 Docker 全部网络 IPAM 和宿主非默认 IPv4 路由，发现重叠就拒绝，随后核对合并 Compose 的项目专属 `test` 网络仍为 `internal: true` 且子网精确匹配。此方案不修改 Docker daemon 地址池。
+`C3_TEST_SUBNET` 必须显式指定尚未使用的 RFC1918 IPv4 `/24` 网络地址（例如上面的值），不能使用主机地址或其他掩码。focus 与 full 各用独立的新项目及**不同的未占用子网**；驱动先验证本地 rootful Docker，再检查已有项目对象。首次可能创建 Compose 资源前，它读取当前 Docker 网络的 IPAM 子网与宿主非默认 IPv4 路由目的网段，发现重叠就拒绝，并核对合并 Compose 的项目专属 `test` 网络仍为 `internal: true` 且子网精确匹配。该预检只代表采集时的快照，实际建网仍由 Docker 裁决；证据只保存最小子网与路由目的网段。此方案不修改 Docker daemon 地址池。
 
 宿主运行者需要受控 sudo/root 与本机 Docker 权限，**任何容器不挂 Docker socket**。驱动调用的每条 Compose 命令均显式 `-p`，要求带随机后缀的新 task7 项目名，并检查已有容器/网络/卷标签及固定卷名；发现旧对象立即拒绝。它不负责上传、生产部署或修改主机服务。
 

@@ -7,7 +7,7 @@ import re
 SECRET_NAMES = ("postgres_password", "admin_password", "runtime_password")
 
 
-def check_test_subnet(value, docker_networks, host_routes):
+def check_test_subnet(value, docker_subnets, host_routes):
     """Require one unused RFC1918 /24 before creating the Compose project."""
     try:
         subnet = ipaddress.ip_network(value, strict=True)
@@ -20,10 +20,8 @@ def check_test_subnet(value, docker_networks, host_routes):
         raise ValueError("C3_TEST_SUBNET must be a canonical private IPv4 /24")
     occupied = []
     try:
-        for network in docker_networks:
-            for config in network["IPAM"]["Config"] or []:
-                if config.get("Subnet"):
-                    occupied.append(ipaddress.ip_network(config["Subnet"], strict=False))
+        for existing in docker_subnets:
+            occupied.append(ipaddress.ip_network(existing, strict=False))
         for route in host_routes:
             if route.get("dst") and route["dst"] != "default":
                 occupied.append(ipaddress.ip_network(route["dst"], strict=False))
@@ -32,6 +30,14 @@ def check_test_subnet(value, docker_networks, host_routes):
     if any(subnet.overlaps(other) for other in occupied if other.version == 4):
         raise ValueError("C3_TEST_SUBNET overlaps Docker IPAM or a host IPv4 route")
     return subnet
+
+
+def minimal_host_routes(data):
+    """Keep only route destinations in on-disk evidence."""
+    routes = json.loads(data)
+    if not isinstance(routes, list) or any(not isinstance(route, dict) for route in routes):
+        raise ValueError("invalid host route inventory")
+    return json.dumps([{"dst":route["dst"]} for route in routes if route.get("dst")], separators=(",", ":")).encode()
 
 
 def check_test_network_config(configuration, project, subnet):
@@ -308,6 +314,7 @@ def run_acceptance(root, evidence):
     project = os.environ["C3_PROJECT"]
     validate_project(project)
     requested_subnet = os.environ.get("C3_TEST_SUBNET")
+    subnet = check_test_subnet(requested_subnet, [], [])
     if os.name != "posix":
         raise ValueError("real acceptance requires Linux")
     for key in ["C3_IMAGE", "C3_RUNTIME_IMAGE"]:
@@ -330,7 +337,7 @@ def run_acceptance(root, evidence):
     records = {}
     containers = []
 
-    def command(label, argv, allowed=(0,), binary_output=False):
+    def command(label, argv, allowed=(0,), binary_output=False, output_filter=None):
         nonlocal counter
         counter += 1
         prefix = evidence / f"{counter:04}-{label}"
@@ -339,16 +346,23 @@ def run_acceptance(root, evidence):
         try:
             process = subprocess.run(argv, cwd=root, env=env, capture_output=True, timeout=7200)
         except subprocess.TimeoutExpired as error:
-            prefix.with_suffix(".stdout.log").write_bytes(redact(error.stdout or b"", secrets))
-            prefix.with_suffix(".stderr.log").write_bytes(redact(error.stderr or b"", secrets))
+            prefix.with_suffix(".stdout.log").write_bytes(b"inventory output withheld on timeout\n" if output_filter else redact(error.stdout or b"", secrets))
+            prefix.with_suffix(".stderr.log").write_bytes(b"inventory error withheld on timeout\n" if output_filter else redact(error.stderr or b"", secrets))
             prefix.with_suffix(".exit").write_text("TIMEOUT")
             raise RuntimeError(f"{label} TIMEOUT; redacted evidence retained") from None
-        prefix.with_suffix(".stdout.log").write_bytes(b"archive entries individually redacted before storage\n" if binary_output else redact(process.stdout, secrets))
-        prefix.with_suffix(".stderr.log").write_bytes(redact(process.stderr, secrets))
+        try:
+            safe_stdout = output_filter(process.stdout) if output_filter and process.returncode in allowed else (b"" if output_filter else process.stdout)
+        except (TypeError, ValueError):
+            prefix.with_suffix(".stdout.log").write_bytes(b"invalid filtered inventory output\n")
+            prefix.with_suffix(".stderr.log").write_bytes(b"inventory error withheld\n")
+            prefix.with_suffix(".exit").write_text(str(process.returncode))
+            raise ValueError(f"{label} returned invalid inventory; raw output withheld") from None
+        prefix.with_suffix(".stdout.log").write_bytes(b"archive entries individually redacted before storage\n" if binary_output else redact(safe_stdout, secrets))
+        prefix.with_suffix(".stderr.log").write_bytes(b"inventory error withheld\n" if output_filter and process.stderr else redact(process.stderr, secrets))
         prefix.with_suffix(".exit").write_text(str(process.returncode))
         if process.returncode not in allowed:
             raise RuntimeError(f"{label} exit {process.returncode}; redacted evidence retained")
-        return process.stdout if binary_output else redact(process.stdout, secrets).decode()
+        return process.stdout if binary_output else redact(safe_stdout, secrets).decode()
 
     def manager(action):
         output = command(action, compose + ["run", "--no-deps", "--rm", "c3-manager", action])
@@ -385,6 +399,11 @@ def run_acceptance(root, evidence):
         output = command("gate-state", ["docker", "exec", name, "sh", "-c", "if test -f /gate/claimed; then cat /gate/claimed; else printf pending; fi"])
         return output.startswith("pid=")
 
+    context_endpoint = json.loads(command("docker-endpoint", ["docker", "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"]))
+    endpoint = context_endpoint if env.get("DOCKER_CONTEXT") else env.get("DOCKER_HOST") or context_endpoint
+    if endpoint != "unix:///var/run/docker.sock":
+        raise ValueError("use the local rootful Docker socket; remote/rootless endpoints are unsupported")
+    check_docker_identity(json.loads(command("docker-security-options", ["docker", "info", "--format", "{{json .SecurityOptions}}"])))
     for line in (root / "deploy/c3-migrations-0001-0013.sha256").read_text().splitlines():
         digest, relative = line.split("  ", 1)
         if hashlib.sha256((root / relative).read_bytes()).hexdigest() != digest:
@@ -401,19 +420,10 @@ def run_acceptance(root, evidence):
             raise ValueError("named volume exists even without project label")
     if command("fresh-network-name", ["docker", "network", "inspect", f"{project}_test"], (0,1)).strip() not in ("", "[]"):
         raise ValueError("named network already exists")
-    network_ids = command("docker-network-list", ["docker", "network", "ls", "-q"]).split()
-    existing_networks = json.loads(command("docker-network-ipam", ["docker", "network", "inspect"] + network_ids)) if network_ids else []
-    host_routes = json.loads(command("host-ipv4-routes", ["ip", "-j", "-4", "route", "show", "table", "all"]))
-    subnet = check_test_subnet(requested_subnet, existing_networks, host_routes)
     cleanup_armed = False
     primary_failure = None
     outcome = "FAILED"
     try:
-        context_endpoint = json.loads(command("docker-endpoint", ["docker", "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"]))
-        endpoint = context_endpoint if env.get("DOCKER_CONTEXT") else env.get("DOCKER_HOST") or context_endpoint
-        if endpoint != "unix:///var/run/docker.sock":
-            raise ValueError("use the local rootful Docker socket; remote/rootless endpoints are unsupported")
-        check_docker_identity(json.loads(command("docker-security-options", ["docker", "info", "--format", "{{json .SecurityOptions}}"])))
         for image in [env["C3_IMAGE"],env["C3_RUNTIME_IMAGE"]]:
             command("local-fixed-image", ["docker", "image", "inspect", image])
         # Read-only preflight probes have no network; only readability probes mount secrets.
@@ -445,6 +455,10 @@ def run_acceptance(root, evidence):
         configuration = json.loads(command("config", compose + ["config", "--format", "json"]))
         check_pg_config(configuration, root)
         check_test_network_config(configuration, project, subnet)
+        network_ids = command("docker-network-list", ["docker", "network", "ls", "-q"]).split()
+        docker_subnets = command("docker-network-ipam", ["docker", "network", "inspect", "--format", "{{range .IPAM.Config}}{{println .Subnet}}{{end}}"] + network_ids).split() if network_ids else []
+        host_routes = json.loads(command("host-ipv4-routes", ["ip", "-j", "-4", "route", "show", "table", "all"], output_filter=minimal_host_routes))
+        check_test_subnet(requested_subnet, docker_subnets, host_routes)
         command("initialize-private-volumes", compose + ["run", "--rm", "--no-deps", "c3-init"])
         command("postgres-start", compose + ["up", "-d", "--wait", "pg"])
         check_pg_mounts(inspect(f"{project}-pg-1"), root)

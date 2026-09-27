@@ -16,8 +16,7 @@ def worker_inspect():
 
 class AcceptancePolicy(unittest.TestCase):
     def test_explicit_subnet_rejects_invalid_and_overlapping_ranges(self):
-        docker = [{'IPAM':{'Config':[{'Subnet':'172.20.0.0/16'}, {'Subnet':'fd00::/64'}]}},
-                  {'IPAM':{'Config':[{'Subnet':'10.251.202.0/23'}]}}]
+        docker = ['172.20.0.0/16', 'fd00::/64', '10.251.202.0/23']
         routes = [{'dst':'default'}, {'dst':'10.251.201.128/25'}, {'dst':'192.168.8.0/24'}]
         self.assertEqual(str(c3.check_test_subnet('10.251.200.0/24', docker, routes)), '10.251.200.0/24')
         for value in ['', '10.251.200.1/24', '10.251.200.0/25', '8.8.8.0/24',
@@ -135,9 +134,13 @@ class AcceptancePolicy(unittest.TestCase):
         def execute(argv, **kwargs):
             calls.append(argv)
             output, code = b'', 0
-            if argv[0] == 'ip': output = b'[]'
+            if argv[0] == 'ip': output = b'[{"dst":"10.9.0.0/16","gateway":"10.9.0.1","dev":"eth0"}]'
             elif argv[1] == 'context': output = b'"unix:///var/run/docker.sock"'
             elif argv[1] == 'info': output = b'[]'
+            elif argv[1:3] == ['network','ls'] and '--filter' not in argv: output = b'foreign-network-id\n'
+            elif argv[1:3] == ['network','inspect'] and '--format' in argv: output = b'172.20.0.0/16\n'
+            elif argv[1:3] == ['network','inspect'] and argv[-1] == 'foreign-network-id':
+                output = json.dumps([{'Name':'foreign-project','IPAM':{'Config':[{'Subnet':'172.20.0.0/16'}]},'Containers':{'container-id':{'MacAddress':'02:42:ac:14:00:02'}}}]).encode()
             elif argv[1] == 'ps': output = (project+'-pg-1').encode() if any('up' in x for x in calls) else b''
             elif 'id -u postgres; id -g postgres' in argv: output = b'999\n999\n'
             elif 'config' in argv: output = json.dumps({'potential_config_value':'c'*64, 'networks':{'test':{'name':project+'_test','internal':True,'ipam':{'config':[{'subnet':'10.251.200.0/24'}]}}}}).encode()
@@ -157,6 +160,19 @@ class AcceptancePolicy(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'postgres-start exit 1'):
                     c3.run_acceptance(ROOT, output)
             self.assertIn(['docker','stop',project+'-pg-1'],calls)
+            first_inventory = next(i for i, argv in enumerate(calls) if argv[1] in ('ps','network','volume'))
+            self.assertLess(next(i for i, argv in enumerate(calls) if argv[1] == 'context'), first_inventory)
+            self.assertLess(next(i for i, argv in enumerate(calls) if argv[1] == 'info'), first_inventory)
+            network_inspect = next(argv for argv in calls if argv[1:3] == ['network','inspect'] and argv[-1] == 'foreign-network-id')
+            self.assertIn('--format', network_inspect)
+            self.assertEqual(next(output.glob('*-docker-network-ipam.stdout.log')).read_bytes(), b'172.20.0.0/16\n')
+            self.assertEqual(json.loads(next(output.glob('*-host-ipv4-routes.stdout.log')).read_text()), [{'dst':'10.9.0.0/16'}])
+            self.assertNotIn(b'foreign-project', b''.join(p.read_bytes() for p in output.rglob('*.stdout.log')))
+            self.assertNotIn(b'gateway', b''.join(p.read_bytes() for p in output.rglob('*.stdout.log')))
+            self.assertLess(next(i for i, argv in enumerate(calls) if 'config' in argv),
+                            next(i for i, argv in enumerate(calls) if argv[1:3] == ['network','inspect'] and argv[-1] == 'foreign-network-id'))
+            self.assertLess(next(i for i, argv in enumerate(calls) if argv[0] == 'ip'),
+                            next(i for i, argv in enumerate(calls) if 'c3-init' in argv))
             result = json.loads((output/'result.json').read_text())
             self.assertEqual(result['status'],'FAILED')
             self.assertIn('postgres-start exit 1',result['primary_failure']['message'])
