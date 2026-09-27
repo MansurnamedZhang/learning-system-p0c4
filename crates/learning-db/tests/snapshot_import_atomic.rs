@@ -658,12 +658,14 @@ async fn attention_exact_atomic_roundtrip_two_fresh_databases_and_failure_bounda
     let r =
         tokio::spawn(async move { right_store.import_exact(actor, right_request, right).await });
     assert!(counts(&b, &plan).await.into_values().all(|n| n == 0));
-    assert!(matches!(
-        learning_db::ReadingStore::new(b.runtime.clone())
-            .read_versioned(actor, plan.manifest.root.clone(), ReadingMode::Fused)
-            .await,
-        Err(ContentError::NotFound)
-    ));
+    let uncommitted = learning_db::ReadingStore::new(b.runtime.clone())
+        .read_versioned(actor, plan.manifest.root.clone(), ReadingMode::Fused)
+        .await
+        .expect("uncommitted reading lookup must succeed with no visible reading");
+    assert!(
+        uncommitted.is_none(),
+        "uncommitted import exposed a reading: {uncommitted:?}"
+    );
     gate.commit().await.unwrap();
     let (l, r) = (l.await.unwrap(), r.await.unwrap());
     assert_ne!(l.unwrap().reused, r.unwrap().reused);
