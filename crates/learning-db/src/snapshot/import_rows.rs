@@ -519,9 +519,7 @@ impl<'a> Package<'a> {
                     || !hash
                         .bytes()
                         .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-                    || v["byte_size"]
-                        .as_u64()
-                        .is_none_or(|n| n > SNAPSHOT_MAX_ASSET_FILE_BYTES as u64)
+                    || v["byte_size"].as_i64().is_none_or(|n| n < 0)
                     || text(v, "storage_key")? != format!("sha256/{}/{}", &hash[..2], hash)
                     || v["status"] != "ready"
                 {

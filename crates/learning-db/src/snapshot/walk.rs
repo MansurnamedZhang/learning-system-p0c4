@@ -699,11 +699,11 @@ impl Collector {
         .await?;
         let size = u64::try_from(asset.byte_size).map_err(storage)?;
         let path = format!("assets/{}", asset.storage_key);
-        let byte_size = usize::try_from(size).map_err(storage)?;
-        if byte_size > SNAPSHOT_MAX_ASSET_FILE_BYTES {
-            return Err(limit());
-        }
         if self.include_originals && !self.asset_files.contains_key(&path) {
+            let byte_size = usize::try_from(size).map_err(storage)?;
+            if byte_size > SNAPSHOT_MAX_ASSET_FILE_BYTES {
+                return Err(limit());
+            }
             self.budget
                 .charge(SnapshotBudgetKind::AssetFile, byte_size, 0)?;
             self.asset_files.insert(

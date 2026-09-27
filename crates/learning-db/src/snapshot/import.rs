@@ -269,6 +269,9 @@ impl OriginalBudget {
         if destination_only {
             return Ok(());
         }
+        if size > SNAPSHOT_MAX_ASSET_FILE_BYTES as u64 {
+            return Err(invalid());
+        }
         if self.digests.insert(digest.to_owned()) {
             self.bytes = self.bytes.checked_add(size).ok_or_else(invalid)?;
         }
@@ -440,6 +443,16 @@ async fn authorize_existing(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn only_included_originals_have_a_single_file_budget() {
+        let mut budget = OriginalBudget::default();
+        let size = SNAPSHOT_MAX_ASSET_FILE_BYTES as u64 + 1;
+        let digest = hex_digest(b"large original");
+        budget.account(true, &digest, size).unwrap();
+        assert_eq!(budget.bytes, 0);
+        assert!(budget.account(false, &digest, size).is_err());
+        assert_eq!(budget.bytes, 0);
+    }
     #[test]
     fn overlay_revision_authorization_follows_actual_overlay_owner() {
         assert_eq!(

@@ -74,14 +74,55 @@ async fn content(
         .unwrap()
 }
 async fn asset(r: &TestRig, space: Uuid) -> AssetRef {
+    asset_with_size(r, space, 17).await
+}
+async fn asset_with_size(r: &TestRig, space: Uuid, byte_size: i64) -> AssetRef {
     let id = Uuid::new_v4();
     let sha = hex_digest(b"snapshot original");
-    sqlx::query("INSERT INTO asset(space_id,id,sha256,byte_size,storage_key,media_type,original_file_name,status) VALUES($1,$2,$3,17,$4,'application/octet-stream','original.bin','ready')")
-        .bind(space).bind(id).bind(&sha).bind(format!("sha256/{}/{}", &sha[..2], sha)).execute(&r.admin_pool).await.unwrap();
+    sqlx::query("INSERT INTO asset(space_id,id,sha256,byte_size,storage_key,media_type,original_file_name,status) VALUES($1,$2,$3,$5,$4,'application/octet-stream','original.bin','ready')")
+        .bind(space).bind(id).bind(&sha).bind(format!("sha256/{}/{}", &sha[..2], sha)).bind(byte_size).execute(&r.admin_pool).await.unwrap();
     AssetRef {
         space_id: space,
         asset_id: id,
     }
+}
+
+// Planning reads authorized immutable metadata, not original streams. Staging
+// and destination preflight retain their separate real-byte hash/size checks.
+#[tokio::test]
+async fn metadata_only_plan_allows_large_original_but_included_plan_rejects_it() {
+    let (r, actor, space, _, saved) = h::fixture().await;
+    let size = SNAPSHOT_MAX_ASSET_FILE_BYTES as u64 + 1;
+    let original = asset_with_size(&r, space, size as i64).await;
+    let (version, _) = resource(&r, &original).await;
+    let mut input = request(saved.view);
+    input.resource_versions.push(version);
+    input.include_originals = false;
+    let store = SnapshotStore::new(r.runtime_pool.clone());
+    let before = h::counts(&r, actor).await;
+
+    let plan = store.plan_exact(actor, &input).await.unwrap();
+    assert!(plan.manifest.requires_destination_assets);
+    assert_eq!(plan.assets.len(), 1);
+    assert_eq!(plan.assets[0].asset, original);
+    assert_eq!(plan.assets[0].byte_size, size);
+    let assets = rows(&plan, SnapshotTable::Asset);
+    assert_eq!(assets.len(), 1);
+    assert_eq!(assets[0]["byte_size"], json!(size));
+    assert!(
+        plan.manifest
+            .files
+            .iter()
+            .all(|f| !f.path.starts_with("assets/"))
+    );
+
+    // Identical source and selected resource; only package inclusion changes.
+    input.include_originals = true;
+    assert!(matches!(
+        store.plan_exact(actor, &input).await,
+        Err(ContentError::Invalid(code)) if code == "snapshot_limit_exceeded"
+    ));
+    assert_eq!(h::counts(&r, actor).await, before);
 }
 async fn resource(r: &TestRig, asset: &AssetRef) -> (ResourceVersionRef, SourceSegmentRef) {
     let resource = Uuid::new_v4();

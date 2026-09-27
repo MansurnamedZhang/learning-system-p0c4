@@ -904,6 +904,15 @@ async fn private_overlay_revision_id_never_reports_an_identity_collision() {
 
 #[tokio::test]
 async fn metadata_only_five_max_size_assets_verify_all_destination_bytes() {
+    metadata_only_destination_bytes(&[SNAPSHOT_MAX_ASSET_FILE_BYTES as u64; 5]).await;
+}
+
+#[tokio::test]
+async fn metadata_only_large_original_verifies_destination_bytes_and_rejects_inclusion() {
+    metadata_only_destination_bytes(&[SNAPSHOT_MAX_ASSET_FILE_BYTES as u64 + 1]).await;
+}
+
+async fn metadata_only_destination_bytes(sizes: &[u64]) {
     use learning_assets::UploadDeclaration;
     use learning_db::{AssetMedia, AssetStore, ResourceInput};
     use std::io::Write;
@@ -913,15 +922,14 @@ async fn metadata_only_five_max_size_assets_verify_all_destination_bytes() {
     let asset_store = AssetStore::new(rig.runtime_pool.clone(), files.store.clone());
     let mut export = request(saved.view);
     export.include_originals = false;
-    let size = SNAPSHOT_MAX_ASSET_FILE_BYTES as u64;
     let mut last_asset = None;
-    for n in 0..5u8 {
+    for (n, &size) in sizes.iter().enumerate() {
         // Sparse input plus the store's streaming copy avoids a 128 MiB Vec.
-        // Distinct first bytes produce five unique 128 MiB originals.
+        // Distinct first bytes preserve the five-original aggregate regression.
         let source = files.root.join(format!("large-{n}.bin"));
         let mut input = fs::File::create(&source).unwrap();
         input.set_len(size).unwrap();
-        input.write_all(&[n]).unwrap();
+        input.write_all(&[n as u8]).unwrap();
         drop(input);
         let blob = files
             .store
@@ -978,11 +986,34 @@ async fn metadata_only_five_max_size_assets_verify_all_destination_bytes() {
     let store = SnapshotImportStore::new(rig.runtime_pool.clone(), files.store.clone());
     let before = counts(&rig).await;
     let prepared = store.validate_exact(actor, &staged).await.unwrap();
-    assert_eq!(prepared.assets().count(), 5);
+    assert_eq!(prepared.assets().count(), sizes.len());
     assert_eq!(
         prepared.assets().map(|(_, _, bytes)| bytes).sum::<u64>(),
-        5 * size
+        sizes.iter().sum::<u64>()
     );
+    assert_eq!(counts(&rig).await, before);
+    // The same declarations are over the single or aggregate included budget.
+    let mut included = export.clone();
+    included.include_originals = true;
+    assert!(matches!(
+        SnapshotStore::new(rig.runtime_pool.clone())
+            .plan_exact(actor, &included)
+            .await,
+        Err(ContentError::Invalid(code)) if code == "snapshot_limit_exceeded"
+    ));
+    let mut included_manifest = plan.manifest.clone();
+    included_manifest.requires_destination_assets = false;
+    assert!(matches!(
+        stage_snapshot(
+            &files.root,
+            Uuid::new_v4(),
+            &included_manifest,
+            &plan.rows,
+            &plan.assets,
+            &files.store
+        ),
+        Err(learning_assets::SnapshotIoError::LimitExceeded)
+    ));
     assert_eq!(counts(&rig).await, before);
     let key: String =
         sqlx::query_scalar("SELECT storage_key FROM asset WHERE space_id=$1 AND id=$2")

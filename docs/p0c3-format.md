@@ -32,9 +32,9 @@ identity 按固定主键顺序编码为 `u-<规范UUID>`、`k-<reference kind>`�
 | 合计正文 | 8 MiB |
 | 包内文件数（含 manifest） | 2048 |
 | 单 JSON / 合计 JSON | 8 / 64 MiB |
-| 单原件 / 合计 included originals | 128 / 512 MiB |
+| 单个 / 合计 included originals | 128 / 512 MiB |
 
-原件按 storage digest 去重复制，不抹掉两次使用的各自逻辑资产/usage 身份。`requires_destination_assets=true` 不携带原件，不消耗 included-originals 合计预算，但每项声明仍有单文件限制，目标必须拥有**同 space + 同 asset ID**、相同元数据和真实 hash/size 字节；另一个资产恰好同 SHA 不算满足。
+原件按 storage digest 去重复制，不抹掉两次使用的各自逻辑资产/usage 身份。128 MiB 单文件和 512 MiB 合计限制仅用于随包携带的 included originals。`requires_destination_assets=true` 不携带原件，因此允许超过 128 MiB 的资产声明，也不消耗 included-originals 合计预算；大小仍须为非负、可表示的 PostgreSQL bigint。目标必须拥有**同 space + 同 asset ID**、相同元数据和真实 hash/size 字节，并逐项验证；另一个资产恰好同 SHA 不算满足。metadata-only 规划只读取授权元数据，导入 preflight 仍读取并验证真实目标原件。
 
 ## 本地安全入口
 

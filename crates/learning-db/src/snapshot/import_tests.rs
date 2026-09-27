@@ -6,6 +6,34 @@ use uuid::Uuid;
 fn u(n: u128) -> Uuid {
     Uuid::from_u128(n)
 }
+
+#[test]
+fn asset_metadata_size_is_not_an_included_original_limit() {
+    let (base, root, actor) = fixture();
+    let sha = hex_digest(b"metadata declaration");
+    let check = |size| {
+        let mut records = base.clone();
+        records.push(
+            rows::record(
+                SnapshotTable::Asset,
+                json!({
+                    "space_id":u(2),"id":u(100),"sha256":sha,"byte_size":size,
+                    "storage_key":format!("sha256/{}/{}",&sha[..2],sha),
+                    "media_type":"application/octet-stream","original_file_name":"large.bin",
+                    "status":"ready","created_at":"2026-09-24T00:00:00.000000Z"
+                }),
+            )
+            .unwrap(),
+        );
+        Package { rows: &records }.validate(&root, actor)
+    };
+    for size in [0, SNAPSHOT_MAX_ASSET_FILE_BYTES as i64 + 1, i64::MAX] {
+        check(json!(size)).unwrap();
+    }
+    for size in [json!(-1), json!(u64::MAX), json!(1.5)] {
+        assert!(check(size).is_err());
+    }
+}
 pub(super) fn fixture() -> (Vec<SnapshotRow>, ReadingRef, Principal) {
     let time = "2026-09-24T00:00:00.000000Z";
     let content = json!({"kind":"text","intent":"note","language":"en","title":"Title","payload":{"format":"markdown","text":"Original"}});
