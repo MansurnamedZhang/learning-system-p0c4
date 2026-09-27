@@ -447,13 +447,13 @@ fn process_exit_before_seal_never_publishes() {
         panic!("child should have exited while copying");
     }
     let root = Temp::new();
-    let status = std::process::Command::new(std::env::current_exe().unwrap())
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
         .arg("process_exit_before_seal_never_publishes")
         .env("SNAPSHOT_CRASH_ROOT", &root.0)
-        .status()
+        .output()
         .unwrap();
-    assert_eq!(status.code(), Some(73));
+    assert_eq!(output.status.code(), Some(73), "child output: {output:?}");
     let names = fs::read_dir(&root.0)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
