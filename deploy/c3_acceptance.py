@@ -262,6 +262,8 @@ def run_acceptance(root, evidence):
                         raise RuntimeError("refusing to stop a foreign container")
                     if info["State"]["Running"]:
                         command("stop-owned-container", ["docker", "stop", name])
+                    command("retained-container-logs", ["docker", "logs", name])
+                    inspect(name)
                 command("stop-new-project", base + ["stop", "pg"])
                 pg = inspect(f"{project}-pg-1")
                 if pg["State"]["Running"] or pg["State"]["ExitCode"] != 0:

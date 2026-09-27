@@ -403,14 +403,11 @@ async fn roundtrip(p: &PgPool, s: &Value) {
             .await
             .unwrap();
     assert_eq!(receipts, vec![receipt.manifest_sha256.clone()]);
-    save(
-        "roundtrip.json",
-        &json!({"manifest_sha256":receipt.manifest_sha256,"immutable_rows_sha256":canonical_record_hash(&s["rows"]),"projection_sha256":canonical_record_hash(&s["projection"]),"originals":originals,"receipt_count":1}),
-    );
-    println!(
-        "{}",
-        json!({"roundtrip":true,"wrong_actor_delivery_rejected":true,"wrong_actor_import_rejected":true,"manifest_sha256":receipt.manifest_sha256})
-    );
+    let evidence = json!({"roundtrip":true,"wrong_actor_delivery_rejected":true,"wrong_actor_import_rejected":true,
+        "manifest_sha256":receipt.manifest_sha256,"immutable_rows_sha256":canonical_record_hash(&s["rows"]),
+        "projection_sha256":canonical_record_hash(&s["projection"]),"originals":originals,"receipt_count":1});
+    save("roundtrip.json", &evidence);
+    println!("{evidence}");
 }
 
 #[tokio::main]
