@@ -1,6 +1,14 @@
 # Dedicated P0-C3 overlay. A new explicit project is mandatory on EVERY command.
 name: ${C3_PROJECT:?new isolated Task7 project required}
 services:
+  pg:
+    secrets:
+      - source: pg_postgres_password
+        target: postgres_password
+      - source: pg_admin_password
+        target: admin_password
+      - source: pg_runtime_password
+        target: runtime_password
   c3-test:
     profiles: [c3]
     image: ${C3_IMAGE:?fixed locally built test image digest required}
@@ -93,6 +101,13 @@ services:
       - /gate:uid=65532,gid=65532,mode=0700
       - /tmp:mode=1777
     networks: [test]
+secrets:
+  pg_postgres_password:
+    file: ../.runtime/secrets/pg/postgres_password
+  pg_admin_password:
+    file: ../.runtime/secrets/pg/admin_password
+  pg_runtime_password:
+    file: ../.runtime/secrets/pg/runtime_password
 volumes:
   c3_snapshots:
   c3_control:

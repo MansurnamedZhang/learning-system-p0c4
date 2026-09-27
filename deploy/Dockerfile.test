@@ -2,6 +2,7 @@
 FROM rust:1.97.0-bookworm@sha256:b5a086f64ffecaa4e283063184770107915756739598173e1f5712d6b34b84d0
 WORKDIR /app
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY .dockerignore deploy/Dockerfile.test ./build-provenance/
 COPY crates ./crates
 COPY migrations ./migrations
 COPY contracts ./contracts

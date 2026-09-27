@@ -11,6 +11,10 @@
 !deploy/
 !deploy/Dockerfile.test
 !deploy/run-tests.sh
+!deploy/c3-env.sh
+!deploy/c3-databases.json
+!deploy/c3-manage.sh
+!.dockerignore
 !deploy/bootstrap-fixtures.sh
 !deploy/fixture-runner/
 !deploy/fixture-runner/Cargo.toml
