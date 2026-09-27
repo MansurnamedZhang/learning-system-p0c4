@@ -7,6 +7,19 @@ import re
 SECRET_NAMES = ("postgres_password", "admin_password", "runtime_password")
 
 
+def check_deploy_shell_line_endings(root):
+    """Check the bytes that packaging and Docker COPY will actually read."""
+    deploy = root / "deploy"
+    for name in ("initdb.sh", "run-tests.sh"):
+        if not (deploy / name).is_file():
+            raise ValueError(f"missing deploy shell script: {name}")
+    for path in sorted(deploy.glob("*.sh")):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"invalid deploy shell script: {path.name}")
+        if b"\r" in path.read_bytes():
+            raise ValueError(f"deploy shell script must use LF bytes: {path.name}")
+
+
 def check_test_subnet(value, docker_subnets, host_routes):
     """Require one unused RFC1918 /24 before creating the Compose project."""
     try:
@@ -306,6 +319,7 @@ def source_hashes(root):
 
 def run_acceptance(root, evidence):
     """Explicit invocation only, on an authorized fresh Linux isolation project."""
+    check_deploy_shell_line_endings(root)
     import hashlib
     import os
     import subprocess

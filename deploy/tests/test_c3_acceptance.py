@@ -15,6 +15,41 @@ def worker_inspect():
                 "NetworkSettings":{"Networks":{"fresh_test":{}},"Ports":{}}}
 
 class AcceptancePolicy(unittest.TestCase):
+    def test_deploy_shell_line_ending_preflight_checks_worktree_bytes(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            deploy = root / 'deploy'
+            deploy.mkdir()
+            (deploy / 'initdb.sh').write_bytes(b'#!/bin/sh\nset -eu\n')
+            (deploy / 'run-tests.sh').write_bytes(b'#!/bin/sh\nset -eu\n')
+            (deploy / 'extra.sh').write_bytes(b'#!/bin/sh\nexit 0\n')
+            c3.check_deploy_shell_line_endings(root)
+            for name, contents in [('initdb.sh', b'#!/bin/sh\r\nset -eu\r\n'),
+                                   ('run-tests.sh', b'#!/bin/sh\nset -eu\r'),
+                                   ('extra.sh', b'#!/bin/sh\r\nexit 0\n')]:
+                path = deploy / name
+                clean = path.read_bytes()
+                path.write_bytes(contents)
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, name):
+                    c3.check_deploy_shell_line_endings(root)
+                path.write_bytes(clean)
+
+    def test_actual_deploy_shell_scripts_have_lf_bytes(self):
+        c3.check_deploy_shell_line_endings(ROOT)
+
+    def test_shell_line_ending_preflight_precedes_host_checks(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            deploy = root / 'deploy'
+            deploy.mkdir()
+            (deploy / 'initdb.sh').write_bytes(b'#!/bin/sh\r\nset -eu\r\n')
+            (deploy / 'run-tests.sh').write_bytes(b'#!/bin/sh\nset -eu\n')
+            with self.assertRaisesRegex(ValueError, 'initdb.sh'):
+                c3.run_acceptance(root, root / 'evidence')
+            self.assertFalse((root / 'evidence').exists())
+
     def test_identity_preflight_failures_close_evidence_without_inventory(self):
         import json, subprocess, tempfile
         from types import SimpleNamespace
