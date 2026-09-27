@@ -15,6 +15,46 @@ def worker_inspect():
                 "NetworkSettings":{"Networks":{"fresh_test":{}},"Ports":{}}}
 
 class AcceptancePolicy(unittest.TestCase):
+    def test_identity_preflight_failures_close_evidence_without_inventory(self):
+        import json, subprocess, tempfile
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            directory = pathlib.Path(temp)
+            binary = directory / 'worker'; binary.write_bytes(b'fixture')
+            for case in ('remote', 'info-exit', 'context-timeout'):
+                with self.subTest(case=case):
+                    project = 'learning-system-p0c3-task7-' + case.replace('-', '')
+                    calls = []
+                    def execute(argv, **kwargs):
+                        calls.append(argv)
+                        if case == 'context-timeout':
+                            raise subprocess.TimeoutExpired(argv, 7200, output=b'partial', stderr=b'timeout')
+                        if argv[1] == 'context':
+                            return subprocess.CompletedProcess(argv, 0, b'"unix:///var/run/docker.sock"', b'')
+                        if argv[1] == 'info':
+                            return subprocess.CompletedProcess(argv, 1, b'', b'info failed')
+                        self.fail(f'unexpected inventory: {argv}')
+                    env = {'C3_PROJECT':project, 'C3_TEST_SUBNET':'10.251.200.0/24',
+                           'C3_IMAGE':'sha256:'+'a'*64, 'C3_RUNTIME_IMAGE':'sha256:'+'b'*64,
+                           'C3_WORKER_BIN':str(binary)}
+                    if case == 'remote': env['DOCKER_HOST'] = 'tcp://remote:2375'
+                    evidence = directory / case
+                    with patch.dict('sys.modules', {'os':SimpleNamespace(name='posix', environ=env)}), \
+                         patch.object(c3, 'load_secrets', return_value=([b'c'*64], {})), \
+                         patch.object(c3, 'source_hashes', return_value={}), \
+                         patch('subprocess.run', side_effect=execute):
+                        with self.assertRaises(Exception): c3.run_acceptance(ROOT, evidence)
+                    self.assertTrue((evidence/'source-before.json').is_file())
+                    self.assertTrue((evidence/'source-after.json').is_file())
+                    result = json.loads((evidence/'result.json').read_text())
+                    self.assertEqual(result['status'], 'FAILED')
+                    self.assertTrue(result['source_unchanged'])
+                    self.assertIsNotNone(result['primary_failure'])
+                    hashes = json.loads((evidence/'evidence.sha256.json').read_text())
+                    self.assertIn('result.json', hashes)
+                    self.assertTrue(all(argv[1] in ('context','info') for argv in calls))
+
     def test_explicit_subnet_rejects_invalid_and_overlapping_ranges(self):
         docker = ['172.20.0.0/16', 'fd00::/64', '10.251.202.0/23']
         routes = [{'dst':'default'}, {'dst':'10.251.201.128/25'}, {'dst':'192.168.8.0/24'}]

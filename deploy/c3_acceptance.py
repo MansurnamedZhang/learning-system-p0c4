@@ -399,31 +399,31 @@ def run_acceptance(root, evidence):
         output = command("gate-state", ["docker", "exec", name, "sh", "-c", "if test -f /gate/claimed; then cat /gate/claimed; else printf pending; fi"])
         return output.startswith("pid=")
 
-    context_endpoint = json.loads(command("docker-endpoint", ["docker", "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"]))
-    endpoint = context_endpoint if env.get("DOCKER_CONTEXT") else env.get("DOCKER_HOST") or context_endpoint
-    if endpoint != "unix:///var/run/docker.sock":
-        raise ValueError("use the local rootful Docker socket; remote/rootless endpoints are unsupported")
-    check_docker_identity(json.loads(command("docker-security-options", ["docker", "info", "--format", "{{json .SecurityOptions}}"])))
-    for line in (root / "deploy/c3-migrations-0001-0013.sha256").read_text().splitlines():
-        digest, relative = line.split("  ", 1)
-        if hashlib.sha256((root / relative).read_bytes()).hexdigest() != digest:
-            raise ValueError("frozen migration changed")
     before = source_hashes(root)
     (evidence / "source-before.json").write_text(json.dumps(before, sort_keys=True))
     (evidence / "worker.sha256").write_text(hashlib.sha256(binary.read_bytes()).hexdigest())
-    # Check ALL object kinds before touching the new project, including stopped containers.
-    for kind, args in [("container", ["ps", "-aq"]), ("network", ["network", "ls", "-q"]), ("volume", ["volume", "ls", "-q"])]:
-        if command("fresh-" + kind, ["docker"] + args + ["--filter", f"label=com.docker.compose.project={project}"]).strip():
-            raise ValueError("project already exists; never reset/reuse its evidence")
-    for suffix in ["test_pg", "test_evidence", "test_assets", "test_staging", "c3_snapshots", "c3_control", "c3_destination"]:
-        if command("fresh-volume-name", ["docker", "volume", "inspect", f"{project}_{suffix}"], (0,1)).strip() not in ("", "[]"):
-            raise ValueError("named volume exists even without project label")
-    if command("fresh-network-name", ["docker", "network", "inspect", f"{project}_test"], (0,1)).strip() not in ("", "[]"):
-        raise ValueError("named network already exists")
     cleanup_armed = False
     primary_failure = None
     outcome = "FAILED"
     try:
+        context_endpoint = json.loads(command("docker-endpoint", ["docker", "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"]))
+        endpoint = context_endpoint if env.get("DOCKER_CONTEXT") else env.get("DOCKER_HOST") or context_endpoint
+        if endpoint != "unix:///var/run/docker.sock":
+            raise ValueError("use the local rootful Docker socket; remote/rootless endpoints are unsupported")
+        check_docker_identity(json.loads(command("docker-security-options", ["docker", "info", "--format", "{{json .SecurityOptions}}"])))
+        for line in (root / "deploy/c3-migrations-0001-0013.sha256").read_text().splitlines():
+            digest, relative = line.split("  ", 1)
+            if hashlib.sha256((root / relative).read_bytes()).hexdigest() != digest:
+                raise ValueError("frozen migration changed")
+        # Check ALL object kinds before touching the new project, including stopped containers.
+        for kind, args in [("container", ["ps", "-aq"]), ("network", ["network", "ls", "-q"]), ("volume", ["volume", "ls", "-q"])]:
+            if command("fresh-" + kind, ["docker"] + args + ["--filter", f"label=com.docker.compose.project={project}"]).strip():
+                raise ValueError("project already exists; never reset/reuse its evidence")
+        for suffix in ["test_pg", "test_evidence", "test_assets", "test_staging", "c3_snapshots", "c3_control", "c3_destination"]:
+            if command("fresh-volume-name", ["docker", "volume", "inspect", f"{project}_{suffix}"], (0,1)).strip() not in ("", "[]"):
+                raise ValueError("named volume exists even without project label")
+        if command("fresh-network-name", ["docker", "network", "inspect", f"{project}_test"], (0,1)).strip() not in ("", "[]"):
+            raise ValueError("named network already exists")
         for image in [env["C3_IMAGE"],env["C3_RUNTIME_IMAGE"]]:
             command("local-fixed-image", ["docker", "image", "inspect", image])
         # Read-only preflight probes have no network; only readability probes mount secrets.
