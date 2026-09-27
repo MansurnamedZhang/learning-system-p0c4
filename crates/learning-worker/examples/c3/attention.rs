@@ -140,6 +140,11 @@ async fn resource(r: &TestRig, asset: &AssetRef) -> (ResourceVersionRef, SourceS
 
 pub async fn attention() -> (TestRig, Principal, Uuid, SnapshotPlan, SnapshotRequest) {
     let (r, actor, space, doc, zero) = h::fixture().await;
+    // The legacy release records source history while the document is still V1.
+    r.releases()
+        .publish(actor, space, a::publish(vec![a::root(&doc, None)]))
+        .await
+        .unwrap();
     let one = h::store(&r)
         .edit(
             actor,
@@ -421,10 +426,6 @@ pub async fn attention() -> (TestRig, Principal, Uuid, SnapshotPlan, SnapshotReq
         .await
         .unwrap();
     // Real excluded source history exists; the target must not receive it.
-    r.releases()
-        .publish(actor, space, a::publish(vec![a::root(&latest, None)]))
-        .await
-        .unwrap();
     learning_db::LineageStore::new(r.runtime_pool.clone())
         .apply(
             actor,
