@@ -4,11 +4,11 @@ services:
   pg:
     secrets:
       - source: pg_postgres_password
-        target: postgres_password
+        target: /run/secrets/postgres_password
       - source: pg_admin_password
-        target: admin_password
+        target: /run/secrets/admin_password
       - source: pg_runtime_password
-        target: runtime_password
+        target: /run/secrets/runtime_password
   c3-test:
     profiles: [c3]
     image: ${C3_IMAGE:?fixed locally built test image digest required}

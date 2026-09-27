@@ -22,8 +22,14 @@ class AcceptancePolicy(unittest.TestCase):
 
     def test_pg_only_mounts_its_own_three_copies(self):
         import copy
-        config = {'services':{'pg':{'secrets':[{'source':'pg_'+name,'target':name} for name in c3.SECRET_NAMES]}},'secrets':{'pg_'+name:{'file':str(ROOT / '.runtime/secrets/pg' / name)} for name in c3.SECRET_NAMES}}
-        c3.check_pg_config(config,ROOT)
+        config = {'services':{'pg':{'secrets':[{'source':'pg_'+name,'target':'/run/secrets/'+name} for name in c3.SECRET_NAMES]}},'secrets':{'pg_'+name:{'file':str(ROOT / '.runtime/secrets/pg' / name)} for name in c3.SECRET_NAMES}}
+        try:
+            c3.check_pg_config(config,ROOT)
+        except ValueError as error:
+            self.fail(f"absolute PG secret targets should be accepted: {error}")
+        relative = copy.deepcopy(config)
+        relative['services']['pg']['secrets'][0]['target'] = c3.SECRET_NAMES[0]
+        with self.assertRaises(ValueError): c3.check_pg_config(relative,ROOT)
         bad = copy.deepcopy(config)
         bad['services']['pg']['secrets'][0]['source'] = 'postgres_password'
         with self.assertRaises(ValueError): c3.check_pg_config(bad,ROOT)

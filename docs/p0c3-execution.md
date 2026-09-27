@@ -87,4 +87,4 @@ sudo --preserve-env=C3_PROJECT,C3_IMAGE,C3_RUNTIME_IMAGE,C3_WORKER_BIN python3 d
 
 所有 command stdout/stderr（含 timeout）写入宿主证据前替换六份密码值，因此嵌入 DSN/config 的原文也会脱敏。`docker cp` 使用 stdout tar，仅在内存读取，拒绝链接/越界条目；逐文件脱敏后才写证据目录，没有暂存明文再改写的窗口。秘密值限定为无换行 ASCII 十六进制，因此不会有 URL/YAML 转义差异。不得自行执行并保存未脱敏的 `docker compose config`。官方 [Compose trust model](https://docs.docker.com/compose/trust-model/) 说明配置解析可能涉及文件内容；本修复属于预防措施，并没有观察到本批已泄漏。
 
-容器生成的旧 evidence.sha256 是其原始字节摘要；宿主脱敏可能改变日志字节，以宿主最终 `evidence.sha256.json` 为交付摘要，两者不伪称相同。密码永不写入摘要清单或错误消息。secret target 的合并规则见 [Compose merge](https://docs.docker.com/reference/compose-file/merge/)；实际合并与容器可读性仍须 Linux 首门验证。
+容器生成的旧 evidence.sha256 是其原始字节摘要；宿主脱敏可能改变日志字节，以宿主最终 `evidence.sha256.json` 为交付摘要，两者不伪称相同。密码永不写入摘要清单或错误消息。PG 覆盖文件把三个 secret target 写为 `/run/secrets/<name>`，与基础 Compose 短语法归一化后的 target 一致；合并规则见 [Compose merge](https://docs.docker.com/reference/compose-file/merge/)。实际合并与容器可读性仍须 Linux 首门验证。

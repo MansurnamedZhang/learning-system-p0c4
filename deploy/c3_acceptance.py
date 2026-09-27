@@ -114,10 +114,11 @@ def check_image_sources(expected, output):
 
 def check_pg_config(configuration, root):
     mounted = configuration["services"]["pg"]["secrets"]
-    expected = {name: "pg_" + name for name in SECRET_NAMES}
+    expected = {"/run/secrets/" + name: "pg_" + name for name in SECRET_NAMES}
     if len(mounted) != 3 or {item["target"]:item["source"] for item in mounted} != expected:
         raise ValueError("merged PG secrets must contain only the three PG-owned copies")
-    for name, source in expected.items():
+    for target, source in expected.items():
+        name = pathlib.PurePosixPath(target).name
         if pathlib.Path(configuration["secrets"][source]["file"]).resolve() != (root / ".runtime/secrets/pg" / name).resolve():
             raise ValueError("unexpected PG secret source")
 
