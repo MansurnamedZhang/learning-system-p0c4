@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from subprocess import CompletedProcess
 
-from p0c4_source_isolation import IsolationError, assess_project, probe_runtime_denied, manager_environment, validate_admin_endpoint, _daemon_preflight
+from p0c4_source_isolation import IsolationError, assess_project, probe_runtime_denied, manager_environment, validate_admin_endpoint, _daemon_preflight, _atomic_private_file, _private_capture, _publish_manager_logs, redact_log
 
 
 PROJECT = "learning-system-p0c4-test-1234"
@@ -132,6 +132,52 @@ class ProjectInspectionTests(unittest.TestCase):
         with self.assertRaises(IsolationError):
             _daemon_preflight()
         self.assertEqual(run.call_count, 1)
+
+    @patch("p0c4_source_isolation._rename_noreplace")
+    def test_evidence_file_is_fully_written_before_no_replace_publication(self, rename):
+        import os
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "probe.json"
+            def publish(source, destination):
+                if Path(destination).exists():
+                    raise FileExistsError(destination)
+                self.assertEqual(Path(source).read_bytes(), b"complete-proof")
+                os.link(source, destination)
+                os.unlink(source)
+            rename.side_effect = publish
+            _atomic_private_file(target, b"complete-proof")
+            self.assertEqual(target.read_bytes(), b"complete-proof")
+            with self.assertRaises(FileExistsError):
+                _atomic_private_file(target, b"different")
+
+    def test_redaction_hides_admin_url_and_password(self):
+        raw = b"postgres://learning_admin:secret@pg/db secret harmless"
+        self.assertEqual(redact_log(raw, [b"postgres://learning_admin:secret@pg/db", b"secret"]),
+                         b"[REDACTED] [REDACTED] harmless")
+
+    @patch("p0c4_source_isolation._rename_noreplace")
+    def test_manager_logs_are_retained_privately_and_redacted_for_evidence(self, rename):
+        import os
+        import tempfile
+        from pathlib import Path
+        rename.side_effect = os.replace
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pgpass = root / "admin.pgpass"
+            pgpass.write_bytes(b"pg:5432:db:learning_admin:secret\n")
+            stdout = _private_capture(root / "manager-id.stdout.raw")
+            stdout.write(b"connect postgres://learning_admin:secret@pg/db\n")
+            stderr = _private_capture(root / "manager-id.stderr.raw")
+            stderr.write(b"password=secret\n")
+            _publish_manager_logs(root, "id", {"stdout": stdout, "stderr": stderr}, {
+                "TEST_ADMIN_DATABASE_URL": "postgres://learning_admin:secret@pg/db",
+                "TEST_C4_PGPASSFILE": str(pgpass),
+            })
+            self.assertIn(b"[REDACTED]", (root / "manager-id.stdout.redacted.log").read_bytes())
+            self.assertNotIn(b"secret", (root / "manager-id.stderr.redacted.log").read_bytes())
+            self.assertIn(b"secret", (root / "manager-id.stderr.raw").read_bytes())
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ import stat
 import subprocess
 import sys
 import time
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 import uuid
 
 
@@ -169,16 +169,81 @@ def _private_file(path):
 
 
 def _atomic_private_file(path, payload):
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "wb") as output:
-        output.write(payload)
-        output.flush()
-        os.fsync(output.fileno())
-    dirfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    """Publish complete bytes once; the final name is never partially readable."""
+    path = Path(path)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
-        os.fsync(dirfd)
+        with os.fdopen(fd, "wb") as output:
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+        _rename_noreplace(temporary, path)
+        if os.name == "nt":
+            return
+        dirfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(dirfd)
+        finally:
+            os.close(dirfd)
     finally:
-        os.close(dirfd)
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _rename_noreplace(source, destination):
+    """Linux atomic rename without clobbering pre-existing evidence."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+        renameat2 = libc.renameat2
+    except AttributeError as exc:
+        raise IsolationError("atomic no-replace rename unavailable") from exc
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    if renameat2(-100, os.fsencode(source), -100, os.fsencode(destination), 1) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), str(destination))
+
+
+def redact_log(raw, values):
+    for secret in sorted({value for value in values if value}, key=len, reverse=True):
+        raw = raw.replace(secret, b"[REDACTED]")
+    return raw
+
+
+def _log_secrets(environment):
+    url = environment.get("TEST_ADMIN_DATABASE_URL", "")
+    secrets = [url.encode()]
+    parsed = urlsplit(url)
+    if parsed.password:
+        secrets.append(unquote(parsed.password).encode())
+        secrets.append(parsed.password.encode())
+    pgpass = environment.get("TEST_C4_PGPASSFILE")
+    if pgpass:
+        for line in Path(pgpass).read_bytes().splitlines():
+            if line and not line.startswith(b"#"):
+                secrets.append(line)
+                secrets.append(line.rsplit(b":", 1)[-1])
+    return secrets
+
+
+def _private_capture(path):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    return os.fdopen(fd, "wb")
+
+
+def _publish_manager_logs(root, backup_id, captures, environment):
+    secrets = _log_secrets(environment)
+    for stream, handle in captures.items():
+        handle.flush()
+        os.fsync(handle.fileno())
+        handle.close()
+        raw_path = root / f"manager-{backup_id}.{stream}.raw"
+        redacted = redact_log(raw_path.read_bytes(), secrets)
+        _atomic_private_file(root / f"manager-{backup_id}.{stream}.redacted.log", redacted)
 
 
 def _socket_exclusive():
@@ -353,12 +418,16 @@ def run(args):
             command.extend(["--env", key])
         command.extend([MANAGER_IMAGE, "/usr/local/bin/knowweave-c4-manager", *args.manager[1:]])
         runtime_process, runtime_backend = _start_runtime_transaction(pg["Id"], args.database)
+        captures = {}
         try:
+            captures["stdout"] = _private_capture(root / f"manager-{backup_id}.stdout.raw")
+            captures["stderr"] = _private_capture(root / f"manager-{backup_id}.stderr.raw")
             child = subprocess.Popen(
                 command, env={**child_env, "DOCKER_HOST": DOCKER_HOST}, close_fds=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=captures["stdout"], stderr=captures["stderr"],
             )
         except BaseException:
+            _publish_manager_logs(root, backup_id, captures, child_env)
             _end_runtime_transaction(pg["Id"], args.database, runtime_backend, runtime_process)
             raise
         probe_done = False
@@ -392,19 +461,22 @@ def run(args):
             end_bytes = json.dumps(final_facts, sort_keys=True, separators=(",", ":")).encode()
             _atomic_private_file(root / f"inspection-end-{backup_id}.json", end_bytes)
         finally:
-            if child.poll() is None:
-                try:
-                    _docker("stop", "--time", "1", manager_name)
-                except IsolationError:
-                    pass
-                child.terminate()
-                try:
-                    child.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    child.kill()
-                    child.wait()
-            if not runtime_ended and runtime_process.poll() is None:
-                _end_runtime_transaction(pg["Id"], args.database, runtime_backend, runtime_process)
+            try:
+                if child.poll() is None:
+                    try:
+                        _docker("stop", "--time", "1", manager_name)
+                    except IsolationError:
+                        pass
+                    child.terminate()
+                    try:
+                        child.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        child.kill()
+                        child.wait()
+                if not runtime_ended and runtime_process.poll() is None:
+                    _end_runtime_transaction(pg["Id"], args.database, runtime_backend, runtime_process)
+            finally:
+                _publish_manager_logs(root, backup_id, captures, child_env)
         _atomic_private_file(root / f"driver-result-{backup_id}.json", json.dumps({
             "status": "SOURCE_CAPTURE_DRIVER_PASSED_NOT_COMPLETE",
             "daemon_id": engine_id,

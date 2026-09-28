@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Package exactly HEAD's tracked bytes for a separately approved C4 Task3 run."""
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import zipfile
+
+
+def tracked_snapshot(repository):
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repository, text=True).strip()
+    paths = subprocess.check_output(["git", "ls-tree", "-r", "-z", "HEAD"], cwd=repository)
+    entries = {}
+    for raw in paths.split(b"\0"):
+        if raw:
+            header, name = raw.split(b"\t", 1)
+            if header.split(b" ", 1)[0] not in {b"100644", b"100755"}:
+                raise ValueError("tracked non-regular entry cannot be packaged")
+            path = name.decode("utf-8")
+            entries[path] = subprocess.check_output(["git", "show", f"HEAD:{path}"], cwd=repository)
+    return commit, entries
+
+
+def package(repository, destination):
+    commit, entries = tracked_snapshot(repository)
+    manifest = {
+        "format_version": 1,
+        "commit": commit,
+        "files": [{"path": path, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+                  for path, data in sorted(entries.items())],
+    }
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_STORED) as archive:
+        for path, data in sorted(entries.items()):
+            info = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
+            info.external_attr = 0o100444 << 16
+            archive.writestr(info, data)
+        info = zipfile.ZipInfo("SOURCE_MANIFEST.json", date_time=(1980, 1, 1, 0, 0, 0))
+        info.external_attr = 0o100444 << 16
+        archive.writestr(info, manifest_bytes)
+    return {
+        "archive": str(destination.resolve()),
+        "archive_sha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
+        "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+        "source_commit": commit,
+        "tracked_file_count": len(entries),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    print(json.dumps(package(args.repository, args.output), sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()
