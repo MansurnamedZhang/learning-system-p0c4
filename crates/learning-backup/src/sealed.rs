@@ -24,6 +24,14 @@ pub struct SealedBackup {
     backup_id: Uuid,
     manifest_sha256: String,
 }
+
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FaultPoint {
+    AfterTargetChunk,
+    BeforeRename,
+    BeforeParentSync,
+}
 impl SealedBackup {
     pub fn backup_id(&self) -> Uuid {
         self.backup_id
@@ -35,7 +43,10 @@ impl SealedBackup {
 
 /// Copy all declared files into a fresh private directory, read the target
 /// back completely, then publish `<id>.sealed` without replacing any entry.
-/// A failed attempt leaves only an unusable random staging directory.
+/// A failure before rename cannot publish this attempt; any partial staging
+/// directory stays unusable, and an existing sealed directory is unchanged.
+/// If parent sync fails after rename, a visible `.sealed` entry is indeterminate:
+/// this function returns an error, and a later verifier must sync and recheck it.
 pub fn seal_backup(
     destination_root: &Path,
     manifest: &BackupManifestV1,
@@ -55,43 +66,75 @@ pub fn seal_backup(
     }
     #[cfg(target_os = "linux")]
     {
-        let root = BackupDir::open_private_root(destination_root)?;
-        let stage_name = format!("{}.staging-{}", manifest.backup_id, Uuid::new_v4());
-        let stage = root.create_dir(&stage_name)?;
-        let dump_record = required_record(manifest, "database.dump")?;
-        let role_record = required_record(manifest, "roles.json")?;
-        dump.seek(SeekFrom::Start(0))?;
-        roles.seek(SeekFrom::Start(0))?;
-        write_source(&stage, dump_record, dump)?;
-        write_source(&stage, role_record, roles)?;
-        write_source(
-            &stage,
-            plan.asset_index_file(),
-            &mut plan.asset_index_bytes(),
-        )?;
-        for asset in plan.asset_files() {
-            let (parent, leaf) = ensure_parent(&stage, &asset.path)?;
-            let mut target = parent.create_file(&leaf)?;
-            let key = asset
-                .path
-                .strip_prefix("assets/")
-                .ok_or(BackupError::Invalid("asset package path"))?;
-            assets.copy_verified(key, &asset.sha256, asset.size, &mut target)?;
-            target.sync_all()?;
-            check_file(&stage, asset)?;
-        }
-        let manifest_bytes = manifest.canonical_bytes()?;
-        let manifest_record = FileRecord {
-            path: "manifest.json".into(),
-            size: u64::try_from(manifest_bytes.len()).map_err(|_| BackupError::Overflow)?,
-            sha256: manifest.canonical_sha256()?,
-        };
-        write_source(&stage, &manifest_record, &mut manifest_bytes.as_slice())?;
-        let checked = verify_directory(&stage, manifest.backup_id)?;
-        sync_and_seal_tree(&stage)?;
-        root.rename_noreplace(&stage_name, &format!("{}.sealed", manifest.backup_id))?;
-        Ok(checked)
+        seal_backup_with_hook(
+            destination_root,
+            manifest,
+            plan,
+            assets,
+            dump,
+            roles,
+            |_| Ok(()),
+        )
     }
+}
+
+#[cfg(target_os = "linux")]
+fn seal_backup_with_hook(
+    destination_root: &Path,
+    manifest: &BackupManifestV1,
+    plan: &BackupPlan,
+    assets: &FsAssetStore,
+    dump: &mut File,
+    roles: &mut File,
+    mut hook: impl FnMut(FaultPoint) -> Result<(), BackupError>,
+) -> Result<SealedBackup, BackupError> {
+    manifest.validate_with_index(plan.asset_index_bytes())?;
+    let root = BackupDir::open_private_root(destination_root)?;
+    let stage_name = format!("{}.staging-{}", manifest.backup_id, Uuid::new_v4());
+    let stage = root.create_dir(&stage_name)?;
+    let dump_record = required_record(manifest, "database.dump")?;
+    let role_record = required_record(manifest, "roles.json")?;
+    dump.seek(SeekFrom::Start(0))?;
+    roles.seek(SeekFrom::Start(0))?;
+    write_source(&stage, dump_record, dump, &mut hook)?;
+    write_source(&stage, role_record, roles, &mut hook)?;
+    write_source(
+        &stage,
+        plan.asset_index_file(),
+        &mut plan.asset_index_bytes(),
+        &mut hook,
+    )?;
+    for asset in plan.asset_files() {
+        let (parent, leaf) = ensure_parent(&stage, &asset.path)?;
+        let mut target = parent.create_file(&leaf)?;
+        let key = asset
+            .path
+            .strip_prefix("assets/")
+            .ok_or(BackupError::Invalid("asset package path"))?;
+        assets.copy_verified(key, &asset.sha256, asset.size, &mut target)?;
+        target.sync_all()?;
+        check_file(&stage, asset)?;
+    }
+    let manifest_bytes = manifest.canonical_bytes()?;
+    let manifest_record = FileRecord {
+        path: "manifest.json".into(),
+        size: u64::try_from(manifest_bytes.len()).map_err(|_| BackupError::Overflow)?,
+        sha256: manifest.canonical_sha256()?,
+    };
+    write_source(
+        &stage,
+        &manifest_record,
+        &mut manifest_bytes.as_slice(),
+        &mut hook,
+    )?;
+    verify_directory(&stage, manifest.backup_id)?;
+    sync_and_seal_tree(&stage)?;
+    hook(FaultPoint::BeforeRename)?;
+    root.rename_noreplace_without_sync(&stage_name, &format!("{}.sealed", manifest.backup_id))?;
+    hook(FaultPoint::BeforeParentSync)?;
+    root.sync()?;
+    // Reopen the published name after the parent sync, then recheck the bytes.
+    verify_sealed(destination_root, manifest.backup_id)
 }
 
 /// Re-read the manifest, index, every byte, and every directory entry using
@@ -107,10 +150,23 @@ pub fn verify_sealed(root: &Path, backup_id: Uuid) -> Result<SealedBackup, Backu
     }
     #[cfg(target_os = "linux")]
     {
-        let root = BackupDir::open_private_root(root)?;
-        let stage = root.open_dir(&format!("{backup_id}.sealed"))?;
-        verify_directory(&stage, backup_id)
+        verify_sealed_with_hook(root, backup_id, |_| Ok(()))
     }
+}
+
+#[cfg(target_os = "linux")]
+fn verify_sealed_with_hook(
+    root: &Path,
+    backup_id: Uuid,
+    mut hook: impl FnMut(FaultPoint) -> Result<(), BackupError>,
+) -> Result<SealedBackup, BackupError> {
+    let root = BackupDir::open_private_root(root)?;
+    hook(FaultPoint::BeforeParentSync)?;
+    root.sync()?;
+    // Opening by the published name only after the successful sync ensures
+    // validation covers the entry that the parent has made durable.
+    let stage = root.open_dir(&format!("{backup_id}.sealed"))?;
+    verify_directory(&stage, backup_id)
 }
 
 #[cfg(target_os = "linux")]
@@ -130,6 +186,7 @@ fn write_source(
     stage: &BackupDir,
     record: &FileRecord,
     source: &mut dyn Read,
+    hook: &mut impl FnMut(FaultPoint) -> Result<(), BackupError>,
 ) -> Result<(), BackupError> {
     let (parent, leaf) = ensure_parent(stage, &record.path)?;
     let mut target = parent.create_file(&leaf)?;
@@ -146,6 +203,7 @@ fn write_source(
             return Err(BackupError::Invalid("source file size"));
         }
         target.write_all(&buf[..n])?;
+        hook(FaultPoint::AfterTargetChunk)?;
         hash.update(&buf[..n]);
     }
     if size != record.size || format!("{:x}", hash.finalize()) != record.sha256 {
@@ -344,4 +402,182 @@ fn sync_and_seal_tree(dir: &BackupDir) -> Result<(), BackupError> {
     dir.sync()?;
     dir.seal_dir()?;
     Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod fault_tests {
+    use super::*;
+    use crate::{MigrationRecord, SourceIdentity};
+    use std::os::unix::fs::PermissionsExt;
+    use std::{fs, io, process::Command, thread, time::Duration};
+
+    const ID: Uuid = Uuid::from_u128(42);
+
+    fn dump_bytes() -> Vec<u8> {
+        vec![b'x'; 128 * 1024 + 13]
+    }
+
+    fn root() -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("c4-seal-fault-{}", Uuid::new_v4()));
+        fs::create_dir(&root).unwrap();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(root.join("dump-source"), dump_bytes()).unwrap();
+        fs::write(root.join("roles-source"), b"{}").unwrap();
+        root
+    }
+
+    fn clean(root: &Path) {
+        fn writable_dirs(path: &Path) {
+            for entry in fs::read_dir(path).unwrap() {
+                let entry = entry.unwrap();
+                if entry.file_type().unwrap().is_dir() {
+                    fs::set_permissions(entry.path(), fs::Permissions::from_mode(0o700)).unwrap();
+                    writable_dirs(&entry.path());
+                }
+            }
+        }
+        writable_dirs(root);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn invoke(
+        root: &Path,
+        hook: impl FnMut(FaultPoint) -> Result<(), BackupError>,
+    ) -> Result<SealedBackup, BackupError> {
+        let dump_bytes = dump_bytes();
+        let plan = BackupPlan::from_rows(vec![])?;
+        let source = SourceIdentity::from_migrations(
+            "a".repeat(64),
+            "b".repeat(40),
+            18,
+            vec![MigrationRecord {
+                version: 1,
+                checksum_hex: "c".repeat(96),
+            }],
+        )?;
+        let manifest = BackupManifestV1::from_plan(
+            ID,
+            source,
+            &plan,
+            FileRecord {
+                path: "database.dump".into(),
+                size: dump_bytes.len() as u64,
+                sha256: format!("{:x}", Sha256::digest(&dump_bytes)),
+            },
+            FileRecord {
+                path: "roles.json".into(),
+                size: 2,
+                sha256: format!("{:x}", Sha256::digest(b"{}")),
+            },
+        )?;
+        let assets = FsAssetStore::new(root.join("asset-root"), root.join("asset-stage"))?;
+        let mut dump = File::open(root.join("dump-source"))?;
+        let mut roles = File::open(root.join("roles-source"))?;
+        seal_backup_with_hook(root, &manifest, &plan, &assets, &mut dump, &mut roles, hook)
+    }
+
+    #[test]
+    fn injected_partial_write_leaves_only_unusable_staging() {
+        let root = root();
+        let result = invoke(&root, |point| {
+            if point == FaultPoint::AfterTargetChunk {
+                Err(BackupError::Io(io::Error::other("injected short write")))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(result.is_err());
+        let names = fs::read_dir(&root)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect::<Vec<_>>();
+        let stage = names
+            .iter()
+            .find(|p| {
+                p.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains(".staging-")
+            })
+            .unwrap();
+        let staged_len = fs::metadata(stage.join("database.dump")).unwrap().len();
+        assert!(staged_len > 0 && staged_len < dump_bytes().len() as u64);
+        assert!(!root.join(format!("{ID}.sealed")).exists());
+        assert!(!root.join(format!("{ID}.complete")).exists());
+        clean(&root);
+    }
+
+    #[test]
+    fn post_rename_parent_sync_failure_returns_error_and_reverify_must_sync_again() {
+        let root = root();
+        let result = invoke(&root, |point| {
+            if point == FaultPoint::BeforeParentSync {
+                Err(BackupError::Io(io::Error::other(
+                    "injected parent fsync failure",
+                )))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(result.is_err());
+        assert!(root.join(format!("{ID}.sealed")).is_dir());
+        assert!(!root.join(format!("{ID}.complete")).exists());
+        let refused = verify_sealed_with_hook(&root, ID, |point| {
+            if point == FaultPoint::BeforeParentSync {
+                Err(BackupError::Io(io::Error::other(
+                    "retry parent fsync failure",
+                )))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(refused.is_err());
+        assert_eq!(verify_sealed(&root, ID).unwrap().backup_id(), ID);
+        clean(&root);
+    }
+
+    #[test]
+    fn sigkill_child() {
+        let Ok(root) = std::env::var("C4_SIGKILL_STAGE_ROOT") else {
+            return;
+        };
+        let root = std::path::PathBuf::from(root);
+        let _ = invoke(&root, |point| {
+            if point == FaultPoint::BeforeRename {
+                fs::write(root.join("copy-finished-marker"), b"ready").unwrap();
+                loop {
+                    thread::sleep(Duration::from_secs(1));
+                }
+            }
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn sigkill_before_rename_cannot_publish_sealed_or_complete() {
+        let root = root();
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "sealed::fault_tests::sigkill_child"])
+            .env("C4_SIGKILL_STAGE_ROOT", &root)
+            .spawn()
+            .unwrap();
+        let mut marker_seen = false;
+        for _ in 0..200 {
+            if root.join("copy-finished-marker").exists() {
+                marker_seen = true;
+                break;
+            }
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "child exited before stage barrier"
+            );
+            thread::sleep(Duration::from_millis(50));
+        }
+        child.kill().unwrap();
+        assert!(!child.wait().unwrap().success());
+        assert!(marker_seen, "child did not reach the pre-rename barrier");
+        assert!(!root.join(format!("{ID}.sealed")).exists());
+        assert!(!root.join(format!("{ID}.complete")).exists());
+        clean(&root);
+    }
 }

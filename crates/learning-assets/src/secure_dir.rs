@@ -234,6 +234,10 @@ mod platform {
             file.sync_all()
         }
         pub(crate) fn rename(&self, old: &str, new: &str) -> io::Result<()> {
+            self.rename_without_sync(old, new)?;
+            self.sync()
+        }
+        pub(crate) fn rename_without_sync(&self, old: &str, new: &str) -> io::Result<()> {
             let old = Self::name(old)?;
             let new = Self::name(new)?;
             if unsafe {
@@ -248,7 +252,7 @@ mod platform {
             {
                 return Err(io::Error::last_os_error());
             }
-            self.sync()
+            Ok(())
         }
         pub(crate) fn remove_tree(&self, name: &str) -> io::Result<()> {
             let child = self.open_dir(name)?;
@@ -372,6 +376,9 @@ mod platform {
             unsupported()
         }
         pub(crate) fn rename(&self, _: &str, _: &str) -> io::Result<()> {
+            unsupported()
+        }
+        pub(crate) fn rename_without_sync(&self, _: &str, _: &str) -> io::Result<()> {
             unsupported()
         }
         pub(crate) fn remove_tree(&self, _: &str) -> io::Result<()> {

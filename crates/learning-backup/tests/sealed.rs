@@ -160,21 +160,26 @@ fn corrupt_missing_extra_and_linked_target_files_are_rejected() {
 #[test]
 fn failed_second_copy_cannot_replace_an_existing_sealed_directory() {
     let (root, store, plan, manifest, mut dump, mut roles) = fixture();
-    seal_backup(&root, &manifest, &plan, &store, &mut dump, &mut roles).unwrap();
-    let mut bad_dump = File::open(root.join("roles-source")).unwrap();
+    let first = seal_backup(&root, &manifest, &plan, &store, &mut dump, &mut roles).unwrap();
+    let mut valid_dump = File::open(root.join("dump-source")).unwrap();
     let mut roles_again = File::open(root.join("roles-source")).unwrap();
-    assert!(
-        seal_backup(
-            &root,
-            &manifest,
-            &plan,
-            &store,
-            &mut bad_dump,
-            &mut roles_again
-        )
-        .is_err()
+    let collision = seal_backup(
+        &root,
+        &manifest,
+        &plan,
+        &store,
+        &mut valid_dump,
+        &mut roles_again,
+    )
+    .unwrap_err();
+    assert!(matches!(collision, learning_backup::BackupError::Io(error)
+        if error.kind() == std::io::ErrorKind::AlreadyExists));
+    let old = verify_sealed(&root, manifest.backup_id).unwrap();
+    assert_eq!(old.manifest_sha256(), first.manifest_sha256());
+    assert_eq!(
+        fs::read(root.join(format!("{}.sealed/database.dump", manifest.backup_id))).unwrap(),
+        b"database dump"
     );
-    verify_sealed(&root, manifest.backup_id).unwrap();
     cleanup(root);
 }
 

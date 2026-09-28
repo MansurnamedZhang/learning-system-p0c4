@@ -64,6 +64,11 @@ impl BackupDir {
     pub fn rename_noreplace(&self, old: &str, new: &str) -> io::Result<()> {
         self.0.rename(old, new)
     }
+    /// The caller must sync this parent directory after a successful rename.
+    /// A sync failure means the publication outcome is indeterminate.
+    pub fn rename_noreplace_without_sync(&self, old: &str, new: &str) -> io::Result<()> {
+        self.0.rename_without_sync(old, new)
+    }
     pub fn try_clone(&self) -> io::Result<Self> {
         self.0.try_clone().map(Self)
     }
