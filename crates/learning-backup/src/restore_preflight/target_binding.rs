@@ -27,6 +27,70 @@ struct DockerClaim {
     mount_ino: u64,
 }
 
+#[derive(Deserialize)]
+struct PinPrecreation {
+    format_version: u32,
+    state: String,
+    target_absent_at_precreation: bool,
+    batch_id: String,
+    project: String,
+    database: String,
+    network: String,
+    volume: String,
+    subnet: String,
+    root_path: String,
+    root_dev: u64,
+    root_ino: u64,
+    targets_dev: u64,
+    targets_ino: u64,
+    docker_daemon_id: String,
+    initdb_path: String,
+    initdb_sha256: String,
+}
+
+fn validate_precreation(
+    record: &PinPrecreation,
+    claim: &DockerClaim,
+    root: &Path,
+    root_id: (u64, u64),
+    targets_id: (u64, u64),
+    root_entries: &[String],
+    targets_entries: &[String],
+) -> Result<(), BackupError> {
+    let birth_batch = claim
+        .database
+        .strip_prefix("learning_restore_c4_")
+        .ok_or(BackupError::Invalid("bound target batch"))?;
+    let parts: Vec<_> = root.components().collect();
+    let is_acceptance = parts
+        .windows(2)
+        .any(|pair| pair[0].as_os_str() == "birth-acceptance" && pair[1].as_os_str() == "batches");
+    let mut root_names = root_entries.to_vec();
+    root_names.sort();
+    if is_acceptance
+        || root_names != [".restore-target.lock", "pin-precreation.json", "targets"]
+        || targets_entries != [birth_batch]
+        || record.format_version != 1
+        || record.state != "PIN_ONLY_PRECREATION_NOT_RESTORE_AUTHORITY"
+        || !record.target_absent_at_precreation
+        || record.batch_id != birth_batch
+        || record.project != claim.project
+        || record.database != claim.database
+        || record.network != claim.network_name
+        || record.volume != claim.volume_name
+        || record.subnet != claim.subnet
+        || record.root_path != root.to_string_lossy()
+        || (record.root_dev, record.root_ino) != root_id
+        || (record.targets_dev, record.targets_ino) != targets_id
+        || record.docker_daemon_id != claim.daemon_id
+        || record.initdb_path != claim.initdb_source
+        || !crate::valid_digest(&record.initdb_sha256)
+    {
+        return Err(BackupError::Invalid("bound target precreation differs"));
+    }
+    Ok(())
+}
+
 fn exact_id(value: &str) -> bool {
     value.len() == 64
         && value
@@ -85,6 +149,31 @@ fn same_observation(before: &Value, after: &Value) -> Result<(), BackupError> {
     Ok(())
 }
 
+fn only_claimed_resource(output: &str, expected: &str) -> Result<(), BackupError> {
+    if output.strip_suffix('\n') == Some(expected) {
+        Ok(())
+    } else {
+        Err(BackupError::Invalid(
+            "bound project has extra or missing Docker resource",
+        ))
+    }
+}
+
+fn optional_existing_lock<T, F>(
+    kind: io::Result<BackupEntryKind>,
+    open_existing: F,
+) -> Result<Option<T>, BackupError>
+where
+    F: FnOnce() -> Result<T, BackupError>,
+{
+    match kind {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Ok(BackupEntryKind::File) => open_existing().map(Some),
+        Ok(_) => Err(BackupError::Invalid("bound target lock is not a file")),
+        Err(error) => Err(error.into()),
+    }
+}
+
 fn val<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
     path.iter().try_fold(value, |row, key| row.get(*key))
 }
@@ -141,6 +230,12 @@ fn validate_docker(
         )
         || !eq_str(volume, &["Driver"], "local")
         || !eq_str(volume, &["Scope"], "local")
+        || !volume.get("Options").is_some_and(|options| {
+            options.is_null()
+                || options
+                    .as_object()
+                    .is_some_and(|entries| entries.is_empty())
+        })
     {
         return Err(invalid);
     }
@@ -262,22 +357,6 @@ mod linux {
         birth_sha256: String,
     }
 
-    #[derive(Deserialize)]
-    struct PinPrecreation {
-        state: String,
-        target_absent_at_precreation: bool,
-        batch_id: String,
-        project: String,
-        database: String,
-        network: String,
-        volume: String,
-        subnet: String,
-        root_path: String,
-        docker_daemon_id: String,
-        initdb_path: String,
-        initdb_sha256: String,
-    }
-
     fn lock_existing(dir: &BackupDir, name: &str) -> Result<File, BackupError> {
         let file = dir.open_file(name)?;
         let meta = file.metadata()?;
@@ -352,10 +431,20 @@ mod linux {
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
             .open(path)?;
+        let opened = file.metadata()?;
+        if !opened.is_file()
+            || opened.uid() != 0
+            || opened.nlink() != 1
+            || opened.permissions().mode() & 0o777 != 0o444
+            || opened.len() == 0
+            || opened.len() > 1024 * 1024
+        {
+            return Err(BackupError::Invalid("bound initdb changed"));
+        }
         let mut bytes = Vec::new();
-        file.take(128 * 1024 + 1).read_to_end(&mut bytes)?;
-        if bytes.len() > 128 * 1024 {
-            return Err(BackupError::Invalid("bound initdb oversized"));
+        file.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 != opened.len() {
+            return Err(BackupError::Invalid("bound initdb length changed"));
         }
         Ok(format!("{:x}", Sha256::digest(&bytes)))
     }
@@ -373,6 +462,24 @@ mod linux {
         if docker(&["info".into(), "--format".into(), "{{.ID}}".into()])?.trim() != claim.daemon_id
         {
             return Err(BackupError::Invalid("bound Docker daemon differs"));
+        }
+        let label = format!("label=com.docker.compose.project={}", claim.project);
+        for (args, expected) in [
+            (
+                vec!["container", "ls", "-aq", "--no-trunc", "--filter", &label],
+                claim.container_id.as_str(),
+            ),
+            (
+                vec!["network", "ls", "-q", "--no-trunc", "--filter", &label],
+                claim.network_id.as_str(),
+            ),
+            (
+                vec!["volume", "ls", "-q", "--filter", &label],
+                claim.volume_name.as_str(),
+            ),
+        ] {
+            let args: Vec<String> = args.into_iter().map(str::to_owned).collect();
+            only_claimed_resource(&docker(&args)?, expected)?;
         }
         let pg = inspect("container", &claim.container_id)?;
         let network = inspect("network", &claim.network_id)?;
@@ -424,18 +531,13 @@ mod linux {
         let target = BackupDir::open_trusted_private_root(target_path)?;
         let control = BackupDir::open_trusted_private_root(&config.control_root)?;
         let lock_name = format!("{}.restore.lock", config.expected_database);
-        let _target_lock = match control.create_file(&lock_name) {
-            Ok(file) => {
-                file.sync_all()?;
-                control.sync()?;
-                drop(file);
-                lock_existing(&control, &lock_name)?
-            }
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                lock_existing(&control, &lock_name)?
-            }
-            Err(error) => return Err(error.into()),
-        };
+        // The standalone probe never creates the restore-attempt lock: a clean
+        // pin candidate must retain a control root containing only birth JSON.
+        // If another controller already created one, acquire it after the
+        // global creation lock to preserve lock ordering.
+        let _target_lock = optional_existing_lock(control.kind(&lock_name), || {
+            lock_existing(&control, &lock_name)
+        })?;
         let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(
             BackupError::Invalid("target birth digest is not build-pinned"),
         )?;
@@ -484,25 +586,6 @@ mod linux {
         {
             return Err(BackupError::Invalid("bound issuance evidence differs"));
         }
-        let batch = birth_batch_suffix(&birth)?;
-        if precreation.state != "PIN_ONLY_PRECREATION_NOT_RESTORE_AUTHORITY"
-            || !precreation.target_absent_at_precreation
-            || precreation.batch_id != batch
-            || precreation.project != birth.project_name
-            || precreation.database != birth.database_name
-            || precreation.network != state.network
-            || precreation.volume != birth.pg_volume_name
-            || precreation.subnet != state.subnet
-            || precreation.root_path != root_path.to_string_lossy()
-            || precreation.docker_daemon_id != evidence.docker_daemon_id
-            || !crate::valid_digest(&precreation.initdb_sha256)
-            || !Path::new(&precreation.initdb_path).is_absolute()
-        {
-            return Err(BackupError::Invalid("bound target precreation differs"));
-        }
-        if reviewed_initdb(Path::new(&precreation.initdb_path))? != precreation.initdb_sha256 {
-            return Err(BackupError::Invalid("bound initdb source differs"));
-        }
         let claim = DockerClaim {
             container_id: success.container_id,
             network_id: success.network_id,
@@ -517,12 +600,25 @@ mod linux {
             database_oid: birth.database_oid,
             subnet: state.subnet,
             target_path: target_path.to_string_lossy().into_owned(),
-            initdb_source: precreation.initdb_path,
+            initdb_source: precreation.initdb_path.clone(),
             mount_dev: success.volume_mount_dev,
             mount_ino: success.volume_mount_ino,
         };
         if claim.database != config.expected_database {
             return Err(BackupError::Invalid("bound database differs"));
+        }
+        let targets_dir = root.open_dir("targets")?;
+        validate_precreation(
+            &precreation,
+            &claim,
+            root_path,
+            root.identity()?,
+            targets_dir.identity()?,
+            &root.list()?,
+            &targets_dir.list()?,
+        )?;
+        if reviewed_initdb(Path::new(&precreation.initdb_path))? != precreation.initdb_sha256 {
+            return Err(BackupError::Invalid("bound initdb source differs"));
         }
         let before = observe(&claim)?;
         let sql = docker(&pg_exec_args(&claim)?)?;
@@ -600,6 +696,11 @@ mod tests {
         let volume = json!({"Name":c.volume_name,"Mountpoint":c.mountpoint,"Driver":"local","Scope":"local",
           "Options":{},"Labels":{"com.docker.compose.project":c.project}});
         assert!(validate_docker(&c, &good, &network, &volume).is_ok());
+        let mut foreign_options = volume.clone();
+        foreign_options["Options"] = json!({"device":"/other"});
+        assert!(validate_docker(&c, &good, &network, &foreign_options).is_err());
+        assert!(only_claimed_resource(&format!("{ID}\n"), ID).is_ok());
+        assert!(only_claimed_resource(&format!("{ID}\n{NET}\n"), ID).is_err());
         let mut extra = good.clone();
         extra["Mounts"]
             .as_array_mut()
@@ -635,5 +736,84 @@ mod tests {
         let after = validate_docker(&c, &restarted, &network, &volume).unwrap();
         assert!(same_observation(&before, &before).is_ok());
         assert!(same_observation(&before, &after).is_err());
+    }
+
+    #[test]
+    fn absent_target_lock_does_not_create_a_file_or_mutate_control() {
+        let root = std::env::temp_dir().join(format!(
+            "c4-readonly-lock-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let birth = root.join("birth.json");
+        std::fs::write(&birth, b"sealed").unwrap();
+        let before: Vec<_> = std::fs::read_dir(&root)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        let absent = root.join("target.restore.lock");
+        let lock: Option<()> =
+            optional_existing_lock(Err(io::Error::from(io::ErrorKind::NotFound)), || {
+                panic!("missing lock must never be opened or created")
+            })
+            .unwrap();
+        assert!(lock.is_none());
+        assert!(!absent.exists());
+        let after: Vec<_> = std::fs::read_dir(&root)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(before, after);
+        assert_eq!(std::fs::read(&birth).unwrap(), b"sealed");
+        assert!(optional_existing_lock::<(), _>(Ok(BackupEntryKind::Other), || Ok(())).is_err());
+        assert!(optional_existing_lock(Ok(BackupEntryKind::File), || Ok(42)).unwrap() == Some(42));
+        std::fs::remove_file(birth).unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn precreation_requires_inode_provenance_and_only_pin_root_entries() {
+        let c = claim();
+        let root = Path::new(
+            "/var/lib/knowweave-c4/pin-acceptance/batches/2b8a1252-54d5-48aa-b176-a9586a86bea3/control",
+        );
+        let data = json!({
+            "format_version":1,"state":"PIN_ONLY_PRECREATION_NOT_RESTORE_AUTHORITY",
+            "target_absent_at_precreation":true,
+            "batch_id":"2b8a1252-54d5-48aa-b176-a9586a86bea3",
+            "project":c.project,"database":c.database,"network":c.network_name,
+            "volume":c.volume_name,"subnet":c.subnet,"root_path":root.to_string_lossy(),
+            "root_dev":11,"root_ino":12,"targets_dev":13,"targets_ino":14,
+            "docker_daemon_id":c.daemon_id,"initdb_path":c.initdb_source,
+            "initdb_sha256":"a".repeat(64),
+        });
+        let roots = vec![
+            ".restore-target.lock".into(),
+            "pin-precreation.json".into(),
+            "targets".into(),
+        ];
+        let targets = vec!["2b8a1252-54d5-48aa-b176-a9586a86bea3".into()];
+        let check = |value: Value, root: &Path, entries: &[String]| {
+            let record: PinPrecreation = serde_json::from_value(value).unwrap();
+            validate_precreation(&record, &c, root, (11, 12), (13, 14), entries, &targets)
+        };
+        assert!(check(data.clone(), root, &roots).is_ok());
+        let mut wrong_inode = data.clone();
+        wrong_inode["targets_ino"] = json!(15);
+        assert!(check(wrong_inode, root, &roots).is_err());
+        let mut wrong_version = data.clone();
+        wrong_version["format_version"] = json!(2);
+        assert!(check(wrong_version, root, &roots).is_err());
+        let mut extra = roots.clone();
+        extra.push("prior-result.json".into());
+        assert!(check(data.clone(), root, &extra).is_err());
+        let birth_root = Path::new("/var/lib/knowweave-c4/birth-acceptance/batches/x/control");
+        let mut replay = data;
+        replay["root_path"] = json!(birth_root.to_string_lossy());
+        assert!(check(replay, birth_root, &roots).is_err());
     }
 }
