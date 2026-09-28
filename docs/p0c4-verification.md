@@ -51,6 +51,7 @@
 - 计划使用新 root 专用目录 `/var/lib/knowweave-c4`，固定批次 UUID `9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160`，三套全新 Compose 项目与 `10.251.215/216/217.0/24` 子网；启动前必须再次检查宿主路由、Docker 网络、项目/卷/容器均未占用。此测试信任宿主和 Docker 管理员，不能证明抵御其恶意篡改。
 - Task 3 成功门只证实源端闸、dump、资产索引及受控恢复比对。当前 `learning-backup` 只暴露 `SealedBackup`/`SourceLocalPin`，尚无独立目标校验后的 `CompleteBackup` 能力或完成收据发布器；`.sealed` 不可作为可恢复备份。Task 4 的干净实例完整恢复和 Task 5 全链验收仍分别待做，不提前写入 `P0_C4_VERIFIED`。
 - 用户在服务器本机执行 root-only 验收后，runner 返回 `TASK3_CANDIDATE_GATES_PASSED_NOT_PRODUCTION`，`result.json` 位于 `/var/lib/knowweave-c4/batches/892adcedb12b-9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160/result.json`，报告 SHA-256 `d10e46d7f562925aa05099d55812b4665229a674d766a153d5628a68aef3108d`。根任务通过只读 Docker 查询确认三个 Task 3 项目没有遗留容器、网络或卷；root 私有 `result.json` 内容尚待单独只读审计，故此处只记录候选门摘要，不扩大为完整 C4 验收。
+- 服务器只读 `lsblk` 显示仅一块承载根文件系统的 `nvme0n1`；同机两个 Docker 卷不构成实际异故障域。目标端全量校验和收据代码可先实现，但最终备份可恢复性验收需要另一物理磁盘或独立主机/NAS 的实测证据。
 
 ## Task 4 本地策略切片
 
