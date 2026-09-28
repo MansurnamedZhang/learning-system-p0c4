@@ -319,6 +319,47 @@ class CandidateGates(unittest.TestCase):
                     docker, identity, target, SUBNET, before, initdb)
             stop.assert_not_called()
 
+    def test_already_exited_exact_pg_is_confirmed_without_new_stop(self):
+        identity = identity_for(ID)
+        target = Path("/private/targets") / ID
+        initdb = Path("/private/initdb.sh")
+        state = records()[2]
+        exited = created(identity)
+        exited["containers"][0]["State"]["Running"] = False
+        exited["containers"][0]["State"]["Status"] = "exited"
+        for destination, source in (
+            ("/docker-entrypoint-initdb.d/10-restore.sh", initdb),
+            ("/run/secrets/postgres_password", target / "secrets/postgres_password"),
+            ("/run/secrets/admin_password", target / "secrets/admin_password"),
+        ):
+            exited["containers"][0]["Mounts"].append(
+                {"Type": "bind", "Source": str(source), "RW": False,
+                 "Destination": destination})
+        exited["volumes"][0].update(Driver="local", Scope="local", Options=None)
+        docker = MagicMock()
+        docker.snapshot.side_effect = [exited, exited, exited]
+        docker._inspect.return_value = exited["images"]
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=True), \
+             patch.object(runner, "_private_read",
+                          return_value=json.dumps(state).encode()):
+            result = runner.stop_early_owned_pg(
+                docker, identity, target, SUBNET, empty_snapshot(), initdb)
+        self.assertTrue(result["confirmed"])
+        self.assertTrue(result["volume_retained"])
+        self.assertEqual(result["container_id"], "a" * 64)
+        docker._docker.assert_not_called()
+        wrong_state = {**state, "container_id": "c" * 64}
+        docker.snapshot.side_effect = [exited]
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=True), \
+             patch.object(runner, "_private_read",
+                          return_value=json.dumps(wrong_state).encode()):
+            with self.assertRaises(ValueError):
+                runner.stop_early_owned_pg(
+                    docker, identity, target, SUBNET, empty_snapshot(), initdb)
+        docker._docker.assert_not_called()
+
     def test_timeout_without_state_stops_only_new_isolated_project(self):
         identity = identity_for(ID)
         target = Path("/private/targets") / ID

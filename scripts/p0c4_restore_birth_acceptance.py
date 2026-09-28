@@ -173,7 +173,7 @@ def validate_candidate_records(identity, batch_id, birth_bytes, state, success, 
 
 
 def validate_live_docker(identity, subnet, before, live, expected, target, initdb,
-                         *, allow_starting=False):
+                         *, allow_starting=False, allow_exited=False):
     """Inspect Docker fields directly, in addition to provisioner verification."""
     project = identity["project"]
     require(live.get("daemon_id") == before.get("daemon_id"),
@@ -197,7 +197,9 @@ def validate_live_docker(identity, subnet, before, live, expected, target, initd
             volume.get("Driver") == "local" and volume.get("Scope") == "local" and
             volume.get("Options") in (None, {}) and
             pg.get("Config", {}).get("Image") == identity["image"] and
-            pg.get("State", {}).get("Running") is True and
+            (pg.get("State", {}).get("Running") is True or
+             (allow_exited and pg.get("State", {}).get("Running") is False and
+              pg.get("State", {}).get("Status") == "exited")) and
             (allow_starting or
              pg.get("State", {}).get("Health", {}).get("Status") == "healthy"),
             "Docker immutable identity or health differs")
@@ -316,7 +318,7 @@ def stop_early_owned_pg(provisioner, identity, target, subnet, before, initdb):
                 all(recorded.get(key) == value for key, value in
                     expected.items()), "private creation state differs")
     validate_live_docker(identity, subnet, before, live, expected,
-                         target, initdb, allow_starting=True)
+                         target, initdb, allow_starting=True, allow_exited=True)
     stopped = stop_verified_pg(provisioner, identity, pg["Id"])
     return {**stopped, "basis": ("private-state-and-live-docker" if has_state
                                 else "fresh-snapshot-no-state")}
