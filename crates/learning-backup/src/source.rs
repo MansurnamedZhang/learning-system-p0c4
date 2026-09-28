@@ -1,6 +1,8 @@
 //! Management-side source capture. The result is a local `sealed` pin, never
 //! an independent fault-domain copy or a restorable `complete` receipt.
 #[cfg(target_os = "linux")]
+use crate::maintenance::valid_c4_database;
+#[cfg(target_os = "linux")]
 use crate::{
     AdminAssetCatalog, FileRecord, GateInspection, GatePhase, MigrationRecord, PgDumpSpec,
     SourceGateJournal, SourceIdentity, seal_backup,
@@ -149,7 +151,7 @@ async fn prepare_linux(
     {
         return Err(BackupError::Invalid("source backup configuration"));
     }
-    verify_isolation_attestation(config)?;
+    verify_isolation_attestation(config, true)?;
     // Both roots must exist and be owned 0700 before altering DB privileges.
     let control = BackupDir::open_private_root(&config.control_root)?;
     BackupDir::open_private_root(&config.local_pin_root)?;
@@ -184,6 +186,7 @@ async fn prepare_linux(
     let revoke = format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
     sqlx::query(&revoke).execute(admin).await?;
     journal.advance(GatePhase::Closed, None)?;
+    wait_for_runtime_connect_probe(config).await?;
     let deadline = Instant::now() + config.drain_timeout;
     loop {
         let facts = inspect_gate(admin).await?;
@@ -244,6 +247,7 @@ async fn prepare_linux(
     }
     journal.advance(GatePhase::PinsDurable, Some(&manifest_sha256))?;
     inspect_gate(admin).await?.validate()?;
+    verify_isolation_attestation(config, false)?;
     release_runtime_connect(admin, &database, &mut journal).await?;
     Ok(SourceLocalPin { sealed, manifest })
 }
@@ -307,6 +311,8 @@ struct IsolationAttestation {
     database: String,
     compose_project: String,
     observed_unix_ms: u64,
+    driver_pid: u32,
+    inspection_file: String,
     runtime_running: u32,
     worker_running: u32,
     other_admin_processes: u32,
@@ -318,8 +324,67 @@ struct IsolationAttestation {
 }
 
 #[cfg(target_os = "linux")]
-fn verify_isolation_attestation(config: &SourceBackupConfig) -> Result<(), BackupError> {
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RuntimeConnectProbe {
+    backup_id: Uuid,
+    database: String,
+    result: String,
+}
+
+#[cfg(target_os = "linux")]
+async fn wait_for_runtime_connect_probe(config: &SourceBackupConfig) -> Result<(), BackupError> {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let parent = config
+        .isolation_attestation
+        .parent()
+        .ok_or(BackupError::Invalid("driver proof path"))?;
+    let root = BackupDir::open_private_root(parent)?;
+    let deadline = Instant::now() + config.drain_timeout;
+    let name = format!("runtime-connect-denied-{}.json", config.backup_id);
+    loop {
+        match root.open_file(&name) {
+            Ok(mut file) => {
+                let meta = file.metadata()?;
+                if meta.uid() != 0
+                    || meta.permissions().mode() & 0o777 != 0o600
+                    || meta.len() > 1024
+                {
+                    return Err(BackupError::Invalid("runtime probe evidence permissions"));
+                }
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes)?;
+                let probe: RuntimeConnectProbe = serde_json::from_slice(&bytes)?;
+                if probe.backup_id != config.backup_id
+                    || probe.database != config.expected_database
+                    || probe.result != "runtime_connect_denied"
+                {
+                    return Err(BackupError::Invalid("runtime probe evidence mismatch"));
+                }
+                verify_isolation_attestation(config, false)?;
+                return Ok(());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        if Instant::now() >= deadline {
+            return Err(BackupError::Invalid(
+                "runtime connect denial probe timed out",
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn verify_isolation_attestation(
+    config: &SourceBackupConfig,
+    require_fresh: bool,
+) -> Result<(), BackupError> {
+    use std::os::unix::{
+        fs::{MetadataExt, PermissionsExt},
+        io::AsRawFd,
+    };
     let parent = config
         .isolation_attestation
         .parent()
@@ -337,9 +402,13 @@ fn verify_isolation_attestation(config: &SourceBackupConfig) -> Result<(), Backu
         return Err(BackupError::Invalid("isolation attestation identity"));
     }
     let root = BackupDir::open_private_root(parent)?;
+    let parent_meta = std::fs::symlink_metadata(parent)?;
+    if unsafe { libc::geteuid() } != 0 || parent_meta.uid() != 0 {
+        return Err(BackupError::Invalid("root-owned isolation driver required"));
+    }
     let mut file = root.open_file(leaf)?;
     let metadata = file.metadata()?;
-    if metadata.uid() != unsafe { libc::geteuid() }
+    if metadata.uid() != 0
         || metadata.permissions().mode() & 0o777 != 0o600
         || metadata.len() > 4096
     {
@@ -348,6 +417,64 @@ fn verify_isolation_attestation(config: &SourceBackupConfig) -> Result<(), Backu
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes)?;
     let proof: IsolationAttestation = serde_json::from_slice(&bytes)?;
+    let expected_inspection = format!("inspection-{}.json", config.backup_id);
+    if proof.inspection_file != expected_inspection || proof.driver_pid == 0 {
+        return Err(BackupError::Invalid("isolation driver evidence identity"));
+    }
+    let mut inspection_file = root.open_file(&expected_inspection)?;
+    let inspection_meta = inspection_file.metadata()?;
+    if inspection_meta.uid() != 0
+        || inspection_meta.permissions().mode() & 0o777 != 0o600
+        || inspection_meta.len() > 1024 * 1024
+    {
+        return Err(BackupError::Invalid("private Docker inspection evidence"));
+    }
+    let mut inspection_bytes = Vec::new();
+    inspection_file.read_to_end(&mut inspection_bytes)?;
+    if !inspection_digest_matches(&proof.docker_inspection_sha256, &inspection_bytes) {
+        return Err(BackupError::Invalid("Docker inspection digest mismatch"));
+    }
+    let inspection: serde_json::Value = serde_json::from_slice(&inspection_bytes)?;
+    if inspection["network"]["project"] != config.expected_compose_project
+        || inspection["network"]["internal"] != true
+        || inspection["runtime_running"] != proof.runtime_running
+        || inspection["worker_running"] != proof.worker_running
+        || inspection["other_admin_processes"] != proof.other_admin_processes
+        || inspection["postgres_published_ports"] != proof.postgres_published_ports
+        || inspection["network_internal"] != proof.network_internal
+        || inspection["manager_runtime_secret_mounts"] != proof.manager_runtime_secret_mounts
+        || inspection["manager_runtime_env_keys"] != proof.manager_runtime_env_keys
+        || inspection["containers"].as_array().is_none_or(|items| {
+            items.is_empty()
+                || !items
+                    .iter()
+                    .any(|v| v["service"] == "pg" && v["running"] == true)
+                || items
+                    .iter()
+                    .any(|v| v["service"] != "pg" && v["running"] == true)
+        })
+    {
+        return Err(BackupError::Invalid(
+            "Docker inspection does not prove isolation",
+        ));
+    }
+    let lock = root.open_file(&format!("isolation-{}.lock", config.backup_id))?;
+    let lock_meta = lock.metadata()?;
+    if lock_meta.uid() != 0 || lock_meta.permissions().mode() & 0o777 != 0o600 {
+        return Err(BackupError::Invalid("private isolation driver lock"));
+    }
+    let locked_elsewhere = unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if locked_elsewhere == 0 {
+        unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_UN) };
+        return Err(BackupError::Invalid(
+            "isolation driver no longer holds exclusive lock",
+        ));
+    }
+    if std::io::Error::last_os_error().raw_os_error() != Some(libc::EWOULDBLOCK) {
+        return Err(BackupError::Invalid(
+            "isolation driver lock could not be checked",
+        ));
+    }
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| BackupError::Invalid("system clock"))?
@@ -355,11 +482,11 @@ fn verify_isolation_attestation(config: &SourceBackupConfig) -> Result<(), Backu
     let age = now
         .checked_sub(u128::from(proof.observed_unix_ms))
         .ok_or(BackupError::Invalid("future isolation attestation"))?;
-    if proof.format_version != 1
+    if proof.format_version != 2
         || proof.backup_id != config.backup_id
         || proof.database != config.expected_database
         || proof.compose_project != config.expected_compose_project
-        || age > 30_000
+        || (require_fresh && age > 30_000)
         || proof.runtime_running != 0
         || proof.worker_running != 0
         || proof.other_admin_processes != 0
@@ -436,10 +563,7 @@ async fn require_admin_owner(pool: &PgPool) -> Result<String, BackupError> {
             .as_deref()
             .and_then(|v| v.split_once(':'))
             .is_none_or(|(method, user)| method.is_empty() || user != "learning_admin")
-        || database.is_empty()
-        || !database
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        || !valid_c4_database(&database)
     {
         return Err(BackupError::Invalid(
             "authenticated management database owner required",
@@ -512,9 +636,49 @@ async fn collect_source_identity(pool: &PgPool) -> Result<SourceIdentity, Backup
     }
     let commit = option_env!("KNOWWEAVE_SOURCE_COMMIT")
         .ok_or(BackupError::Invalid("build lacks embedded source commit"))?;
-    let mut executable = File::open(std::env::current_exe()?)?;
-    let build_sha256 = record_file("running-executable", &mut executable)?.sha256;
+    // This is a shared package/build-input identity, not the hash of the
+    // particular management executable. The same reviewed package must be
+    // embedded in the separate restore binary or Task 4 rejects it.
+    let build_sha256 = compiled_build_id(option_env!("KNOWWEAVE_BUILD_ID_SHA256"))?;
     SourceIdentity::from_migrations(build_sha256, commit.into(), 18, migrations)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn compiled_build_id(value: Option<&str>) -> Result<String, BackupError> {
+    let value = value.ok_or(BackupError::Invalid(
+        "build lacks reviewed package identity",
+    ))?;
+    if !crate::valid_digest(value) {
+        return Err(BackupError::Invalid(
+            "noncanonical reviewed package identity",
+        ));
+    }
+    Ok(value.to_owned())
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn inspection_digest_matches(expected: &str, bytes: &[u8]) -> bool {
+    crate::valid_digest(expected) && crate::digest(bytes) == expected
+}
+
+#[cfg(test)]
+mod build_identity_tests {
+    use super::*;
+
+    #[test]
+    fn source_and_restore_require_same_reviewed_package_digest() {
+        assert!(compiled_build_id(None).is_err());
+        assert!(compiled_build_id(Some(&"A".repeat(64))).is_err());
+        let digest = "a".repeat(64);
+        assert_eq!(compiled_build_id(Some(&digest)).unwrap(), digest);
+    }
+
+    #[test]
+    fn fabricated_docker_digest_cannot_bind_unseen_inspection_bytes() {
+        let bytes = br#"{"network":{"internal":true}}"#;
+        assert!(!inspection_digest_matches(&"a".repeat(64), bytes));
+        assert!(inspection_digest_matches(&crate::digest(bytes), bytes));
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -642,17 +806,37 @@ mod linux_gate_tests {
             pg_port: 5432,
             drain_timeout: Duration::from_secs(5),
         };
-        assert!(verify_isolation_attestation(&config).is_err());
+        assert!(verify_isolation_attestation(&config, true).is_err());
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
+        let inspection = serde_json::to_vec(&serde_json::json!({
+            "network": {"project": config.expected_compose_project, "internal": true},
+            "containers": [{"service": "pg", "running": true}],
+            "runtime_running": 0, "worker_running": 0, "other_admin_processes": 0,
+            "postgres_published_ports": 0, "network_internal": true,
+            "manager_runtime_secret_mounts": 0, "manager_runtime_env_keys": 0
+        }))
+        .unwrap();
+        let inspection_name = format!("inspection-{id}.json");
+        std::fs::write(root.join(&inspection_name), &inspection).unwrap();
+        std::fs::set_permissions(
+            root.join(&inspection_name),
+            std::fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        let lock = root.join(format!("isolation-{id}.lock"));
+        std::fs::write(&lock, []).unwrap();
+        std::fs::set_permissions(&lock, std::fs::Permissions::from_mode(0o600)).unwrap();
         let mut proof = serde_json::json!({
-            "format_version": 1,
+            "format_version": 2,
             "backup_id": id,
             "database": config.expected_database,
             "compose_project": config.expected_compose_project,
             "observed_unix_ms": now,
+            "driver_pid": std::process::id(),
+            "inspection_file": inspection_name,
             "runtime_running": 0,
             "worker_running": 0,
             "other_admin_processes": 0,
@@ -660,22 +844,22 @@ mod linux_gate_tests {
             "network_internal": true,
             "manager_runtime_secret_mounts": 0,
             "manager_runtime_env_keys": 0,
-            "docker_inspection_sha256": "a".repeat(64)
+            "docker_inspection_sha256": format!("{:x}", Sha256::digest(&inspection))
         });
         std::fs::write(&file, serde_json::to_vec(&proof).unwrap()).unwrap();
         std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
-        assert!(verify_isolation_attestation(&config).is_ok());
+        assert!(verify_isolation_attestation(&config, true).is_err());
         proof["worker_running"] = serde_json::json!(1);
         std::fs::write(&file, serde_json::to_vec(&proof).unwrap()).unwrap();
-        assert!(verify_isolation_attestation(&config).is_err());
+        assert!(verify_isolation_attestation(&config, true).is_err());
         proof["worker_running"] = serde_json::json!(0);
         proof["manager_runtime_secret_mounts"] = serde_json::json!(1);
         std::fs::write(&file, serde_json::to_vec(&proof).unwrap()).unwrap();
-        assert!(verify_isolation_attestation(&config).is_err());
+        assert!(verify_isolation_attestation(&config, true).is_err());
         proof["manager_runtime_secret_mounts"] = serde_json::json!(0);
         proof["observed_unix_ms"] = serde_json::json!(now - 31_000);
         std::fs::write(&file, serde_json::to_vec(&proof).unwrap()).unwrap();
-        assert!(verify_isolation_attestation(&config).is_err());
+        assert!(verify_isolation_attestation(&config, true).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -685,9 +869,7 @@ mod linux_gate_tests {
     #[ignore = "requires separate isolated PG18 release-fault database"]
     async fn release_journal_failure_recloses_runtime_connect() {
         let database = std::env::var("TEST_C4_RELEASE_DATABASE_NAME").unwrap();
-        let suffix = database
-            .strip_prefix("learning_backup_c4_task3_release_")
-            .unwrap();
+        let suffix = database.strip_prefix("learning_backup_c4_task3_").unwrap();
         assert_eq!(Uuid::parse_str(suffix).unwrap().to_string(), suffix);
         let url = std::env::var("TEST_C4_RELEASE_ADMIN_DATABASE_URL").unwrap();
         let pool = PgPoolOptions::new()

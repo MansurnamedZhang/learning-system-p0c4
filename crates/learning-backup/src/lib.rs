@@ -70,6 +70,9 @@ pub struct FileRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SourceIdentity {
+    /// SHA-256 of the reviewed source/build input package, embedded at compile
+    /// time as KNOWWEAVE_BUILD_ID_SHA256 by the trusted build. Management and
+    /// restore binaries from one build share it; it is not an executable hash.
     pub application_build_sha256: String,
     pub application_commit: String,
     pub postgres_major: u32,

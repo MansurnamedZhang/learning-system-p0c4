@@ -284,18 +284,13 @@ pub struct PgDumpSpec {
 
 impl PgDumpSpec {
     pub fn new(database: &str, host: &str, port: u16) -> Result<Self, BackupError> {
-        fn identifier(v: &str) -> bool {
-            !v.is_empty()
-                && !v.starts_with('-')
-                && v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-        }
         fn hostname(v: &str) -> bool {
             !v.is_empty()
                 && !v.starts_with('-')
                 && v.bytes()
                     .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
         }
-        if !identifier(database) || !hostname(host) || port == 0 {
+        if !valid_c4_database(database) || !hostname(host) || port == 0 {
             return Err(BackupError::Invalid("pg_dump target"));
         }
         Ok(Self {
@@ -358,6 +353,7 @@ impl PgDumpSpec {
             .env_clear()
             .env("LC_ALL", "C")
             .env("PGPASSFILE", pgpassfile)
+            .env("PGAPPNAME", "knowweave_c4_pg_dump")
             .env("PGCONNECT_TIMEOUT", "10")
             .stdout(Stdio::from(output.try_clone()?))
             .stderr(Stdio::null())
@@ -368,4 +364,14 @@ impl PgDumpSpec {
         output.sync_all()?;
         Ok(())
     }
+}
+
+/// The only source database namespace accepted by the isolated Task 3 gate.
+/// The canonical UUID may contain hyphens; SQL callers quote the identifier,
+/// while pg_dump receives it as one fixed argv element, never via a shell.
+pub(crate) fn valid_c4_database(value: &str) -> bool {
+    let Some(marker) = value.strip_prefix("learning_backup_c4_task3_") else {
+        return false;
+    };
+    Uuid::parse_str(marker).is_ok_and(|id| id.to_string() == marker)
 }

@@ -3,7 +3,8 @@ use uuid::Uuid;
 
 #[test]
 fn dump_argv_is_fixed_and_never_accepts_user_options() {
-    let spec = PgDumpSpec::new("learning_backup_c4_task3_9fd7", "pg", 5432).unwrap();
+    let database = "learning_backup_c4_task3_550e8400-e29b-41d4-a716-446655440000";
+    let spec = PgDumpSpec::new(database, "pg", 5432).unwrap();
     assert_eq!(
         spec.args(),
         [
@@ -13,12 +14,13 @@ fn dump_argv_is_fixed_and_never_accepts_user_options() {
             "--host=pg",
             "--port=5432",
             "--username=learning_admin",
-            "--dbname=learning_backup_c4_task3_9fd7",
+            "--dbname=learning_backup_c4_task3_550e8400-e29b-41d4-a716-446655440000",
         ]
     );
     assert!(PgDumpSpec::new("--dbname=other", "pg", 5432).is_err());
-    assert!(PgDumpSpec::new("learning_backup", "pg --file=/tmp/x", 5432).is_err());
-    assert!(PgDumpSpec::new("learning_backup", "pg", 0).is_err());
+    assert!(PgDumpSpec::new("learning_backup_c4_task3_9fd7", "pg", 5432).is_err());
+    assert!(PgDumpSpec::new(database, "pg --file=/tmp/x", 5432).is_err());
+    assert!(PgDumpSpec::new(database, "pg", 0).is_err());
 }
 
 #[test]
