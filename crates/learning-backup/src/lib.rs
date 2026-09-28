@@ -2,6 +2,8 @@
 
 mod catalog;
 pub use catalog::AdminAssetCatalog;
+mod sealed;
+pub use sealed::{SealedBackup, seal_backup, verify_sealed};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -26,6 +28,10 @@ pub enum BackupError {
     Database(#[from] sqlx::Error),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("backup filesystem error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("backup source asset error: {0}")]
+    Asset(#[from] learning_assets::AssetIoError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

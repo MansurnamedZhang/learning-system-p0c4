@@ -89,7 +89,11 @@ pub struct FsAssetStore {
 impl FsAssetStore {
     /// Called only after the database has authorized the exact asset use.
     /// Rehashes both the stored file and the bytes copied to the package.
-    pub(crate) fn copy_verified(
+    /// Copy a verified digest object to an already-open private target.
+    /// Only trusted management/storage adapters may call this with catalog
+    /// metadata after authorization; this is not a user asset read API.
+    /// The source is opened no-follow and hashed before and during copying.
+    pub fn copy_verified(
         &self,
         storage_key: &str,
         sha256: &str,

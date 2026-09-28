@@ -637,6 +637,7 @@ dependencies = [
 name = "learning-backup"
 version = "0.1.0"
 dependencies = [
+ "learning-assets",
  "learning-db",
  "serde",
  "serde_json",

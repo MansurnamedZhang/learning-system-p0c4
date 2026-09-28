@@ -1,3 +1,4 @@
+pub mod backup_fs;
 mod fs;
 mod secure_dir;
 mod snapshot;

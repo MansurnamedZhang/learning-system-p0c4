@@ -11,6 +11,7 @@ sha2.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 sqlx.workspace = true
+learning-assets = { path = "../learning-assets" }
 
 [dev-dependencies]
 tokio.workspace = true
