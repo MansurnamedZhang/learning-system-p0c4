@@ -17,7 +17,7 @@
 | Rust 格式基线 | 已通过 | 本地 `cargo fmt --all -- --check`，2026-09-28，退出码 0 |
 | C4 Task 1 清单/契约 | Linux PG18 专项通过；C4 全链未验收 | `691fd4d` 静态复审无阻断；ws3 的隔离 runner 返回 `TASK1_PG18_PASSED_NOT_C4_ACCEPTANCE`，按固定测试计数验证 9/2/1、格式、严格 Clippy 与新空库真实 PG18 专项；前两批失败证据保留 |
 | C4 Task 2 安全复制/封存 | Linux 专项通过；C4 全链未验收 | `431e002`；ws3 的封存集成 5/5、库内故障 5/5（含 SIGKILL）、格式、严格 Clippy、工作区编译均退出 0，命令身份与源码哈希已核；内核级真实 fsync 错误未注入，使用同步边界故障钩子 |
-| C4 Task 3 写闸/dump/保护/完成收据 | 实施中；未验收 | 真 PostgreSQL 并发与独立故障域证据待验证 |
+| C4 Task 3 写闸/dump/保护/完成收据 | 静态复审通过；Linux 待验收 | `c344a1e` 的三项目隔离验收脚本已就绪；真 PostgreSQL 并发、dump 恢复及两类故障仍须在服务器运行 |
 | C4 Task 4 干净恢复 | 未开始 | 全资产/身份/权限/租约审查 |
 | C4 Task 5 全链与失败注入 | 未开始 | 四套旧版升级、工作区回归、整关验收 |
 
@@ -42,6 +42,14 @@
 - 新源码包 `task2-static-reviewed-candidate.zip` SHA-256 `8f32ffbae3553739d36f85a1d4a0d64ccecc52326f69fb18181e0b2acb741170`、891075 字节、352 个 Git 跟踪文件；用户单独授权后上传，远端 SHA-256 再核完全一致。
 - 最终 Linux 隔离项目 `learning-system-p0c4-task2-static-8f32ffba-ws3`（`10.251.212.0/24`）：镜像 `sha256:7a578b6119d90b1f24e5977a4dda56d455ca4402371287281a3aa6b2e9970f01`，镜像内 319 个源码/fixture 输入逐文件匹配授权包。`cargo fmt --all -- --check`、Linux 集成测试 5/5、库内故障测试 5/5、严格 Clippy、全工作区编译的退出码均为 0；日志核对了封存与 SIGKILL 测试名，源码树前后 SHA-256 同为 `1621a11aed86ffa42a063a9642dd2285903e815946e3409ed9d5746ab18e8d1e`，遗留项目容器 0。证据目录 `/home/hans/experiments/learning-system-p0c4/preparations/task2-8f32ffba/evidence-learning-system-p0c4-task2-static-8f32ffba-ws3/`；根任务只读核对 `result.json` SHA-256 `9d2d270a455772409f88168029e6ee6b74ffe33b1ed1bacb6a950cbdc2dc848c`、`inventory.json` SHA-256 `aca25db8a19b07c30a562b57e71590ee1e678a1a8b19cf214a527d1f8b539c71`，并直接阅读 `result.json`，状态 `PASS`。
 - ws1 因继承旧 ENTRYPOINT 未执行目标测试；ws2 的 Linux 专项通过，但测试镜像漏拷固定 deploy fixture，格式/全工作区门失败。两轮均保留失败证据，最终 ws3 使用显式入口与完整输入重新验证。同步故障由测试钩子在父目录 fsync 边界注入；这验证错误处理协议，不等同真实磁盘掉电或内核 fsync 故障。C4 的独立故障域、数据库 dump 和恢复全链仍待后续任务。
+
+## Task 3 本地证据与 Linux 待验收
+
+- 实现提交 `6cd2315`、审查修订 `239c766`、三项目 Linux 验收脚本 `c344a1e`；独立复审核对写闸、Docker 状态/凭据探针、失败前证据捕获、失败卷保留，以及成功场景的 `pg_restore` 独立恢复和 ready 资产索引逐字段比对，未发现静态阻断。静态结论不代替 Linux/PG18 运行。
+- 根任务本地复核隔离驱动 13 项测试、验收脚本 5 项测试、`cargo fmt --all -- --check`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings` 与 Task 3 Rust 契约测试，均退出 0；Linux 专项尚未运行。
+- 待单独授权的精确源码包 `task3-reviewed-candidate.zip`：SHA-256 `892adcedb12b9c9b310c9c0d9814c4289a6b406d100074ed35105d51169d0ca6`，3,401,873 字节，364 个跟踪文件；内嵌清单 SHA-256 `36ee82f1db74652e3e0d7102666e5dc7ef749b1fce10460ce1512f4ad11843b7`，引导脚本 SHA-256 `385d02c59b67d5abf8ca550090b496742555ee74e517b3ebd856b146438a6cce`。本地已由验收脚本逐文件验证 ZIP 与清单，尚未上传或运行。
+- 计划使用新 root 专用目录 `/var/lib/knowweave-c4`，固定批次 UUID `9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160`，三套全新 Compose 项目与 `10.251.215/216/217.0/24` 子网；启动前必须再次检查宿主路由、Docker 网络、项目/卷/容器均未占用。此测试信任宿主和 Docker 管理员，不能证明抵御其恶意篡改。
+- Task 3 成功门只证实源端闸、dump、资产索引及受控恢复比对；Task 4 的干净实例完整恢复和 Task 5 全链验收仍分别待做，不提前写入 `P0_C4_VERIFIED`。
 
 ## 设计裁定
 
