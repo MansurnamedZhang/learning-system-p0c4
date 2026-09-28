@@ -1,8 +1,7 @@
 //! Fail-closed policy for a future clean-instance restore executor.
 //!
-//! This module does not authorize a restore: Task 3 currently publishes only
-//! a local `sealed` source pin. A separate independent-target verifier must
-//! mint an opaque `CompleteBackup` before any executor can write a target.
+//! This module does not authorize a restore: an independent-target verifier
+//! must mint an opaque `CompleteBackup` before any executor can write a target.
 use crate::{AssetRow, BackupError, BackupPlan, MigrationRecord, SourceIdentity};
 use learning_assets::FsAssetStore;
 use serde::Deserialize;
@@ -65,9 +64,9 @@ impl PgRestoreSpec {
     }
 
     /// Execute from an already verified, no-follow archive handle. Exposed
-    /// only inside this crate until a `CompleteBackup` authority exists.
+    /// only inside this crate until the post-preflight executor is wired.
     #[cfg(target_os = "linux")]
-    #[allow(dead_code)] // Wired only after a separately verified complete receipt is available.
+    #[allow(dead_code)] // The post-preflight executor has not been wired yet.
     pub(crate) fn run_from_open_file(
         &self,
         executable: &Path,

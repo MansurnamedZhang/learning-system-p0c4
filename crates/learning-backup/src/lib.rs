@@ -21,6 +21,8 @@ pub use restore_policy::{
     RestoreTargetFacts, RestoredJob, classify_restored_job, validate_restored_asset_bytes,
     validate_restored_assets, validate_role_recipe,
 };
+mod restore_preflight;
+pub use restore_preflight::{RestorePreflight, RestorePreflightConfig, preflight_restore};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
