@@ -10,6 +10,12 @@ mod source;
 pub use source::{
     SourceBackupConfig, SourceLocalPin, force_close_release_ready, prepare_source_backup,
 };
+mod restore_policy;
+pub use restore_policy::{
+    ExternalEffectFinding, JobRecoveryAction, PgRestoreSpec, RestoreEnvironment,
+    RestoreTargetFacts, RestoredJob, classify_restored_job, validate_restored_asset_bytes,
+    validate_restored_assets, validate_role_recipe,
+};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
