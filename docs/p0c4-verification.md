@@ -52,6 +52,8 @@
 - Task 3 成功门只证实源端闸、dump、资产索引及受控恢复比对。当前 `learning-backup` 只暴露 `SealedBackup`/`SourceLocalPin`，尚无独立目标校验后的 `CompleteBackup` 能力或完成收据发布器；`.sealed` 不可作为可恢复备份。Task 4 的干净实例完整恢复和 Task 5 全链验收仍分别待做，不提前写入 `P0_C4_VERIFIED`。
 - 用户在服务器本机执行 root-only 验收后，runner 返回 `TASK3_CANDIDATE_GATES_PASSED_NOT_PRODUCTION`，`result.json` 位于 `/var/lib/knowweave-c4/batches/892adcedb12b-9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160/result.json`，报告 SHA-256 `d10e46d7f562925aa05099d55812b4665229a674d766a153d5628a68aef3108d`。根任务通过只读 Docker 查询确认三个 Task 3 项目没有遗留容器、网络或卷；root 私有 `result.json` 内容尚待单独只读审计，故此处只记录候选门摘要，不扩大为完整 C4 验收。
 - 服务器只读 `lsblk` 显示仅一块承载根文件系统的 `nvme0n1`；同机两个 Docker 卷不构成实际异故障域。用户选择先完成代码与单机隔离测试，暂无独立目标存储；最终备份可恢复性验收待另一物理磁盘或独立主机/NAS 的实测证据，期间不写 `P0_C4_VERIFIED`。
+- 目标端转移与完成收据候选提交 `23c7672`，签名阻断修复提交 `f877b1b`；独立静态复审最终通过。`transfer_sealed_backup` 将源包逐文件重读、复制到新目标 staging 并重新验证后才封存；默认构建的 `CompleteBackup` 发布/打开保持关闭，独立见证开关本身也不足以启用，仍需构建时固定外部见证公钥指纹。该协议不证明物理故障域独立。
+- 旧 Ed25519 版本曾在全零弱公钥/签名下出现非确定验签通过：根任务重复 30 次有 4 次失败，独立审查者重复 12 次有 5 次失败，旧提交保留作失败证据。修复改为 v2 P-256 固定格式并拒绝 v1；根任务重跑 3 项契约测试、弱键用例连续 30 次、开启功能开关的契约测试、格式和严格 Clippy 均通过，独立审查者也验证默认与 `--all-features` 测试通过。Linux 专属传输、目录同步、默认拒绝及真实异机持钥仍未实测。
 
 ## Task 4 本地策略切片
 
