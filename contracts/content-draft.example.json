@@ -1,0 +1,4 @@
+{
+  "kind": "text", "intent": "note", "language": "zh-CN", "title": "注记",
+  "payload": { "format": "markdown", "text": "保留空格  与换行\n" }
+}

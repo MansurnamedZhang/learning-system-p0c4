@@ -1,0 +1,9 @@
+{
+  "request_id": "00000000-0000-0000-0000-000000000010",
+  "composition_id": null,
+  "base_revision_id": null,
+  "kind": "document",
+  "title": "Attention",
+  "nodes": [{"occurrence_id": null, "target": {"type": "block", "block_id": "00000000-0000-0000-0000-000000000001", "revision_id": "00000000-0000-0000-0000-000000000002"}}],
+  "reason": "创建固定文档"
+}

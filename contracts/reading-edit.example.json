@@ -1,0 +1,17 @@
+{
+  "request_id": "00000000-0000-0000-0000-000000000004",
+  "expected_overlay_revision": "00000000-0000-0000-0000-000000000005",
+  "expected_reading_view_revision": "00000000-0000-0000-0000-000000000006",
+  "edit": {
+    "type": "insert_new",
+    "drafts": [{"kind":"text","intent":"note","language":"zh-CN","title":"理解记录","payload":{"format":"markdown","text":"在固定原文之间插入自己的解释。"}}],
+    "target": {
+      "type": "new_group",
+      "anchor": {
+        "base": {"composition_id":"00000000-0000-0000-0000-000000000001","revision_id":"00000000-0000-0000-0000-000000000002"},
+        "parent_occurrence_path": [], "left_occurrence_id":null, "right_occurrence_id":null, "affinity":"after_left"
+      }
+    }
+  },
+  "reason":"empty document first note"
+}

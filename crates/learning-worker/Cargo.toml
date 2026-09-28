@@ -1,0 +1,17 @@
+[package]
+name = "learning-worker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+learning-assets = { path = "../learning-assets" }
+learning-core = { path = "../learning-core" }
+learning-db = { path = "../learning-db" }
+sqlx.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+chrono.workspace = true

@@ -1,0 +1,42 @@
+# Overlay for an isolated P0-C2 acceptance project. Combine with
+# compose.test.yaml; start pg separately, then run this profiled service.
+# WORKER_ACCEPTANCE_BIN is a prebuilt debug binary on the Docker host.
+name: ${WORKER_ACCEPTANCE_PROJECT:?set a new unique isolated Compose project}
+services:
+  worker-acceptance:
+    profiles: [worker-acceptance]
+    image: ${WORKER_ACCEPTANCE_IMAGE:?set the fixed offline Rust image digest}
+    cpus: 2
+    mem_limit: 2g
+    pids_limit: 128
+    read_only: true
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    command:
+      - |
+        password=$$(cat /run/secrets/runtime_password)
+        export DATABASE_URL="postgres://learning_runtime:$${password}@pg:5432/$${WORKER_ACCEPTANCE_DB}"
+        unset password
+        exec /usr/local/bin/learning-worker --once --job-id "$${WORKER_ACCEPTANCE_JOB_ID}" --lease-ms 30000
+    environment:
+      ASSET_ROOT: /assets
+      STAGING_ROOT: /staging
+      KNOWWEAVE_WORKER_TEST_GATE_DIR: /gate
+      WORKER_ACCEPTANCE_DB: ${WORKER_ACCEPTANCE_DB:?set isolated database name}
+      WORKER_ACCEPTANCE_JOB_ID: ${WORKER_ACCEPTANCE_JOB_ID:?set fixture job ID}
+    secrets: [runtime_password]
+    volumes:
+      - test_assets:/assets:ro
+      - type: bind
+        source: ${WORKER_ACCEPTANCE_BIN:?set absolute path to prebuilt worker binary}
+        target: /usr/local/bin/learning-worker
+        read_only: true
+    tmpfs:
+      - /staging:uid=65532,gid=65532,mode=0700
+      - /gate:uid=65532,gid=65532,mode=0700
+      - /tmp:mode=1777
+    depends_on:
+      pg: {condition: service_healthy}
+    networks: [test]

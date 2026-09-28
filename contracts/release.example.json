@@ -1,0 +1,12 @@
+{
+  "request_id": "00000000-0000-0000-0000-000000000011",
+  "roots": [
+    {
+      "composition_id": "00000000-0000-0000-0000-000000000003",
+      "revision_id": "00000000-0000-0000-0000-000000000004",
+      "expected_head_revision_id": "00000000-0000-0000-0000-000000000004",
+      "expected_publication_token": "04a6d202e9d9136e699dbc6c19da94fee63fe70dbccadbdb67187bf6a5c8abdd"
+    }
+  ],
+  "reason": "发布选定文档"
+}

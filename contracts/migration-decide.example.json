@@ -1,0 +1,8 @@
+{
+  "request_id":"00000000-0000-0000-0000-000000000007",
+  "proposal_id":"00000000-0000-0000-0000-000000000008",
+  "expected_overlay_revision":"00000000-0000-0000-0000-000000000005",
+  "expected_reading_view_revision":"00000000-0000-0000-0000-000000000006",
+  "action":{"type":"adopt","groups":[{"type":"keep_unplaced","group_id":"00000000-0000-0000-0000-000000000009"}],"merges":[]},
+  "reason":"retain note until manual placement"
+}

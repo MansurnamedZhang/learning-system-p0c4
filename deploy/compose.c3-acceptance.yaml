@@ -1,0 +1,120 @@
+# Dedicated P0-C3 overlay. A new explicit project is mandatory on EVERY command.
+name: ${C3_PROJECT:?new isolated Task7 project required}
+services:
+  pg:
+    secrets:
+      - source: pg_postgres_password
+        target: /run/secrets/postgres_password
+      - source: pg_admin_password
+        target: /run/secrets/admin_password
+      - source: pg_runtime_password
+        target: /run/secrets/runtime_password
+  c3-test:
+    profiles: [c3]
+    image: ${C3_IMAGE:?fixed locally built test image digest required}
+    pull_policy: never
+    user: "65532:65532"
+    cpus: 4
+    mem_limit: 4g
+    environment:
+      CARGO_BUILD_JOBS: 4
+    secrets: [admin_password, runtime_password, postgres_password]
+    volumes:
+      - test_evidence:/evidence
+      - test_assets:/assets
+      - test_staging:/staging
+    networks: [test]
+  c3-init:
+    profiles: [c3]
+    image: ${C3_IMAGE:?fixed locally built test image digest required}
+    network_mode: none
+    pull_policy: never
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    command: ["for p in /assets /snapshots /control /destination /evidence /staging; do test -z \"$$(ls -A \"$$p\")\"; chown 65532:65532 \"$$p\"; chmod 0700 \"$$p\"; done"]
+    volumes:
+      - test_assets:/assets
+      - c3_snapshots:/snapshots
+      - c3_control:/control
+      - c3_destination:/destination
+      - test_evidence:/evidence
+      - test_staging:/staging
+  c3-manager:
+    profiles: [c3]
+    image: ${C3_IMAGE:?fixed locally built test image digest required}
+    pull_policy: never
+    user: "65532:65532"
+    cpus: 2
+    mem_limit: 2g
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    entrypoint: ["sh", "/c3-manage.sh"]
+    secrets: [admin_password, runtime_password]
+    volumes:
+      - test_assets:/assets
+      - c3_snapshots:/snapshots
+      - c3_control:/control
+      - c3_destination:/destination
+    tmpfs:
+      - /staging:uid=65532,gid=65532,mode=0700
+      - /tmp:mode=1777
+    networks: [test]
+  c3-worker:
+    profiles: [c3]
+    image: ${C3_RUNTIME_IMAGE:?fixed offline runtime image digest required}
+    pull_policy: never
+    user: "65532:65532"
+    cpus: 2
+    mem_limit: 2g
+    pids_limit: 128
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    command:
+      - |
+        password=$$(cat /run/secrets/runtime_password)
+        export DATABASE_URL="postgres://learning_runtime:$${password}@pg/learning_c3_source_test"
+        unset password
+        test "$$(stat -c '%a:%u' /snapshots)" = "700:65532"
+        test ! -e /run/secrets/admin_password
+        test ! -e /run/secrets/postgres_password
+        exec /usr/local/bin/learning-worker --once --job-id "$${C3_JOB}" --lease-ms 30000
+    environment:
+      ASSET_ROOT: /assets
+      STAGING_ROOT: /staging
+      SNAPSHOT_ROOT: /snapshots
+      KNOWWEAVE_WORKER_TEST_GATE_DIR: /gate
+      C3_JOB: ${C3_JOB:?seed the exact C3 job first}
+    secrets: [runtime_password]
+    volumes:
+      - test_assets:/assets:ro
+      - c3_snapshots:/snapshots
+      - type: bind
+        source: ${C3_WORKER_BIN:?absolute isolated binary path required}
+        target: /usr/local/bin/learning-worker
+        read_only: true
+    tmpfs:
+      - /staging:uid=65532,gid=65532,mode=0700
+      - /gate:uid=65532,gid=65532,mode=0700
+      - /tmp:mode=1777
+    networks: [test]
+networks:
+  test:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${C3_TEST_SUBNET:?explicit unused private IPv4 /24 required}
+secrets:
+  pg_postgres_password:
+    file: ../.runtime/secrets/pg/postgres_password
+  pg_admin_password:
+    file: ../.runtime/secrets/pg/admin_password
+  pg_runtime_password:
+    file: ../.runtime/secrets/pg/runtime_password
+volumes:
+  c3_snapshots:
+  c3_control:
+  c3_destination:
