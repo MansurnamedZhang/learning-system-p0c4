@@ -31,6 +31,9 @@ class PinAcceptance(unittest.TestCase):
                                     manifest_sha256="b" * 64,
                                     source_commit="c" * 40,
                                     runner_sha256="3" * 64)
+        sync = patch.object(runner, "_sync_dir")
+        sync.start()
+        self.addCleanup(sync.stop)
 
     def _dependencies(self):
         identity = {"project": "new-project", "database": "new-database",
@@ -90,7 +93,9 @@ class PinAcceptance(unittest.TestCase):
             return runner._run_batch(self.args, {}, b"zip", self.batch)
 
     def test_clean_candidate_only_after_exact_stop(self):
-        code, result = self._run()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code, result = self._run()
         self.assertEqual(code, 0, result)
         self.assertEqual(result["status"], runner.PASSED)
         self.assertEqual(result["birth_sha256"], "d" * 64)
@@ -101,8 +106,14 @@ class PinAcceptance(unittest.TestCase):
                          hashlib.sha256(record).hexdigest())
         self.assertEqual(json.loads(record)["live"]["container_id"], "e" * 64)
         self.assertTrue(result["stop"]["confirmed"])
-        self.assertEqual(json.loads((self.batch / "evidence" / "result.json").read_bytes())["status"],
-                         runner.PASSED)
+        final = self.batch / "evidence" / "result.json"
+        self.assertEqual(json.loads(final.read_bytes())["status"], runner.PASSED)
+        self.assertFalse((self.batch / "evidence" / "result.pending.json").exists())
+        summary = json.loads(output.getvalue())
+        self.assertEqual(summary["result_sha256"],
+                         hashlib.sha256(final.read_bytes()).hexdigest())
+        self.assertEqual(summary["inspection_evidence_sha256"],
+                         hashlib.sha256(record).hexdigest())
 
     def test_pin_mismatch_cannot_be_promoted(self):
         deps = self._dependencies()
@@ -169,7 +180,7 @@ class PinAcceptance(unittest.TestCase):
     def test_pre_result_crash_leaves_observation_but_no_candidate(self):
         deps = self._dependencies()
         def write(path, data):
-            if path.name == "result.json":
+            if path.name == "result.pending.json":
                 raise SystemExit(137)
             path.write_bytes(data)
         output = io.StringIO()
@@ -183,6 +194,23 @@ class PinAcceptance(unittest.TestCase):
                 runner._run_batch(self.args, {}, b"zip", self.batch)
         self.assertTrue((self.batch / "evidence" / "pin-inspection.json").exists())
         self.assertFalse((self.batch / "evidence" / "result.json").exists())
+        self.assertNotIn(runner.PASSED, output.getvalue())
+
+    def test_final_directory_sync_failure_cannot_print_candidate(self):
+        deps = self._dependencies()
+        output = io.StringIO()
+        with patch.object(runner, "extract_and_load", return_value=(
+                 *deps, Path("/initdb"), "2" * 64)), \
+             patch.object(runner, "source_digest", return_value="2" * 64), \
+             patch.object(runner, "_file_digest", return_value="3" * 64), \
+             patch.object(runner, "_private_write",
+                          side_effect=lambda path, data: path.write_bytes(data)), \
+             patch.object(runner, "_sync_dir", side_effect=OSError("fsync failed")), \
+             contextlib.redirect_stdout(output):
+            with self.assertRaises(OSError):
+                runner._run_batch(self.args, {}, b"zip", self.batch)
+        self.assertTrue((self.batch / "evidence" / "pin-inspection.json").exists())
+        self.assertTrue((self.batch / "evidence" / "result.pending.json").exists())
         self.assertNotIn(runner.PASSED, output.getvalue())
 
     def test_source_change_during_stop_cannot_be_promoted(self):
@@ -312,6 +340,33 @@ class CommandLine(unittest.TestCase):
         with patch.object(runner, "run", return_value=0) as admitted:
             self.assertEqual(runner.main(argv), 0)
         self.assertEqual(admitted.call_args.args[0].runner_sha256, "d" * 64)
+
+
+class FinalResultPublication(unittest.TestCase):
+    def test_partial_temp_write_never_appears_as_final_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory)
+            def partial(path, data):
+                path.write_bytes(data[:8])
+                raise OSError("interrupted write")
+            with patch.object(runner, "_private_write", side_effect=partial), \
+                 patch.object(runner, "_sync_dir"):
+                with self.assertRaises(OSError):
+                    runner._publish_result(evidence, b'{"status":"PASSED"}')
+            self.assertFalse((evidence / "result.json").exists())
+            self.assertTrue((evidence / "result.pending.json").exists())
+
+    def test_atomic_publish_never_overwrites_an_existing_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory)
+            final = evidence / "result.json"
+            final.write_bytes(b"older evidence")
+            with patch.object(runner, "_private_write",
+                              side_effect=lambda path, data: path.write_bytes(data)), \
+                 patch.object(runner, "_sync_dir"):
+                with self.assertRaises(FileExistsError):
+                    runner._publish_result(evidence, b'{"status":"PASSED"}')
+            self.assertEqual(final.read_bytes(), b"older evidence")
 
 
 if __name__ == "__main__":

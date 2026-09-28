@@ -104,6 +104,19 @@ def _private_write(path, payload, mode=0o600):
     _sync_dir(path.parent)
 
 
+def _publish_result(evidence, payload):
+    """Publish only a complete synced result; never overwrite a prior batch."""
+    pending = evidence / "result.pending.json"
+    final = evidence / "result.json"
+    _private_write(pending, payload)
+    # link() is atomic and fails if the final name already exists. A crash can
+    # leave both names, but the caller still has no exit-0 completion receipt.
+    os.link(pending, final)
+    _sync_dir(evidence)
+    os.unlink(pending)
+    _sync_dir(evidence)
+
+
 def _safe_member(name):
     require(type(name) is str and name and not name.startswith("/") and
             "\\" not in name and ":" not in name and "\x00" not in name and
@@ -446,7 +459,7 @@ def _run_batch(args, manifest, package, batch):
             except BaseException:
                 pass
     payload = _json_bytes(result)
-    _private_write(evidence / "result.json", payload)
+    _publish_result(evidence, payload)
     summary = {"status": result["status"], "result_sha256": digest(payload),
                "evidence": str(evidence), "not_restore": True}
     if result["status"] == PASSED:
