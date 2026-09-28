@@ -1,5 +1,6 @@
 use learning_backup::{
-    AssetRow, BackupManifestV1, BackupPlan, BackupState, FileRecord, SourceIdentity,
+    AssetRow, BackupError, BackupManifestV1, BackupPlan, BackupState, FileRecord, MigrationRecord,
+    SourceIdentity,
 };
 use uuid::Uuid;
 
@@ -27,17 +28,131 @@ fn file(path: &str, sha: &str, size: u64) -> FileRecord {
 fn manifest(plan: &BackupPlan) -> BackupManifestV1 {
     BackupManifestV1::from_plan(
         Uuid::from_u128(42),
-        SourceIdentity {
-            application_build_sha256: A.into(),
-            postgres_major: 18,
-            migration_version: 15,
-            migration_fingerprint: B.into(),
-        },
+        SourceIdentity::from_migrations(
+            A.into(),
+            "0123456789abcdef0123456789abcdef01234567".into(),
+            18,
+            vec![MigrationRecord {
+                version: 1,
+                checksum_hex: "a".repeat(96),
+            }],
+        )
+        .unwrap(),
         plan,
         file("database.dump", A, 10),
         file("roles.json", B, 20),
     )
     .unwrap()
+}
+
+#[test]
+fn source_identity_binds_ordered_complete_migration_records() {
+    let migrations = vec![
+        MigrationRecord {
+            version: 1,
+            checksum_hex: "a".repeat(96),
+        },
+        MigrationRecord {
+            version: 2,
+            checksum_hex: "b".repeat(96),
+        },
+    ];
+    let source = SourceIdentity::from_migrations(
+        A.into(),
+        "0123456789abcdef0123456789abcdef01234567".into(),
+        18,
+        migrations.clone(),
+    )
+    .unwrap();
+    assert_eq!(source.migration_version, 2);
+    assert_eq!(source.migrations, migrations);
+    assert!(
+        SourceIdentity::from_migrations(
+            A.into(),
+            "0123456789abcdef0123456789abcdef01234567".into(),
+            18,
+            vec![migrations[1].clone(), migrations[0].clone()]
+        )
+        .is_err()
+    );
+    assert!(
+        SourceIdentity::from_migrations(
+            A.into(),
+            "0123456789abcdef0123456789abcdef01234567".into(),
+            18,
+            vec![migrations[0].clone(), migrations[0].clone()]
+        )
+        .is_err()
+    );
+    let plan = BackupPlan::from_rows(vec![]).unwrap();
+    let original = manifest(&plan);
+    assert_eq!(
+        original.source.migration_fingerprint,
+        "a884a21d26949efeb2698121a122d0e040ef7da5c4b89252c849606ebd535235"
+    );
+    let mut omitted = original.clone();
+    omitted.source.migrations.clear();
+    assert!(
+        omitted
+            .validate_with_index(plan.asset_index_bytes())
+            .is_err()
+    );
+    let shortened = SourceIdentity::from_migrations(
+        A.into(),
+        "0123456789abcdef0123456789abcdef01234567".into(),
+        18,
+        vec![migrations[0].clone()],
+    )
+    .unwrap();
+    assert_ne!(
+        source.migration_fingerprint,
+        shortened.migration_fingerprint
+    );
+    let mut changed = original.clone();
+    changed.source.migrations[0].checksum_hex = "b".repeat(96);
+    assert!(
+        changed
+            .validate_with_index(plan.asset_index_bytes())
+            .is_err()
+    );
+    let changed_source = SourceIdentity::from_migrations(
+        A.into(),
+        "0123456789abcdef0123456789abcdef01234567".into(),
+        18,
+        vec![MigrationRecord {
+            version: 1,
+            checksum_hex: "b".repeat(96),
+        }],
+    )
+    .unwrap();
+    assert_ne!(
+        original.source.migration_fingerprint,
+        changed_source.migration_fingerprint
+    );
+    assert!(
+        SourceIdentity::from_migrations(
+            A.into(),
+            "ABCDEF0123456789abcdef0123456789abcdef01".into(),
+            18,
+            migrations
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn independent_c4_catalog_limits_reject_excess_rows_and_index_bytes() {
+    let rows = (1..=100_001).map(|id| row(1, id, A, 1)).collect();
+    assert!(matches!(
+        BackupPlan::from_rows(rows),
+        Err(BackupError::Capacity(_))
+    ));
+    let plan = BackupPlan::from_rows(vec![]).unwrap();
+    let oversized_index = vec![b' '; 64 * 1024 * 1024 + 1];
+    assert!(matches!(
+        manifest(&plan).validate_with_index(&oversized_index),
+        Err(BackupError::Capacity(_))
+    ));
 }
 
 #[test]

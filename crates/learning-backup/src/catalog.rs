@@ -1,4 +1,4 @@
-use crate::{AssetRow, BackupError, BackupPlan};
+use crate::{AssetRow, BackupError, BackupPlan, MAX_LOGICAL_ASSETS};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -31,10 +31,13 @@ impl AdminAssetCatalog {
         }
         let rows: Vec<(Uuid, Uuid, String, i64, String)> = sqlx::query_as(
             "SELECT space_id,id,sha256,byte_size,storage_key \
-             FROM public.asset WHERE status='ready' ORDER BY space_id,id",
+             FROM public.asset WHERE status='ready' ORDER BY space_id,id LIMIT 100001",
         )
         .fetch_all(&mut *tx)
         .await?;
+        if rows.len() > MAX_LOGICAL_ASSETS {
+            return Err(BackupError::Capacity("logical asset count"));
+        }
         let plan = BackupPlan::from_rows(
             rows.into_iter()
                 .map(|(space_id, id, sha256, byte_size, storage_key)| AssetRow {

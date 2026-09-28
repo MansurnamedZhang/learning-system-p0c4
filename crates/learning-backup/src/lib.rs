@@ -11,6 +11,8 @@ use uuid::Uuid;
 
 pub const BACKUP_CAPABILITY: &str = "backup_full_v1";
 pub const BACKUP_FORMAT_VERSION: u32 = 1;
+pub const MAX_LOGICAL_ASSETS: usize = 100_000;
+pub const MAX_ASSET_INDEX_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Error)]
 pub enum BackupError {
@@ -18,6 +20,8 @@ pub enum BackupError {
     Invalid(&'static str),
     #[error("full-backup count or byte size overflow")]
     Overflow,
+    #[error("full-backup capacity limit exceeded: {0}")]
+    Capacity(&'static str),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
     #[error("JSON error: {0}")]
@@ -55,9 +59,71 @@ pub struct FileRecord {
 #[serde(deny_unknown_fields)]
 pub struct SourceIdentity {
     pub application_build_sha256: String,
+    pub application_commit: String,
     pub postgres_major: u32,
     pub migration_version: u64,
+    pub migrations: Vec<MigrationRecord>,
     pub migration_fingerprint: String,
+}
+
+/// SQLx migration checksum is SHA-384, encoded as 96 lowercase hex digits.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MigrationRecord {
+    pub version: u64,
+    pub checksum_hex: String,
+}
+
+impl SourceIdentity {
+    /// Fingerprint = SHA-256 of compact UTF-8 JSON serialization of the
+    /// ordered `Vec<MigrationRecord>` (fields: version, checksum_hex).
+    /// The caller must supply every applied migration from `_sqlx_migrations`;
+    /// Task 4 will compare this list with the target and embedded migrator.
+    pub fn from_migrations(
+        application_build_sha256: String,
+        application_commit: String,
+        postgres_major: u32,
+        migrations: Vec<MigrationRecord>,
+    ) -> Result<Self, BackupError> {
+        let migration_version = migrations
+            .last()
+            .ok_or(BackupError::Invalid("empty migration list"))?
+            .version;
+        let migration_fingerprint = digest(&serde_json::to_vec(&migrations)?);
+        let source = Self {
+            application_build_sha256,
+            application_commit,
+            postgres_major,
+            migration_version,
+            migrations,
+            migration_fingerprint,
+        };
+        source.validate()?;
+        Ok(source)
+    }
+
+    fn validate(&self) -> Result<(), BackupError> {
+        if !valid_digest(&self.application_build_sha256)
+            || !valid_hex(&self.application_commit, 40)
+            || self.postgres_major == 0
+            || self.migrations.is_empty()
+        {
+            return Err(BackupError::Invalid("source identity"));
+        }
+        let mut previous = 0_u64;
+        for migration in &self.migrations {
+            if migration.version <= previous || !valid_hex(&migration.checksum_hex, 96) {
+                return Err(BackupError::Invalid("migration order or checksum"));
+            }
+            previous = migration.version;
+        }
+        if self.migration_version != previous
+            || self.migration_fingerprint != digest(&serde_json::to_vec(&self.migrations)?)
+        {
+            return Err(BackupError::Invalid("migration fingerprint or version"));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,6 +147,9 @@ pub struct BackupPlan {
 
 impl BackupPlan {
     pub fn from_rows(mut assets: Vec<AssetRow>) -> Result<Self, BackupError> {
+        if assets.len() > MAX_LOGICAL_ASSETS {
+            return Err(BackupError::Capacity("logical asset count"));
+        }
         assets.sort_by_key(|a| (a.space_id, a.id));
         let mut ids = BTreeSet::new();
         let mut digests = BTreeMap::<String, (i64, String)>::new();
@@ -118,6 +187,9 @@ impl BackupPlan {
             format_version: BACKUP_FORMAT_VERSION,
             assets: assets.clone(),
         })?;
+        if asset_index_bytes.len() > MAX_ASSET_INDEX_BYTES {
+            return Err(BackupError::Capacity("asset index bytes"));
+        }
         let asset_index_file = FileRecord {
             path: "asset-index.json".into(),
             size: u64::try_from(asset_index_bytes.len()).map_err(|_| BackupError::Overflow)?,
@@ -219,13 +291,12 @@ impl BackupManifestV1 {
         if self.capability != BACKUP_CAPABILITY || self.format_version != BACKUP_FORMAT_VERSION {
             return Err(BackupError::Invalid("unsupported format"));
         }
-        if self.backup_id.is_nil()
-            || !valid_digest(&self.source.application_build_sha256)
-            || !valid_digest(&self.source.migration_fingerprint)
-            || self.source.postgres_major == 0
-            || self.source.migration_version == 0
-        {
-            return Err(BackupError::Invalid("source identity"));
+        if self.backup_id.is_nil() {
+            return Err(BackupError::Invalid("backup id"));
+        }
+        self.source.validate()?;
+        if index_bytes.len() > MAX_ASSET_INDEX_BYTES {
+            return Err(BackupError::Capacity("asset index bytes"));
         }
         let index: AssetIndexV1 = serde_json::from_slice(index_bytes)?;
         if index.format_version != BACKUP_FORMAT_VERSION {
@@ -270,7 +341,10 @@ impl BackupManifestV1 {
 }
 
 fn valid_digest(value: &str) -> bool {
-    value.len() == 64
+    valid_hex(value, 64)
+}
+fn valid_hex(value: &str, len: usize) -> bool {
+    value.len() == len
         && value
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
