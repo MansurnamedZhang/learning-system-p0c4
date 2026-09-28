@@ -408,6 +408,25 @@ def _private_read(path, limit=4096):
     return content
 
 
+def _private_read_diagnostic(path, limit=4096):
+    """A FIFO must fail before a potentially blocking diagnostic read."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                 os.O_NONBLOCK)
+    try:
+        meta = os.fstat(fd)
+        require(stat.S_ISREG(meta.st_mode) and meta.st_uid == 0 and
+                stat.S_IMODE(meta.st_mode) == 0o600 and meta.st_nlink == 1 and
+                0 < meta.st_size <= limit,
+                "unsafe private issuer diagnostic")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            content = stream.read(limit + 1)
+        require(0 < len(content) <= limit,
+                "private issuer diagnostic exceeds limit")
+        return content
+    finally:
+        os.close(fd)
+
+
 def read_issuer_diagnostic(target, identity, batch_id):
     """Read private diagnostic as bounded codes or an explicit unavailable."""
     unavailable = {"status": "UNAVAILABLE"}
@@ -415,7 +434,8 @@ def read_issuer_diagnostic(target, identity, batch_id):
         require(target.name == batch_id and canonical_v4(batch_id),
                 "diagnostic target differs")
         _require_private_dir(target)
-        item = _unique_json(_private_read(target / "issuer-diagnostic.json"))
+        item = _unique_json(_private_read_diagnostic(
+            target / "issuer-diagnostic.json"))
         require(type(item) is dict and set(item) == {
             "format_version", "state", "batch_id", "project", "phase",
             "reason_code", "exception_class"} and

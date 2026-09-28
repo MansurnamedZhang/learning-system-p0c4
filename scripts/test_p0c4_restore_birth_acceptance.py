@@ -75,31 +75,50 @@ class CandidateGates(unittest.TestCase):
                 "reason_code": "PG_SQL_PARSE_FAILED",
                 "exception_class": "AdmissionError"}
         with patch.object(runner, "_require_private_dir"), \
-             patch.object(runner, "_private_read",
+             patch.object(runner, "_private_read_diagnostic",
                           return_value=json.dumps(safe).encode()):
             self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
                              safe)
         changed = {**safe, "reason_code": "postgres_password=secret"}
         with patch.object(runner, "_require_private_dir"), \
-             patch.object(runner, "_private_read",
+             patch.object(runner, "_private_read_diagnostic",
                           return_value=json.dumps(changed).encode()):
             self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
                              {"status": "UNAVAILABLE"})
         with patch.object(runner, "_require_private_dir"), \
-             patch.object(runner, "_private_read",
+             patch.object(runner, "_private_read_diagnostic",
                           return_value=b'{"phase":"postgres_password=secret"'):
             self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
                              {"status": "UNAVAILABLE"})
         with patch.object(runner, "_require_private_dir"), \
-             patch.object(runner, "_private_read",
+             patch.object(runner, "_private_read_diagnostic",
                           side_effect=FileNotFoundError):
             self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
                              {"status": "UNAVAILABLE"})
         with patch.object(runner, "_require_private_dir"), \
-             patch.object(runner, "_private_read",
+             patch.object(runner, "_private_read_diagnostic",
                           side_effect=KeyboardInterrupt):
             self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
                              {"status": "UNAVAILABLE"})
+
+    def test_fifo_diagnostic_uses_nonblocking_open_and_rejects_before_read(self):
+        identity = identity_for(ID)
+        target = Path("/private/targets") / ID
+        fifo = SimpleNamespace(st_mode=stat.S_IFIFO | 0o600, st_uid=0,
+                               st_nlink=1, st_size=0)
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os, "O_NOFOLLOW", 0x100, create=True), \
+             patch.object(runner.os, "O_CLOEXEC", 0x200, create=True), \
+             patch.object(runner.os, "O_NONBLOCK", 0x400, create=True), \
+             patch.object(runner.os, "open", return_value=123) as opened, \
+             patch.object(runner.os, "fstat", return_value=fifo), \
+             patch.object(runner.os, "close") as closed, \
+             patch.object(runner.os, "fdopen") as stream:
+            self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
+                             {"status": "UNAVAILABLE"})
+            self.assertTrue(opened.call_args.args[1] & runner.os.O_NONBLOCK)
+        closed.assert_called_once_with(123)
+        stream.assert_not_called()
 
     def test_private_candidate_rejects_failure_marker_and_missing_success_seal(self):
         identity, birth_bytes, state, success, evidence = records()
@@ -486,7 +505,9 @@ class CandidateGates(unittest.TestCase):
         identity, birth_bytes, state, success, evidence = records()
         birth = json.loads(birth_bytes)
         manifest = {"files": [{"path": runner.INITDB, "sha256": "f" * 64}]}
+        real_diagnostic = runner.read_issuer_diagnostic
         for failure in ("pass", "issuer-exit", "diagnostic-hostile",
+                        "diagnostic-fifo",
                         "timeout-no-state",
                         "missing-seal", "failure-marker",
                         "id-change", "pg-failure", "interrupted-before-exit",
@@ -560,6 +581,23 @@ class CandidateGates(unittest.TestCase):
                         accept.side_effect = FileNotFoundError("seal")
                         diagnostic.side_effect = RuntimeError(
                             "postgres_password=hidden")
+                    elif failure == "diagnostic-fifo":
+                        accept.side_effect = FileNotFoundError("seal")
+                        diagnostic.side_effect = real_diagnostic
+                        stack.enter_context(patch.object(
+                            runner, "_require_private_dir"))
+                        for name, value in (("O_NOFOLLOW", 0x100),
+                                            ("O_CLOEXEC", 0x200),
+                                            ("O_NONBLOCK", 0x400)):
+                            stack.enter_context(patch.object(
+                                runner.os, name, value, create=True))
+                        stack.enter_context(patch.object(
+                            runner.os, "open", return_value=123))
+                        stack.enter_context(patch.object(
+                            runner.os, "fstat", return_value=SimpleNamespace(
+                                st_mode=stat.S_IFIFO | 0o600, st_uid=0,
+                                st_nlink=1, st_size=0)))
+                        stack.enter_context(patch.object(runner.os, "close"))
                     elif failure == "early-cleanup-failed":
                         accept.side_effect = FileNotFoundError("seal")
                         early_stop.side_effect = RuntimeError("stop failed")
@@ -612,7 +650,7 @@ class CandidateGates(unittest.TestCase):
                 elif failure in ("issuer-exit", "missing-seal",
                                  "failure-marker", "id-change",
                                  "interrupted-before-exit", "timeout-no-state",
-                                 "diagnostic-hostile"):
+                                 "diagnostic-hostile", "diagnostic-fifo"):
                     early_stop.assert_called_once()
                     self.assertTrue(observed[0]["stop"]["confirmed"])
                     stop.assert_not_called()
