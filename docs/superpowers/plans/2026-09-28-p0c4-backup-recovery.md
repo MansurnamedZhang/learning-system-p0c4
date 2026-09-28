@@ -24,9 +24,9 @@
 
 ## Task 2：安全文件封存与目标端全量校验
 
-- [ ] 独立私有 staging 中流式复制 dump、角色配方和每个原件；原件复用 `FsAssetStore` no-follow 打开和哈希校验，不继承 C3 的 128/512 MiB 预算。
-- [ ] 本任务只实现已验证的 `sealed` 复制原语；`complete` 必须等 Task 3 的源端一致性/保留保护及独立目标全量校验。中途终止、目标缺文件/改字节、链接/重解析点、同名碰撞不产生可恢复包。重复相同 digest 字节去重，保留每包完整清单。
-- [ ] Linux 文件系统专项验证 `fsync`/rename/读回、SIGKILL 和部分写入/同步故障注入；不对共享主机断电。Windows 本地仅能验证纯契约，不能宣称 no-follow 门通过。
+- [x] 独立私有 staging 中流式复制 dump、角色配方和每个原件；原件复用 `FsAssetStore` no-follow 打开和哈希校验，不继承 C3 的 128/512 MiB 预算。
+- [x] 本任务只实现已验证的 `sealed` 复制原语；`complete` 必须等 Task 3 的源端一致性/保留保护及独立目标全量校验。中途终止、目标缺文件/改字节、链接/重解析点、同名碰撞不产生可恢复包。重复相同 digest 字节去重，保留每包完整清单。
+- [x] Linux 文件系统专项验证 `fsync`/rename/读回、SIGKILL 和部分写入/同步故障注入；不对共享主机断电。Windows 本地仅能验证纯契约，不能宣称 no-follow 门通过。证据见 [C4 验证记录](../../p0c4-verification.md) 的 Task 2 ws3；同步故障为测试钩子注入，未模拟真实掉电。
 
 ## Task 3：维护窗、数据库 dump 与资产保护
 

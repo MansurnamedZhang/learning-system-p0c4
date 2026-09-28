@@ -16,7 +16,7 @@
 | C3 基线源码可编译 | 已通过 | 本地 `cargo test --offline --locked --workspace --no-run`，2026-09-28，退出码 0 |
 | Rust 格式基线 | 已通过 | 本地 `cargo fmt --all -- --check`，2026-09-28，退出码 0 |
 | C4 Task 1 清单/契约 | 本地门通过；Linux 整项未验收 | `691fd4d` 静态复审无阻断；授权包 `ce62007a…` 的 Linux 首批报告 contract/lib/preflight 退出 0、`fmt` 退出 1，但测试镜像继承入口脚本的可能性使这些退出码的命令身份待核，PG18 尚未启动；失败批次保留 |
-| C4 Task 2 安全复制/封存 | 本地门及静态复审通过；Linux 未验收 | `431e002`；Windows 拒绝门 1/1、契约 9/9、格式/严格 Clippy 通过；Linux no-follow、碰撞、SIGKILL、部分写入、同步失败专项待新隔离项目运行 |
+| C4 Task 2 安全复制/封存 | Linux 专项通过；C4 全链未验收 | `431e002`；ws3 的封存集成 5/5、库内故障 5/5（含 SIGKILL）、格式、严格 Clippy、工作区编译均退出 0，命令身份与源码哈希已核；内核级真实 fsync 错误未注入，使用同步边界故障钩子 |
 | C4 Task 3 写闸/dump/保护/完成收据 | 实施中；未验收 | 真 PostgreSQL 并发与独立故障域证据待验证 |
 | C4 Task 4 干净恢复 | 未开始 | 全资产/身份/权限/租约审查 |
 | C4 Task 5 全链与失败注入 | 未开始 | 四套旧版升级、工作区回归、整关验收 |
@@ -36,7 +36,9 @@
 
 - 实现提交 `4d8749b`、复审修复提交 `431e0022d583c62f5c0bb7b2d9131f424516aa46`；独立复审最后一轮无静态阻断。`Dir::rename` 原有调用语义保持；Task 2 仅产出 `.sealed`，没有完成收据。
 - 根任务复核 `cargo test -p learning-backup --test sealed --offline`：Windows 拒绝门 1/1、退出码 0；`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --offline -- -D warnings` 均退出码 0。Windows 不编译 Linux-only 文件系统路径，不能代替 Linux 验收。
-- 新源码包 `task2-static-reviewed-candidate.zip` SHA-256 `8f32ffbae3553739d36f85a1d4a0d64ccecc52326f69fb18181e0b2acb741170`、891075 字节、352 个 Git 跟踪文件；用户已单独授权上传并在新隔离项目验证。Linux 运行证据待回填。
+- 新源码包 `task2-static-reviewed-candidate.zip` SHA-256 `8f32ffbae3553739d36f85a1d4a0d64ccecc52326f69fb18181e0b2acb741170`、891075 字节、352 个 Git 跟踪文件；用户单独授权后上传，远端 SHA-256 再核完全一致。
+- 最终 Linux 隔离项目 `learning-system-p0c4-task2-static-8f32ffba-ws3`（`10.251.212.0/24`）：镜像 `sha256:7a578b6119d90b1f24e5977a4dda56d455ca4402371287281a3aa6b2e9970f01`，镜像内 319 个源码/fixture 输入逐文件匹配授权包。`cargo fmt --all -- --check`、Linux 集成测试 5/5、库内故障测试 5/5、严格 Clippy、全工作区编译的退出码均为 0；日志核对了封存与 SIGKILL 测试名，源码树前后 SHA-256 同为 `1621a11aed86ffa42a063a9642dd2285903e815946e3409ed9d5746ab18e8d1e`，遗留项目容器 0。证据目录 `/home/hans/experiments/learning-system-p0c4/preparations/task2-8f32ffba/evidence-learning-system-p0c4-task2-static-8f32ffba-ws3/`；根任务只读核对 `result.json` SHA-256 `9d2d270a455772409f88168029e6ee6b74ffe33b1ed1bacb6a950cbdc2dc848c`、`inventory.json` SHA-256 `aca25db8a19b07c30a562b57e71590ee1e678a1a8b19cf214a527d1f8b539c71`，并直接阅读 `result.json`，状态 `PASS`。
+- ws1 因继承旧 ENTRYPOINT 未执行目标测试；ws2 的 Linux 专项通过，但测试镜像漏拷固定 deploy fixture，格式/全工作区门失败。两轮均保留失败证据，最终 ws3 使用显式入口与完整输入重新验证。同步故障由测试钩子在父目录 fsync 边界注入；这验证错误处理协议，不等同真实磁盘掉电或内核 fsync 故障。C4 的独立故障域、数据库 dump 和恢复全链仍待后续任务。
 
 ## 设计裁定
 
