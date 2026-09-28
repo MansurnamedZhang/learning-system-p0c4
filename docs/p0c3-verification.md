@@ -1,6 +1,15 @@
 # P0-C3 验证台账与开放门
 
-当前：`IN_PROGRESS / NOT_PRODUCTION`。Task 7 只完成本地候选实现；新 Compose、完整 Linux workspace、真实 C3 Worker SIGKILL 与联合 Attention 往返尚未运行。编译和纯测试不是数据库/进程隔离证明。
+当前：`P0_C3_VERIFIED / NOT_PRODUCTION`。冻结受测源码提交为 `3342c0554c18787749d0f06a772743f867c18720`；Task 7 已在全新隔离 Linux Compose 项目完成完整 workspace、四套旧版升级、真实 Worker SIGKILL/租约接管、融合快照导出导入往返、四组失败注入、格式与严格 Clippy。root 私有原始证据经独立只读脚本逐项核验；C4 全量备份恢复、P1 HTTP/前端及生产部署仍未验收。
+
+## Task 7 整关验收（2026-09-28）
+
+- 授权源码包：`task7-seed-v1-release-reviewed-candidate.zip`，SHA-256 `4754aee86dfb18d09d8d8c07d2ef94e802afa6c3bffdc5014efd03f982efed5a`；341 份源码文件，`SOURCE_MANIFEST.json` SHA-256 `5b88a2bac54c94e79ff54232d3d980eb872f0da291d7f8450fd02964908b0b5e`。full 证据中的 source-before/source-after/current 均与该清单相同；固定镜像的 301 项 COPY 输入逐项一致。
+- 先在 `learning-system-p0c3-task7-3342c05-focus-c47d1e68`（`10.251.207.0/24`）运行真实 PostgreSQL V1 发布夹具与 seed 专项，状态 `FOCUSED_SEED_V1_PASSED_NOT_FULL_ACCEPTANCE`，结果 SHA-256 `305eb229a285f1776c0e13f9ef954a80569f89a9e3450f9e03697748e4559667`。full 启动前再次核验这一份 root 私有证据，而非混用旧批次结果。
+- 全量项目 `learning-system-p0c3-task7-3342c05-full-8a4c2d91`（`10.251.208.0/24`）返回 `CANDIDATE_GATES_PASSED_NOT_PRODUCTION`，`result.json` SHA-256 `c939cc712ff8471c0bf8e4175d73c5b70e2166652086fc70dcd6244d60a18da8`。root 私有证据位于 `/home/hans/experiments/learning-system-p0c3/evidence/learning-system-p0c3-task7-3342c05-full-8a4c2d91`；五个容器均已停止，workspace、PostgreSQL、第二及重复 Worker 退出 0，首只按要求 SIGKILL 退出 137。
+- 独立只读核验脚本 `attest_task7_full_3342c05_v2.py` SHA-256 `c22f94853fd8f3775582c23b0a30f8badd32064c4a7cba36c408d117c55c6586` 由用户在 root 下运行，返回 `FULL_EVIDENCE_ATTESTED_NOT_PRODUCTION`：602 份证据文件的清单 SHA-256 `8b45a18704e672848005d8787281dc5153de2cd1e02b3467f36b5989698cec5e`；341 源文件、301 镜像输入、4 套完整旧版升级校验序列、四组失败注入分别 3/5/6/2 项。核验从原始退出码、命令、日志、哈希与容器状态复查，不只相信 `result.json` 的状态字段。
+- 首版额外审计脚本因在多批 `sha256sum` 日志间多插入一个空行而误判 `ValueError`；原脚本与失败输出保留，修正版仅更正拼接方式，未修改业务源码或原始证据。此前 Task 7 的失败批次也各自保留，不合并充当本次通过证据。
+- 最终全分支独立静态复审未发现阻断候选验收的新增代码问题；静态结论与上述真实 Linux/PostgreSQL 证据分别成立。隔离验收不等于生产上线。
 
 ## 已有精确包证据（历史，不等于新候选通过）
 
@@ -39,4 +48,4 @@ Task 6 三次真实运行和单独续跑不能合并抹去失败：
 - 管理进程重启后交付的 manifest hash与job/result一致，目标sealed intake、全行/投影/真实PDF PNG字节摘要、当前 unplaced 身份/原锚/顺序、receipt绑定/排除行数；撤权拒交付。
 - 四组的具体 test/exit/result 索引；没有输出的SQLSTATE标为未输出，不推测错误码。完整evidence相对路径SHA清单，失败保留而非重写。只停止本批项目，旧证据/生产无变化。
 
-Task 7 新包真实 Linux/PG 执行、独立 scoped review、最终全分支 review 与 raw hash 审计仍开放。全部通过以后才可由 controller 标记 `P0_C3_VERIFIED / NOT_PRODUCTION`；C4/P1/HTTP/UI/生产不随之完成。
+Task 7 新包真实 Linux/PG 执行、独立静态复审与 raw hash 审计均已完成，因此仅将 C3 标记 `P0_C3_VERIFIED / NOT_PRODUCTION`。C4/P1/HTTP/UI/生产不随之完成。

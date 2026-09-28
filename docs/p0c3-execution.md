@@ -1,6 +1,6 @@
 # P0-C3 Task 7 执行手册
 
-这是候选验收协议，不表示已执行。仅在精确 commit/源码 ZIP SHA/逐文件 manifest 获单独授权后，在全新 Linux 隔离目录运行。不能继承之前 C2/C3 包的上传授权。禁止生产、旧实验项目、旧数据库、旧证据、已有卷复用及全局 prune。
+这是隔离验收协议。获授权的 `3342c05` 源码批次已按本协议在全新 Linux 项目执行并通过独立证据审计，结果见[验证台账](p0c3-verification.md)。后续新包仍须按精确 commit/源码 ZIP SHA/逐文件 manifest 单独授权，在新隔离目录运行；不能继承之前 C2/C3 包的上传授权。禁止生产、旧实验项目、旧数据库、旧证据、已有卷复用及全局 prune。
 
 ## 本地冻结前
 
@@ -84,7 +84,7 @@ sudo --preserve-env=C3_PROJECT,C3_TEST_SUBNET,C3_IMAGE,C3_RUNTIME_IMAGE,C3_WORKE
 7. 在所有 Worker 已退出后新管理进程 deliver_export，验证仍能从持久卷交付；sealed 文件经目标 stage_incoming/preflight/import。新目标只预置同身份空间授权。比较完成 manifest SHA、全部 included immutable 行和逐表行数、source 仍相同、投影与两个当前 unplaced placement、真实原件字节/hash、恰一条 bound receipt，排除 release/lineage/普通receipt/jobs。随机错误 actor 的交付与 preflight 必须通用 NotFound 且目标仍零业务行。
 8. 撤 source grant，再次交付必须通用 NotFound。只 stop 本批项目，保留已退出容器和私有卷；记录 source-after 相同、每条命令/标准输出/标准错误/exit、完整 evidence SHA。启动命令尚未成功时也已武装清理；按标签发现本批对象并逐个核验后 best-effort stop，某项 inspect/logs 失败不会跳过其余对象或 PG。result.json 分别保留原始失败和 cleanup_errors；清理失败不能覆盖原始业务错误。不得将先前 RED 日志覆盖成 GREEN。
 
-当前脚本结果 `CANDIDATE_GATES_PASSED_NOT_PRODUCTION` 仍需独立证据审计和全分支复审；脚本不能自行给项目授予最终验收状态。
+脚本结果 `CANDIDATE_GATES_PASSED_NOT_PRODUCTION` 仍需独立证据审计和全分支复审；脚本不能自行给项目授予最终验收状态。本批次两项复审已完成，见[验证台账](p0c3-verification.md)。
 
 ## 证据与密钥
 

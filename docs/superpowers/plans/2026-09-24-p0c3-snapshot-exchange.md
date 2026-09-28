@@ -255,11 +255,15 @@ impl SnapshotImportStore {
 
 ## Task 7：隔离端到端验收与交付文档
 
-- [ ] **Step 1: 固定源码。** 记录精确 commit、clean status 和逐文件 SHA；Task 1–6 中任何 RED/GREEN 中间包或最终源码包送往 Linux 之前，都按用户既定“每份新包单独确认”的边界给出完整路径、摘要、文件数与隔离目标。未获该包授权前仅运行本地不需要服务器的检查。绝不借用 C2 包授权。
-- [ ] **Step 2: 本地静态验证。** 运行 `cargo fmt --all -- --check`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings`；只有环境具备显式隔离 `TEST_ADMIN_DATABASE_URL` 和 `TEST_DATABASE_URL` 时才运行 PG 专项，不把缺少 DSN 记为产品失败。冻结 0001–0013 文件 hash 与 C2 基线比对。
-- [ ] **Step 3: 经授权的 Linux 隔离验收。** 新 Compose project/网络/卷/数据库，执行 `cargo test --offline --locked --workspace -- --test-threads=1`、C3 四种失败注入、两个独立 Worker 进程 SIGKILL/租约易主、撤权后交付、同身份第二实例往返、四套旧程序升级；保存命令、stdout/stderr、退出码、SQL 状态和关键原字节/包哈希。验证容器只有 runtime secret，无管理员 secret。
-- [ ] **Step 4: 文档与终审。** 写 `docs/p0c3-format.md`（精确字段和目录上限）、`docs/p0c3-boundary.md`、`docs/p0c3-execution.md`、`docs/p0c3-verification.md`；逐条比对上方 Spec 与 Review Focus。独立 reviewer 做全分支审查；只有全部真实证据通过才标记 `P0_C3_VERIFIED / NOT_PRODUCTION`，否则逐项列出未验证项。C4/P1/生产保持开放。
+- [x] **Step 1: 固定源码。** 记录精确 commit、clean status 和逐文件 SHA；Task 1–6 中任何 RED/GREEN 中间包或最终源码包送往 Linux 之前，都按用户既定“每份新包单独确认”的边界给出完整路径、摘要、文件数与隔离目标。未获该包授权前仅运行本地不需要服务器的检查。绝不借用 C2 包授权。
+- [x] **Step 2: 本地静态验证。** 运行 `cargo fmt --all -- --check`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings`；只有环境具备显式隔离 `TEST_ADMIN_DATABASE_URL` 和 `TEST_DATABASE_URL` 时才运行 PG 专项，不把缺少 DSN 记为产品失败。冻结 0001–0013 文件 hash 与 C2 基线比对。
+- [x] **Step 3: 经授权的 Linux 隔离验收。** 新 Compose project/网络/卷/数据库，执行 `cargo test --offline --locked --workspace -- --test-threads=1`、C3 四种失败注入、两个独立 Worker 进程 SIGKILL/租约易主、撤权后交付、同身份第二实例往返、四套旧程序升级；保存命令、stdout/stderr、退出码、SQL 状态和关键原字节/包哈希。验证容器只有 runtime secret，无管理员 secret。
+- [x] **Step 4: 文档与终审。** 写 `docs/p0c3-format.md`（精确字段和目录上限）、`docs/p0c3-boundary.md`、`docs/p0c3-execution.md`、`docs/p0c3-verification.md`；逐条比对上方 Spec 与 Review Focus。独立 reviewer 做全分支审查；只有全部真实证据通过才标记 `P0_C3_VERIFIED / NOT_PRODUCTION`，否则逐项列出未验证项。C4/P1/生产保持开放。
 
 ## 执行交接
+
+2026-09-28 Task 7 收口：精确源码提交 `3342c0554c18787749d0f06a772743f867c18720` 与获授权 ZIP SHA-256 `4754aee86dfb18d09d8d8c07d2ef94e802afa6c3bffdc5014efd03f982efed5a` 在全新隔离项目通过 seed focus、完整 Linux/PostgreSQL/Worker 端到端验收。full `result.json` SHA-256 `c939cc712ff8471c0bf8e4175d73c5b70e2166652086fc70dcd6244d60a18da8`；独立 root 只读复核 602 份证据文件，清单 SHA-256 `8b45a18704e672848005d8787281dc5153de2cd1e02b3467f36b5989698cec5e`。最终全分支静态复审无阻断项。原失败批次与首版审计脚本误判均保留。详见 [C3 验证台账](../../p0c3-verification.md)。C3 状态仅为 `P0_C3_VERIFIED / NOT_PRODUCTION`，C4/P1/生产仍开放。
+
+Task 1–6 的步骤框保留原施工模板，不作为当前完成状态来源；分项完成依据为逐任务审查和 [C3 验证台账](../../p0c3-verification.md)。
 
 用户已选择逐任务由子代理实现并审查。书面计划获用户审阅后，按 Task 1→7 顺序：新 implementer 执行 RED/GREEN，独立 reviewer 对照规格和测试审查，修复后才进入下一任务；最后全分支复审。每次只提交已通过本地可运行检查的独立任务。Linux 新源码包按精确文件和目标单独确认，不把 C2 的历史授权扩展到 C3。

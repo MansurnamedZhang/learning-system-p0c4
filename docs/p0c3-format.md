@@ -1,6 +1,6 @@
 # P0-C3 v1 目录格式
 
-状态：实现候选；Task 7 联合 Linux/PostgreSQL/容器验收尚未执行。本页描述实际接口，不是验收证明。
+状态：`P0_C3_VERIFIED / NOT_PRODUCTION`。Task 7 联合 Linux/PostgreSQL/容器验收与独立证据审计已完成；[验证台账](p0c3-verification.md)记录精确源码包和结果。本页描述实际接口，不单独充当验收证明。
 
 输入为 `SnapshotRequest { reading, mode, include_personal, include_originals, resource_versions, source_segments }`。`reading` 精确包含 view/revision UUID；显式 resource/version/segment 引用不能靠可变 head 推断。`include_personal=false` 产生阅读副本；原样导入要求本人个人层和完整可见的必要闭包，隐藏必要对象使整个 exact 请求失败。
 
