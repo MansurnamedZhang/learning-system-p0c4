@@ -1,6 +1,8 @@
 use learning_assets::FsAssetStore;
 #[cfg(target_os = "linux")]
 use learning_assets::UploadDeclaration;
+#[cfg(target_os = "linux")]
+use learning_backup::transfer_sealed_backup;
 use learning_backup::{
     BackupManifestV1, BackupPlan, FileRecord, MigrationRecord, SourceIdentity, seal_backup,
     verify_sealed,
@@ -105,6 +107,67 @@ fn sealed_copy_is_read_back_and_never_publishes_complete() {
         !names
             .iter()
             .any(|n| n.to_string_lossy().ends_with(".complete"))
+    );
+    cleanup(root);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn destination_transfer_rehashes_all_bytes_and_stays_sealed() {
+    use std::os::unix::fs::PermissionsExt;
+    let (root, store, plan, manifest, mut dump, mut roles) = fixture();
+    let destination = root.join("destination");
+    fs::create_dir(&destination).unwrap();
+    fs::set_permissions(&destination, fs::Permissions::from_mode(0o700)).unwrap();
+    seal_backup(&root, &manifest, &plan, &store, &mut dump, &mut roles).unwrap();
+    let result = transfer_sealed_backup(&root, &destination, manifest.backup_id).unwrap();
+    assert_eq!(
+        result.manifest_sha256(),
+        manifest.canonical_sha256().unwrap()
+    );
+    verify_sealed(&destination, manifest.backup_id).unwrap();
+    assert!(
+        !destination
+            .join(format!("{}.complete", manifest.backup_id))
+            .exists()
+    );
+    cleanup(root);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn destination_transfer_rejects_corrupt_source_and_existing_target() {
+    use std::os::unix::fs::PermissionsExt;
+    let (root, store, plan, manifest, mut dump, mut roles) = fixture();
+    let destination = root.join("destination");
+    fs::create_dir(&destination).unwrap();
+    fs::set_permissions(&destination, fs::Permissions::from_mode(0o700)).unwrap();
+    seal_backup(&root, &manifest, &plan, &store, &mut dump, &mut roles).unwrap();
+    transfer_sealed_backup(&root, &destination, manifest.backup_id).unwrap();
+    let old = verify_sealed(&destination, manifest.backup_id).unwrap();
+    assert!(transfer_sealed_backup(&root, &destination, manifest.backup_id).is_err());
+    assert_eq!(
+        verify_sealed(&destination, manifest.backup_id)
+            .unwrap()
+            .manifest_sha256(),
+        old.manifest_sha256()
+    );
+    let source = root.join(format!("{}.sealed", manifest.backup_id));
+    fs::set_permissions(&source, fs::Permissions::from_mode(0o700)).unwrap();
+    let dump_path = source.join("database.dump");
+    fs::set_permissions(&dump_path, fs::Permissions::from_mode(0o600)).unwrap();
+    fs::write(&dump_path, b"corrupt").unwrap();
+    assert!(transfer_sealed_backup(&root, &destination, manifest.backup_id).is_err());
+    assert_eq!(
+        verify_sealed(&destination, manifest.backup_id)
+            .unwrap()
+            .manifest_sha256(),
+        old.manifest_sha256()
+    );
+    assert!(
+        !destination
+            .join(format!("{}.complete", manifest.backup_id))
+            .exists()
     );
     cleanup(root);
 }

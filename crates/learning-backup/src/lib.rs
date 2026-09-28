@@ -3,7 +3,12 @@
 mod catalog;
 pub use catalog::AdminAssetCatalog;
 mod sealed;
-pub use sealed::{SealedBackup, seal_backup, verify_sealed};
+pub use sealed::{SealedBackup, seal_backup, transfer_sealed_backup, verify_sealed};
+mod complete;
+pub use complete::{
+    CompleteBackup, DestinationStatement, DestinationWitness, VerifierTrustConfig,
+    open_complete_backup, publish_complete_backup, verify_destination_witness,
+};
 mod maintenance;
 pub use maintenance::{GateInspection, GatePhase, PgDumpSpec, SourceGateJournal, SourceGateRecord};
 mod source;

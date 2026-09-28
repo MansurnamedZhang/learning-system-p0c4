@@ -93,6 +93,9 @@ impl SourceGateRecord {
     pub fn phase(&self) -> GatePhase {
         self.phase
     }
+    pub fn pinned_manifest_sha256(&self) -> Option<&str> {
+        self.pins_sha256.as_deref()
+    }
     pub fn validate_for(&self, backup_id: Uuid) -> Result<(), BackupError> {
         if backup_id.is_nil() || self.backup_id != backup_id {
             return Err(BackupError::Invalid("gate record backup id"));

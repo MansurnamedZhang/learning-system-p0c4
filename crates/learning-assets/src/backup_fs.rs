@@ -54,6 +54,11 @@ impl BackupDir {
     pub fn sync(&self) -> io::Result<()> {
         self.0.sync()
     }
+    /// Device identity from the already-open directory handle, avoiding a
+    /// second path traversal while checking source/destination separation.
+    pub fn device_id(&self) -> io::Result<u64> {
+        self.0.device_id()
+    }
     pub fn seal_file(&self, name: &str) -> io::Result<()> {
         self.0.seal_file(name)
     }

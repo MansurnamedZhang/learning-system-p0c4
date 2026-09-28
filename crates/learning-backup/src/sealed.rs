@@ -154,6 +154,72 @@ pub fn verify_sealed(root: &Path, backup_id: Uuid) -> Result<SealedBackup, Backu
     }
 }
 
+/// Stream a fully verified source pin into a fresh destination staging tree.
+/// The destination is independently reopened and hashed before its own
+/// `.sealed` name is made durable. This never publishes `.complete` and does
+/// not assert that two paths occupy different physical failure domains.
+pub fn transfer_sealed_backup(
+    source_root: &Path,
+    destination_root: &Path,
+    backup_id: Uuid,
+) -> Result<SealedBackup, BackupError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (source_root, destination_root, backup_id);
+        Err(BackupError::Io(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "secure destination transfer requires Linux",
+        )))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        transfer_sealed_with_hook(source_root, destination_root, backup_id, |_| Ok(()))
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn transfer_sealed_with_hook(
+    source_root: &Path,
+    destination_root: &Path,
+    backup_id: Uuid,
+    mut hook: impl FnMut(FaultPoint) -> Result<(), BackupError>,
+) -> Result<SealedBackup, BackupError> {
+    let source = BackupDir::open_private_root(source_root)?;
+    source.sync()?;
+    let source_dir = source.open_dir(&format!("{backup_id}.sealed"))?;
+    let source_checked = verify_directory(&source_dir, backup_id)?;
+    let manifest_bytes = read_small(&source_dir, "manifest.json", MAX_MANIFEST_BYTES)?;
+    let manifest: BackupManifestV1 = serde_json::from_slice(&manifest_bytes)?;
+    let destination = BackupDir::open_private_root(destination_root)?;
+    let stage_name = format!("{backup_id}.transfer-staging-{}", Uuid::new_v4());
+    let stage = destination.create_dir(&stage_name)?;
+    for record in &manifest.files {
+        let mut input = open_file(&source_dir, &record.path)?;
+        write_source(&stage, record, &mut input, &mut hook)?;
+    }
+    let manifest_record = FileRecord {
+        path: "manifest.json".into(),
+        size: manifest_bytes.len() as u64,
+        sha256: source_checked.manifest_sha256.clone(),
+    };
+    write_source(
+        &stage,
+        &manifest_record,
+        &mut manifest_bytes.as_slice(),
+        &mut hook,
+    )?;
+    let destination_checked = verify_directory(&stage, backup_id)?;
+    if destination_checked.manifest_sha256 != source_checked.manifest_sha256 {
+        return Err(BackupError::Invalid("destination manifest changed"));
+    }
+    sync_and_seal_tree(&stage)?;
+    hook(FaultPoint::BeforeRename)?;
+    destination.rename_noreplace_without_sync(&stage_name, &format!("{backup_id}.sealed"))?;
+    hook(FaultPoint::BeforeParentSync)?;
+    destination.sync()?;
+    verify_sealed(destination_root, backup_id)
+}
+
 #[cfg(target_os = "linux")]
 fn verify_sealed_with_hook(
     root: &Path,
@@ -504,6 +570,30 @@ mod fault_tests {
         assert!(staged_len > 0 && staged_len < dump_bytes().len() as u64);
         assert!(!root.join(format!("{ID}.sealed")).exists());
         assert!(!root.join(format!("{ID}.complete")).exists());
+        clean(&root);
+    }
+
+    #[test]
+    fn interrupted_destination_stream_cannot_publish_sealed_or_complete() {
+        let root = root();
+        invoke(&root, |_| Ok(())).unwrap();
+        let destination = root.join("destination");
+        fs::create_dir(&destination).unwrap();
+        fs::set_permissions(&destination, fs::Permissions::from_mode(0o700)).unwrap();
+        let failed = transfer_sealed_with_hook(&root, &destination, ID, |point| {
+            if point == FaultPoint::AfterTargetChunk {
+                Err(BackupError::Io(io::Error::other(
+                    "injected transfer interruption",
+                )))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(failed.is_err());
+        assert!(!destination.join(format!("{ID}.sealed")).exists());
+        assert!(!destination.join(format!("{ID}.complete")).exists());
+        let staged = fs::read_dir(&destination).unwrap().count();
+        assert_eq!(staged, 1);
         clean(&root);
     }
 
