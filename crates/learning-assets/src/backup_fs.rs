@@ -15,6 +15,10 @@ pub enum BackupEntryKind {
 }
 
 impl BackupDir {
+    /// Restore target boundary, including every ancestor from `/`.
+    pub fn open_trusted_private_root(path: &Path) -> io::Result<Self> {
+        Dir::open_trusted_private_root(path).map(Self)
+    }
     pub fn open_private_root(path: &Path) -> io::Result<Self> {
         Dir::open_private_root(path).map(Self)
     }
@@ -76,5 +80,25 @@ impl BackupDir {
     }
     pub fn try_clone(&self) -> io::Result<Self> {
         self.0.try_clone().map(Self)
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod restore_path_tests {
+    use super::BackupDir;
+
+    #[test]
+    fn rejects_world_writable_ancestor_even_for_private_leaf() {
+        if unsafe { libc::geteuid() } != 0 {
+            return;
+        }
+        let leaf = std::env::temp_dir().join(format!(
+            "knowweave-restore-ancestor-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir(&leaf).unwrap();
+        let opened = BackupDir::open_trusted_private_root(&leaf);
+        std::fs::remove_dir(&leaf).unwrap();
+        assert!(opened.is_err());
     }
 }

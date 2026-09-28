@@ -2,6 +2,25 @@
 //! Other platforms refuse staging until an equivalent security contract exists.
 use std::{fs::File, io, path::Path};
 
+#[cfg(any(target_os = "linux", test))]
+fn trusted_ancestor(uid: u32, mode: u32) -> bool {
+    uid == 0 && mode & 0o022 == 0
+}
+
+#[cfg(test)]
+mod trusted_ancestor_tests {
+    use super::trusted_ancestor;
+
+    #[test]
+    fn rejects_non_root_or_writable_ancestor() {
+        assert!(trusted_ancestor(0, 0o755));
+        assert!(trusted_ancestor(0, 0o700));
+        assert!(!trusted_ancestor(1000, 0o700));
+        assert!(!trusted_ancestor(0, 0o775));
+        assert!(!trusted_ancestor(0, 0o757));
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) enum EntryKind {
@@ -28,6 +47,51 @@ mod platform {
         file: File,
     }
     impl Dir {
+        /// Restore-only path admission: no component may be a symlink,
+        /// non-root-owned, or writable by group/other. The final leaf is 0700.
+        /// Each check is made on the open directory handle used for descent.
+        pub(crate) fn open_trusted_private_root(path: &Path) -> io::Result<Self> {
+            if !path.is_absolute() {
+                return Err(invalid());
+            }
+            let root = CString::new("/").expect("literal");
+            let raw = unsafe {
+                libc::open(
+                    root.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                )
+            };
+            let mut current = Self::from_raw(raw)?;
+            let root_meta = current.file.metadata()?;
+            if !trusted_ancestor(root_meta.uid(), root_meta.mode()) {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "restore path has an untrusted ancestor",
+                ));
+            }
+            for part in path.components() {
+                match part {
+                    Component::RootDir => continue,
+                    Component::Normal(name) => current = current.open_dir_bytes(name.as_bytes())?,
+                    _ => return Err(invalid()),
+                }
+                let meta = current.file.metadata()?;
+                if !trusted_ancestor(meta.uid(), meta.mode()) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "restore path has an untrusted ancestor",
+                    ));
+                }
+            }
+            if current.file.metadata()?.mode() & 0o777 != 0o700 {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "restore private root must be 0700",
+                ));
+            }
+            Ok(current)
+        }
+
         pub(crate) fn open_private_root(path: &Path) -> io::Result<Self> {
             let current = Self::open_owned_root(path)?;
             let meta = current.file.metadata()?;
@@ -345,6 +409,9 @@ mod platform {
         ))
     }
     impl Dir {
+        pub(crate) fn open_trusted_private_root(_: &Path) -> io::Result<Self> {
+            unsupported()
+        }
         pub(crate) fn open_private_root(_: &Path) -> io::Result<Self> {
             unsupported()
         }

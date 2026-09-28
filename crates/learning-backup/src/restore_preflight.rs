@@ -29,6 +29,40 @@ use std::{
     path::{Component, PathBuf},
 };
 
+#[cfg(any(target_os = "linux", test))]
+#[derive(Debug, Default)]
+struct RestoreCatalogCounts {
+    relations: i64,
+    schemas: i64,
+    routines: i64,
+    types: i64,
+    extensions: i64,
+    event_triggers: i64,
+    publications: i64,
+    large_objects: i64,
+}
+
+#[cfg(any(target_os = "linux", test))]
+impl RestoreCatalogCounts {
+    fn total(&self) -> Result<u64, BackupError> {
+        [
+            self.relations,
+            self.schemas,
+            self.routines,
+            self.types,
+            self.extensions,
+            self.event_triggers,
+            self.publications,
+            self.large_objects,
+        ]
+        .into_iter()
+        .try_fold(0_u64, |sum, count| {
+            sum.checked_add(u64::try_from(count).map_err(|_| BackupError::Overflow)?)
+                .ok_or(BackupError::Overflow)
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RestorePreflightConfig {
     pub destination_root: PathBuf,
@@ -141,7 +175,13 @@ async fn preflight_linux(
             "root-owned restore controller required",
         ));
     }
-    let lock_root = BackupDir::open_private_root(&config.control_root)?;
+    let lock_root = BackupDir::open_trusted_private_root(&config.control_root)?;
+    let _trust_parent = BackupDir::open_trusted_private_root(
+        config
+            .trust_path
+            .parent()
+            .ok_or(BackupError::Invalid("verifier trust parent"))?,
+    )?;
     let lock_name = format!("{}.restore.lock", config.expected_database);
     let lock = match lock_root.create_file(&lock_name) {
         Ok(file) => {
@@ -173,7 +213,7 @@ async fn preflight_linux(
             "complete receipt changed after opening",
         ));
     }
-    let destination = BackupDir::open_private_root(&config.destination_root)?;
+    let destination = BackupDir::open_trusted_private_root(&config.destination_root)?;
     let package = destination.open_dir(&format!("{}.sealed", complete.backup_id()))?;
     let manifest_bytes = read_limited(&package, "manifest.json", 64 * 1024 * 1024)?;
     let manifest: BackupManifestV1 = serde_json::from_slice(&manifest_bytes)?;
@@ -204,7 +244,7 @@ async fn preflight_linux(
     observed_build_and_pg(admin, &config.expected_database)
         .await?
         .validate(&manifest.source)?;
-    let assets = BackupDir::open_private_root(&config.asset_root)?;
+    let assets = BackupDir::open_trusted_private_root(&config.asset_root)?;
     let facts = target_facts(admin, assets.list()?.len()).await?;
     facts.validate()?;
     Ok(RestorePreflight {
@@ -281,7 +321,15 @@ async fn target_facts(
          (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace \
            WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%') AS user_relations, \
          (SELECT count(*) FROM pg_catalog.pg_namespace n WHERE n.nspname NOT IN ('pg_catalog','information_schema','public') \
-           AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%') AS user_schemas \
+           AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%') AS user_schemas, \
+         (SELECT count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace \
+           WHERE n.nspname='public') AS user_routines, \
+         (SELECT count(*) FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace \
+           WHERE n.nspname='public') AS user_types, \
+         (SELECT count(*) FROM pg_catalog.pg_extension WHERE extname<>'plpgsql') AS user_extensions, \
+         (SELECT count(*) FROM pg_catalog.pg_event_trigger) AS user_event_triggers, \
+         (SELECT count(*) FROM pg_catalog.pg_publication) AS user_publications, \
+         (SELECT count(*) FROM pg_catalog.pg_largeobject_metadata) AS user_large_objects \
          FROM pg_catalog.pg_database d WHERE d.datname=current_database()"
     ).fetch_one(&mut *conn).await?;
     let current_role: String = row.try_get("current_role")?;
@@ -291,12 +339,17 @@ async fn target_facts(
             "restore requires authenticated admin session",
         ));
     }
-    let relations: i64 = row.try_get("user_relations")?;
-    let schemas: i64 = row.try_get("user_schemas")?;
-    let non_system_relations = u64::try_from(relations)
-        .map_err(|_| BackupError::Overflow)?
-        .checked_add(u64::try_from(schemas).map_err(|_| BackupError::Overflow)?)
-        .ok_or(BackupError::Overflow)?;
+    let non_system_relations = RestoreCatalogCounts {
+        relations: row.try_get("user_relations")?,
+        schemas: row.try_get("user_schemas")?,
+        routines: row.try_get("user_routines")?,
+        types: row.try_get("user_types")?,
+        extensions: row.try_get("user_extensions")?,
+        event_triggers: row.try_get("user_event_triggers")?,
+        publications: row.try_get("user_publications")?,
+        large_objects: row.try_get("user_large_objects")?,
+    }
+    .total()?;
     Ok(RestoreTargetFacts {
         non_system_relations,
         asset_root_entries: u64::try_from(asset_entries).map_err(|_| BackupError::Overflow)?,
@@ -307,4 +360,27 @@ async fn target_facts(
             .map_err(|_| BackupError::Overflow)?,
         private_asset_root: true, // BackupDir::open_private_root enforced 0700 ownership.
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_objects_outside_relations_make_a_target_dirty() {
+        for kind in 0..7 {
+            let mut counts = RestoreCatalogCounts::default();
+            match kind {
+                0 => counts.routines = 1,
+                1 => counts.types = 1,
+                2 => counts.extensions = 1,
+                3 => counts.event_triggers = 1,
+                4 => counts.publications = 1,
+                5 => counts.large_objects = 1,
+                _ => counts.schemas = 1,
+            }
+            assert!(counts.total().unwrap() > 0, "catalog family {kind}");
+        }
+        assert_eq!(RestoreCatalogCounts::default().total().unwrap(), 0);
+    }
 }
