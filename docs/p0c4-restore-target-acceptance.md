@@ -17,9 +17,10 @@ python scripts/package_p0c4_task3.py --repository . --output .artifacts/p0c4-res
 ```
 
 Record the printed archive SHA-256, manifest SHA-256, source commit and the
-SHA-256 of `scripts/p0c4_restore_target_acceptance.py`. Review those exact
-values before any separate transfer to the isolated Linux host. No transfer
-or remote execution is part of this repository task.
+SHA-256 of `scripts/p0c4_restore_target_acceptance.py`. The separate host-run
+approval must name **both** the exact ZIP SHA-256 and runner SHA-256. Review
+those values before any separate transfer to the isolated Linux host. No
+transfer or remote execution is part of this repository task.
 
 On the isolated host, put the approved ZIP and this exact runner under the
 root-private control root, verify both transferred hashes, and run once with
@@ -32,7 +33,8 @@ sudo install -d -o root -g root -m 0700 /var/lib/knowweave-c4
 sudo install -d -o root -g root -m 0700 /var/lib/knowweave-c4/tools /var/lib/knowweave-c4/incoming /var/lib/knowweave-c4/batches
 sudo install -o root -g root -m 0500 p0c4_restore_target_acceptance.py /var/lib/knowweave-c4/tools/p0c4_restore_target_acceptance.py
 sudo install -o root -g root -m 0400 p0c4-restore-target-reviewed.zip /var/lib/knowweave-c4/incoming/p0c4-restore-target-reviewed.zip
-sudo sha256sum /var/lib/knowweave-c4/tools/p0c4_restore_target_acceptance.py /var/lib/knowweave-c4/incoming/p0c4-restore-target-reviewed.zip
+printf '%s  %s\n' '<exact-approved-runner-sha256>' /var/lib/knowweave-c4/tools/p0c4_restore_target_acceptance.py | sudo sha256sum --check || exit 1
+printf '%s  %s\n' '<exact-approved-archive-sha256>' /var/lib/knowweave-c4/incoming/p0c4-restore-target-reviewed.zip | sudo sha256sum --check || exit 1
 sudo python3 -B /var/lib/knowweave-c4/tools/p0c4_restore_target_acceptance.py \
   --archive /var/lib/knowweave-c4/incoming/p0c4-restore-target-reviewed.zip \
   --archive-sha256 '<exact-archive-sha256>' \
@@ -49,7 +51,10 @@ the dedicated database and PG18 version, inspects the immutable Docker object
 IDs, labels, volume mount, private network, no published ports, and the exact
 read-only initdb and secret binds. It captures only redacted hashes and facts
 in root-private `evidence/result.json`, then stops only its verified PG
-container ID and retains the volume. On failure it attempts the same safe stop
-and keeps the batch evidence. A failed batch is never resumed; any subsequent
-attempt must use a new invocation, UUID and project after review of the prior
-failure.
+container ID and retains the volume. If the provisioner fails before returning
+an ID, its own quarantine path handles the early stop attempt; the runner
+reads that provisioner's private `failure.json` and records a project-only
+container snapshot, without trying to stop an unverified container. From the
+start of provisioning the target is reported as unusable even if its precise
+condition is unknown. A failed batch is never resumed; any subsequent attempt
+must use a new invocation, UUID and project after review of the prior failure.

@@ -189,6 +189,44 @@ class RuntimeGates(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot safely"):
             runner.safe_stop(fake, identity, "a" * 64)
 
+    def test_early_failure_reports_provisioner_stop_and_live_project_only(self):
+        identity = target.identity_for(ID)
+        with tempfile.TemporaryDirectory() as directory:
+            batch = Path(directory)
+            failure = batch / "control" / "targets" / ID / "failure.json"
+            failure.parent.mkdir(parents=True)
+            record = {"state": "FAILED_QUARANTINE_ATTEMPTED", "batch_id": ID,
+                      "project": identity["project"], "volume": identity["volume"],
+                      "container_stop_confirmed": True, "cleanup_error": None}
+            failure.write_text(json.dumps(record))
+            actual_lstat = runner.os.lstat
+
+            def linux_private_file(path):
+                meta = actual_lstat(path)
+                return SimpleNamespace(st_mode=stat.S_IFREG | 0o600,
+                                       st_size=meta.st_size, st_uid=0)
+
+            live = created(identity)
+            live["containers"][0]["State"]["Running"] = False
+            foreign = created(target.identity_for("550e8400-e29b-41d4-a716-446655440001"))
+            foreign["containers"][0]["Id"] = "f" * 64
+            live["containers"].extend(foreign["containers"])
+            fake = SimpleNamespace(snapshot=lambda: copy.deepcopy(live))
+            with (patch.object(runner, "trusted_path"),
+                  patch.object(runner.os, "lstat", side_effect=linux_private_file)):
+                found, proof, stop = runner.early_failure_evidence(batch, fake, identity, ID)
+                self.assertTrue(found["container_stop_confirmed"])
+                self.assertEqual(proof["project_container_ids"], ["a" * 64])
+                self.assertTrue(stop["confirmed"])
+                live["containers"][0]["State"]["Running"] = True
+                _, proof, stop = runner.early_failure_evidence(batch, fake, identity, ID)
+                self.assertEqual(proof["running_project_container_ids"], ["a" * 64])
+                self.assertFalse(stop["confirmed"])
+                failure.unlink()
+                found, proof, stop = runner.early_failure_evidence(batch, fake, identity, ID)
+                self.assertFalse(found["present"])
+                self.assertFalse(stop["confirmed"])
+
 
 if __name__ == "__main__":
     unittest.main()

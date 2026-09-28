@@ -287,6 +287,70 @@ def negative_acl_probe(provisioner, identity, container_id):
     return digest(b"REJECT\n")
 
 
+def read_provisioner_failure(path, identity, batch_id):
+    """Read only the provisioner's bounded private failure facts, if emitted."""
+    try:
+        meta = os.lstat(path)
+    except FileNotFoundError:
+        return {"present": False}
+    trusted_path(path, regular=True)
+    require(stat.S_IMODE(meta.st_mode) == 0o600 and meta.st_size <= 4096,
+            "unsafe provisioner failure record")
+    fd = os.open(path, os.O_RDONLY | NOFOLLOW)
+    with os.fdopen(fd, "rb") as stream:
+        record = json.loads(stream.read(4097))
+    require(isinstance(record, dict) and
+            record.get("state") == "FAILED_QUARANTINE_ATTEMPTED" and
+            record.get("batch_id") == batch_id and
+            record.get("project") == identity["project"] and
+            record.get("volume") == identity["volume"] and
+            type(record.get("container_stop_confirmed")) is bool and
+            (record.get("cleanup_error") is None or
+             isinstance(record["cleanup_error"], str) and
+             re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}", record["cleanup_error"])),
+            "provisioner failure record differs")
+    return {"present": True, "container_stop_confirmed":
+            record["container_stop_confirmed"],
+            "cleanup_error": record["cleanup_error"]}
+
+
+def project_container_proof(provisioner, identity):
+    """Observe only this project's named or labeled containers after failure."""
+    live = provisioner.snapshot()
+    project = identity["project"]
+    matched = [c for c in live["containers"] if
+               (c.get("Config", {}).get("Labels") or {}).get("com.docker.compose.project")
+               == project or c.get("Name", "").lstrip("/") == project or
+               c.get("Name", "").lstrip("/").startswith(project + "-")]
+    require(all(HEX64.fullmatch(c.get("Id", "")) for c in matched),
+            "project container inspection lacks immutable ID")
+    require(all(type(c.get("State", {}).get("Running")) is bool for c in matched),
+            "project container running state unavailable")
+    running = [c["Id"] for c in matched if c.get("State", {}).get("Running") is True]
+    return {"project_container_ids": [c["Id"] for c in matched],
+            "running_project_container_ids": running,
+            "no_running_project_containers": not running}
+
+
+def early_failure_evidence(batch, provisioner, identity, batch_id):
+    path = batch / "control" / "targets" / batch_id / "failure.json"
+    try:
+        record = read_provisioner_failure(path, identity, batch_id)
+    except BaseException as error:
+        record = {"present": None, "inspection_error": type(error).__name__}
+    try:
+        proof = project_container_proof(provisioner, identity)
+    except BaseException as error:
+        proof = {"no_running_project_containers": None,
+                 "inspection_error": type(error).__name__}
+    confirmed = (record.get("present") is True and
+                 record.get("container_stop_confirmed") is True and
+                 proof.get("no_running_project_containers") is True)
+    stop = {"confirmed": confirmed, "source": "provisioner_record_and_live_snapshot",
+            "cleanup_error": record.get("cleanup_error") if record.get("present") else None}
+    return record, proof, stop
+
+
 def run(args):
     require(sys.platform.startswith("linux") and os.geteuid() == 0,
             "root Linux required")
@@ -314,7 +378,9 @@ def run(args):
               "manifest_sha256": args.manifest_sha256,
               "source_commit": args.source_commit, "subnet": args.subnet,
               "gates": [], "failure_label": None, "stop": None,
-              "target_dirty": False,
+              "target_dirty": None, "target_unusable": False,
+              "target_condition": "NO_TARGET_CREATED",
+              "provisioner_failure": None, "project_container_proof": None,
               "provisioner_state_is_pre_negative_only": True}
     provisioner = None
     identity = None
@@ -340,6 +406,8 @@ def run(args):
         before = provisioner.snapshot()
         provisioner.admit_fresh(identity, args.subnet, before)
         stage = "provision-target"
+        result["target_unusable"] = True
+        result["target_condition"] = "UNVERIFIED_UNUSABLE"
         status = provisioner.provision(control, batch_id, args.subnet, installed_initdb)
         require(status["state"] == "CREATED_QUARANTINED", "target not quarantined")
         container_id = status["container_id"]
@@ -364,6 +432,7 @@ def run(args):
         stage = "runtime-public-create-rejected"
         # One intentional mutation, confined to the new target's dedicated DB.
         result["target_dirty"] = True  # Conservative even if GRANT returns an error.
+        result["target_condition"] = "ACL_MUTATED_DIRTY_UNUSABLE"
         rejection_hash = negative_acl_probe(provisioner, identity, container_id)
         result["gates"].append({"name": "runtime-public-create-rejected", "exit": 0,
                                 "probe_sha256": rejection_hash})
@@ -380,12 +449,17 @@ def run(args):
     except BaseException as error:
         result["failure_label"] = type(error).__name__
         result["gates"].append({"name": stage, "exit": 1})
-        if provisioner is not None and identity is not None and container_id is not None:
-            try:
-                result["stop"] = safe_stop(provisioner, identity, container_id)
-            except BaseException as stop_error:
-                result["stop"] = {"confirmed": False,
-                                  "failure_label": type(stop_error).__name__}
+        if provisioner is not None and identity is not None:
+            if container_id is not None:
+                try:
+                    result["stop"] = safe_stop(provisioner, identity, container_id)
+                except BaseException as stop_error:
+                    result["stop"] = {"confirmed": False,
+                                      "failure_label": type(stop_error).__name__}
+            elif result["target_unusable"]:
+                (result["provisioner_failure"], result["project_container_proof"],
+                 result["stop"]) = early_failure_evidence(
+                    batch, provisioner, identity, batch_id)
         if source.exists():
             try:
                 result["source_after_sha256"] = source_digest(source, manifest)
