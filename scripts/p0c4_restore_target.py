@@ -27,6 +27,8 @@ DOCKER = "/usr/bin/docker"
 IP = "/usr/sbin/ip"
 IMAGE = "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d"
 HEX_ID = re.compile(r"[0-9a-f]{64}\Z")
+RFC1918 = tuple(ipaddress.ip_network(value) for value in
+                ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
 
 
 def require(condition, message):
@@ -58,8 +60,8 @@ def admit_fresh(identity, subnet, snapshot):
     """Admission is absence *now*, not a historical never-existed claim."""
     chosen = _network(subnet)
     require(chosen.version == 4 and chosen.prefixlen >= 24 and
-            chosen.is_private and not chosen.is_loopback and
-            not chosen.is_link_local, "private explicit /24-or-smaller subnet required")
+            any(chosen.subnet_of(block) for block in RFC1918),
+            "explicit RFC1918 /24-or-smaller subnet required")
     require(snapshot.get("daemon_id"), "Docker daemon identity unavailable")
     project = identity["project"]
     for item in snapshot["containers"]:
@@ -107,7 +109,10 @@ def compose_document(identity, subnet, target, initdb):
             "volumes": [identity["volume"] + ":/var/lib/postgresql",
                         str(initdb) + ":/docker-entrypoint-initdb.d/10-restore.sh:ro"],
             "networks": ["test"],
-            "healthcheck": {"test": ["CMD-SHELL", "pg_isready -U postgres -d postgres"],
+            # Entry point's temporary initdb server listens on Unix socket
+            # only. TCP health cannot pass until initialization completes.
+            "healthcheck": {"test": ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d "
+                                      + identity["database"]],
                             "interval": "2s", "timeout": "3s", "retries": 30},
         }},
         "networks": {"test": {"name": identity["network"], "internal": True,
@@ -177,7 +182,7 @@ def verify_created(identity, subnet, before, after):
             "volume_name": volume["Name"], "volume_mountpoint": mountpoint}
 
 
-def quarantine(identity, snapshot, stop):
+def quarantine(identity, snapshot, stop, allowed_ids=None):
     """Stop only inspected IDs carrying our exact project and PG labels."""
     stopped = []
     for container in snapshot["containers"]:
@@ -185,7 +190,8 @@ def quarantine(identity, snapshot, stop):
         container_id = container.get("Id", "")
         if (labels.get("com.docker.compose.project") == identity["project"]
                 and labels.get("com.docker.compose.service") == "pg"
-                and HEX_ID.fullmatch(container_id)):
+                and HEX_ID.fullmatch(container_id)
+                and (allowed_ids is None or container_id in allowed_ids)):
             stop("stop", "--time", "1", container_id)
             stopped.append(container_id)
     return stopped
@@ -268,7 +274,11 @@ def _private_write(path, payload):
         file.write(payload)
         file.flush()
         os.fsync(file.fileno())
-    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    _sync_directory(path.parent)
+
+
+def _sync_directory(path):
+    directory = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         os.fsync(directory)
     finally:
@@ -288,6 +298,48 @@ def _postgres_uid():
     return uid, gid
 
 
+def probe_initdb(identity, container_id):
+    """No credential arguments: container-local postgres peer auth only."""
+    require(bool(HEX_ID.fullmatch(container_id)), "verified PG ID required")
+    database = identity["database"]
+    require(re.fullmatch(r"learning_restore_c4_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
+                         r"[89ab][0-9a-f]{3}-[0-9a-f]{12}", database),
+            "validated dedicated database required")
+    sql = f"""SELECT CASE WHEN current_database() = '{database}'
+AND EXISTS (SELECT 1 FROM pg_catalog.pg_database d
+            JOIN pg_catalog.pg_roles a ON a.oid = d.datdba
+            WHERE d.datname = current_database() AND a.rolname = 'learning_admin'
+              AND a.rolcanlogin AND NOT a.rolsuper AND NOT a.rolcreatedb
+              AND NOT a.rolcreaterole AND NOT a.rolbypassrls
+              AND NOT EXISTS (
+                SELECT 1 FROM pg_catalog.aclexplode(
+                  COALESCE(d.datacl, pg_catalog.acldefault('d', d.datdba))) acl
+                WHERE acl.grantee = 0 AND acl.privilege_type = 'CONNECT'))
+AND EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
+            WHERE r.rolname = 'learning_runtime' AND NOT r.rolcanlogin
+              AND NOT r.rolsuper AND NOT r.rolcreatedb
+              AND NOT r.rolcreaterole AND NOT r.rolbypassrls)
+AND NOT pg_catalog.has_database_privilege('learning_runtime',
+                                         current_database(), 'CONNECT')
+AND EXISTS (SELECT 1 FROM pg_catalog.pg_namespace n
+            WHERE n.nspname = 'public'
+              AND n.nspowner::pg_catalog.regrole::text = 'pg_database_owner'
+              AND NOT EXISTS (
+                SELECT 1 FROM pg_catalog.aclexplode(
+                  COALESCE(n.nspacl, pg_catalog.acldefault('n', n.nspowner))) acl
+                WHERE acl.grantee = 0 AND acl.privilege_type = 'CREATE'))
+AND NOT pg_catalog.has_schema_privilege('learning_runtime', 'public', 'CREATE')
+AND pg_catalog.has_function_privilege('learning_admin',
+                                     'pg_catalog.pg_control_system()', 'EXECUTE')
+AND NOT pg_catalog.has_function_privilege('learning_runtime',
+                                         'pg_catalog.pg_control_system()', 'EXECUTE')
+THEN 'OK' ELSE 'REJECT' END;"""
+    output = _docker("exec", "--user", "postgres", container_id,
+                     "psql", "-XAt", "-v", "ON_ERROR_STOP=1", "--dbname", database,
+                     "-c", sql)
+    require(output == "OK\n", "dedicated PG initdb facts differ")
+
+
 def provision(root, batch_id, subnet, initdb):
     identity = identity_for(batch_id)
     _trusted_initdb(initdb)
@@ -299,12 +351,13 @@ def provision(root, batch_id, subnet, initdb):
         require(stat.S_ISDIR(targets_meta.st_mode) and targets_meta.st_uid == 0 and
                 stat.S_IMODE(targets_meta.st_mode) == 0o700 and not target.exists(),
                 "root-private target parent and new target required")
-        uid, gid = _postgres_uid()
         old_umask = os.umask(0o077)
         try:
             target.mkdir(mode=0o700)
+            _sync_directory(root / "targets")
             secret_dir = target / "secrets"
             secret_dir.mkdir(mode=0o700)
+            uid, gid = _postgres_uid()
             for key in ("postgres_password", "admin_password"):
                 secret_path = secret_dir / key
                 _private_write(secret_path, (secrets.token_hex(32) + "\n").encode())
@@ -313,6 +366,7 @@ def provision(root, batch_id, subnet, initdb):
             compose_path = target / "compose.json"
             _private_write(compose_path, json.dumps(compose, sort_keys=True,
                                                     separators=(",", ":")).encode())
+            verified_ids = None
             try:
                 _docker("compose", "-f", str(compose_path), "config", "-q")
                 _docker("compose", "-f", str(compose_path), "up", "-d", "--wait",
@@ -320,32 +374,39 @@ def provision(root, batch_id, subnet, initdb):
                 after = snapshot()
                 after["images"] = _inspect("image", [identity["image"]])
                 ids = verify_created(identity, subnet, before, after)
+                verified_ids = {ids["container_id"]}
+                probe_initdb(identity, ids["container_id"])
                 status = {"state": "CREATED_QUARANTINED", "batch_id": batch_id,
                           "project": identity["project"], "database": identity["database"],
                           "network": identity["network"], "subnet": subnet, **ids}
-            except Exception:
+                _private_write(target / "state.json", json.dumps(status, sort_keys=True).encode())
+            except BaseException:
                 cleanup_error = None
                 stopped = []
                 try:
                     live = snapshot()
-                    stopped = quarantine(identity, live, _docker)
+                    stopped = quarantine(identity, live, _docker, verified_ids)
                     stopped_live = snapshot()
                     require(not any((c.get("Config", {}).get("Labels") or {}).get(
                         "com.docker.compose.project") == identity["project"] and
                         c.get("State", {}).get("Running") is True
                         for c in stopped_live["containers"]),
                         "project container remains running after stop")
-                except Exception as error:
+                except BaseException as error:
                     cleanup_error = type(error).__name__
                 finally:
-                    _private_write(target / "state.json", json.dumps({
-                        "state": "FAILED_QUARANTINE_ATTEMPTED", "batch_id": batch_id,
-                        "project": identity["project"], "volume": identity["volume"],
-                        "container_stop_confirmed": cleanup_error is None,
-                        "cleanup_error": cleanup_error,
-                    }, sort_keys=True).encode())
+                    try:
+                        _private_write(target / "failure.json", json.dumps({
+                            "state": "FAILED_QUARANTINE_ATTEMPTED", "batch_id": batch_id,
+                            "project": identity["project"], "volume": identity["volume"],
+                            "container_stop_confirmed": cleanup_error is None,
+                            "cleanup_error": cleanup_error,
+                        }, sort_keys=True).encode())
+                    except BaseException:
+                        # A full or failed evidence disk cannot make PG usable.
+                        # Preserve the original failure after the stop attempt.
+                        pass
                 raise
-            _private_write(target / "state.json", json.dumps(status, sort_keys=True).encode())
             return status
         finally:
             os.umask(old_umask)

@@ -11,12 +11,12 @@ CREATE ROLE learning_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPAS
 CREATE DATABASE :"dbname" OWNER learning_admin TEMPLATE template0;
 REVOKE ALL ON DATABASE :"dbname" FROM PUBLIC;
 GRANT CONNECT, TEMPORARY ON DATABASE :"dbname" TO learning_admin;
-REVOKE ALL ON FUNCTION pg_catalog.pg_control_system() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO learning_admin;
 SQL
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
   --dbname "$C4_TARGET_DATABASE" <<'SQL'
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO PUBLIC;
+REVOKE ALL ON FUNCTION pg_catalog.pg_control_system() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO learning_admin;
 SQL

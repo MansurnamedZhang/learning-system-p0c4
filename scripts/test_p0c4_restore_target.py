@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from p0c4_restore_target import (AdmissionError, admit_fresh, compose_document,
                                  identity_for, verify_created, quarantine, provision,
-                                 _postgres_uid)
+                                 _postgres_uid, probe_initdb)
 
 
 ID = "550e8400-e29b-41d4-a716-446655440000"
@@ -52,6 +52,15 @@ def created(identity):
 
 
 class RestoreTargetGates(unittest.TestCase):
+    def test_initdb_uses_template0_and_scopes_function_grant_to_target_db(self):
+        script = (Path(__file__).resolve().parent.parent / "deploy" /
+                  "p0c4_restore_initdb.sh").read_bytes()
+        self.assertNotIn(b"\r", script)
+        self.assertIn(b'CREATE DATABASE :"dbname" OWNER learning_admin TEMPLATE template0;', script)
+        target_block = script.split(b'--dbname "$C4_TARGET_DATABASE"', 1)[1]
+        self.assertIn(b"REVOKE ALL ON FUNCTION pg_catalog.pg_control_system() FROM PUBLIC;", target_block)
+        self.assertIn(b"GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO learning_admin;", target_block)
+
     def test_admission_requires_uuid_absence_and_unused_explicit_subnet(self):
         identity = identity_for(ID)
         admit_fresh(identity, SUBNET, empty_snapshot())
@@ -63,7 +72,8 @@ class RestoreTargetGates(unittest.TestCase):
                 snapshot[field] = [{"Name": object_name, "Labels": {}}]
                 with self.assertRaises(AdmissionError):
                     admit_fresh(identity, SUBNET, snapshot)
-        for bad in ("192.168.1.0/24", "127.0.0.0/24", "0.0.0.0/0", "not-a-subnet"):
+        for bad in ("192.168.1.0/24", "127.0.0.0/24", "0.0.0.0/0",
+                    "198.18.0.0/24", "203.0.113.0/24", "not-a-subnet"):
             with self.subTest(subnet=bad), self.assertRaises(AdmissionError):
                 admit_fresh(identity, bad, empty_snapshot())
         snapshot = empty_snapshot()
@@ -83,6 +93,8 @@ class RestoreTargetGates(unittest.TestCase):
         self.assertNotIn("ports", pg)
         self.assertEqual(pg["environment"]["POSTGRES_DB"], "postgres")
         self.assertEqual(pg["environment"]["C4_TARGET_DATABASE"], identity["database"])
+        self.assertIn("-h 127.0.0.1", pg["healthcheck"]["test"][1])
+        self.assertIn(identity["database"], pg["healthcheck"]["test"][1])
         self.assertEqual(doc["networks"]["test"]["ipam"]["config"][0]["subnet"], SUBNET)
         self.assertTrue(doc["networks"]["test"]["internal"])
         self.assertEqual(pg["volumes"][0], identity["volume"] + ":/var/lib/postgresql")
@@ -135,10 +147,28 @@ class RestoreTargetGates(unittest.TestCase):
         self.assertEqual(args[:5], ("run", "--pull=never", "--rm", "--network", "none"))
         self.assertIn(identity_for(ID)["image"], args)
 
+    @patch("p0c4_restore_target._docker", return_value="OK\n")
+    def test_post_initdb_probe_uses_verified_id_and_checks_role_acl_gates(self, docker):
+        identity = identity_for(ID)
+        probe_initdb(identity, "a" * 64)
+        args = docker.call_args.args
+        self.assertEqual(args[:4], ("exec", "--user", "postgres", "a" * 64))
+        self.assertEqual(args[4:8], ("psql", "-XAt", "-v", "ON_ERROR_STOP=1"))
+        self.assertIn(identity["database"], args)
+        sql = args[-1]
+        for clause in ("learning_admin", "learning_runtime", "pg_database_owner",
+                       "has_database_privilege", "has_schema_privilege",
+                       "pg_control_system", "aclexplode"):
+            self.assertIn(clause, sql)
+        docker.return_value = "REJECT\n"
+        with self.assertRaises(AdmissionError):
+            probe_initdb(identity, "a" * 64)
+
     def test_driver_waits_for_health_before_recording_quarantined_target(self):
         identity = identity_for(ID)
         live = created(identity)
         calls = []
+        events = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "targets").mkdir()
@@ -146,18 +176,22 @@ class RestoreTargetGates(unittest.TestCase):
                 path.write_bytes(payload)
             with (patch("p0c4_restore_target._trusted_initdb"),
                   patch("p0c4_restore_target._locked_root", return_value=contextlib.nullcontext()),
-                  patch("p0c4_restore_target._postgres_uid", return_value=(999, 999)),
+                  patch("p0c4_restore_target._postgres_uid", side_effect=lambda: events.append("docker-uid") or (999, 999)),
+                  patch("p0c4_restore_target._sync_directory", side_effect=lambda path: events.append(("fsync", path))) as sync,
                   patch("p0c4_restore_target.os.chown", create=True),
                   patch("p0c4_restore_target.os.lstat", return_value=SimpleNamespace(
                       st_mode=stat.S_IFDIR | 0o700, st_uid=0)),
                   patch("p0c4_restore_target._private_write", side_effect=write),
                   patch("p0c4_restore_target.snapshot", side_effect=[empty_snapshot(), live]),
                   patch("p0c4_restore_target._inspect", return_value=live["images"]),
-                  patch("p0c4_restore_target._docker", side_effect=lambda *args: calls.append(args) or "")):
+                  patch("p0c4_restore_target._docker", side_effect=lambda *args: calls.append(args) or "OK\n")):
                 result = provision(root, ID, SUBNET, Path("/reviewed/initdb.sh"))
             self.assertEqual(result["state"], "CREATED_QUARANTINED")
             self.assertIn(("compose", "-f", str(root / "targets" / ID / "compose.json"),
                            "up", "-d", "--wait", "--no-build", "--no-deps", "pg"), calls)
+            sync.assert_any_call(root / "targets")
+            self.assertLess(events.index(("fsync", root / "targets")), events.index("docker-uid"))
+            self.assertTrue(any(call[0] == "exec" for call in calls))
             self.assertEqual(json.loads((root / "targets" / ID / "state.json").read_text())["state"],
                              "CREATED_QUARANTINED")
 
@@ -176,6 +210,7 @@ class RestoreTargetGates(unittest.TestCase):
             with (patch("p0c4_restore_target._trusted_initdb"),
                   patch("p0c4_restore_target._locked_root", return_value=contextlib.nullcontext()),
                   patch("p0c4_restore_target._postgres_uid", return_value=(999, 999)),
+                  patch("p0c4_restore_target._sync_directory"),
                   patch("p0c4_restore_target.os.chown", create=True),
                   patch("p0c4_restore_target.os.lstat", return_value=SimpleNamespace(
                       st_mode=stat.S_IFDIR | 0o700, st_uid=0)),
@@ -184,7 +219,7 @@ class RestoreTargetGates(unittest.TestCase):
                   patch("p0c4_restore_target._docker", side_effect=docker)):
                 with self.assertRaises(AdmissionError):
                     provision(root, ID, SUBNET, Path("/reviewed/initdb.sh"))
-            state = json.loads((root / "targets" / ID / "state.json").read_text())
+            state = json.loads((root / "targets" / ID / "failure.json").read_text())
             self.assertEqual(state["state"], "FAILED_QUARANTINE_ATTEMPTED")
             self.assertFalse(state["container_stop_confirmed"])
             self.assertEqual(state["cleanup_error"], "AdmissionError")
@@ -205,6 +240,7 @@ class RestoreTargetGates(unittest.TestCase):
             with (patch("p0c4_restore_target._trusted_initdb"),
                   patch("p0c4_restore_target._locked_root", return_value=contextlib.nullcontext()),
                   patch("p0c4_restore_target._postgres_uid", return_value=(999, 999)),
+                  patch("p0c4_restore_target._sync_directory"),
                   patch("p0c4_restore_target.os.chown", create=True),
                   patch("p0c4_restore_target.os.lstat", return_value=SimpleNamespace(
                       st_mode=stat.S_IFDIR | 0o700, st_uid=0)),
@@ -213,9 +249,44 @@ class RestoreTargetGates(unittest.TestCase):
                   patch("p0c4_restore_target._docker", side_effect=docker)):
                 with self.assertRaises(AdmissionError):
                     provision(root, ID, SUBNET, Path("/reviewed/initdb.sh"))
-            state = json.loads((root / "targets" / ID / "state.json").read_text())
+            state = json.loads((root / "targets" / ID / "failure.json").read_text())
             self.assertFalse(state["container_stop_confirmed"])
             self.assertEqual(state["cleanup_error"], "AdmissionError")
+
+    def test_post_up_state_write_interrupt_stops_exact_container_id(self):
+        identity = identity_for(ID)
+        live = created(identity)
+        stopped = copy.deepcopy(live)
+        stopped["containers"][0]["State"]["Running"] = False
+        calls = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "targets").mkdir()
+            state_writes = 0
+            def write(path, data):
+                nonlocal state_writes
+                if path.name == "state.json":
+                    state_writes += 1
+                    if state_writes == 1:
+                        raise KeyboardInterrupt()
+                path.write_bytes(data)
+            with (patch("p0c4_restore_target._trusted_initdb"),
+                  patch("p0c4_restore_target._locked_root", return_value=contextlib.nullcontext()),
+                  patch("p0c4_restore_target._postgres_uid", return_value=(999, 999)),
+                  patch("p0c4_restore_target._sync_directory"),
+                  patch("p0c4_restore_target.os.chown", create=True),
+                  patch("p0c4_restore_target.os.lstat", return_value=SimpleNamespace(
+                      st_mode=stat.S_IFDIR | 0o700, st_uid=0)),
+                  patch("p0c4_restore_target._private_write", side_effect=write),
+                  patch("p0c4_restore_target.snapshot", side_effect=[empty_snapshot(), live, live, stopped]),
+                  patch("p0c4_restore_target._inspect", return_value=live["images"]),
+                  patch("p0c4_restore_target._docker", side_effect=lambda *args: calls.append(args) or "OK\n")):
+                with self.assertRaises(KeyboardInterrupt):
+                    provision(root, ID, SUBNET, Path("/reviewed/initdb.sh"))
+            self.assertIn(("stop", "--time", "1", "a" * 64), calls)
+            state = json.loads((root / "targets" / ID / "failure.json").read_text())
+            self.assertEqual(state["state"], "FAILED_QUARANTINE_ATTEMPTED")
+            self.assertTrue(state["container_stop_confirmed"])
 
 
 if __name__ == "__main__":
