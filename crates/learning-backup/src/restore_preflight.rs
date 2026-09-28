@@ -1,5 +1,9 @@
-//! Read-only clean-target admission. An opaque `CompleteBackup` is mandatory;
-//! neither a path nor a `SealedBackup` can call this entry point.
+//! Clean-target preflight and its locked database-import boundary. An opaque
+//! `CompleteBackup` is mandatory; a path or `SealedBackup` cannot bypass it.
+#[cfg(any(target_os = "linux", test))]
+use crate::FileRecord;
+#[cfg(target_os = "linux")]
+use crate::PgRestoreSpec;
 #[cfg(target_os = "linux")]
 use crate::{
     AssetRow, MigrationRecord, RestoreEnvironment, RestoreTargetFacts, open_complete_backup,
@@ -17,16 +21,17 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 #[cfg(target_os = "linux")]
 use sqlx::Row;
+#[cfg(any(target_os = "linux", test))]
+use std::io::{Read, Seek, SeekFrom};
 #[cfg(target_os = "linux")]
 use std::{
     fs::File,
-    io::Read,
     os::fd::AsRawFd,
     os::unix::fs::{MetadataExt, PermissionsExt},
 };
 use std::{
     io,
-    path::{Component, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 #[cfg(any(target_os = "linux", test))]
@@ -408,15 +413,43 @@ impl RestorePreflightConfig {
     }
 }
 
-/// Holds the exclusive management lock until dropped. This API performs no
-/// target data write; a later executor must retain the lock through
-/// restore, data closure, derived rebuild and separate acceptance.
+/// Holds the exclusive management lock until dropped. Preflight performs no
+/// target data write. The database stage consumes this value and retains the
+/// lock for later asset import, data closure and acceptance work.
 #[derive(Debug)]
 pub struct RestorePreflight {
     manifest: BackupManifestV1,
     plan: BackupPlan,
     #[cfg(target_os = "linux")]
+    destination_root: PathBuf,
+    #[cfg(target_os = "linux")]
+    trust_path: PathBuf,
+    #[cfg(target_os = "linux")]
+    receipt_sha256: String,
+    #[cfg(target_os = "linux")]
+    restore_spec: PgRestoreSpec,
+    #[cfg(target_os = "linux")]
     _lock: File,
+}
+
+/// Database import completed, but the target is still private and unusable.
+/// This opaque continuation retains the same exclusive lock. Asset import,
+/// source-lease invalidation, closure checks and admission remain unimplemented.
+#[derive(Debug)]
+pub struct RestoreDatabaseImported {
+    manifest: BackupManifestV1,
+    plan: BackupPlan,
+    #[cfg(target_os = "linux")]
+    _lock: File,
+}
+
+impl RestoreDatabaseImported {
+    pub fn manifest(&self) -> &BackupManifestV1 {
+        &self.manifest
+    }
+    pub fn plan(&self) -> &BackupPlan {
+        &self.plan
+    }
 }
 
 impl RestorePreflight {
@@ -426,6 +459,113 @@ impl RestorePreflight {
     pub fn plan(&self) -> &BackupPlan {
         &self.plan
     }
+
+    /// Consume the locked, read-only preflight for one database import attempt.
+    /// The target remains quarantined whether pg_restore succeeds or fails;
+    /// asset import, closure checks and service admission are separate gates.
+    /// No archive path, database name or PostgreSQL flag comes from the caller.
+    pub fn restore_database(
+        self,
+        executable: &Path,
+        private_pgpass: &Path,
+    ) -> Result<RestoreDatabaseImported, BackupError> {
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (self, executable, private_pgpass);
+            Err(BackupError::Io(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "database restore requires Linux",
+            )))
+        }
+        #[cfg(target_os = "linux")]
+        {
+            self.restore_database_linux(executable, private_pgpass)
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn restore_database_linux(
+        self,
+        executable: &Path,
+        private_pgpass: &Path,
+    ) -> Result<RestoreDatabaseImported, BackupError> {
+        // `self` retains the exclusive preflight lock through the child exit.
+        // Recheck the complete receipt and all package bytes against the exact
+        // receipt observed by preflight before opening the dump for execution.
+        let checked = open_complete_backup(
+            &self.destination_root,
+            &self.trust_path,
+            self.manifest.backup_id,
+        )?;
+        if checked.receipt_sha256() != self.receipt_sha256
+            || checked.manifest_sha256() != self.manifest.canonical_sha256()?
+        {
+            return Err(BackupError::Invalid(
+                "complete receipt changed before restore",
+            ));
+        }
+        let dump_record = self
+            .manifest
+            .files
+            .iter()
+            .find(|record| record.path == "database.dump")
+            .ok_or(BackupError::Invalid("restore dump absent"))?;
+        let destination = BackupDir::open_trusted_private_root(&self.destination_root)?;
+        let package = destination.open_dir(&format!("{}.sealed", self.manifest.backup_id))?;
+        let mut archive = package.open_file("database.dump")?;
+        if archive.metadata()?.len() != dump_record.size {
+            return Err(BackupError::Invalid("restore dump size changed"));
+        }
+        verify_dump_reader(&mut archive, dump_record)?;
+        self.restore_spec
+            .run_from_open_file(executable, private_pgpass, &mut archive)?;
+        Ok(RestoreDatabaseImported {
+            manifest: self.manifest,
+            plan: self.plan,
+            _lock: self._lock,
+        })
+    }
+}
+
+/// Stream from the handle that will become pg_restore's stdin. This catches a
+/// changed name/byte sequence after preflight without copying the archive to
+/// an untrusted path or treating a caller-supplied path as authority.
+#[cfg(any(target_os = "linux", test))]
+fn verify_dump_reader<R: Read + Seek>(
+    reader: &mut R,
+    record: &FileRecord,
+) -> Result<(), BackupError> {
+    if record.path != "database.dump" || record.size <= 5 || !crate::valid_digest(&record.sha256) {
+        return Err(BackupError::Invalid("restore dump record"));
+    }
+    reader.seek(SeekFrom::Start(0))?;
+    let mut magic = [0_u8; 5];
+    reader.read_exact(&mut magic)?;
+    if &magic != b"PGDMP" {
+        return Err(BackupError::Invalid("restore dump format"));
+    }
+    reader.seek(SeekFrom::Start(0))?;
+    let mut digest = Sha256::new();
+    let mut count = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        count = count
+            .checked_add(read as u64)
+            .ok_or(BackupError::Overflow)?;
+        if count > record.size {
+            return Err(BackupError::Invalid("restore dump length changed"));
+        }
+        digest.update(&buffer[..read]);
+    }
+    if count != record.size || format!("{:x}", digest.finalize()) != record.sha256 {
+        return Err(BackupError::Invalid("restore dump digest changed"));
+    }
+    reader.seek(SeekFrom::Start(0))?;
+    Ok(())
 }
 
 /// Re-open the complete receipt and every package byte under an exclusive
@@ -543,9 +683,19 @@ async fn preflight_linux(
     let facts = target_facts(admin, assets.list()?.len()).await?;
     facts.validate()?;
     verify_target_birth(admin, config, &lock_root, &assets).await?;
+    let options = admin.connect_options();
+    let restore_spec = PgRestoreSpec::new(
+        &config.expected_database,
+        options.get_host(),
+        options.get_port(),
+    )?;
     Ok(RestorePreflight {
         manifest,
         plan,
+        destination_root: config.destination_root.clone(),
+        trust_path: config.trust_path.clone(),
+        receipt_sha256: checked.receipt_sha256().to_owned(),
+        restore_spec,
         _lock: lock,
     })
 }
@@ -819,6 +969,35 @@ async fn target_facts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dump_is_rehashed_from_the_open_handle_and_rewound_before_execution() {
+        let bytes = b"PGDMPchecked-archive";
+        let record = crate::FileRecord {
+            path: "database.dump".into(),
+            size: bytes.len() as u64,
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+        };
+        let mut exact = io::Cursor::new(bytes.to_vec());
+        exact.set_position(4);
+        verify_dump_reader(&mut exact, &record).unwrap();
+        assert_eq!(exact.position(), 0);
+
+        let mut changed = io::Cursor::new(b"PGDMPchanged-archive".to_vec());
+        assert!(verify_dump_reader(&mut changed, &record).is_err());
+        let mut truncated = io::Cursor::new(bytes[..bytes.len() - 1].to_vec());
+        assert!(verify_dump_reader(&mut truncated, &record).is_err());
+        let mut extra = io::Cursor::new([bytes.as_slice(), b"x"].concat());
+        assert!(verify_dump_reader(&mut extra, &record).is_err());
+        let mut wrong_name = record.clone();
+        wrong_name.path = "other.dump".into();
+        assert!(verify_dump_reader(&mut exact, &wrong_name).is_err());
+        let corrupt = b"BADMPchecked-archive";
+        let mut bad_format = io::Cursor::new(corrupt.to_vec());
+        let mut matching_corrupt_record = record;
+        matching_corrupt_record.sha256 = format!("{:x}", Sha256::digest(corrupt));
+        assert!(verify_dump_reader(&mut bad_format, &matching_corrupt_record).is_err());
+    }
 
     #[test]
     fn user_objects_outside_relations_make_a_target_dirty() {

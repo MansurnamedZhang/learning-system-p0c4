@@ -291,6 +291,7 @@ fn pg_restore_uses_fixed_strict_options_and_isolated_database_name() {
     assert!(args.contains(&"--exit-on-error".to_owned()));
     assert!(args.contains(&"--single-transaction".to_owned()));
     assert!(args.contains(&"--no-owner".to_owned()));
+    assert!(args.contains(&"--no-acl".to_owned()));
     assert!(args.contains(&format!("--dbname={db}")));
     assert!(
         !args

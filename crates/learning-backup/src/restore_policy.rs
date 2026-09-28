@@ -55,6 +55,7 @@ impl PgRestoreSpec {
             "--exit-on-error".into(),
             "--single-transaction".into(),
             "--no-owner".into(),
+            "--no-acl".into(),
             "--no-password".into(),
             format!("--host={}", self.host),
             format!("--port={}", self.port),
@@ -64,9 +65,8 @@ impl PgRestoreSpec {
     }
 
     /// Execute from an already verified, no-follow archive handle. Exposed
-    /// only inside this crate until the post-preflight executor is wired.
+    /// only inside this crate to the locked post-preflight executor.
     #[cfg(target_os = "linux")]
-    #[allow(dead_code)] // The post-preflight executor has not been wired yet.
     pub(crate) fn run_from_open_file(
         &self,
         executable: &Path,
