@@ -208,6 +208,30 @@ class PinLiveGate(unittest.TestCase):
             json.dumps(self.evidence).encode(), {**checked, "image_id": "sha256:" + "c" * 64})
         self.assertNotEqual(candidate, changed)
 
+    def test_inspection_payload_is_recomputable_and_redacted(self):
+        live = copy.deepcopy(self.live)
+        live["containers"][0]["Config"]["Labels"]["unreviewed.secret"] = (
+            "postgres://sensitive")
+        checked = self.run_pin(live=live)
+        payload = pin.inspection_evidence_payload(
+            ID, str(self.root), b"precreation", self.birth_bytes,
+            json.dumps(self.state).encode(), json.dumps(self.success).encode(),
+            json.dumps(self.evidence).encode(), checked)
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False,
+                             separators=(",", ":")).encode()
+        self.assertEqual(hashlib.sha256(encoded).hexdigest(),
+                         pin.inspection_evidence_digest(
+                             ID, str(self.root), b"precreation",
+                             self.birth_bytes, json.dumps(self.state).encode(),
+                             json.dumps(self.success).encode(),
+                             json.dumps(self.evidence).encode(), checked))
+        self.assertEqual(payload["live"]["pg_observation"],
+                         observed_pg(self.birth))
+        self.assertEqual(payload["live"]["issuer_pg_observation"],
+                         clean_facts())
+        self.assertNotIn("postgres://sensitive", encoded.decode())
+        self.assertNotIn(str(self.target / "secrets"), encoded.decode())
+
     def test_docker_identity_and_mount_drift_reject(self):
         for change in ("Id", "Image", "Mounts", "network"):
             live = copy.deepcopy(self.live)

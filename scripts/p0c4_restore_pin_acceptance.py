@@ -35,6 +35,7 @@ HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 MAX_ARCHIVE = 32 * 1024 * 1024
 MAX_EXPANDED = 64 * 1024 * 1024
+MAX_INSPECTION = 256 * 1024
 
 
 def require(condition, message):
@@ -352,13 +353,47 @@ def _run_batch(args, manifest, package, batch):
                 confirmed_id == success["container_id"],
                 "confirmed PG ID differs")
         result["stage"] = "read-only-pin-check"
-        candidate = pin.pin(control, args.batch_id, initdb)
+        candidate, inspection = pin.inspect_candidate(
+            control, args.batch_id, initdb)
         require(type(candidate) is dict and set(candidate) ==
                 {"birth_sha256", "inspection_evidence_sha256"} and
                 all(type(value) is str and HEX64.fullmatch(value)
                     for value in candidate.values()) and
                 candidate["birth_sha256"] == success["birth_sha256"],
                 "pin checker differs from sealed birth")
+        require(type(inspection) is dict and set(inspection) == {
+            "format_version", "state", "batch_id", "control_root",
+            "precreation_sha256", "birth_sha256", "creation_state_sha256",
+            "issuance_success_sha256", "birth_evidence_sha256", "live"} and
+            inspection["format_version"] == 1 and
+            inspection["state"] == "PIN_CANDIDATE_NOT_RESTORE_AUTHORITY" and
+            inspection["batch_id"] == args.batch_id and
+            inspection["control_root"] == str(control) and
+            inspection["birth_sha256"] == candidate["birth_sha256"] and
+            inspection["precreation_sha256"] == precreation_sha and
+            type(inspection["live"]) is dict and
+            inspection["live"].get("container_id") == confirmed_id,
+            "pin inspection identity differs")
+        live_record = inspection["live"]
+        for observed_key, hash_key in (
+                ("docker_projection", "docker_sha256"),
+                ("pg_observation", "pg_sha256"),
+                ("issuer_pg_observation", "issuer_pg_sha256")):
+            require(type(live_record.get(observed_key)) is dict and
+                    live_record.get(hash_key) == digest(
+                        _json_bytes(live_record[observed_key])),
+                    "pin inspection observation digest differs")
+        inspection_bytes = _json_bytes(inspection)
+        require(len(inspection_bytes) <= MAX_INSPECTION and
+                digest(inspection_bytes) ==
+                candidate["inspection_evidence_sha256"],
+                "pin inspection payload digest differs")
+        inspection_path = evidence / "pin-inspection.json"
+        result["stage"] = "durable-inspection-evidence"
+        _private_write(inspection_path, inspection_bytes)
+        require(acceptance._private_read_diagnostic(
+                    inspection_path, limit=MAX_INSPECTION) == inspection_bytes,
+                "pin inspection record differs after write")
         result["stage"] = "source-reinspection"
         result["source_after_sha256"] = source_digest(source, manifest)
         require(result["source_after_sha256"] ==
@@ -376,7 +411,12 @@ def _run_batch(args, manifest, package, batch):
                 "reviewed source changed during stop")
         require(_file_digest(__file__) == args.runner_sha256,
                 "reviewed runner changed during run")
+        require(acceptance._private_read_diagnostic(
+                    inspection_path, limit=MAX_INSPECTION) == inspection_bytes,
+                "pin inspection record changed during stop")
         result.update(candidate)
+        result["inspection_record_sha256"] = digest(inspection_bytes)
+        result["inspection_record_file"] = inspection_path.name
         result["target_condition"] = "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE"
         result["status"] = PASSED
     except BaseException as error:

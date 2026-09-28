@@ -217,23 +217,47 @@ def inspect_live(identity, state, success, evidence, birth, target, initdb):
     again["images"] = target_provisioner._inspect("image", [identity["image"]])
     acceptance.validate_live_docker(
         identity, state["subnet"], expected, again, state, target, initdb)
-    require(_docker_projection(live, identity) ==
-            _docker_projection(again, identity),
+    projection = _docker_projection(live, identity)
+    require(projection == _docker_projection(again, identity),
             "Docker changed during pin check")
     acceptance.verify_live_mount_inode(volume["Mountpoint"], success)
     return {
         "docker_daemon_id": live["daemon_id"],
         "container_id": pg["Id"], "network_id": network["Id"],
         "volume_name": volume["Name"], "volume_mountpoint": volume["Mountpoint"],
-        "image_id": pg["Image"], "docker_sha256": _digest(
-            _json_bytes(_docker_projection(live, identity))),
+        "image_id": pg["Image"],
+        "docker_sha256": _digest(_json_bytes(projection)),
+        "docker_projection": projection,
         "pg_sha256": _digest(_json_bytes(observed)),
         "issuer_pg_sha256": _digest(_json_bytes(issuer_facts)),
+        "pg_observation": observed,
+        "issuer_pg_observation": issuer_facts,
     }
 
 
 def _docker_projection(live, identity):
+    """Keep only gate-relevant fields; never persist extra labels or secret paths."""
     project = identity["project"]
+
+    def safe_labels(item):
+        labels = item or {}
+        return {key: labels.get(key) for key in
+                ("com.docker.compose.project", "com.docker.compose.service")}
+
+    def safe_mounts(items):
+        output = []
+        for mount in items or []:
+            row = {key: mount.get(key) for key in
+                   ("Type", "Destination", "RW", "Name")}
+            source = mount.get("Source")
+            if (mount.get("Destination") or "").startswith("/run/secrets/"):
+                row["Source_sha256"] = (_digest(source.encode("utf-8"))
+                                        if type(source) is str else None)
+            else:
+                row["Source"] = source
+            output.append(row)
+        return output
+
     containers = [c for c in live["containers"] if
                   (c.get("Config", {}).get("Labels") or {}).get(
                       "com.docker.compose.project") == project]
@@ -248,7 +272,7 @@ def _docker_projection(live, identity):
         "containers": [{
             "Id": c.get("Id"), "Image": c.get("Image"),
             "Config": {"Image": c.get("Config", {}).get("Image"),
-                       "Labels": c.get("Config", {}).get("Labels")},
+                       "Labels": safe_labels(c.get("Config", {}).get("Labels"))},
             "State": {"Running": c.get("State", {}).get("Running"),
                       "Status": c.get("State", {}).get("Status"),
                       "HealthStatus": c.get("State", {}).get(
@@ -257,24 +281,26 @@ def _docker_projection(live, identity):
                            ("NetworkMode", "PortBindings")},
             "NetworkSettings": {key: c.get("NetworkSettings", {}).get(key)
                                 for key in ("Networks", "Ports")},
-            "Mounts": c.get("Mounts"),
+            "Mounts": safe_mounts(c.get("Mounts")),
         } for c in containers],
-        "networks": [{key: n.get(key) for key in
-                      ("Id", "Name", "Labels", "Internal", "IPAM")}
+        "networks": [{**{key: n.get(key) for key in
+                      ("Id", "Name", "Internal", "IPAM")},
+                      "Labels": safe_labels(n.get("Labels"))}
                      for n in networks],
-        "volumes": [{key: v.get(key) for key in
-                     ("Name", "Labels", "Mountpoint", "Driver", "Scope",
-                      "Options")} for v in volumes],
+        "volumes": [{**{key: v.get(key) for key in
+                     ("Name", "Mountpoint", "Driver", "Scope", "Options")},
+                     "Labels": safe_labels(v.get("Labels"))}
+                    for v in volumes],
         "images": [{"Id": image.get("Id"),
                     "RepoDigests": image.get("RepoDigests")}
                    for image in live["images"]],
     }
 
 
-def inspection_evidence_digest(batch_id, root, precreation_bytes, birth_bytes,
-                               state_bytes, success_bytes, evidence_bytes,
-                               checked):
-    payload = {
+def inspection_evidence_payload(batch_id, root, precreation_bytes, birth_bytes,
+                                state_bytes, success_bytes, evidence_bytes,
+                                checked):
+    return {
         "format_version": 1, "state": "PIN_CANDIDATE_NOT_RESTORE_AUTHORITY",
         "batch_id": batch_id, "control_root": root,
         "precreation_sha256": _digest(precreation_bytes),
@@ -284,10 +310,17 @@ def inspection_evidence_digest(batch_id, root, precreation_bytes, birth_bytes,
         "birth_evidence_sha256": _digest(evidence_bytes),
         "live": checked,
     }
-    return _digest(_json_bytes(payload))
 
 
-def pin(root, batch_id, initdb):
+def inspection_evidence_digest(batch_id, root, precreation_bytes, birth_bytes,
+                               state_bytes, success_bytes, evidence_bytes,
+                               checked):
+    return _digest(_json_bytes(inspection_evidence_payload(
+        batch_id, root, precreation_bytes, birth_bytes, state_bytes,
+        success_bytes, evidence_bytes, checked)))
+
+
+def inspect_candidate(root, batch_id, initdb):
     identity = target_provisioner.identity_for(batch_id)
     reject_acceptance_root(root)
     target_provisioner._trusted_initdb(initdb)
@@ -305,12 +338,18 @@ def pin(root, batch_id, initdb):
                 "precreation differs from birth")
         checked = inspect_live(identity, state, success, evidence, birth,
                                target, initdb)
-        return {
-            "birth_sha256": _digest(birth_bytes),
-            "inspection_evidence_sha256": inspection_evidence_digest(
-                batch_id, str(root), precreation_bytes, birth_bytes, state_bytes,
-                success_bytes, evidence_bytes, checked),
-        }
+        payload = inspection_evidence_payload(
+            batch_id, str(root), precreation_bytes, birth_bytes, state_bytes,
+            success_bytes, evidence_bytes, checked)
+        return ({"birth_sha256": _digest(birth_bytes),
+                 "inspection_evidence_sha256": _digest(_json_bytes(payload))},
+                payload)
+
+
+def pin(root, batch_id, initdb):
+    """Keep the direct CLI digest-only; acceptance stores the audit record."""
+    digests, _ = inspect_candidate(root, batch_id, initdb)
+    return digests
 
 
 def main(argv=None):

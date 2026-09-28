@@ -50,10 +50,34 @@ class PinAcceptance(unittest.TestCase):
             stop_verified_pg=lambda *_: {"confirmed": True, "volume_retained": True},
             stop_early_owned_pg=lambda *_: {"confirmed": True, "volume_retained": True},
             read_issuer_diagnostic=lambda *_: {"status": "UNAVAILABLE"},
+            _private_read_diagnostic=lambda path, limit=262144: path.read_bytes(),
         )
-        pin = SimpleNamespace(pin=lambda *_: {
-            "birth_sha256": "d" * 64,
-            "inspection_evidence_sha256": "f" * 64})
+        projection = {"daemon_id": "new-daemon", "containers": [],
+                      "networks": [], "volumes": [], "images": []}
+        pg = {"runtime_create": False, "user_relations": 0}
+        issuer_pg = {"dirty_counts": {}}
+        payload = {"format_version": 1,
+                   "state": "PIN_CANDIDATE_NOT_RESTORE_AUTHORITY",
+                   "batch_id": ID, "control_root": str(self.batch / "control"),
+                   "precreation_sha256": "1" * 64,
+                   "birth_sha256": "d" * 64,
+                   "creation_state_sha256": "a" * 64,
+                   "issuance_success_sha256": "b" * 64,
+                   "birth_evidence_sha256": "c" * 64,
+                   "live": {"container_id": "e" * 64,
+                            "docker_projection": projection,
+                            "docker_sha256": hashlib.sha256(
+                                runner._json_bytes(projection)).hexdigest(),
+                            "pg_observation": pg,
+                            "pg_sha256": hashlib.sha256(
+                                runner._json_bytes(pg)).hexdigest(),
+                            "issuer_pg_observation": issuer_pg,
+                            "issuer_pg_sha256": hashlib.sha256(
+                                runner._json_bytes(issuer_pg)).hexdigest()}}
+        candidate = {"birth_sha256": "d" * 64,
+                     "inspection_evidence_sha256": hashlib.sha256(
+                         runner._json_bytes(payload)).hexdigest()}
+        pin = SimpleNamespace(inspect_candidate=lambda *_: (candidate, payload))
         prepare = SimpleNamespace(prepare=lambda *_: "1" * 64)
         return provisioner, acceptance, pin, prepare
 
@@ -70,20 +94,51 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(code, 0, result)
         self.assertEqual(result["status"], runner.PASSED)
         self.assertEqual(result["birth_sha256"], "d" * 64)
-        self.assertEqual(result["inspection_evidence_sha256"], "f" * 64)
+        record = (self.batch / "evidence" / "pin-inspection.json").read_bytes()
+        self.assertEqual(result["inspection_evidence_sha256"],
+                         hashlib.sha256(record).hexdigest())
+        self.assertEqual(result["inspection_record_sha256"],
+                         hashlib.sha256(record).hexdigest())
+        self.assertEqual(json.loads(record)["live"]["container_id"], "e" * 64)
         self.assertTrue(result["stop"]["confirmed"])
         self.assertEqual(json.loads((self.batch / "evidence" / "result.json").read_bytes())["status"],
                          runner.PASSED)
 
     def test_pin_mismatch_cannot_be_promoted(self):
         deps = self._dependencies()
-        deps[2].pin = lambda *_: {"birth_sha256": "0" * 64,
-                                  "inspection_evidence_sha256": "f" * 64}
+        candidate, payload = deps[2].inspect_candidate()
+        deps[2].inspect_candidate = lambda *_: (
+            {**candidate, "birth_sha256": "0" * 64}, payload)
         code, result = self._run(deps)
         self.assertEqual(code, 1)
         self.assertEqual(result["status"], runner.FAILED)
         self.assertNotIn("inspection_evidence_sha256", result)
         self.assertTrue(result["stop"]["confirmed"])
+
+    def test_missing_or_corrupt_inspection_record_cannot_be_promoted(self):
+        for mode in ("missing", "corrupt"):
+            with self.subTest(mode=mode):
+                (self.batch / "evidence" / "result.json").unlink(missing_ok=True)
+                (self.batch / "evidence" / "attempt.json").unlink(missing_ok=True)
+                (self.batch / "evidence" / "pin-inspection.json").unlink(missing_ok=True)
+                deps = self._dependencies()
+                def write(path, data):
+                    if path.name == "pin-inspection.json":
+                        if mode == "corrupt":
+                            path.write_bytes(b"{}")
+                    else:
+                        path.write_bytes(data)
+                with patch.object(runner, "extract_and_load", return_value=(
+                         *deps, Path("/initdb"), "2" * 64)), \
+                     patch.object(runner, "source_digest", return_value="2" * 64), \
+                     patch.object(runner, "_file_digest", return_value="3" * 64), \
+                     patch.object(runner, "_private_write", side_effect=write):
+                    code, result = runner._run_batch(
+                        self.args, {}, b"zip", self.batch)
+                self.assertEqual(code, 1)
+                self.assertEqual(result["status"], runner.FAILED)
+                self.assertTrue(result["stop"]["confirmed"])
+                self.assertNotIn("inspection_evidence_sha256", result)
 
     def test_stop_failure_cannot_be_promoted(self):
         deps = self._dependencies()
@@ -95,6 +150,7 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["status"], runner.FAILED)
         self.assertFalse(result["stop"]["confirmed"])
         self.assertNotIn("inspection_evidence_sha256", result)
+        self.assertTrue((self.batch / "evidence" / "pin-inspection.json").exists())
         self.assertNotIn("sensitive", (self.batch / "evidence" / "result.json").read_text())
 
     def test_changed_source_cannot_be_promoted(self):
@@ -109,6 +165,25 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["status"], runner.FAILED)
         self.assertTrue(result["stop"]["confirmed"])
         self.assertNotIn("inspection_evidence_sha256", result)
+
+    def test_pre_result_crash_leaves_observation_but_no_candidate(self):
+        deps = self._dependencies()
+        def write(path, data):
+            if path.name == "result.json":
+                raise SystemExit(137)
+            path.write_bytes(data)
+        output = io.StringIO()
+        with patch.object(runner, "extract_and_load", return_value=(
+                 *deps, Path("/initdb"), "2" * 64)), \
+             patch.object(runner, "source_digest", return_value="2" * 64), \
+             patch.object(runner, "_file_digest", return_value="3" * 64), \
+             patch.object(runner, "_private_write", side_effect=write), \
+             contextlib.redirect_stdout(output):
+            with self.assertRaises(SystemExit):
+                runner._run_batch(self.args, {}, b"zip", self.batch)
+        self.assertTrue((self.batch / "evidence" / "pin-inspection.json").exists())
+        self.assertFalse((self.batch / "evidence" / "result.json").exists())
+        self.assertNotIn(runner.PASSED, output.getvalue())
 
     def test_source_change_during_stop_cannot_be_promoted(self):
         deps = self._dependencies()
