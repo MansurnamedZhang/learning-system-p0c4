@@ -9,6 +9,13 @@ pub struct AdminAssetCatalog {
     pool: PgPool,
 }
 
+fn query_limit() -> Result<i64, BackupError> {
+    i64::try_from(MAX_LOGICAL_ASSETS)
+        .map_err(|_| BackupError::Overflow)?
+        .checked_add(1)
+        .ok_or(BackupError::Overflow)
+}
+
 impl AdminAssetCatalog {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
@@ -31,8 +38,9 @@ impl AdminAssetCatalog {
         }
         let rows: Vec<(Uuid, Uuid, String, i64, String)> = sqlx::query_as(
             "SELECT space_id,id,sha256,byte_size,storage_key \
-             FROM public.asset WHERE status='ready' ORDER BY space_id,id LIMIT 100001",
+             FROM public.asset WHERE status='ready' ORDER BY space_id,id LIMIT $1",
         )
+        .bind(query_limit()?)
         .fetch_all(&mut *tx)
         .await?;
         if rows.len() > MAX_LOGICAL_ASSETS {
@@ -51,5 +59,13 @@ impl AdminAssetCatalog {
         )?;
         tx.commit().await?;
         Ok(plan)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn catalog_query_reserves_one_row_for_truncation_detection() {
+        assert_eq!(super::query_limit().unwrap(), 100_001);
     }
 }

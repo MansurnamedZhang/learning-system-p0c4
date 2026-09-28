@@ -5,6 +5,17 @@ use uuid::Uuid;
 
 const A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const EMPTY_DB_COUNTS_SQL: &str = "SELECT \
+      (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace \
+        WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)') \
+      + (SELECT count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace \
+        WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)') \
+      + (SELECT count(*) FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace \
+        WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)') \
+      + (SELECT count(*) FROM pg_catalog.pg_largeobject_metadata), \
+      (SELECT count(*) FROM pg_catalog.pg_namespace n \
+        WHERE n.nspname NOT IN ('pg_catalog','information_schema','public') AND n.nspname !~ '^pg_(toast|temp)'), \
+      (SELECT count(*) FROM pg_catalog.pg_extension WHERE extname <> 'plpgsql')";
 
 fn verify_isolated_empty_database(
     actual: &str,
@@ -33,6 +44,32 @@ fn verify_session(expected: &str, current: &str, session: &str) -> Result<(), &'
     Ok(())
 }
 
+fn verify_authenticated_identity(
+    expected: &str,
+    system_user: Option<&str>,
+) -> Result<(), &'static str> {
+    let presented = system_user.ok_or("database session has no authenticated identity")?;
+    let (method, identity) = presented
+        .split_once(':')
+        .ok_or("database authenticated identity is malformed")?;
+    if method.is_empty() || identity != expected {
+        return Err("database authenticated identity differs from role");
+    }
+    Ok(())
+}
+
+fn verify_runtime_role_flags(
+    rolsuper: bool,
+    rolbypassrls: bool,
+    rolcreaterole: bool,
+    rolcreatedb: bool,
+) -> Result<(), &'static str> {
+    if rolsuper || rolbypassrls || rolcreaterole || rolcreatedb {
+        return Err("runtime role has management powers");
+    }
+    Ok(())
+}
+
 #[test]
 fn preflight_rejects_reused_or_misnamed_database_before_migrations() {
     let fresh = format!("learning_backup_c4_task1_{}", Uuid::new_v4());
@@ -51,6 +88,19 @@ fn preflight_requires_real_admin_and_runtime_session_roles() {
     assert!(verify_session("learning_runtime", "other", "other").is_err());
     assert!(verify_session("learning_runtime", "learning_runtime", "other").is_err());
     assert!(verify_session("learning_admin", "learning_runtime", "learning_runtime").is_err());
+    assert!(
+        verify_authenticated_identity("learning_runtime", Some("scram-sha-256:learning_runtime"))
+            .is_ok()
+    );
+    assert!(
+        verify_authenticated_identity("learning_runtime", Some("scram-sha-256:postgres")).is_err()
+    );
+    assert!(verify_authenticated_identity("learning_runtime", None).is_err());
+    assert!(verify_runtime_role_flags(false, false, false, false).is_ok());
+    assert!(verify_runtime_role_flags(true, false, false, false).is_err());
+    assert!(verify_runtime_role_flags(false, true, false, false).is_err());
+    assert!(verify_runtime_role_flags(false, false, true, false).is_err());
+    assert!(verify_runtime_role_flags(false, false, false, true).is_err());
 }
 
 /// Provision a new database named `learning_backup_c4_task1_<UUID>` and set
@@ -72,40 +122,45 @@ async fn admin_collects_linked_and_unlinked_ready_rows_and_runtime_is_rejected()
         .connect(&runtime_url)
         .await
         .unwrap();
-    let (admin_database, admin_current, admin_session): (String, String, String) =
-        sqlx::query_as("SELECT current_database()::text,current_user::text,session_user::text")
-            .fetch_one(&admin)
-            .await
-            .unwrap();
-    let (runtime_database, runtime_current, runtime_session): (String, String, String) =
-        sqlx::query_as("SELECT current_database()::text,current_user::text,session_user::text")
-            .fetch_one(&runtime)
-            .await
-            .unwrap();
-    verify_session("learning_admin", &admin_current, &admin_session).unwrap();
-    verify_session("learning_runtime", &runtime_current, &runtime_session).unwrap();
-    assert_eq!(
-        runtime_database, admin_database,
-        "DSNs target different databases"
-    );
-    let (user_objects, extra_schemas, extra_extensions): (i64, i64, i64) = sqlx::query_as(
-        "SELECT \
-          (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace \
-            WHERE n.nspname NOT IN ('pg_catalog','information_schema') \
-              AND n.nspname !~ '^pg_(toast|temp)' AND c.relkind IN ('r','p','v','m','f','S')) \
-          + (SELECT count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace \
-              WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)') \
-          + (SELECT count(*) FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace \
-              WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)' AND t.typrelid=0) \
-          + (SELECT count(*) FROM pg_catalog.pg_largeobject_metadata), \
-          (SELECT count(*) FROM pg_catalog.pg_namespace n \
-            WHERE n.nspname NOT IN ('pg_catalog','information_schema','public') \
-              AND n.nspname !~ '^pg_(toast|temp)'), \
-          (SELECT count(*) FROM pg_catalog.pg_extension WHERE extname <> 'plpgsql')",
+    let (admin_database, admin_current, admin_session, admin_system): (
+        String,
+        String,
+        String,
+        Option<String>,
+    ) = sqlx::query_as(
+        "SELECT current_database()::text,current_user::text,session_user::text,system_user",
     )
     .fetch_one(&admin)
     .await
     .unwrap();
+    let (runtime_database, runtime_current, runtime_session, runtime_system): (
+        String,
+        String,
+        String,
+        Option<String>,
+    ) = sqlx::query_as(
+        "SELECT current_database()::text,current_user::text,session_user::text,system_user",
+    )
+    .fetch_one(&runtime)
+    .await
+    .unwrap();
+    verify_session("learning_admin", &admin_current, &admin_session).unwrap();
+    verify_session("learning_runtime", &runtime_current, &runtime_session).unwrap();
+    verify_authenticated_identity("learning_admin", admin_system.as_deref()).unwrap();
+    verify_authenticated_identity("learning_runtime", runtime_system.as_deref()).unwrap();
+    assert_eq!(
+        runtime_database, admin_database,
+        "DSNs target different databases"
+    );
+    let (rolsuper, rolbypassrls, rolcreaterole, rolcreatedb): (bool, bool, bool, bool) =
+        sqlx::query_as("SELECT rolsuper,rolbypassrls,rolcreaterole,rolcreatedb FROM pg_catalog.pg_roles WHERE rolname='learning_runtime'")
+            .fetch_one(&runtime).await.unwrap();
+    verify_runtime_role_flags(rolsuper, rolbypassrls, rolcreaterole, rolcreatedb).unwrap();
+    let (user_objects, extra_schemas, extra_extensions): (i64, i64, i64) =
+        sqlx::query_as(EMPTY_DB_COUNTS_SQL)
+            .fetch_one(&admin)
+            .await
+            .unwrap();
     verify_isolated_empty_database(
         &admin_database,
         &expected_database,
@@ -114,6 +169,34 @@ async fn admin_collects_linked_and_unlinked_ready_rows_and_runtime_is_rejected()
         extra_extensions,
     )
     .unwrap();
+    // Composite types create pg_class relkind='c' and pg_type.typrelid != 0.
+    // The same preflight query must catch one before any migrations execute.
+    let mut probe = admin.begin().await.unwrap();
+    sqlx::query("CREATE TYPE public.backup_preflight_probe AS (v integer)")
+        .execute(&mut *probe)
+        .await
+        .unwrap();
+    let (objects_with_type, schemas_with_type, extensions_with_type): (i64, i64, i64) =
+        sqlx::query_as(EMPTY_DB_COUNTS_SQL)
+            .fetch_one(&mut *probe)
+            .await
+            .unwrap();
+    assert!(
+        objects_with_type > 0,
+        "composite type must count as a user object"
+    );
+    assert_eq!((schemas_with_type, extensions_with_type), (0, 0));
+    assert!(
+        verify_isolated_empty_database(
+            &admin_database,
+            &expected_database,
+            objects_with_type,
+            schemas_with_type,
+            extensions_with_type,
+        )
+        .is_err()
+    );
+    probe.rollback().await.unwrap();
     MIGRATOR.run(&admin).await.unwrap();
 
     let actor = Uuid::new_v4();
