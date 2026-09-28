@@ -18,7 +18,7 @@
 | C4 Task 1 清单/契约 | Linux PG18 专项通过；C4 全链未验收 | `691fd4d` 静态复审无阻断；ws3 的隔离 runner 返回 `TASK1_PG18_PASSED_NOT_C4_ACCEPTANCE`，按固定测试计数验证 9/2/1、格式、严格 Clippy 与新空库真实 PG18 专项；前两批失败证据保留 |
 | C4 Task 2 安全复制/封存 | Linux 专项通过；C4 全链未验收 | `431e002`；ws3 的封存集成 5/5、库内故障 5/5（含 SIGKILL）、格式、严格 Clippy、工作区编译均退出 0，命令身份与源码哈希已核；内核级真实 fsync 错误未注入，使用同步边界故障钩子 |
 | C4 Task 3 写闸/dump/保护/完成收据 | Linux 隔离候选门通过；原始结果审计中 | `c344a1e` 的三项目 runner 返回 `TASK3_CANDIDATE_GATES_PASSED_NOT_PRODUCTION`；全链仍未验收 |
-| C4 Task 4 干净恢复 | 本地实施中 | 全资产/身份/权限/租约审查 |
+| C4 Task 4 干净恢复 | 策略原语静态复审通过；执行未实现 | `48f493b` 的恢复准入/资产/角色/租约分类纯逻辑经 8 项专项测试；缺 `complete`、真实恢复和 Linux 验收 |
 | C4 Task 5 全链与失败注入 | 未开始 | 四套旧版升级、工作区回归、整关验收 |
 
 所有后续结果需记录源码提交与包 SHA-256、项目名、新数据库/卷、工具版本、命令、退出码、日志哈希、失败根因及清理状态。失败批次不可覆盖或改写为通过。
@@ -51,6 +51,12 @@
 - 计划使用新 root 专用目录 `/var/lib/knowweave-c4`，固定批次 UUID `9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160`，三套全新 Compose 项目与 `10.251.215/216/217.0/24` 子网；启动前必须再次检查宿主路由、Docker 网络、项目/卷/容器均未占用。此测试信任宿主和 Docker 管理员，不能证明抵御其恶意篡改。
 - Task 3 成功门只证实源端闸、dump、资产索引及受控恢复比对。当前 `learning-backup` 只暴露 `SealedBackup`/`SourceLocalPin`，尚无独立目标校验后的 `CompleteBackup` 能力或完成收据发布器；`.sealed` 不可作为可恢复备份。Task 4 的干净实例完整恢复和 Task 5 全链验收仍分别待做，不提前写入 `P0_C4_VERIFIED`。
 - 用户在服务器本机执行 root-only 验收后，runner 返回 `TASK3_CANDIDATE_GATES_PASSED_NOT_PRODUCTION`，`result.json` 位于 `/var/lib/knowweave-c4/batches/892adcedb12b-9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160/result.json`，报告 SHA-256 `d10e46d7f562925aa05099d55812b4665229a674d766a153d5628a68aef3108d`。根任务通过只读 Docker 查询确认三个 Task 3 项目没有遗留容器、网络或卷；root 私有 `result.json` 内容尚待单独只读审计，故此处只记录候选门摘要，不扩大为完整 C4 验收。
+
+## Task 4 本地策略切片
+
+- 实现提交 `0fd4806`，两轮独立复审修订 `77f8e8d`、`48f493b`；最终独立静态复审无确定性阻断。先前发现的快照重试/终态外部副作用漏判，以及从备份来源自证目标环境身份的问题已修正。
+- 恢复策略可检查固定 `pg_restore` 参数、新空库/私有资产根、独立观察到的构建/PG/迁移身份、非敏感角色配方、全量 ready 资产行与原件字节哈希，并保守分类恢复后的租约和外部效果。根任务独立重跑 8 项 `restore_policy` 测试与格式检查，均退出 0；实现者另报告严格工作区 Clippy 通过。
+- 这些函数接收由未来可信执行器采集的事实，不自行证明目标权限、数据库会话或身份；当前没有 `CompleteBackup`、独立目标核验及签发、实际 `pg_restore`/资产导入、租约失效事务、派生物重建或服务放行。完整 crate 的真 PG 测试需要专用空库，Windows 本机没有该配置，未借用已有数据库。
 
 ## 设计裁定
 
