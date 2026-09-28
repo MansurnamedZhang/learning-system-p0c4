@@ -279,9 +279,11 @@ fn validate_issuance_bytes(
     )?;
     let batch = uuid::Uuid::parse_str(&state.batch_id)
         .map_err(|_| BackupError::Invalid("target issuance batch"))?;
+    let birth_batch = birth_batch_suffix(birth)?;
     let expected_network = format!("{}_test", birth.project_name);
     if batch.get_version_num() != 4
         || batch.to_string() != state.batch_id
+        || state.batch_id != birth_batch
         || state.state != "CREATED_QUARANTINED"
         || state.project != birth.project_name
         || state.database != birth.database_name
@@ -310,6 +312,38 @@ fn validate_issuance_bytes(
             .is_some_and(crate::valid_digest)
     {
         return Err(BackupError::Invalid("target issuance state differs"));
+    }
+    Ok(())
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn birth_batch_suffix(birth: &TargetBirthAttestation) -> Result<&str, BackupError> {
+    let database_batch = birth
+        .database_name
+        .strip_prefix("learning_restore_c4_")
+        .ok_or(BackupError::Invalid("target birth batch"))?;
+    let project_batch = birth
+        .project_name
+        .strip_prefix("learning-system-p0c4-restore-")
+        .ok_or(BackupError::Invalid("target birth batch"))?;
+    if database_batch != project_batch {
+        return Err(BackupError::Invalid("target birth batch differs"));
+    }
+    let id = uuid::Uuid::parse_str(database_batch)
+        .map_err(|_| BackupError::Invalid("target birth batch"))?;
+    if id.get_version_num() != 4 || id.to_string() != database_batch {
+        return Err(BackupError::Invalid("target birth batch"));
+    }
+    Ok(database_batch)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn validate_target_dir_batch(
+    target_path: &std::path::Path,
+    birth: &TargetBirthAttestation,
+) -> Result<(), BackupError> {
+    if target_path.file_name().and_then(|name| name.to_str()) != Some(birth_batch_suffix(birth)?) {
+        return Err(BackupError::Invalid("target directory batch differs"));
     }
     Ok(())
 }
@@ -543,6 +577,7 @@ async fn verify_target_birth(
         return Err(BackupError::Invalid("target issuance roots differ"));
     }
     let target = BackupDir::open_trusted_private_root(target_path)?;
+    validate_target_dir_batch(target_path, &birth)?;
     let failure_present = match target.kind("failure.json") {
         Ok(_) => true,
         Err(error) if error.kind() == io::ErrorKind::NotFound => false,
@@ -993,6 +1028,35 @@ mod tests {
         let accepted =
             validate_issuance_bytes(&birth, &digest, &state_bytes, Some(&seal_bytes), false);
         assert!(accepted.is_ok(), "{accepted:?}");
+        let other_batch = "550e8400-e29b-41d4-a716-446655440002";
+        let mut cross_batch_state = state.clone();
+        cross_batch_state["batch_id"] = other_batch.into();
+        let mut cross_batch_seal = seal.clone();
+        cross_batch_seal["batch_id"] = other_batch.into();
+        assert!(
+            validate_issuance_bytes(
+                &birth,
+                &digest,
+                &serde_json::to_vec(&cross_batch_state).unwrap(),
+                Some(&serde_json::to_vec(&cross_batch_seal).unwrap()),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_target_dir_batch(
+                std::path::Path::new("/private/targets/550e8400-e29b-41d4-a716-446655440000"),
+                &birth,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_target_dir_batch(
+                std::path::Path::new("/private/targets/550e8400-e29b-41d4-a716-446655440002"),
+                &birth,
+            )
+            .is_err()
+        );
         assert!(validate_issuance_bytes(&birth, &digest, &state_bytes, None, false).is_err());
         assert!(
             validate_issuance_bytes(&birth, &digest, &state_bytes, Some(&seal_bytes), true)
