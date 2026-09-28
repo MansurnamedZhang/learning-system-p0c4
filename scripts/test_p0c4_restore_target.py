@@ -1,12 +1,18 @@
 """Local mock gates for the isolated C4 restore-target provisioner."""
 
 import copy
+import contextlib
+import json
+import stat
+import tempfile
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from p0c4_restore_target import (AdmissionError, admit_fresh, compose_document,
-                                 identity_for, verify_created, quarantine)
+                                 identity_for, verify_created, quarantine, provision,
+                                 _postgres_uid)
 
 
 ID = "550e8400-e29b-41d4-a716-446655440000"
@@ -15,7 +21,7 @@ SUBNET = "10.251.219.0/24"
 
 def empty_snapshot():
     return {"containers": [], "networks": [], "volumes": [],
-            "routes": ["10.0.0.0/8"], "daemon_id": "daemon-1"}
+            "routes": ["192.168.0.0/16"], "daemon_id": "daemon-1"}
 
 
 def created(identity):
@@ -23,20 +29,24 @@ def created(identity):
     network = identity["network"]
     volume = identity["volume"]
     return {
-        "containers": [{"Id": "sha256:pg-only", "Name": "/" + project + "-pg-1",
+        "containers": [{"Id": "a" * 64, "Name": "/" + project + "-pg-1",
                         "Config": {"Image": identity["image"], "Labels": {
                             "com.docker.compose.project": project,
                             "com.docker.compose.service": "pg"}},
-                        "State": {"Running": True},
+                        "Image": "sha256:" + "d" * 64,
+                        "State": {"Running": True, "Health": {"Status": "healthy"}},
                         "HostConfig": {"NetworkMode": network, "PortBindings": {}},
-                        "NetworkSettings": {"Ports": {}, "Networks": {network: {"NetworkID": "net-id"}}},
+                        "NetworkSettings": {"Ports": {}, "Networks": {network: {"NetworkID": "b" * 64}}},
                         "Mounts": [{"Type": "volume", "Name": volume,
-                                    "Destination": "/var/lib/postgresql"}]}],
-        "networks": [{"Id": "net-id", "Name": network, "Internal": True,
+                                    "Source": "/var/lib/docker/volumes/new/_data",
+                                    "RW": True, "Destination": "/var/lib/postgresql"}]}],
+        "networks": [{"Id": "b" * 64, "Name": network, "Internal": True,
                       "Labels": {"com.docker.compose.project": project},
-                      "IPAM": {"Config": [{"Subnet": SUBNET}]} }],
+                      "IPAM": {"Config": [{"Subnet": SUBNET, "Gateway": "10.251.219.1"}]} }],
         "volumes": [{"Name": volume, "Mountpoint": "/var/lib/docker/volumes/new/_data",
                      "Labels": {"com.docker.compose.project": project}}],
+        "images": [{"Id": "sha256:" + "d" * 64,
+                    "RepoDigests": ["postgres@" + identity["image"].split("@", 1)[1]]}],
         "daemon_id": "daemon-1",
     }
 
@@ -53,9 +63,14 @@ class RestoreTargetGates(unittest.TestCase):
                 snapshot[field] = [{"Name": object_name, "Labels": {}}]
                 with self.assertRaises(AdmissionError):
                     admit_fresh(identity, SUBNET, snapshot)
-        for bad in ("10.0.1.0/24", "127.0.0.0/24", "0.0.0.0/0", "not-a-subnet"):
+        for bad in ("192.168.1.0/24", "127.0.0.0/24", "0.0.0.0/0", "not-a-subnet"):
             with self.subTest(subnet=bad), self.assertRaises(AdmissionError):
                 admit_fresh(identity, bad, empty_snapshot())
+        snapshot = empty_snapshot()
+        snapshot["networks"] = [{"Name": "unrelated", "Labels": {},
+                                 "IPAM": {"Config": [{"Subnet": "10.251.219.0/25"}]}}]
+        with self.assertRaises(AdmissionError):
+            admit_fresh(identity, SUBNET, snapshot)
 
     def test_compose_has_only_pinned_pg18_and_private_explicit_network(self):
         identity = identity_for(ID)
@@ -64,6 +79,7 @@ class RestoreTargetGates(unittest.TestCase):
         self.assertEqual(list(doc["services"]), ["pg"])
         pg = doc["services"]["pg"]
         self.assertEqual(pg["image"], identity["image"])
+        self.assertEqual(pg["pull_policy"], "never")
         self.assertNotIn("ports", pg)
         self.assertEqual(pg["environment"]["POSTGRES_DB"], "postgres")
         self.assertEqual(pg["environment"]["C4_TARGET_DATABASE"], identity["database"])
@@ -79,10 +95,19 @@ class RestoreTargetGates(unittest.TestCase):
         verify_created(identity, SUBNET, empty_snapshot(), expected)
         mutations = [
             lambda s: s["containers"][0]["Mounts"][0].update(Name="old-volume"),
+            lambda s: s["containers"][0]["Mounts"][0].update(Source="/other"),
+            lambda s: s["containers"][0]["Mounts"][0].update(RW=False),
+            lambda s: s["volumes"][0].update(Mountpoint="/different"),
+            lambda s: s["containers"][0].update(Id="malformed"),
             lambda s: s["containers"][0]["NetworkSettings"]["Networks"].update(external={}),
             lambda s: s["containers"][0]["NetworkSettings"]["Ports"].update({"5432/tcp": [{"HostPort": "15432"}]}),
             lambda s: s["containers"][0]["Config"]["Labels"].update({"com.docker.compose.service": "worker"}),
+            lambda s: s["containers"][0]["State"]["Health"].update(Status="starting"),
+            lambda s: s["containers"][0].update(Image="sha256:" + "e" * 64),
+            lambda s: s["images"][0].update(RepoDigests=[]),
             lambda s: s["networks"][0].update(Id=""),
+            lambda s: s["networks"][0].update(Id="malformed"),
+            lambda s: s["networks"][0]["IPAM"]["Config"][0].update(Subnet="10.251.220.0/24"),
             lambda s: s["volumes"][0]["Labels"].update({"com.docker.compose.project": "other"}),
             lambda s: s.update(daemon_id="different"),
             lambda s: s["containers"].append(copy.deepcopy(s["containers"][0])),
@@ -97,11 +122,100 @@ class RestoreTargetGates(unittest.TestCase):
     def test_failure_quarantine_stops_only_exact_labeled_new_container_id(self):
         identity = identity_for(ID)
         live = created(identity)
-        live["containers"].append({"Id": "sha256:foreign", "Config": {"Labels": {
+        live["containers"].append({"Id": "c" * 64, "Config": {"Labels": {
             "com.docker.compose.project": "other", "com.docker.compose.service": "pg"}}})
         commands = []
         quarantine(identity, live, lambda *args: commands.append(args))
-        self.assertEqual(commands, [("stop", "--time", "1", "sha256:pg-only")])
+        self.assertEqual(commands, [("stop", "--time", "1", "a" * 64)])
+
+    @patch("p0c4_restore_target._docker", return_value="999\n999\n")
+    def test_postgres_uid_probe_uses_local_pinned_image_without_network(self, docker):
+        self.assertEqual(_postgres_uid(), (999, 999))
+        args = docker.call_args.args
+        self.assertEqual(args[:5], ("run", "--pull=never", "--rm", "--network", "none"))
+        self.assertIn(identity_for(ID)["image"], args)
+
+    def test_driver_waits_for_health_before_recording_quarantined_target(self):
+        identity = identity_for(ID)
+        live = created(identity)
+        calls = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "targets").mkdir()
+            def write(path, payload):
+                path.write_bytes(payload)
+            with (patch("p0c4_restore_target._trusted_initdb"),
+                  patch("p0c4_restore_target._locked_root", return_value=contextlib.nullcontext()),
+                  patch("p0c4_restore_target._postgres_uid", return_value=(999, 999)),
+                  patch("p0c4_restore_target.os.chown", create=True),
+                  patch("p0c4_restore_target.os.lstat", return_value=SimpleNamespace(
+                      st_mode=stat.S_IFDIR | 0o700, st_uid=0)),
+                  patch("p0c4_restore_target._private_write", side_effect=write),
+                  patch("p0c4_restore_target.snapshot", side_effect=[empty_snapshot(), live]),
+                  patch("p0c4_restore_target._inspect", return_value=live["images"]),
+                  patch("p0c4_restore_target._docker", side_effect=lambda *args: calls.append(args) or "")):
+                result = provision(root, ID, SUBNET, Path("/reviewed/initdb.sh"))
+            self.assertEqual(result["state"], "CREATED_QUARANTINED")
+            self.assertIn(("compose", "-f", str(root / "targets" / ID / "compose.json"),
+                           "up", "-d", "--wait", "--no-build", "--no-deps", "pg"), calls)
+            self.assertEqual(json.loads((root / "targets" / ID / "state.json").read_text())["state"],
+                             "CREATED_QUARANTINED")
+
+    def test_failed_stop_records_unconfirmed_quarantine_without_claiming_stopped(self):
+        identity = identity_for(ID)
+        live = created(identity)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "targets").mkdir()
+            def docker(*args):
+                if args[0] == "stop":
+                    raise AdmissionError("stop failed")
+                if "up" in args:
+                    raise AdmissionError("compose failed")
+                return ""
+            with (patch("p0c4_restore_target._trusted_initdb"),
+                  patch("p0c4_restore_target._locked_root", return_value=contextlib.nullcontext()),
+                  patch("p0c4_restore_target._postgres_uid", return_value=(999, 999)),
+                  patch("p0c4_restore_target.os.chown", create=True),
+                  patch("p0c4_restore_target.os.lstat", return_value=SimpleNamespace(
+                      st_mode=stat.S_IFDIR | 0o700, st_uid=0)),
+                  patch("p0c4_restore_target._private_write", side_effect=lambda path, data: path.write_bytes(data)),
+                  patch("p0c4_restore_target.snapshot", side_effect=[empty_snapshot(), live]),
+                  patch("p0c4_restore_target._docker", side_effect=docker)):
+                with self.assertRaises(AdmissionError):
+                    provision(root, ID, SUBNET, Path("/reviewed/initdb.sh"))
+            state = json.loads((root / "targets" / ID / "state.json").read_text())
+            self.assertEqual(state["state"], "FAILED_QUARANTINE_ATTEMPTED")
+            self.assertFalse(state["container_stop_confirmed"])
+            self.assertEqual(state["cleanup_error"], "AdmissionError")
+
+    def test_malformed_project_container_id_cannot_claim_stopped(self):
+        identity = identity_for(ID)
+        live = created(identity)
+        live["containers"][0]["Id"] = "uninspectable"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "targets").mkdir()
+            def docker(*args):
+                if "up" in args:
+                    raise AdmissionError("compose failed")
+                if args[0] == "stop":
+                    self.fail("malformed ID must never be sent to docker stop")
+                return ""
+            with (patch("p0c4_restore_target._trusted_initdb"),
+                  patch("p0c4_restore_target._locked_root", return_value=contextlib.nullcontext()),
+                  patch("p0c4_restore_target._postgres_uid", return_value=(999, 999)),
+                  patch("p0c4_restore_target.os.chown", create=True),
+                  patch("p0c4_restore_target.os.lstat", return_value=SimpleNamespace(
+                      st_mode=stat.S_IFDIR | 0o700, st_uid=0)),
+                  patch("p0c4_restore_target._private_write", side_effect=lambda path, data: path.write_bytes(data)),
+                  patch("p0c4_restore_target.snapshot", side_effect=[empty_snapshot(), live, live]),
+                  patch("p0c4_restore_target._docker", side_effect=docker)):
+                with self.assertRaises(AdmissionError):
+                    provision(root, ID, SUBNET, Path("/reviewed/initdb.sh"))
+            state = json.loads((root / "targets" / ID / "state.json").read_text())
+            self.assertFalse(state["container_stop_confirmed"])
+            self.assertEqual(state["cleanup_error"], "AdmissionError")
 
 
 if __name__ == "__main__":
