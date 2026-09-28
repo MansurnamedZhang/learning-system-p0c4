@@ -17,17 +17,13 @@ are trusted. The pinned PostgreSQL image must already be local. Choose a new
 canonical UUIDv4 and a previously unused explicit RFC1918 `/24` (or smaller)
 that does not overlap a host route or Docker network.
 
-```sh
-printf '%s  %s\n' EXACT_RUNNER_SHA256 \
-  /var/lib/knowweave-c4/tools/p0c4_restore_birth_acceptance.py | sha256sum --check
-printf '%s  %s\n' EXACT_ZIP_SHA256 \
-  /var/lib/knowweave-c4/incoming/REVIEWED.zip | sha256sum --check
-```
-
-Both checks must report `OK` before the acceptance command. The runner
-also checks those approved bytes and the manifest internally.
+Run the following commands in order in the **same SSH shell**. Each hash
+failure exits that shell immediately; do not skip or ignore a nonzero result.
+The runner also checks the approved bytes and manifest internally.
 
 ```sh
+printf '%s  %s\n' EXACT_RUNNER_SHA256 /var/lib/knowweave-c4/tools/p0c4_restore_birth_acceptance.py | sudo sha256sum --check || exit 1
+printf '%s  %s\n' EXACT_ZIP_SHA256 /var/lib/knowweave-c4/incoming/REVIEWED.zip | sudo sha256sum --check || exit 1
 sudo /var/lib/knowweave-c4/tools/p0c4_restore_birth_acceptance.py \
   --archive /var/lib/knowweave-c4/incoming/REVIEWED.zip \
   --archive-sha256 EXACT_ZIP_SHA256 \
