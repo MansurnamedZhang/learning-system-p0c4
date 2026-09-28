@@ -165,6 +165,9 @@ def read_precreation(root, identity, batch_id, initdb):
     _trusted_private_dir(root)
     targets = root / "targets"
     _trusted_private_dir(targets)
+    require({item.name for item in root.iterdir()} ==
+            {"targets", ".restore-target.lock", "pin-precreation.json"},
+            "pin-only root has unexpected sibling evidence")
     raw = _private_read(root / "pin-precreation.json")
     record = acceptance._unique_json(raw)
     root_meta, targets_meta = os.lstat(root), os.lstat(targets)

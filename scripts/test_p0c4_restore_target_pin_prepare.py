@@ -80,13 +80,19 @@ class Precreation(unittest.TestCase):
         self.assertEqual(record["initdb_sha256"], "a" * 64)
         self.assertEqual(record["targets_ino"], 101)
         self.assertNotIn("password", written["content"].decode())
+        def entries(path):
+            if path == self.root:
+                return iter((self.root / "targets",
+                             self.root / ".restore-target.lock",
+                             self.root / "pin-precreation.json"))
+            return iter((self.root / "targets" / ID,))
         with patch.object(prepare.pin, "_trusted_private_dir"), \
              patch.object(prepare.pin, "_private_read",
                           return_value=written["content"]), \
              patch.object(prepare.pin, "_initdb_digest", return_value="a" * 64), \
              patch.object(prepare.pin.os, "lstat", side_effect=directory_stat), \
-             patch.object(Path, "iterdir",
-                          return_value=iter([self.root / "targets" / ID])):
+             patch.object(Path, "iterdir", autospec=True,
+                          side_effect=entries):
             checked, raw = prepare.pin.read_precreation(
                 self.root, self.identity, ID, self.initdb)
             self.assertEqual(checked, record)
@@ -98,6 +104,47 @@ class Precreation(unittest.TestCase):
             with self.assertRaises(AdmissionError):
                 prepare.prepare(root, ID, SUBNET, self.initdb)
             locked.assert_not_called()
+
+    def test_pin_rejects_new_sibling_dirty_evidence_after_preparation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            targets = root / "targets"
+            targets.mkdir()
+            (targets / ID).mkdir()
+            (root / ".restore-target.lock").write_bytes(b"")
+            (root / "pin-precreation.json").write_bytes(b"placeholder")
+            root_meta, targets_meta = root.stat(), targets.stat()
+            record = {
+                "format_version": 1,
+                "state": "PIN_ONLY_PRECREATION_NOT_RESTORE_AUTHORITY",
+                "target_absent_at_precreation": True,
+                "batch_id": ID,
+                "project": self.identity["project"],
+                "database": self.identity["database"],
+                "network": self.identity["network"],
+                "volume": self.identity["volume"],
+                "subnet": SUBNET,
+                "root_path": str(root),
+                "root_dev": root_meta.st_dev,
+                "root_ino": root_meta.st_ino,
+                "targets_dev": targets_meta.st_dev,
+                "targets_ino": targets_meta.st_ino,
+                "docker_daemon_id": "fresh-daemon",
+                "initdb_path": str(self.initdb),
+                "initdb_sha256": "a" * 64,
+            }
+            raw = json.dumps(record, sort_keys=True, ensure_ascii=False,
+                             separators=(",", ":")).encode()
+            with patch.object(prepare.pin, "_trusted_private_dir"), \
+                 patch.object(prepare.pin, "_private_read", return_value=raw), \
+                 patch.object(prepare.pin, "_initdb_digest",
+                              return_value="a" * 64):
+                prepare.pin.read_precreation(root, self.identity, ID,
+                                             self.initdb)
+                (root / "dirty-result.json").write_bytes(b"{}")
+                with self.assertRaises(AdmissionError):
+                    prepare.pin.read_precreation(root, self.identity, ID,
+                                                 self.initdb)
 
 
 if __name__ == "__main__":
