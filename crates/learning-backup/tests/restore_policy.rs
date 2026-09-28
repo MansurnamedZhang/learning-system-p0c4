@@ -32,7 +32,15 @@ fn asset(id: u128, sha: &str) -> AssetRow {
 #[test]
 fn restore_identity_requires_same_build_pg_and_complete_migration_set() {
     let source = identity();
-    let environment = RestoreEnvironment::from_source_identity(&source);
+    let environment = RestoreEnvironment {
+        application_build_sha256: "a".repeat(64),
+        application_commit: "b".repeat(40),
+        postgres_major: 18,
+        migrations: vec![MigrationRecord {
+            version: 1,
+            checksum_hex: "c".repeat(96),
+        }],
+    };
     environment.validate(&source).unwrap();
     let mut other = environment.clone();
     other.application_build_sha256 = "d".repeat(64);
@@ -150,10 +158,43 @@ fn running_jobs_are_classified_for_lease_invalidation_with_retry_budget() {
     snapshot.status = "snapshot_queued".into();
     snapshot.attempt_count = 0;
     snapshot.lease_token_present = false;
+    for finding in [
+        ExternalEffectFinding::Unknown,
+        ExternalEffectFinding::AlreadyCommitted,
+        ExternalEffectFinding::Conflict,
+    ] {
+        snapshot.external_effect = finding;
+        assert_eq!(
+            classify_restored_job(&snapshot).unwrap(),
+            JobRecoveryAction::AwaitExternalReconciliation
+        );
+    }
+    snapshot.external_effect = ExternalEffectFinding::ConfirmedNoEffect;
     assert_eq!(
         classify_restored_job(&snapshot).unwrap(),
         JobRecoveryAction::LeaveQueued
     );
+    snapshot.status = "snapshot_retry_wait".into();
+    snapshot.attempt_count = 1;
+    for finding in [
+        ExternalEffectFinding::Unknown,
+        ExternalEffectFinding::AlreadyCommitted,
+        ExternalEffectFinding::Conflict,
+    ] {
+        snapshot.external_effect = finding;
+        assert_eq!(
+            classify_restored_job(&snapshot).unwrap(),
+            JobRecoveryAction::AwaitExternalReconciliation
+        );
+    }
+    snapshot.external_effect = ExternalEffectFinding::ConfirmedNoEffect;
+    assert_eq!(
+        classify_restored_job(&snapshot).unwrap(),
+        JobRecoveryAction::LeaveWaiting
+    );
+    snapshot.attempt_count = 3;
+    assert!(classify_restored_job(&snapshot).is_err());
+    snapshot.attempt_count = 1;
     snapshot.status = "snapshot_running".into();
     snapshot.lease_token_present = false;
     assert!(matches!(

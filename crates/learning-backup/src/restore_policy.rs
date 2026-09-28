@@ -143,15 +143,6 @@ pub struct RestoreEnvironment {
 }
 
 impl RestoreEnvironment {
-    pub fn from_source_identity(identity: &SourceIdentity) -> Self {
-        Self {
-            application_build_sha256: identity.application_build_sha256.clone(),
-            application_commit: identity.application_commit.clone(),
-            postgres_major: identity.postgres_major,
-            migrations: identity.migrations.clone(),
-        }
-    }
-
     pub fn validate(&self, source: &SourceIdentity) -> Result<(), BackupError> {
         // Reconstruct both fingerprints. Comparing only the highest migration
         // version would accept a modified or missing intermediate migration.
@@ -340,6 +331,11 @@ pub fn classify_restored_job(job: &RestoredJob) -> Result<JobRecoveryAction, Bac
     if !(0..=3).contains(&job.attempt_count) {
         return Err(BackupError::Invalid("job attempt count"));
     }
+    if matches!(job.status.as_str(), "retry_wait" | "snapshot_retry_wait")
+        && !(1..3).contains(&job.attempt_count)
+    {
+        return Err(BackupError::Invalid("retry wait has no remaining attempt"));
+    }
     let snapshot = match job.event_type.as_str() {
         "asset_integrity_requested" => false,
         "snapshot_export_requested" => true,
@@ -365,12 +361,24 @@ pub fn classify_restored_job(job: &RestoredJob) -> Result<JobRecoveryAction, Bac
         "queued" if !snapshot && !job.lease_token_present && job.attempt_count == 0 => {
             JobRecoveryAction::LeaveQueued
         }
-        "snapshot_queued" if snapshot && !job.lease_token_present && job.attempt_count == 0 => {
+        "snapshot_queued"
+            if snapshot
+                && !job.lease_token_present
+                && job.attempt_count == 0
+                && job.external_effect == ExternalEffectFinding::ConfirmedNoEffect =>
+        {
             JobRecoveryAction::LeaveQueued
         }
         "retry_wait" if !snapshot && !job.lease_token_present => JobRecoveryAction::LeaveWaiting,
-        "snapshot_retry_wait" if snapshot && !job.lease_token_present => {
+        "snapshot_retry_wait"
+            if snapshot
+                && !job.lease_token_present
+                && job.external_effect == ExternalEffectFinding::ConfirmedNoEffect =>
+        {
             JobRecoveryAction::LeaveWaiting
+        }
+        "snapshot_queued" | "snapshot_retry_wait" if snapshot && !job.lease_token_present => {
+            JobRecoveryAction::AwaitExternalReconciliation
         }
         "succeeded" | "failed" | "cancelled" if !job.lease_token_present => {
             JobRecoveryAction::LeaveTerminal
