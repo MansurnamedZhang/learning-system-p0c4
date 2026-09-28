@@ -2,6 +2,8 @@
 
 import json
 import hashlib
+import contextlib
+import io
 from pathlib import Path
 import stat
 import tempfile
@@ -215,6 +217,26 @@ class ReviewedArchive(unittest.TestCase):
                                           "c" * 40, runner_sha)
             self.assertEqual(runner_sha, manifest["files"][[entry["path"] for entry in
                 manifest["files"]].index(runner.ENTRY)]["sha256"])
+
+
+class CommandLine(unittest.TestCase):
+    def test_help_exits_cleanly_without_admission_rejection(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(runner.main(["--help"]), 0)
+        self.assertIn("--runner-sha256", output.getvalue())
+        self.assertNotIn("ADMISSION_REJECTED", output.getvalue())
+
+    def test_documented_runner_sha_is_passed_to_admission(self):
+        argv = ["--archive", "/var/lib/knowweave-c4/incoming/REVIEWED.zip",
+                "--archive-sha256", "a" * 64,
+                "--manifest-sha256", "b" * 64,
+                "--source-commit", "c" * 40,
+                "--runner-sha256", "d" * 64,
+                "--batch-id", ID, "--subnet", SUBNET]
+        with patch.object(runner, "run", return_value=0) as admitted:
+            self.assertEqual(runner.main(argv), 0)
+        self.assertEqual(admitted.call_args.args[0].runner_sha256, "d" * 64)
 
 
 if __name__ == "__main__":

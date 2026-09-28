@@ -452,7 +452,14 @@ def main(argv=None):
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--subnet", required=True)
     try:
-        return run(parser.parse_args(argv))
+        args = parser.parse_args(argv)
+    except SystemExit as error:
+        if error.code == 0:
+            return 0
+        print("PIN_CANDIDATE_ACCEPTANCE_ADMISSION_REJECTED", flush=True)
+        return 1
+    try:
+        return run(args)
     except BaseException:
         print("PIN_CANDIDATE_ACCEPTANCE_ADMISSION_REJECTED", flush=True)
         return 1
