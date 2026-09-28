@@ -56,6 +56,14 @@ def clean_facts():
 
 
 class BirthContract(unittest.TestCase):
+    def test_non_rfc_version_nibble_is_not_a_python_uuid_v4(self):
+        non_rfc = "550e8400-e29b-41d4-0716-446655440000"
+        with self.assertRaises(AdmissionError):
+            identity_for(non_rfc)
+        with self.assertRaises(AdmissionError):
+            canonical_birth(identity_for(ID), clean_facts(), (42, 100),
+                            (43, 200), non_rfc)
+
     def test_interruption_after_birth_has_no_success_seal(self):
         identity = identity_for(ID)
         payload = canonical_birth(identity, clean_facts(), (42, 100), (43, 200),

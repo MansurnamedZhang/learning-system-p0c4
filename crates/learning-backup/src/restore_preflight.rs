@@ -204,12 +204,14 @@ impl TargetBirthAttestation {
         let project = format!("learning-system-p0c4-restore-{id}");
         if self.format_version != 1
             || id.get_version_num() != 4
+            || id.get_variant() != uuid::Variant::RFC4122
             || id.to_string() != suffix
             || self.project_name != project
             || self.pg_volume_name != format!("{project}_pg")
             || self.database_name != database
             || self.template_database != "template0"
             || self.creation_nonce.get_version_num() != 4
+            || self.creation_nonce.get_variant() != uuid::Variant::RFC4122
             || self.database_oid == 0
             || self.control_dev == 0
             || self.control_ino == 0
@@ -282,6 +284,7 @@ fn validate_issuance_bytes(
     let birth_batch = birth_batch_suffix(birth)?;
     let expected_network = format!("{}_test", birth.project_name);
     if batch.get_version_num() != 4
+        || batch.get_variant() != uuid::Variant::RFC4122
         || batch.to_string() != state.batch_id
         || state.batch_id != birth_batch
         || state.state != "CREATED_QUARANTINED"
@@ -331,7 +334,10 @@ fn birth_batch_suffix(birth: &TargetBirthAttestation) -> Result<&str, BackupErro
     }
     let id = uuid::Uuid::parse_str(database_batch)
         .map_err(|_| BackupError::Invalid("target birth batch"))?;
-    if id.get_version_num() != 4 || id.to_string() != database_batch {
+    if id.get_version_num() != 4
+        || id.get_variant() != uuid::Variant::RFC4122
+        || id.to_string() != database_batch
+    {
         return Err(BackupError::Invalid("target birth batch"));
     }
     Ok(database_batch)
@@ -391,9 +397,11 @@ impl RestorePreflightConfig {
             .expected_database
             .strip_prefix("learning_restore_c4_")
             .ok_or(BackupError::Invalid("isolated restore database required"))?;
-        if !uuid::Uuid::parse_str(marker)
-            .is_ok_and(|id| id.get_version_num() == 4 && id.to_string() == marker)
-        {
+        if !uuid::Uuid::parse_str(marker).is_ok_and(|id| {
+            id.get_version_num() == 4
+                && id.get_variant() == uuid::Variant::RFC4122
+                && id.to_string() == marker
+        }) {
             return Err(BackupError::Invalid("isolated restore database required"));
         }
         Ok(())
@@ -989,6 +997,25 @@ mod tests {
         birth.pg_volume_name = format!("{}_pg", birth.project_name);
         birth.database_name = database.into();
         assert!(birth.validate(database, &live).is_err());
+
+        let non_rfc = "550e8400-e29b-41d4-0716-446655440000";
+        let mut non_rfc_birth = parse_pinned_birth(bytes, &digest).unwrap();
+        non_rfc_birth.creation_nonce = uuid::Uuid::parse_str(non_rfc).unwrap();
+        assert!(non_rfc_birth.validate(database, &live).is_err());
+        non_rfc_birth = parse_pinned_birth(bytes, &digest).unwrap();
+        let non_rfc_database = format!("learning_restore_c4_{non_rfc}");
+        non_rfc_birth.database_name = non_rfc_database.clone();
+        non_rfc_birth.project_name = format!("learning-system-p0c4-restore-{non_rfc}");
+        non_rfc_birth.pg_volume_name = format!("{}_pg", non_rfc_birth.project_name);
+        assert!(non_rfc_birth.validate(&non_rfc_database, &live).is_err());
+        let non_rfc_config = RestorePreflightConfig {
+            destination_root: "/private/destination".into(),
+            trust_path: "/private/trust/receipt.json".into(),
+            control_root: "/private/control".into(),
+            asset_root: "/private/assets".into(),
+            expected_database: non_rfc_database,
+        };
+        assert!(non_rfc_config.validate().is_err());
     }
 
     #[test]
@@ -1028,6 +1055,32 @@ mod tests {
         let accepted =
             validate_issuance_bytes(&birth, &digest, &state_bytes, Some(&seal_bytes), false);
         assert!(accepted.is_ok(), "{accepted:?}");
+        let non_rfc = "550e8400-e29b-41d4-0716-446655440000";
+        let mut non_rfc_birth = birth.clone();
+        non_rfc_birth.database_name = format!("learning_restore_c4_{non_rfc}");
+        non_rfc_birth.project_name = format!("learning-system-p0c4-restore-{non_rfc}");
+        non_rfc_birth.pg_volume_name = format!("{}_pg", non_rfc_birth.project_name);
+        let mut non_rfc_state = state.clone();
+        non_rfc_state["batch_id"] = non_rfc.into();
+        non_rfc_state["project"] = non_rfc_birth.project_name.clone().into();
+        non_rfc_state["database"] = non_rfc_birth.database_name.clone().into();
+        non_rfc_state["network"] = format!("{}_test", non_rfc_birth.project_name).into();
+        non_rfc_state["volume_name"] = non_rfc_birth.pg_volume_name.clone().into();
+        let mut non_rfc_seal = seal.clone();
+        non_rfc_seal["batch_id"] = non_rfc.into();
+        non_rfc_seal["project_name"] = non_rfc_birth.project_name.clone().into();
+        non_rfc_seal["database_name"] = non_rfc_birth.database_name.clone().into();
+        non_rfc_seal["pg_volume_name"] = non_rfc_birth.pg_volume_name.clone().into();
+        assert!(
+            validate_issuance_bytes(
+                &non_rfc_birth,
+                &digest,
+                &serde_json::to_vec(&non_rfc_state).unwrap(),
+                Some(&serde_json::to_vec(&non_rfc_seal).unwrap()),
+                false,
+            )
+            .is_err()
+        );
         let other_batch = "550e8400-e29b-41d4-a716-446655440002";
         let mut cross_batch_state = state.clone();
         cross_batch_state["batch_id"] = other_batch.into();
