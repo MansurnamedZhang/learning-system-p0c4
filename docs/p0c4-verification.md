@@ -17,8 +17,8 @@
 | Rust 格式基线 | 已通过 | 本地 `cargo fmt --all -- --check`，2026-09-28，退出码 0 |
 | C4 Task 1 清单/契约 | Linux PG18 专项通过；C4 全链未验收 | `691fd4d` 静态复审无阻断；ws3 的隔离 runner 返回 `TASK1_PG18_PASSED_NOT_C4_ACCEPTANCE`，按固定测试计数验证 9/2/1、格式、严格 Clippy 与新空库真实 PG18 专项；前两批失败证据保留 |
 | C4 Task 2 安全复制/封存 | Linux 专项通过；C4 全链未验收 | `431e002`；ws3 的封存集成 5/5、库内故障 5/5（含 SIGKILL）、格式、严格 Clippy、工作区编译均退出 0，命令身份与源码哈希已核；内核级真实 fsync 错误未注入，使用同步边界故障钩子 |
-| C4 Task 3 写闸/dump/保护/完成收据 | 静态复审通过；Linux 待验收 | `c344a1e` 的三项目隔离验收脚本已就绪；真 PostgreSQL 并发、dump 恢复及两类故障仍须在服务器运行 |
-| C4 Task 4 干净恢复 | 未开始 | 全资产/身份/权限/租约审查 |
+| C4 Task 3 写闸/dump/保护/完成收据 | Linux 隔离候选门通过；原始结果审计中 | `c344a1e` 的三项目 runner 返回 `TASK3_CANDIDATE_GATES_PASSED_NOT_PRODUCTION`；全链仍未验收 |
+| C4 Task 4 干净恢复 | 本地实施中 | 全资产/身份/权限/租约审查 |
 | C4 Task 5 全链与失败注入 | 未开始 | 四套旧版升级、工作区回归、整关验收 |
 
 所有后续结果需记录源码提交与包 SHA-256、项目名、新数据库/卷、工具版本、命令、退出码、日志哈希、失败根因及清理状态。失败批次不可覆盖或改写为通过。
@@ -47,9 +47,10 @@
 
 - 实现提交 `6cd2315`、审查修订 `239c766`、三项目 Linux 验收脚本 `c344a1e`；独立复审核对写闸、Docker 状态/凭据探针、失败前证据捕获、失败卷保留，以及成功场景的 `pg_restore` 独立恢复和 ready 资产索引逐字段比对，未发现静态阻断。静态结论不代替 Linux/PG18 运行。
 - 根任务本地复核隔离驱动 13 项测试、验收脚本 5 项测试、`cargo fmt --all -- --check`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings` 与 Task 3 Rust 契约测试，均退出 0；Linux 专项尚未运行。
-- 待单独授权的精确源码包 `task3-reviewed-candidate.zip`：SHA-256 `892adcedb12b9c9b310c9c0d9814c4289a6b406d100074ed35105d51169d0ca6`，3,401,873 字节，364 个跟踪文件；内嵌清单 SHA-256 `36ee82f1db74652e3e0d7102666e5dc7ef749b1fce10460ce1512f4ad11843b7`，引导脚本 SHA-256 `385d02c59b67d5abf8ca550090b496742555ee74e517b3ebd856b146438a6cce`。本地已由验收脚本逐文件验证 ZIP 与清单，尚未上传或运行。
+- 用户单独授权的精确源码包 `task3-reviewed-candidate.zip`：SHA-256 `892adcedb12b9c9b310c9c0d9814c4289a6b406d100074ed35105d51169d0ca6`，3,401,873 字节，364 个跟踪文件；内嵌清单 SHA-256 `36ee82f1db74652e3e0d7102666e5dc7ef749b1fce10460ce1512f4ad11843b7`，引导脚本 SHA-256 `385d02c59b67d5abf8ca550090b496742555ee74e517b3ebd856b146438a6cce`。本地逐文件验证 ZIP 与清单；服务器 `/home/hans/experiments/learning-system-p0c4/incoming/task3-reviewed-candidate.zip` 上传前后 SHA-256 与授权值一致。
 - 计划使用新 root 专用目录 `/var/lib/knowweave-c4`，固定批次 UUID `9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160`，三套全新 Compose 项目与 `10.251.215/216/217.0/24` 子网；启动前必须再次检查宿主路由、Docker 网络、项目/卷/容器均未占用。此测试信任宿主和 Docker 管理员，不能证明抵御其恶意篡改。
-- Task 3 成功门只证实源端闸、dump、资产索引及受控恢复比对；Task 4 的干净实例完整恢复和 Task 5 全链验收仍分别待做，不提前写入 `P0_C4_VERIFIED`。
+- Task 3 成功门只证实源端闸、dump、资产索引及受控恢复比对。当前 `learning-backup` 只暴露 `SealedBackup`/`SourceLocalPin`，尚无独立目标校验后的 `CompleteBackup` 能力或完成收据发布器；`.sealed` 不可作为可恢复备份。Task 4 的干净实例完整恢复和 Task 5 全链验收仍分别待做，不提前写入 `P0_C4_VERIFIED`。
+- 用户在服务器本机执行 root-only 验收后，runner 返回 `TASK3_CANDIDATE_GATES_PASSED_NOT_PRODUCTION`，`result.json` 位于 `/var/lib/knowweave-c4/batches/892adcedb12b-9b0ba3d9-adc3-4cc0-881c-51c0ee9f7160/result.json`，报告 SHA-256 `d10e46d7f562925aa05099d55812b4665229a674d766a153d5628a68aef3108d`。根任务通过只读 Docker 查询确认三个 Task 3 项目没有遗留容器、网络或卷；root 私有 `result.json` 内容尚待单独只读审计，故此处只记录候选门摘要，不扩大为完整 C4 验收。
 
 ## 设计裁定
 
