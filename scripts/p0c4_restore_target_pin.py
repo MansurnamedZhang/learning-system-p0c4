@@ -26,6 +26,12 @@ EVIDENCE_KEYS = {
     "volume_mount_ino", "image_id", "destination_dev", "destination_ino",
     "control_dev", "control_ino", "asset_dev", "asset_ino", "birth_sha256",
 }
+PRECREATION_KEYS = {
+    "format_version", "state", "batch_id", "project", "database", "network",
+    "volume", "subnet", "root_path", "root_dev", "root_ino",
+    "targets_dev", "targets_ino", "docker_daemon_id", "initdb_path",
+    "initdb_sha256", "target_absent_at_precreation",
+}
 
 
 def _digest(content):
@@ -35,6 +41,33 @@ def _digest(content):
 def _json_bytes(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False,
                       separators=(",", ":")).encode("utf-8")
+
+
+def reject_acceptance_root(root):
+    """The birth-acceptance driver deliberately dirties every batch target."""
+    parts = root.parts
+    require(not any(parts[index:index + 2] ==
+                    ("birth-acceptance", "batches")
+                    for index in range(len(parts) - 1)),
+            "birth acceptance batch cannot provide pin provenance")
+
+
+def _initdb_digest(path):
+    target_provisioner._trusted_initdb(path)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                 os.O_NONBLOCK)
+    try:
+        meta = os.fstat(fd)
+        require(stat.S_ISREG(meta.st_mode) and meta.st_uid == 0 and
+                stat.S_IMODE(meta.st_mode) == 0o444 and meta.st_nlink == 1 and
+                0 < meta.st_size <= 1024 * 1024,
+                "reviewed initdb changed")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            data = stream.read(1024 * 1024 + 1)
+        require(len(data) == meta.st_size, "reviewed initdb changed")
+        return _digest(data)
+    finally:
+        os.close(fd)
 
 
 def _trusted_private_dir(path):
@@ -126,6 +159,40 @@ def read_records(target, identity, batch_id):
             success_bytes, evidence_bytes)
 
 
+def read_precreation(root, identity, batch_id, initdb):
+    """Require the separate pin-only record issued while this target was absent."""
+    reject_acceptance_root(root)
+    _trusted_private_dir(root)
+    targets = root / "targets"
+    _trusted_private_dir(targets)
+    raw = _private_read(root / "pin-precreation.json")
+    record = acceptance._unique_json(raw)
+    root_meta, targets_meta = os.lstat(root), os.lstat(targets)
+    require(type(record) is dict and set(record) == PRECREATION_KEYS and
+            _json_bytes(record) == raw and
+            type(record["format_version"]) is int and
+            record["format_version"] == 1 and
+            record["state"] == "PIN_ONLY_PRECREATION_NOT_RESTORE_AUTHORITY" and
+            record["target_absent_at_precreation"] is True and
+            record["batch_id"] == batch_id and
+            record["project"] == identity["project"] and
+            record["database"] == identity["database"] and
+            record["network"] == identity["network"] and
+            record["volume"] == identity["volume"] and
+            record["root_path"] == str(root) and
+            (record["root_dev"], record["root_ino"]) ==
+            (root_meta.st_dev, root_meta.st_ino) and
+            (record["targets_dev"], record["targets_ino"]) ==
+            (targets_meta.st_dev, targets_meta.st_ino) and
+            record["initdb_path"] == str(initdb) and
+            record["initdb_sha256"] == _initdb_digest(initdb) and
+            type(record["docker_daemon_id"]) is str and
+            bool(record["docker_daemon_id"]) and
+            [item.name for item in targets.iterdir()] == [batch_id],
+            "pin-only precreation provenance differs")
+    return record, raw
+
+
 def inspect_live(identity, state, success, evidence, birth, target, initdb):
     """Check current Docker, exact mounts, PG18 identity, ACL and empty catalog."""
     live = target_provisioner.snapshot()
@@ -201,11 +268,13 @@ def _docker_projection(live, identity):
     }
 
 
-def inspection_evidence_digest(batch_id, root, birth_bytes, state_bytes,
-                               success_bytes, evidence_bytes, checked):
+def inspection_evidence_digest(batch_id, root, precreation_bytes, birth_bytes,
+                               state_bytes, success_bytes, evidence_bytes,
+                               checked):
     payload = {
         "format_version": 1, "state": "PIN_CANDIDATE_NOT_RESTORE_AUTHORITY",
         "batch_id": batch_id, "control_root": root,
+        "precreation_sha256": _digest(precreation_bytes),
         "birth_sha256": _digest(birth_bytes),
         "creation_state_sha256": _digest(state_bytes),
         "issuance_success_sha256": _digest(success_bytes),
@@ -217,6 +286,7 @@ def inspection_evidence_digest(batch_id, root, birth_bytes, state_bytes,
 
 def pin(root, batch_id, initdb):
     identity = target_provisioner.identity_for(batch_id)
+    reject_acceptance_root(root)
     target_provisioner._trusted_initdb(initdb)
     with _existing_creation_lock(root):
         _trusted_private_dir(root / "targets")
@@ -224,12 +294,18 @@ def pin(root, batch_id, initdb):
         (birth, state, success, evidence, birth_bytes, state_bytes,
          success_bytes, evidence_bytes) = read_records(target, identity,
                                                        batch_id)
+        provenance, precreation_bytes = read_precreation(root, identity,
+                                                         batch_id, initdb)
+        require(provenance["subnet"] == state["subnet"] and
+                provenance["docker_daemon_id"] ==
+                evidence["docker_daemon_id"],
+                "precreation differs from birth")
         checked = inspect_live(identity, state, success, evidence, birth,
                                target, initdb)
         return {
             "birth_sha256": _digest(birth_bytes),
             "inspection_evidence_sha256": inspection_evidence_digest(
-                batch_id, str(root), birth_bytes, state_bytes,
+                batch_id, str(root), precreation_bytes, birth_bytes, state_bytes,
                 success_bytes, evidence_bytes, checked),
         }
 

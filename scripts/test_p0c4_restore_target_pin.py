@@ -46,6 +46,15 @@ def observed_pg(birth):
 
 
 class PinRecords(unittest.TestCase):
+    def test_acceptance_batch_root_is_structurally_ineligible(self):
+        root = (Path("/var/lib/knowweave-c4/birth-acceptance/batches") /
+                ID / "control")
+        with patch.object(pin.target_provisioner, "_trusted_initdb"), \
+             patch.object(pin, "_existing_creation_lock") as locked:
+            with self.assertRaises(AdmissionError):
+                pin.pin(root, ID, Path("/reviewed/initdb.sh"))
+            locked.assert_not_called()
+
     def test_empty_private_roots_require_original_inodes_and_no_assets(self):
         identity, birth_bytes, _, _, evidence = records()
         birth = json.loads(birth_bytes)
@@ -187,14 +196,14 @@ class PinLiveGate(unittest.TestCase):
     def test_positive_candidate_binds_evidence_and_emits_digest_only(self):
         checked = self.run_pin()
         candidate = pin.inspection_evidence_digest(
-            ID, str(self.root), self.birth_bytes,
+            ID, str(self.root), b"precreation", self.birth_bytes,
             json.dumps(self.state).encode(), json.dumps(self.success).encode(),
             json.dumps(self.evidence).encode(), checked)
         self.assertRegex(candidate, r"\A[0-9a-f]{64}\Z")
         self.assertNotIn(self.identity["database"], candidate)
         self.assertNotIn(self.state["container_id"], candidate)
         changed = pin.inspection_evidence_digest(
-            ID, str(self.root), self.birth_bytes,
+            ID, str(self.root), b"precreation", self.birth_bytes,
             json.dumps(self.state).encode(), json.dumps(self.success).encode(),
             json.dumps(self.evidence).encode(), {**checked, "image_id": "sha256:" + "c" * 64})
         self.assertNotEqual(candidate, changed)
@@ -271,6 +280,10 @@ class PinLiveGate(unittest.TestCase):
                  self.birth, self.state, self.success, self.evidence,
                  self.birth_bytes, json.dumps(self.state).encode(),
                  json.dumps(self.success).encode(), json.dumps(self.evidence).encode())), \
+             patch.object(pin, "read_precreation",
+                          return_value=({"subnet": self.state["subnet"],
+                                         "docker_daemon_id": self.evidence[
+                                             "docker_daemon_id"]}, b"precreation")), \
              patch.object(pin.target_provisioner, "_trusted_initdb"), \
              patch.object(pin, "inspect_live", side_effect=AdmissionError("secret=hidden")), \
              patch("builtins.print") as output, \
@@ -278,6 +291,25 @@ class PinLiveGate(unittest.TestCase):
             self.assertEqual(pin.main(["--root", str(self.root), "--batch-id", ID,
                                        "--initdb", str(self.initdb)]), 1)
             output.assert_called_once_with("PIN_CANDIDATE_REJECTED", flush=True)
+
+    def test_missing_precreation_never_reaches_live_inspection_or_candidate(self):
+        payloads = (self.birth, self.state, self.success, self.evidence,
+                    self.birth_bytes, json.dumps(self.state).encode(),
+                    json.dumps(self.success).encode(),
+                    json.dumps(self.evidence).encode())
+        with patch.object(pin, "_existing_creation_lock", return_value=contextlib.nullcontext()), \
+             patch.object(pin, "_trusted_private_dir"), \
+             patch.object(pin, "read_records", return_value=payloads), \
+             patch.object(pin, "read_precreation",
+                          side_effect=FileNotFoundError) as provenance, \
+             patch.object(pin.target_provisioner, "_trusted_initdb"), \
+             patch.object(pin, "inspect_live") as inspect, \
+             patch("builtins.print") as output:
+            self.assertEqual(pin.main(["--root", str(self.root), "--batch-id", ID,
+                                       "--initdb", str(self.initdb)]), 1)
+        provenance.assert_called_once()
+        inspect.assert_not_called()
+        output.assert_called_once_with("PIN_CANDIDATE_REJECTED", flush=True)
 
     def test_successful_entrypoint_prints_only_a_candidate_digest(self):
         payloads = (self.birth, self.state, self.success, self.evidence,
@@ -287,6 +319,10 @@ class PinLiveGate(unittest.TestCase):
         with patch.object(pin, "_existing_creation_lock", return_value=contextlib.nullcontext()), \
              patch.object(pin, "_trusted_private_dir"), \
              patch.object(pin, "read_records", return_value=payloads), \
+             patch.object(pin, "read_precreation",
+                          return_value=({"subnet": self.state["subnet"],
+                                         "docker_daemon_id": self.evidence[
+                                             "docker_daemon_id"]}, b"precreation")), \
              patch.object(pin.target_provisioner, "_trusted_initdb"), \
              patch.object(pin, "inspect_live", return_value=self.run_pin()), \
              patch("builtins.print") as output:
