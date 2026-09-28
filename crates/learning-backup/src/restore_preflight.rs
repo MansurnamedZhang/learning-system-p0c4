@@ -110,6 +110,41 @@ struct TargetBirthAttestation {
 }
 
 #[cfg(any(target_os = "linux", test))]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TargetCreationState {
+    state: String,
+    batch_id: String,
+    project: String,
+    database: String,
+    network: String,
+    subnet: String,
+    container_id: String,
+    network_id: String,
+    volume_name: String,
+    volume_mountpoint: String,
+}
+
+#[cfg(any(target_os = "linux", test))]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TargetIssuanceSuccess {
+    format_version: u32,
+    state: String,
+    batch_id: String,
+    project_name: String,
+    database_name: String,
+    birth_sha256: String,
+    container_id: String,
+    network_id: String,
+    pg_volume_name: String,
+    image_id: String,
+    volume_mountpoint: String,
+    volume_mount_dev: u64,
+    volume_mount_ino: u64,
+}
+
+#[cfg(any(target_os = "linux", test))]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SchemaAclEntry {
@@ -168,11 +203,13 @@ impl TargetBirthAttestation {
             .map_err(|_| BackupError::Invalid("target birth database"))?;
         let project = format!("learning-system-p0c4-restore-{id}");
         if self.format_version != 1
+            || id.get_version_num() != 4
+            || id.to_string() != suffix
             || self.project_name != project
             || self.pg_volume_name != format!("{project}_pg")
             || self.database_name != database
             || self.template_database != "template0"
-            || self.creation_nonce.is_nil()
+            || self.creation_nonce.get_version_num() != 4
             || self.database_oid == 0
             || self.control_dev == 0
             || self.control_ino == 0
@@ -225,6 +262,58 @@ fn parse_pinned_birth(
     Ok(birth)
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn validate_issuance_bytes(
+    birth: &TargetBirthAttestation,
+    birth_sha256: &str,
+    state_bytes: &[u8],
+    success_bytes: Option<&[u8]>,
+    failure_present: bool,
+) -> Result<(), BackupError> {
+    if failure_present {
+        return Err(BackupError::Invalid("target issuance has failure evidence"));
+    }
+    let state: TargetCreationState = serde_json::from_slice(state_bytes)?;
+    let success: TargetIssuanceSuccess = serde_json::from_slice(
+        success_bytes.ok_or(BackupError::Invalid("target issuance success absent"))?,
+    )?;
+    let batch = uuid::Uuid::parse_str(&state.batch_id)
+        .map_err(|_| BackupError::Invalid("target issuance batch"))?;
+    let expected_network = format!("{}_test", birth.project_name);
+    if batch.get_version_num() != 4
+        || batch.to_string() != state.batch_id
+        || state.state != "CREATED_QUARANTINED"
+        || state.project != birth.project_name
+        || state.database != birth.database_name
+        || state.network != expected_network
+        || state.subnet.is_empty()
+        || state.volume_name != birth.pg_volume_name
+        || !state.volume_mountpoint.starts_with('/')
+        || success.format_version != 1
+        || success.state != "BIRTH_ISSUED_NOT_RESTORE_ACCEPTANCE"
+        || success.batch_id != state.batch_id
+        || success.project_name != state.project
+        || success.database_name != state.database
+        || success.birth_sha256 != birth_sha256
+        || !crate::valid_digest(&success.birth_sha256)
+        || success.container_id != state.container_id
+        || success.network_id != state.network_id
+        || success.pg_volume_name != state.volume_name
+        || success.volume_mountpoint != state.volume_mountpoint
+        || success.volume_mount_dev == 0
+        || success.volume_mount_ino == 0
+        || !crate::valid_digest(&success.container_id)
+        || !crate::valid_digest(&success.network_id)
+        || !success
+            .image_id
+            .strip_prefix("sha256:")
+            .is_some_and(crate::valid_digest)
+    {
+        return Err(BackupError::Invalid("target issuance state differs"));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone)]
 pub struct RestorePreflightConfig {
     pub destination_root: PathBuf,
@@ -268,7 +357,9 @@ impl RestorePreflightConfig {
             .expected_database
             .strip_prefix("learning_restore_c4_")
             .ok_or(BackupError::Invalid("isolated restore database required"))?;
-        if !uuid::Uuid::parse_str(marker).is_ok_and(|id| id.to_string() == marker) {
+        if !uuid::Uuid::parse_str(marker)
+            .is_ok_and(|id| id.get_version_num() == 4 && id.to_string() == marker)
+        {
             return Err(BackupError::Invalid("isolated restore database required"));
         }
         Ok(())
@@ -438,6 +529,28 @@ async fn verify_target_birth(
     let mut bytes = Vec::new();
     file.take(4097).read_to_end(&mut bytes)?;
     let birth = parse_pinned_birth(&bytes, pinned)?;
+    // The birth file can survive an interrupted publication. Bind it to the
+    // final success seal and the original quarantined creation record, under
+    // the same exclusive control lock. A later driver still must re-inspect
+    // the live Docker mount before using the build-pinned candidate.
+    let target_path = config
+        .control_root
+        .parent()
+        .ok_or(BackupError::Invalid("target issuance parent"))?;
+    if config.destination_root.parent() != Some(target_path)
+        || config.asset_root.parent() != Some(target_path)
+    {
+        return Err(BackupError::Invalid("target issuance roots differ"));
+    }
+    let target = BackupDir::open_trusted_private_root(target_path)?;
+    let failure_present = match target.kind("failure.json") {
+        Ok(_) => true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.into()),
+    };
+    let state = read_private_target_file(&target, "state.json", 4096)?;
+    let success = read_private_target_file(&target, "issuance-success.json", 4096)?;
+    validate_issuance_bytes(&birth, pinned, &state, Some(&success), failure_present)?;
     // The isolated PG18 bootstrap must grant only EXECUTE on
     // pg_control_system() to learning_admin, or use a trusted admin observer.
     // Missing privilege fails closed; pg_monitor is not required or implied.
@@ -467,6 +580,25 @@ async fn verify_target_birth(
         runtime_can_create_public: public_schema.1,
     };
     birth.validate(&config.expected_database, &live)
+}
+
+#[cfg(target_os = "linux")]
+fn read_private_target_file(
+    target: &BackupDir,
+    name: &str,
+    max: u64,
+) -> Result<Vec<u8>, BackupError> {
+    let file = target.open_file(name)?;
+    let meta = file.metadata()?;
+    if meta.uid() != 0 || meta.permissions().mode() & 0o777 != 0o600 || meta.nlink() != 1 {
+        return Err(BackupError::Invalid("private target issuance record"));
+    }
+    let mut bytes = Vec::new();
+    file.take(max + 1).read_to_end(&mut bytes)?;
+    if bytes.is_empty() || bytes.len() as u64 > max {
+        return Err(BackupError::Invalid("target issuance record size"));
+    }
+    Ok(bytes)
 }
 
 #[cfg(target_os = "linux")]
@@ -782,6 +914,126 @@ mod tests {
         assert_ne!(reordered, bytes);
         let reordered_digest = format!("{:x}", sha2::Sha256::digest(&reordered));
         assert!(parse_pinned_birth(&reordered, &reordered_digest).is_err());
+    }
+
+    #[test]
+    fn birth_database_and_nonce_require_canonical_uuid_v4() {
+        let bytes = include_bytes!("../tests/fixtures/c4_birth_python.json");
+        let digest = format!("{:x}", sha2::Sha256::digest(bytes));
+        let mut birth = parse_pinned_birth(bytes, &digest).unwrap();
+        let v1 = "550e8400-e29b-11d4-a716-446655440000";
+        let database = format!("learning_restore_c4_{v1}");
+        let project = format!("learning-system-p0c4-restore-{v1}");
+        birth.project_name = project.clone();
+        birth.pg_volume_name = format!("{project}_pg");
+        birth.database_name = database.clone();
+        let live = ObservedTargetBirth {
+            database_oid: birth.database_oid,
+            pg_system_identifier: birth.pg_system_identifier.clone(),
+            control_dev: birth.control_dev,
+            control_ino: birth.control_ino,
+            asset_dev: birth.asset_dev,
+            asset_ino: birth.asset_ino,
+            cast_count: birth.baseline_cast_count,
+            public_schema: birth.public_schema.clone(),
+            runtime_can_create_public: false,
+        };
+        assert!(birth.validate(&database, &live).is_err());
+        let config = RestorePreflightConfig {
+            destination_root: "/private/destination".into(),
+            trust_path: "/private/trust/receipt.json".into(),
+            control_root: "/private/control".into(),
+            asset_root: "/private/assets".into(),
+            expected_database: database,
+        };
+        assert!(config.validate().is_err());
+        birth.creation_nonce = uuid::Uuid::parse_str(v1).unwrap();
+        let database = "learning_restore_c4_550e8400-e29b-41d4-a716-446655440000";
+        birth.project_name =
+            "learning-system-p0c4-restore-550e8400-e29b-41d4-a716-446655440000".into();
+        birth.pg_volume_name = format!("{}_pg", birth.project_name);
+        birth.database_name = database.into();
+        assert!(birth.validate(database, &live).is_err());
+    }
+
+    #[test]
+    fn birth_requires_matching_success_seal_clean_state_and_no_failure() {
+        let bytes = include_bytes!("../tests/fixtures/c4_birth_python.json");
+        let digest = format!("{:x}", sha2::Sha256::digest(bytes));
+        let birth = parse_pinned_birth(bytes, &digest).unwrap();
+        let state = serde_json::json!({
+            "state":"CREATED_QUARANTINED",
+            "batch_id":"550e8400-e29b-41d4-a716-446655440000",
+            "project":birth.project_name,
+            "database":birth.database_name,
+            "network":"learning-system-p0c4-restore-550e8400-e29b-41d4-a716-446655440000_test",
+            "subnet":"10.251.219.0/24",
+            "container_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "network_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "volume_name":birth.pg_volume_name,
+            "volume_mountpoint":"/var/lib/docker/volumes/new/_data"
+        });
+        let seal = serde_json::json!({
+            "format_version":1,
+            "state":"BIRTH_ISSUED_NOT_RESTORE_ACCEPTANCE",
+            "batch_id":"550e8400-e29b-41d4-a716-446655440000",
+            "project_name":birth.project_name,
+            "database_name":birth.database_name,
+            "birth_sha256":digest,
+            "container_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "network_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "pg_volume_name":birth.pg_volume_name,
+            "image_id":format!("sha256:{}", "d".repeat(64)),
+            "volume_mountpoint":"/var/lib/docker/volumes/new/_data",
+            "volume_mount_dev":9,
+            "volume_mount_ino":10
+        });
+        let state_bytes = serde_json::to_vec(&state).unwrap();
+        let seal_bytes = serde_json::to_vec(&seal).unwrap();
+        let accepted =
+            validate_issuance_bytes(&birth, &digest, &state_bytes, Some(&seal_bytes), false);
+        assert!(accepted.is_ok(), "{accepted:?}");
+        assert!(validate_issuance_bytes(&birth, &digest, &state_bytes, None, false).is_err());
+        assert!(
+            validate_issuance_bytes(&birth, &digest, &state_bytes, Some(&seal_bytes), true)
+                .is_err()
+        );
+        let mut dirty = state.clone();
+        dirty["state"] = "FAILED_QUARANTINE_ATTEMPTED".into();
+        assert!(
+            validate_issuance_bytes(
+                &birth,
+                &digest,
+                &serde_json::to_vec(&dirty).unwrap(),
+                Some(&seal_bytes),
+                false
+            )
+            .is_err()
+        );
+        let mut wrong = seal.clone();
+        wrong["birth_sha256"] = "0".repeat(64).into();
+        assert!(
+            validate_issuance_bytes(
+                &birth,
+                &digest,
+                &state_bytes,
+                Some(&serde_json::to_vec(&wrong).unwrap()),
+                false
+            )
+            .is_err()
+        );
+        wrong = seal;
+        wrong["container_id"] = "c".repeat(64).into();
+        assert!(
+            validate_issuance_bytes(
+                &birth,
+                &digest,
+                &state_bytes,
+                Some(&serde_json::to_vec(&wrong).unwrap()),
+                false
+            )
+            .is_err()
+        );
     }
 
     fn sample_public_schema() -> PublicSchemaState {

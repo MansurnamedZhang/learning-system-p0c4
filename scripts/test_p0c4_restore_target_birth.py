@@ -16,7 +16,8 @@ from p0c4_restore_target import (AdmissionError, identity_for, provision,
                                  verify_created)
 from p0c4_restore_target_birth import (canonical_birth, validate_pg_facts,
                                        verify_birth_docker, _publish_birth,
-                                       issue_birth, probe_pg_facts)
+                                       issue_birth, probe_pg_facts,
+                                       finalize_birth_issuance)
 from test_p0c4_restore_target import ID, SUBNET, created, empty_snapshot
 
 
@@ -55,6 +56,60 @@ def clean_facts():
 
 
 class BirthContract(unittest.TestCase):
+    def test_interruption_after_birth_has_no_success_seal(self):
+        identity = identity_for(ID)
+        payload = canonical_birth(identity, clean_facts(), (42, 100), (43, 200),
+                                  "550e8400-e29b-41d4-a716-446655440001")
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            control = target / "control"
+            control.mkdir()
+            status = {"batch_id": ID}
+            ids = {"container_id": "a" * 64, "network_id": "b" * 64,
+                   "volume_name": identity["volume"],
+                   "volume_mountpoint": "/var/lib/docker/volumes/new/_data"}
+            def publish(folder, name, content, _nonce):
+                (folder / name).write_bytes(content)
+                return hashlib.sha256(content).hexdigest()
+            with (patch("p0c4_restore_target_birth._publish_birth",
+                        side_effect=publish),
+                  patch("p0c4_restore_target_birth._read_published_birth",
+                        side_effect=KeyboardInterrupt)):
+                with self.assertRaises(KeyboardInterrupt):
+                    finalize_birth_issuance(target, control, identity, status, ids,
+                                            "sha256:" + "d" * 64, (9, 10),
+                                            payload, "550e8400-e29b-41d4-a716-446655440001")
+            self.assertTrue((control / (identity["database"] + ".birth.json")).exists())
+            self.assertFalse((target / "issuance-success.json").exists())
+
+    def test_fsync_and_rollback_failure_leave_birth_but_never_seal(self):
+        identity = identity_for(ID)
+        payload = b"birth content"
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            control = target / "control"
+            control.mkdir()
+            real_unlink = os.unlink
+            def fail_final_unlink(path):
+                if str(path).endswith(".birth.json"):
+                    raise OSError("rollback unlink failed")
+                return real_unlink(path)
+            with (patch("p0c4_restore_target._private_write",
+                        side_effect=lambda path, data: path.write_bytes(data)),
+                  patch("p0c4_restore_target._sync_directory",
+                        side_effect=OSError("fsync failed")),
+                  patch("p0c4_restore_target_birth.os.unlink",
+                        side_effect=fail_final_unlink),
+                  patch("p0c4_restore_target_birth._read_published_birth") as read):
+                with self.assertRaises(OSError):
+                    finalize_birth_issuance(target, control, identity,
+                                            {"batch_id": ID}, {}, "sha256:" + "d" * 64,
+                                            (9, 10), payload,
+                                            "550e8400-e29b-41d4-a716-446655440001")
+            self.assertTrue((control / (identity["database"] + ".birth.json")).exists())
+            self.assertFalse((target / "issuance-success.json").exists())
+            read.assert_not_called()
+
     @patch("p0c4_restore_target._docker")
     def test_pg_observation_uses_verified_container_and_catalog_families(self, docker):
         facts = clean_facts()
@@ -88,9 +143,17 @@ class BirthContract(unittest.TestCase):
                 path.mkdir()
                 return (42, {"destination": 90, "control": 100, "assets": 200}[path.name])
             def publish(control, name, payload, _nonce):
-                self.assertEqual(control, target / "control")
-                self.assertEqual(name, identity["database"] + ".birth.json")
-                self.assertEqual(json.loads(payload)["asset_ino"], 200)
+                if name.endswith(".birth.json"):
+                    self.assertEqual(control, target / "control")
+                    self.assertEqual(name, identity["database"] + ".birth.json")
+                    self.assertEqual(json.loads(payload)["asset_ino"], 200)
+                else:
+                    self.assertEqual(control, target)
+                    self.assertEqual(name, "issuance-success.json")
+                    self.assertEqual(json.loads(payload)["birth_sha256"],
+                                     hashlib.sha256((target / "control" /
+                                         (identity["database"] + ".birth.json")).read_bytes()).hexdigest())
+                (control / name).write_bytes(payload)
                 return hashlib.sha256(payload).hexdigest()
             with (patch("p0c4_restore_target_birth._verify_creation_state"),
                   patch("p0c4_restore_target_birth._trusted_volume_mount",
@@ -101,6 +164,8 @@ class BirthContract(unittest.TestCase):
                   patch("p0c4_restore_target_birth._new_private_root",
                         side_effect=create_root),
                   patch("p0c4_restore_target_birth._publish_birth", side_effect=publish),
+                  patch("p0c4_restore_target_birth._read_published_birth",
+                        side_effect=lambda path: path.read_bytes()),
                   patch("p0c4_restore_target._private_write",
                         side_effect=lambda path, data: path.write_bytes(data)),
                   patch("p0c4_restore_target.snapshot", return_value=after) as snapshot,
@@ -114,10 +179,14 @@ class BirthContract(unittest.TestCase):
             roots = [Path(result[name]) for name in
                      ("destination_root", "control_root", "asset_root")]
             self.assertEqual(len(set(roots)), 3)
-            self.assertTrue(all(not any(path.iterdir()) for path in roots))
+            self.assertTrue(all(not any(path.iterdir()) for path in
+                                (roots[0], roots[2])))
             evidence = json.loads((target / "birth-evidence.json").read_bytes())
             self.assertEqual(evidence["birth_sha256"], result["birth_sha256"])
             self.assertEqual(evidence["volume_mount_ino"], 10)
+            seal = json.loads((target / "issuance-success.json").read_bytes())
+            self.assertEqual(seal["birth_sha256"], result["birth_sha256"])
+            self.assertEqual(seal["container_id"], ids["container_id"])
 
     def test_publish_is_no_replace_and_sync_failure_removes_candidate(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -268,6 +268,19 @@ def _verify_birth_file(path):
             "published birth permissions differ")
 
 
+def _read_published_birth(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        meta = os.fstat(descriptor)
+        require(stat.S_ISREG(meta.st_mode) and meta.st_uid == 0 and
+                stat.S_IMODE(meta.st_mode) == 0o600 and meta.st_nlink == 1,
+                "published birth cannot be re-opened safely")
+        with os.fdopen(descriptor, "rb", closefd=False) as file:
+            return file.read(4097)
+    finally:
+        os.close(descriptor)
+
+
 def _publish_birth(control, name, payload, nonce):
     final = control / name
     temp = control / ("." + name + "." + nonce + ".tmp")
@@ -295,6 +308,35 @@ def _publish_birth(control, name, payload, nonce):
             os.unlink(temp)
         raise
     return hashlib.sha256(payload).hexdigest()
+
+
+def finalize_birth_issuance(target, control, identity, status, ids, image_id,
+                            volume_mount_id, payload, nonce):
+    """Only the final success seal makes a published birth a candidate."""
+    birth_name = identity["database"] + ".birth.json"
+    birth_sha256 = _publish_birth(control, birth_name, payload, nonce)
+    require(_read_published_birth(control / birth_name) == payload,
+            "published birth differs on re-open")
+    success = {
+        "format_version": 1,
+        "state": "BIRTH_ISSUED_NOT_RESTORE_ACCEPTANCE",
+        "batch_id": status["batch_id"],
+        "project_name": identity["project"],
+        "database_name": identity["database"],
+        "birth_sha256": birth_sha256,
+        "container_id": ids["container_id"],
+        "network_id": ids["network_id"],
+        "pg_volume_name": ids["volume_name"],
+        "image_id": image_id,
+        "volume_mountpoint": ids["volume_mountpoint"],
+        "volume_mount_dev": volume_mount_id[0],
+        "volume_mount_ino": volume_mount_id[1],
+    }
+    success_bytes = json.dumps(success, ensure_ascii=False,
+                               separators=(",", ":")).encode("utf-8")
+    success_sha256 = _publish_birth(target, "issuance-success.json",
+                                    success_bytes, nonce)
+    return birth_sha256, success_sha256
 
 
 def _verify_creation_state(root, target, identity, status):
@@ -350,9 +392,12 @@ def issue_birth(root, target, identity, subnet, before, ids, status, initdb):
     target_provisioner._private_write(
         target / "birth-evidence.json",
         json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode())
+    digest, success_digest = finalize_birth_issuance(
+        target, control, identity, status, ids, after["images"][0]["Id"],
+        (mount_dev, mount_ino), payload, nonce)
     name = identity["database"] + ".birth.json"
-    digest = _publish_birth(control, name, payload, nonce)
-    return {"birth_sha256": digest, "birth_path": str(control / name),
+    return {"birth_sha256": digest, "issuance_sha256": success_digest,
+            "birth_path": str(control / name),
             "destination_root": str(destination), "control_root": str(control),
             "asset_root": str(assets)}
 
@@ -374,6 +419,7 @@ def main():
     print(json.dumps({"state": "BIRTH_ISSUED_NOT_RESTORE_ACCEPTANCE",
                       "batch_id": result["batch_id"],
                       "birth_sha256": result["birth_sha256"],
+                      "issuance_sha256": result["issuance_sha256"],
                       "birth_path": result["birth_path"],
                       "destination_root": result["destination_root"],
                       "control_root": result["control_root"],
