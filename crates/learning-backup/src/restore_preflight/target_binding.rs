@@ -28,6 +28,7 @@ struct DockerClaim {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PinPrecreation {
     format_version: u32,
     state: String,
@@ -46,6 +47,17 @@ struct PinPrecreation {
     docker_daemon_id: String,
     initdb_path: String,
     initdb_sha256: String,
+}
+
+fn parse_precreation(bytes: &[u8]) -> Result<PinPrecreation, BackupError> {
+    if bytes.is_empty() || bytes.len() > 4096 {
+        return Err(BackupError::Invalid("bound precreation size"));
+    }
+    let value: Value = serde_json::from_slice(bytes)?;
+    if serde_json::to_vec(&value)? != bytes {
+        return Err(BackupError::Invalid("noncanonical bound precreation"));
+    }
+    serde_json::from_value(value).map_err(Into::into)
 }
 
 fn validate_precreation(
@@ -572,7 +584,7 @@ mod linux {
             "birth-evidence.json",
             4096,
         )?)?;
-        let precreation: PinPrecreation = serde_json::from_slice(&read_private_target_file(
+        let precreation = parse_precreation(&read_private_target_file(
             &root,
             "pin-precreation.json",
             4096,
@@ -607,7 +619,7 @@ mod linux {
         if claim.database != config.expected_database {
             return Err(BackupError::Invalid("bound database differs"));
         }
-        let targets_dir = root.open_dir("targets")?;
+        let targets_dir = BackupDir::open_trusted_private_root(targets)?;
         validate_precreation(
             &precreation,
             &claim,
@@ -791,6 +803,20 @@ mod tests {
             "docker_daemon_id":c.daemon_id,"initdb_path":c.initdb_source,
             "initdb_sha256":"a".repeat(64),
         });
+        let canonical = serde_json::to_vec(&data).unwrap();
+        assert!(parse_precreation(&canonical).is_ok());
+        let mut with_space = canonical.clone();
+        with_space.push(b' ');
+        assert!(parse_precreation(&with_space).is_err());
+        let mut extra_key = data.clone();
+        extra_key["unreviewed"] = json!(true);
+        assert!(parse_precreation(&serde_json::to_vec(&extra_key).unwrap()).is_err());
+        let duplicated = String::from_utf8(canonical.clone()).unwrap().replacen(
+            "\"format_version\":1",
+            "\"format_version\":1,\"format_version\":1",
+            1,
+        );
+        assert!(parse_precreation(duplicated.as_bytes()).is_err());
         let roots = vec![
             ".restore-target.lock".into(),
             "pin-precreation.json".into(),
