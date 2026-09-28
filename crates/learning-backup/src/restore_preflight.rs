@@ -12,6 +12,8 @@ use crate::{
 use crate::{BackupError, BackupManifestV1, BackupPlan, CompleteBackup};
 #[cfg(target_os = "linux")]
 use learning_assets::backup_fs::BackupDir;
+#[cfg(any(target_os = "linux", test))]
+use learning_assets::backup_fs::BackupEntryKind;
 #[cfg(target_os = "linux")]
 use learning_db::MIGRATOR;
 #[cfg(any(target_os = "linux", test))]
@@ -26,6 +28,7 @@ use std::io::{Read, Seek, SeekFrom};
 #[cfg(target_os = "linux")]
 use std::{
     fs::File,
+    io::Write,
     os::fd::AsRawFd,
     os::unix::fs::{MetadataExt, PermissionsExt},
 };
@@ -429,27 +432,24 @@ pub struct RestorePreflight {
     #[cfg(target_os = "linux")]
     restore_spec: PgRestoreSpec,
     #[cfg(target_os = "linux")]
-    _lock: File,
-}
-
-/// Database import completed, but the target is still private and unusable.
-/// This opaque continuation retains the same exclusive lock. Asset import,
-/// source-lease invalidation, closure checks and admission remain unimplemented.
-#[derive(Debug)]
-pub struct RestoreDatabaseImported {
-    manifest: BackupManifestV1,
-    plan: BackupPlan,
+    expected_database: String,
+    #[cfg(target_os = "linux")]
+    control: BackupDir,
     #[cfg(target_os = "linux")]
     _lock: File,
 }
 
-impl RestoreDatabaseImported {
-    pub fn manifest(&self) -> &BackupManifestV1 {
-        &self.manifest
-    }
-    pub fn plan(&self) -> &BackupPlan {
-        &self.plan
-    }
+/// Internal staging result: database import completed, but the target is still
+/// private and unusable. This is not a public restore or admission API.
+/// This opaque continuation retains the same exclusive lock. Asset import,
+/// source-lease invalidation, closure checks and admission remain unimplemented.
+#[derive(Debug)]
+#[allow(dead_code)] // Staged internal continuation; external restore is not yet admitted.
+pub(crate) struct RestoreDatabaseImported {
+    manifest: BackupManifestV1,
+    plan: BackupPlan,
+    #[cfg(target_os = "linux")]
+    _lock: File,
 }
 
 impl RestorePreflight {
@@ -464,7 +464,11 @@ impl RestorePreflight {
     /// The target remains quarantined whether pg_restore succeeds or fails;
     /// asset import, closure checks and service admission are separate gates.
     /// No archive path, database name or PostgreSQL flag comes from the caller.
-    pub fn restore_database(
+    /// Before this is exposed, the child connection must be bound to the
+    /// preflight-observed PG/Docker identity and executable/credential paths
+    /// must be pinned against replacement between check and exec.
+    #[allow(dead_code)] // No external write API until live endpoint binding is proven.
+    pub(crate) fn restore_database(
         self,
         executable: &Path,
         private_pgpass: &Path,
@@ -484,6 +488,7 @@ impl RestorePreflight {
     }
 
     #[cfg(target_os = "linux")]
+    #[allow(dead_code)] // Kept behind the crate boundary pending Linux endpoint proof.
     fn restore_database_linux(
         self,
         executable: &Path,
@@ -517,6 +522,18 @@ impl RestorePreflight {
             return Err(BackupError::Invalid("restore dump size changed"));
         }
         verify_dump_reader(&mut archive, dump_record)?;
+        let attempt_name = restore_attempt_name(&self.expected_database)?;
+        let attempt_bytes = restore_attempt_bytes(
+            &self.expected_database,
+            self.manifest.backup_id,
+            &self.receipt_sha256,
+        )?;
+        let mut attempt = self.control.create_file(&attempt_name)?;
+        attempt.write_all(&attempt_bytes)?;
+        attempt.sync_all()?;
+        self.control.sync()?;
+        // Even if pg_restore fails or the process dies, the durable marker
+        // blocks another clean-target preflight for this database.
         self.restore_spec
             .run_from_open_file(executable, private_pgpass, &mut archive)?;
         Ok(RestoreDatabaseImported {
@@ -524,6 +541,59 @@ impl RestorePreflight {
             plan: self.plan,
             _lock: self._lock,
         })
+    }
+}
+
+#[cfg(any(target_os = "linux", test))]
+#[derive(Serialize)]
+struct RestoreAttemptMarker<'a> {
+    format_version: u32,
+    state: &'static str,
+    database: &'a str,
+    backup_id: uuid::Uuid,
+    receipt_sha256: &'a str,
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn restore_attempt_name(database: &str) -> Result<String, BackupError> {
+    let suffix = database
+        .strip_prefix("learning_restore_c4_")
+        .ok_or(BackupError::Invalid("restore attempt database"))?;
+    if !uuid::Uuid::parse_str(suffix).is_ok_and(|id| {
+        id.get_version_num() == 4
+            && id.get_variant() == uuid::Variant::RFC4122
+            && id.to_string() == suffix
+    }) {
+        return Err(BackupError::Invalid("restore attempt database"));
+    }
+    Ok(format!("{database}.restore.attempt"))
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn restore_attempt_bytes(
+    database: &str,
+    backup_id: uuid::Uuid,
+    receipt_sha256: &str,
+) -> Result<Vec<u8>, BackupError> {
+    let _ = restore_attempt_name(database)?;
+    if backup_id.is_nil() || !crate::valid_digest(receipt_sha256) {
+        return Err(BackupError::Invalid("restore attempt identity"));
+    }
+    Ok(serde_json::to_vec(&RestoreAttemptMarker {
+        format_version: 1,
+        state: "DATABASE_IMPORT_ATTEMPTED_QUARANTINED",
+        database,
+        backup_id,
+        receipt_sha256,
+    })?)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn reject_existing_attempt(entry: io::Result<BackupEntryKind>) -> Result<(), BackupError> {
+    match entry {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Ok(_) => Err(BackupError::Invalid("restore target already attempted")),
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -636,6 +706,7 @@ async fn preflight_linux(
     if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
         return Err(BackupError::Invalid("restore target is already locked"));
     }
+    reject_existing_attempt(lock_root.kind(&restore_attempt_name(&config.expected_database)?))?;
     let checked = open_complete_backup(
         &config.destination_root,
         &config.trust_path,
@@ -696,6 +767,8 @@ async fn preflight_linux(
         trust_path: config.trust_path.clone(),
         receipt_sha256: checked.receipt_sha256().to_owned(),
         restore_spec,
+        expected_database: config.expected_database.clone(),
+        control: lock_root,
         _lock: lock,
     })
 }
@@ -969,6 +1042,39 @@ async fn target_facts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn durable_attempt_record_is_target_bound_and_contains_no_endpoint_or_secret() {
+        let database = format!("learning_restore_c4_{}", uuid::Uuid::new_v4());
+        let backup_id = uuid::Uuid::new_v4();
+        let name = restore_attempt_name(&database).unwrap();
+        assert_eq!(name, format!("{database}.restore.attempt"));
+        let bytes = restore_attempt_bytes(&database, backup_id, &"a".repeat(64)).unwrap();
+        let record: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(record["state"], "DATABASE_IMPORT_ATTEMPTED_QUARANTINED");
+        assert_eq!(record["database"], database);
+        assert_eq!(record["backup_id"], backup_id.to_string());
+        assert_eq!(record["receipt_sha256"], "a".repeat(64));
+        assert!(!String::from_utf8(bytes).unwrap().contains("pgpass"));
+        assert!(restore_attempt_name("production").is_err());
+        assert!(restore_attempt_name("learning_restore_c4_../other").is_err());
+    }
+
+    #[test]
+    fn any_prior_attempt_entry_blocks_a_fresh_preflight() {
+        use learning_assets::backup_fs::BackupEntryKind;
+        assert!(reject_existing_attempt(Err(io::Error::from(io::ErrorKind::NotFound))).is_ok());
+        for kind in [
+            BackupEntryKind::File,
+            BackupEntryKind::Directory,
+            BackupEntryKind::Other,
+        ] {
+            assert!(reject_existing_attempt(Ok(kind)).is_err());
+        }
+        assert!(
+            reject_existing_attempt(Err(io::Error::from(io::ErrorKind::PermissionDenied))).is_err()
+        );
+    }
 
     #[test]
     fn dump_is_rehashed_from_the_open_handle_and_rewound_before_execution() {
