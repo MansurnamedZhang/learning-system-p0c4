@@ -286,6 +286,10 @@ mod platform {
         pub(crate) fn device_id(&self) -> io::Result<u64> {
             Ok(self.file.metadata()?.dev())
         }
+        pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
+            let meta = self.file.metadata()?;
+            Ok((meta.dev(), meta.ino()))
+        }
         pub(crate) fn chmod(&self, mode: libc::mode_t) -> io::Result<()> {
             if unsafe { libc::fchmod(self.file.as_raw_fd(), mode) } < 0 {
                 Err(io::Error::last_os_error())
@@ -440,6 +444,9 @@ mod platform {
             unsupported()
         }
         pub(crate) fn device_id(&self) -> io::Result<u64> {
+            unsupported()
+        }
+        pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
             unsupported()
         }
         pub(crate) fn chmod(&self, _: u32) -> io::Result<()> {

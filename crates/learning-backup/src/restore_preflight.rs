@@ -10,9 +10,9 @@ use crate::{BackupError, BackupManifestV1, BackupPlan, CompleteBackup};
 use learning_assets::backup_fs::BackupDir;
 #[cfg(target_os = "linux")]
 use learning_db::MIGRATOR;
-#[cfg(target_os = "linux")]
-use serde::Deserialize;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
+use serde::{Deserialize, Serialize};
+#[cfg(any(target_os = "linux", test))]
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 #[cfg(target_os = "linux")]
@@ -40,6 +40,17 @@ struct RestoreCatalogCounts {
     event_triggers: i64,
     publications: i64,
     large_objects: i64,
+    collations: i64,
+    conversions: i64,
+    operators: i64,
+    operator_classes: i64,
+    operator_families: i64,
+    text_search_objects: i64,
+    default_acls: i64,
+    foreign_objects: i64,
+    custom_languages: i64,
+    custom_access_methods: i64,
+    global_ddl: i64,
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -54,6 +65,17 @@ impl RestoreCatalogCounts {
             self.event_triggers,
             self.publications,
             self.large_objects,
+            self.collations,
+            self.conversions,
+            self.operators,
+            self.operator_classes,
+            self.operator_families,
+            self.text_search_objects,
+            self.default_acls,
+            self.foreign_objects,
+            self.custom_languages,
+            self.custom_access_methods,
+            self.global_ddl,
         ]
         .into_iter()
         .try_fold(0_u64, |sum, count| {
@@ -61,6 +83,105 @@ impl RestoreCatalogCounts {
                 .ok_or(BackupError::Overflow)
         })
     }
+}
+
+/// Created by a separate, reviewed, root-only target provisioner before this
+/// preflight. This crate only consumes a build-pinned copy; it never issues one.
+/// Project/volume names remain issuer claims until a later driver independently
+/// re-inspects the live Docker mount under its creation lock.
+#[cfg(any(target_os = "linux", test))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TargetBirthAttestation {
+    format_version: u32,
+    project_name: String,
+    pg_volume_name: String,
+    database_name: String,
+    database_oid: u64,
+    pg_system_identifier: String,
+    control_dev: u64,
+    control_ino: u64,
+    asset_dev: u64,
+    asset_ino: u64,
+    creation_nonce: uuid::Uuid,
+    template_database: String,
+    baseline_cast_count: u64,
+}
+
+#[cfg(any(target_os = "linux", test))]
+#[derive(Debug, Clone)]
+struct ObservedTargetBirth {
+    database_oid: u64,
+    pg_system_identifier: String,
+    control_dev: u64,
+    control_ino: u64,
+    asset_dev: u64,
+    asset_ino: u64,
+    cast_count: u64,
+}
+
+#[cfg(any(target_os = "linux", test))]
+impl TargetBirthAttestation {
+    fn validate(&self, database: &str, live: &ObservedTargetBirth) -> Result<(), BackupError> {
+        let suffix = database
+            .strip_prefix("learning_restore_c4_")
+            .ok_or(BackupError::Invalid("target birth database"))?;
+        let id = uuid::Uuid::parse_str(suffix)
+            .map_err(|_| BackupError::Invalid("target birth database"))?;
+        let project = format!("learning-system-p0c4-restore-{id}");
+        if self.format_version != 1
+            || self.project_name != project
+            || self.pg_volume_name != format!("{project}_pg")
+            || self.database_name != database
+            || self.template_database != "template0"
+            || self.creation_nonce.is_nil()
+            || self.database_oid == 0
+            || self.control_dev == 0
+            || self.control_ino == 0
+            || self.asset_dev == 0
+            || self.asset_ino == 0
+            || self.baseline_cast_count == 0
+            || self
+                .pg_system_identifier
+                .parse::<u64>()
+                .ok()
+                .filter(|value| *value > 0 && value.to_string() == self.pg_system_identifier)
+                .is_none()
+            || self.database_oid != live.database_oid
+            || self.pg_system_identifier != live.pg_system_identifier
+            || self.control_dev != live.control_dev
+            || self.control_ino != live.control_ino
+            || self.asset_dev != live.asset_dev
+            || self.asset_ino != live.asset_ino
+            || self.baseline_cast_count != live.cast_count
+        {
+            return Err(BackupError::Invalid("target birth identity differs"));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn parse_pinned_birth(
+    bytes: &[u8],
+    pinned_sha256: &str,
+) -> Result<TargetBirthAttestation, BackupError> {
+    if bytes.is_empty()
+        || bytes.len() > 4096
+        || !crate::valid_digest(pinned_sha256)
+        || format!("{:x}", Sha256::digest(bytes)) != pinned_sha256
+    {
+        return Err(BackupError::Invalid(
+            "target birth attestation is not pinned",
+        ));
+    }
+    let birth: TargetBirthAttestation = serde_json::from_slice(bytes)?;
+    if serde_json::to_vec(&birth)? != bytes {
+        return Err(BackupError::Invalid(
+            "noncanonical target birth attestation",
+        ));
+    }
+    Ok(birth)
 }
 
 #[derive(Debug, Clone)]
@@ -247,11 +368,61 @@ async fn preflight_linux(
     let assets = BackupDir::open_trusted_private_root(&config.asset_root)?;
     let facts = target_facts(admin, assets.list()?.len()).await?;
     facts.validate()?;
+    verify_target_birth(admin, config, &lock_root, &assets).await?;
     Ok(RestorePreflight {
         manifest,
         plan,
         _lock: lock,
     })
+}
+
+#[cfg(target_os = "linux")]
+async fn verify_target_birth(
+    admin: &PgPool,
+    config: &RestorePreflightConfig,
+    control: &BackupDir,
+    assets: &BackupDir,
+) -> Result<(), BackupError> {
+    // This pin is installed in the reviewed build *before* restore. A
+    // same-run caller cannot provide the expected IDs or digest in config.
+    let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(BackupError::Invalid(
+        "target birth digest is not build-pinned",
+    ))?;
+    let name = format!("{}.birth.json", config.expected_database);
+    let file = control.open_file(&name)?;
+    let meta = file.metadata()?;
+    if meta.uid() != 0 || meta.permissions().mode() & 0o777 != 0o600 || meta.nlink() != 1 {
+        return Err(BackupError::Invalid("private target birth attestation"));
+    }
+    let mut bytes = Vec::new();
+    file.take(4097).read_to_end(&mut bytes)?;
+    let birth = parse_pinned_birth(&bytes, pinned)?;
+    // The isolated PG18 bootstrap must grant only EXECUTE on
+    // pg_control_system() to learning_admin, or use a trusted admin observer.
+    // Missing privilege fails closed; pg_monitor is not required or implied.
+    let row = sqlx::query(
+        "SELECT d.oid::bigint AS database_oid, pcs.system_identifier::text AS system_identifier, \
+         (SELECT count(*) FROM pg_catalog.pg_cast) AS cast_count \
+         FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs \
+         WHERE d.datname=pg_catalog.current_database()",
+    )
+    .fetch_one(admin)
+    .await?;
+    let database_oid =
+        u64::try_from(row.try_get::<i64, _>("database_oid")?).map_err(|_| BackupError::Overflow)?;
+    let (control_dev, control_ino) = control.identity()?;
+    let (asset_dev, asset_ino) = assets.identity()?;
+    let live = ObservedTargetBirth {
+        database_oid,
+        pg_system_identifier: row.try_get("system_identifier")?,
+        control_dev,
+        control_ino,
+        asset_dev,
+        asset_ino,
+        cast_count: u64::try_from(row.try_get::<i64, _>("cast_count")?)
+            .map_err(|_| BackupError::Overflow)?,
+    };
+    birth.validate(&config.expected_database, &live)
 }
 
 #[cfg(target_os = "linux")]
@@ -314,10 +485,10 @@ async fn target_facts(
     let mut conn = admin.acquire().await?;
     let row = sqlx::query(
         "SELECT current_user::text AS current_role,session_user::text AS session_role, \
-         (pg_get_userbyid(d.datdba)='learning_admin') AS admin_owner, \
-         has_database_privilege('learning_runtime',current_database(),'CONNECT') AS runtime_connect, \
-         EXISTS(SELECT 1 FROM aclexplode(COALESCE(d.datacl,acldefault('d',d.datdba))) a WHERE a.grantee=0 AND a.privilege_type='CONNECT') AS public_connect, \
-         (SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()) AS other_sessions, \
+         (pg_catalog.pg_get_userbyid(d.datdba)='learning_admin') AS admin_owner, \
+         pg_catalog.has_database_privilege('learning_runtime',pg_catalog.current_database(),'CONNECT') AS runtime_connect, \
+         EXISTS(SELECT 1 FROM pg_catalog.aclexplode(COALESCE(d.datacl,pg_catalog.acldefault('d',d.datdba))) a WHERE a.grantee=0 AND a.privilege_type='CONNECT') AS public_connect, \
+         (SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname=pg_catalog.current_database() AND pid<>pg_catalog.pg_backend_pid()) AS other_sessions, \
          (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace \
            WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%') AS user_relations, \
          (SELECT count(*) FROM pg_catalog.pg_namespace n WHERE n.nspname NOT IN ('pg_catalog','information_schema','public') \
@@ -329,8 +500,33 @@ async fn target_facts(
          (SELECT count(*) FROM pg_catalog.pg_extension WHERE extname<>'plpgsql') AS user_extensions, \
          (SELECT count(*) FROM pg_catalog.pg_event_trigger) AS user_event_triggers, \
          (SELECT count(*) FROM pg_catalog.pg_publication) AS user_publications, \
-         (SELECT count(*) FROM pg_catalog.pg_largeobject_metadata) AS user_large_objects \
-         FROM pg_catalog.pg_database d WHERE d.datname=current_database()"
+         (SELECT count(*) FROM pg_catalog.pg_largeobject_metadata) AS user_large_objects, \
+         (SELECT count(*) FROM pg_catalog.pg_collation c JOIN pg_catalog.pg_namespace n ON n.oid=c.collnamespace \
+           WHERE n.nspname='public') AS user_collations, \
+         (SELECT count(*) FROM pg_catalog.pg_conversion c JOIN pg_catalog.pg_namespace n ON n.oid=c.connamespace \
+           WHERE n.nspname='public') AS user_conversions, \
+         (SELECT count(*) FROM pg_catalog.pg_operator o JOIN pg_catalog.pg_namespace n ON n.oid=o.oprnamespace \
+           WHERE n.nspname='public') AS user_operators, \
+         (SELECT count(*) FROM pg_catalog.pg_opclass o JOIN pg_catalog.pg_namespace n ON n.oid=o.opcnamespace \
+           WHERE n.nspname='public') AS user_operator_classes, \
+         (SELECT count(*) FROM pg_catalog.pg_opfamily o JOIN pg_catalog.pg_namespace n ON n.oid=o.opfnamespace \
+           WHERE n.nspname='public') AS user_operator_families, \
+         ((SELECT count(*) FROM pg_catalog.pg_ts_config t JOIN pg_catalog.pg_namespace n ON n.oid=t.cfgnamespace WHERE n.nspname='public') + \
+          (SELECT count(*) FROM pg_catalog.pg_ts_dict t JOIN pg_catalog.pg_namespace n ON n.oid=t.dictnamespace WHERE n.nspname='public') + \
+          (SELECT count(*) FROM pg_catalog.pg_ts_parser t JOIN pg_catalog.pg_namespace n ON n.oid=t.prsnamespace WHERE n.nspname='public') + \
+          (SELECT count(*) FROM pg_catalog.pg_ts_template t JOIN pg_catalog.pg_namespace n ON n.oid=t.tmplnamespace WHERE n.nspname='public')) AS user_text_search_objects, \
+         (SELECT count(*) FROM pg_catalog.pg_default_acl) AS user_default_acls, \
+         ((SELECT count(*) FROM pg_catalog.pg_foreign_data_wrapper) + \
+          (SELECT count(*) FROM pg_catalog.pg_foreign_server)) AS user_foreign_objects, \
+         (SELECT count(*) FROM pg_catalog.pg_language WHERE lanname NOT IN ('internal','c','sql','plpgsql')) AS user_custom_languages, \
+         (SELECT count(*) FROM pg_catalog.pg_am WHERE amname NOT IN ('heap','btree','hash','gist','gin','spgist','brin')) AS user_custom_access_methods, \
+         ((SELECT count(*) FROM pg_catalog.pg_transform) + \
+          (SELECT count(*) FROM pg_catalog.pg_parameter_acl) + \
+          (SELECT count(*) FROM pg_catalog.pg_subscription) + \
+          (SELECT count(*) FROM pg_catalog.pg_db_role_setting) + \
+          (SELECT count(*) FROM pg_catalog.pg_tablespace WHERE spcname NOT IN ('pg_default','pg_global')) + \
+          (SELECT count(*) FROM pg_catalog.pg_database WHERE datname NOT IN ('template0','template1','postgres',pg_catalog.current_database()))) AS user_global_ddl \
+         FROM pg_catalog.pg_database d WHERE d.datname=pg_catalog.current_database()"
     ).fetch_one(&mut *conn).await?;
     let current_role: String = row.try_get("current_role")?;
     let session_role: String = row.try_get("session_role")?;
@@ -348,6 +544,17 @@ async fn target_facts(
         event_triggers: row.try_get("user_event_triggers")?,
         publications: row.try_get("user_publications")?,
         large_objects: row.try_get("user_large_objects")?,
+        collations: row.try_get("user_collations")?,
+        conversions: row.try_get("user_conversions")?,
+        operators: row.try_get("user_operators")?,
+        operator_classes: row.try_get("user_operator_classes")?,
+        operator_families: row.try_get("user_operator_families")?,
+        text_search_objects: row.try_get("user_text_search_objects")?,
+        default_acls: row.try_get("user_default_acls")?,
+        foreign_objects: row.try_get("user_foreign_objects")?,
+        custom_languages: row.try_get("user_custom_languages")?,
+        custom_access_methods: row.try_get("user_custom_access_methods")?,
+        global_ddl: row.try_get("user_global_ddl")?,
     }
     .total()?;
     Ok(RestoreTargetFacts {
@@ -368,7 +575,7 @@ mod tests {
 
     #[test]
     fn user_objects_outside_relations_make_a_target_dirty() {
-        for kind in 0..7 {
+        for kind in 0..18 {
             let mut counts = RestoreCatalogCounts::default();
             match kind {
                 0 => counts.routines = 1,
@@ -377,10 +584,97 @@ mod tests {
                 3 => counts.event_triggers = 1,
                 4 => counts.publications = 1,
                 5 => counts.large_objects = 1,
-                _ => counts.schemas = 1,
+                6 => counts.schemas = 1,
+                7 => counts.collations = 1,
+                8 => counts.conversions = 1,
+                9 => counts.operators = 1,
+                10 => counts.operator_classes = 1,
+                11 => counts.operator_families = 1,
+                12 => counts.text_search_objects = 1,
+                13 => counts.default_acls = 1,
+                14 => counts.foreign_objects = 1,
+                15 => counts.custom_languages = 1,
+                16 => counts.custom_access_methods = 1,
+                _ => counts.global_ddl = 1,
             }
             assert!(counts.total().unwrap() > 0, "catalog family {kind}");
         }
         assert_eq!(RestoreCatalogCounts::default().total().unwrap(), 0);
+    }
+
+    #[test]
+    fn birth_attestation_must_match_independent_live_facts() {
+        let id = uuid::Uuid::new_v4();
+        let database = format!("learning_restore_c4_{id}");
+        let project = format!("learning-system-p0c4-restore-{id}");
+        let birth = TargetBirthAttestation {
+            format_version: 1,
+            project_name: project.clone(),
+            pg_volume_name: format!("{project}_pg"),
+            database_name: database.clone(),
+            database_oid: 16385,
+            pg_system_identifier: "7361082129910479001".into(),
+            control_dev: 42,
+            control_ino: 100,
+            asset_dev: 43,
+            asset_ino: 200,
+            creation_nonce: uuid::Uuid::new_v4(),
+            template_database: "template0".into(),
+            baseline_cast_count: 203,
+        };
+        let live = ObservedTargetBirth {
+            database_oid: 16385,
+            pg_system_identifier: "7361082129910479001".into(),
+            control_dev: 42,
+            control_ino: 100,
+            asset_dev: 43,
+            asset_ino: 200,
+            cast_count: 203,
+        };
+        assert!(birth.validate(&database, &live).is_ok());
+        let mut wrong = live.clone();
+        wrong.pg_system_identifier = "7361082129910479002".into();
+        assert!(birth.validate(&database, &wrong).is_err());
+        wrong = live.clone();
+        wrong.database_oid += 1;
+        assert!(birth.validate(&database, &wrong).is_err());
+        wrong = live.clone();
+        wrong.asset_ino += 1;
+        assert!(birth.validate(&database, &wrong).is_err());
+        let mut replayed = birth.clone();
+        replayed.pg_volume_name = "old-volume_pg".into();
+        assert!(replayed.validate(&database, &live).is_err());
+        wrong = live.clone();
+        wrong.cast_count += 1;
+        assert!(birth.validate(&database, &wrong).is_err());
+    }
+
+    #[test]
+    fn birth_attestation_requires_exact_canonical_pinned_bytes() {
+        let id = uuid::Uuid::new_v4();
+        let database = format!("learning_restore_c4_{id}");
+        let project = format!("learning-system-p0c4-restore-{id}");
+        let birth = TargetBirthAttestation {
+            format_version: 1,
+            project_name: project.clone(),
+            pg_volume_name: format!("{project}_pg"),
+            database_name: database,
+            database_oid: 16385,
+            pg_system_identifier: "7361082129910479001".into(),
+            control_dev: 42,
+            control_ino: 100,
+            asset_dev: 43,
+            asset_ino: 200,
+            creation_nonce: uuid::Uuid::new_v4(),
+            template_database: "template0".into(),
+            baseline_cast_count: 203,
+        };
+        let canonical = serde_json::to_vec(&birth).unwrap();
+        let pinned = format!("{:x}", sha2::Sha256::digest(&canonical));
+        assert!(parse_pinned_birth(&canonical, &pinned).is_ok());
+        let mut whitespace = canonical.clone();
+        whitespace.push(b'\n');
+        assert!(parse_pinned_birth(&whitespace, &pinned).is_err());
+        assert!(parse_pinned_birth(&canonical, &"0".repeat(64)).is_err());
     }
 }
