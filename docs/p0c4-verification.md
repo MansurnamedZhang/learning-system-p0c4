@@ -15,7 +15,7 @@
 |---|---|---|
 | C3 基线源码可编译 | 已通过 | 本地 `cargo test --offline --locked --workspace --no-run`，2026-09-28，退出码 0 |
 | Rust 格式基线 | 已通过 | 本地 `cargo fmt --all -- --check`，2026-09-28，退出码 0 |
-| C4 Task 1 清单/契约 | 本地门通过；Linux 整项未验收 | `691fd4d` 静态复审无阻断；首批 Linux contract/lib/preflight 由显式测试二进制执行并分别通过 9/2/1，`fmt` 因镜像漏拷固定 fixture 退出 1，PG18 尚未启动；失败批次保留，需全新项目完整重跑 |
+| C4 Task 1 清单/契约 | Linux PG18 专项通过；C4 全链未验收 | `691fd4d` 静态复审无阻断；ws3 的隔离 runner 返回 `TASK1_PG18_PASSED_NOT_C4_ACCEPTANCE`，按固定测试计数验证 9/2/1、格式、严格 Clippy 与新空库真实 PG18 专项；前两批失败证据保留 |
 | C4 Task 2 安全复制/封存 | Linux 专项通过；C4 全链未验收 | `431e002`；ws3 的封存集成 5/5、库内故障 5/5（含 SIGKILL）、格式、严格 Clippy、工作区编译均退出 0，命令身份与源码哈希已核；内核级真实 fsync 错误未注入，使用同步边界故障钩子 |
 | C4 Task 3 写闸/dump/保护/完成收据 | 实施中；未验收 | 真 PostgreSQL 并发与独立故障域证据待验证 |
 | C4 Task 4 干净恢复 | 未开始 | 全资产/身份/权限/租约审查 |
@@ -29,8 +29,11 @@
 - 实现者观察到两轮编译 RED：缺少契约/管理入口类型，后续缺少隔离预检/迁移指纹/容量函数；修复后纯契约 9/9、空库与角色前置条件 2/2、库单测 1/1 通过。
 - 根任务复核 `cargo test --offline --locked -p learning-backup --test contract`：9/9，退出码 0；`cargo test --offline --locked -p learning-backup --test catalog_pg preflight`：2/2，退出码 0；`cargo test --offline --locked -p learning-backup --lib`：1/1，退出码 0。
 - 实现者运行 `cargo fmt --all -- --check`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings`、`cargo test --offline --locked --workspace --no-run`，均退出码 0；根任务曾独立复核格式和严格 Clippy，均退出码 0。
-- 本机没有 PostgreSQL 命令或隔离 DSN；`catalog_pg` 的真实数据库测试**只编译未运行**。必须在全新 PG18/新数据库/新 Compose 项目中执行，核验 `system_user`、角色属性、复合类型探针及全部 ready 资产，再决定 Task 1 过门。
+- Windows 本机没有 PostgreSQL 命令或隔离 DSN；当时 `catalog_pg` 的真实数据库测试只编译未运行。后续已在全新 PG18/新数据库/新 Compose 项目中执行，核验 `system_user`、角色属性、复合类型探针及全部 ready 资产。
 - 授权 Task 1 ZIP SHA-256 `ce62007afa82ae9b66c84d72251520669ef08ec72916b494082a11dbde652365`、882256 字节；Linux 隔离项目 `learning-system-p0c4-task1-static-ce62007a-ws1` 在启动 PG 前停止于 `fmt`（退出码 1）。只读诊断结果 SHA-256 `1b315ae497f300d6c92c2bdc8bbffd533fd96b7691abdc3b42af60e3aab0ab9b`、证据清单 SHA-256 `a3baf696a6d670276a8d48f0d2f3efc46b8c56e9e91cb75f0405dc22d50a0167`：源码前后与授权包相符；前三项分别退出 0。根任务只读审阅固定 runner，确认三项通过 `--entrypoint` 指定固定测试二进制且断言 9/2/1 测试计数；因此 Task 2 ws1 的继承入口问题不适用于 Task 1。根任务又在只读、无网络、自动删除的同一镜像容器中复现 `cargo fmt --all -- --check` 退出 1，明确错误是镜像缺少 `deploy/fixture-runner/src/legacy_snapshot.rs`，使 `b2_upgrade.rs:2` 的模块无法解析；不是源码格式差异。需用同一授权 ZIP 补齐镜像输入，在全新项目重跑格式、严格 Clippy 与真实 PG18；该失败不能算 Task 1 PG 验收。
+
+- 同一授权 Task 1 ZIP 补齐测试镜像输入后，ws2 的格式、严格 Clippy 与 Compose 配置预检均通过；用户执行 root-only runner 得到 `failure_label=create-dedicated-db`。根任务静态定位到 runner 用含连字符的 UUID 生成专用库名，却在 `CREATE DATABASE`、`REVOKE`、`GRANT` 三处未将库名作为 SQL 标识符引用。ws2 失败证据保留且不在原项目重跑。修正后的 ws3 使用新源码目录、新 Compose 项目 `learning-system-p0c4-task1-static-ce62007a-ws3` 和 `10.251.214.0/24`；上传的三个驱动文件哈希逐一匹配，重新提取的 349 个源码文件清单 SHA-256 仍为 `76f88e0ee44e5191ebcb9e9595d0d3a8bb98560b08db19c1abd914148636f76c`，Compose 配置预检退出 0。独立子代理对 ws3 驱动与 Compose 静态复审未见阻断，随后再执行真实 PG18 门。
+- 用户在服务器本机执行 ws3 root-only runner，返回 `TASK1_PG18_PASSED_NOT_C4_ACCEPTANCE`；专用库 `learning_backup_c4_task1_2b8a1252-54d5-48aa-b176-a9586a86bea3`，证据目录 `/home/hans/experiments/learning-system-p0c4/evidence/learning-system-p0c4-task1-static-ce62007a-ws3`，`result.json` SHA-256 `c3c8a35f87e5a457b850d6b61d4dbe2a9abe44dcef033c7d882537e451687497`，证据清单 SHA-256 `ff169cb20ad9a35132c0d08fb034bb0aea83880d6c7212ce58dcdc9d7ae7a712`。runner SHA-256 `852eb7b84f2e9c92cf31470c87145daa7046c95fcde8c6e692466d834ef2d631`，根任务在运行前核对远端字节哈希，静态确认它固定调用 9/2/1 专项、格式、严格 Clippy 和 PG18 测试并检查通过计数；运行后以只读 Docker 查询确认该项目的测试容器和 PG 容器均 `Exited (0)`。证据目录由 root 保管，根任务未独立读取私有日志；结果哈希与成功摘要来自用户本机 runner 输出。此结果只认定 Task 1 专项，不等于 C4 完整备份/恢复验收。
 
 ## Task 2 本地证据
 

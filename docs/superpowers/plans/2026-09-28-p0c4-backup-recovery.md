@@ -18,9 +18,9 @@
 
 ## Task 1：全量备份契约、资产清单与拒绝规则
 
-- [ ] 在独立 `learning-backup` 管理 crate 定义 `BackupManifestV1`、文件与资产记录、`staging/sealed/complete` 状态和规范摘要；`asset-index.json` 按 `(space_id,id)` 排序逐行保存全部逻辑资产，文件摘要进入 manifest。API 明确区分未完成规划与可恢复备份；Task 1 不发布磁盘完成收据。
-- [ ] 管理角色从 `asset` 全部 ready 行采集；同 SHA 去重但保留逻辑资产计数，拒绝同 SHA 不同 size/key、非规范 key、负长度，空库可行。首版上限 100,000 行、64 MiB 规范索引，查询至上限加一行后显式失败。运行时角色即使拥有 `asset` SELECT，也不能调用管理入口。入口仅规划，不写 `complete`。
-- [ ] RED/GREEN：纯契约边界、同 SHA 多逻辑资产、冲突摘要、无资产、manifest 文件集合缺失/额外、非规范路径、不能从 plan 构造 complete；应用提交和完整迁移集合的规范指纹、行/索引容量上限。磁盘扫描与目标端收据留给 Task 2/3。真实 PG 集成测试先验证专用新空库才迁移，覆盖未链接 ready、同 digest 多行、经身份/权限核对的普通 runtime 拒绝；若本地无 PG，明确留作 Linux 未验门。独立复审公开 API、序列化确定性与整数溢出。运行格式、专项、严格 Clippy。
+- [x] 在独立 `learning-backup` 管理 crate 定义 `BackupManifestV1`、文件与资产记录、`staging/sealed/complete` 状态和规范摘要；`asset-index.json` 按 `(space_id,id)` 排序逐行保存全部逻辑资产，文件摘要进入 manifest。API 明确区分未完成规划与可恢复备份；Task 1 不发布磁盘完成收据。
+- [x] 管理角色从 `asset` 全部 ready 行采集；同 SHA 去重但保留逻辑资产计数，拒绝同 SHA 不同 size/key、非规范 key、负长度，空库可行。首版上限 100,000 行、64 MiB 规范索引，查询至上限加一行后显式失败。运行时角色即使拥有 `asset` SELECT，也不能调用管理入口。入口仅规划，不写 `complete`。
+- [x] RED/GREEN：纯契约边界、同 SHA 多逻辑资产、冲突摘要、无资产、manifest 文件集合缺失/额外、非规范路径、不能从 plan 构造 complete；应用提交和完整迁移集合的规范指纹、行/索引容量上限。磁盘扫描与目标端收据留给 Task 2/3。真实 PG18 专用空库集成测试覆盖未链接 ready、同 digest 多行、经身份/权限核对的普通 runtime 拒绝。独立复审公开 API、序列化确定性与整数溢出；隔离 ws3 格式、专项、严格 Clippy 和 PG18 门通过。证据见 [C4 验证记录](../../p0c4-verification.md)；这仍不是 C4 全链验收。
 
 ## Task 2：安全文件封存与目标端全量校验
 
