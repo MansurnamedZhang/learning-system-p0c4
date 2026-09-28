@@ -106,6 +106,42 @@ struct TargetBirthAttestation {
     creation_nonce: uuid::Uuid,
     template_database: String,
     baseline_cast_count: u64,
+    public_schema: PublicSchemaState,
+}
+
+#[cfg(any(target_os = "linux", test))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SchemaAclEntry {
+    grantor_oid: u64,
+    grantee_oid: u64,
+    privilege: String,
+    grantable: bool,
+}
+
+#[cfg(any(target_os = "linux", test))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PublicSchemaState {
+    owner_oid: u64,
+    owner_name: String,
+    acl_is_null: bool,
+    acl: Vec<SchemaAclEntry>,
+}
+
+#[cfg(any(target_os = "linux", test))]
+impl PublicSchemaState {
+    fn is_secure_canonical(&self) -> bool {
+        self.owner_oid > 0
+            && self.owner_name == "pg_database_owner"
+            && !self.acl.is_empty()
+            && self.acl.windows(2).all(|pair| pair[0] < pair[1])
+            && self.acl.iter().all(|entry| {
+                entry.grantor_oid > 0
+                    && matches!(entry.privilege.as_str(), "USAGE" | "CREATE")
+                    && !(entry.grantee_oid == 0 && entry.privilege == "CREATE")
+            })
+    }
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -118,6 +154,8 @@ struct ObservedTargetBirth {
     asset_dev: u64,
     asset_ino: u64,
     cast_count: u64,
+    public_schema: PublicSchemaState,
+    runtime_can_create_public: bool,
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -154,6 +192,9 @@ impl TargetBirthAttestation {
             || self.asset_dev != live.asset_dev
             || self.asset_ino != live.asset_ino
             || self.baseline_cast_count != live.cast_count
+            || !self.public_schema.is_secure_canonical()
+            || self.public_schema != live.public_schema
+            || live.runtime_can_create_public
         {
             return Err(BackupError::Invalid("target birth identity differs"));
         }
@@ -412,6 +453,7 @@ async fn verify_target_birth(
         u64::try_from(row.try_get::<i64, _>("database_oid")?).map_err(|_| BackupError::Overflow)?;
     let (control_dev, control_ino) = control.identity()?;
     let (asset_dev, asset_ino) = assets.identity()?;
+    let public_schema = observed_public_schema(admin).await?;
     let live = ObservedTargetBirth {
         database_oid,
         pg_system_identifier: row.try_get("system_identifier")?,
@@ -421,8 +463,38 @@ async fn verify_target_birth(
         asset_ino,
         cast_count: u64::try_from(row.try_get::<i64, _>("cast_count")?)
             .map_err(|_| BackupError::Overflow)?,
+        public_schema: public_schema.0,
+        runtime_can_create_public: public_schema.1,
     };
     birth.validate(&config.expected_database, &live)
+}
+
+#[cfg(target_os = "linux")]
+async fn observed_public_schema(admin: &PgPool) -> Result<(PublicSchemaState, bool), BackupError> {
+    let row = sqlx::query(
+        "SELECT n.nspowner::bigint AS owner_oid, \
+         pg_catalog.pg_get_userbyid(n.nspowner)::text AS owner_name, \
+         n.nspacl IS NULL AS acl_is_null, \
+         pg_catalog.has_schema_privilege('learning_runtime',n.oid,'CREATE') AS runtime_create, \
+         (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object( \
+           'grantor_oid',a.grantor::bigint,'grantee_oid',a.grantee::bigint, \
+           'privilege',a.privilege_type::text,'grantable',a.is_grantable)), '[]'::jsonb) \
+          FROM pg_catalog.aclexplode( \
+            COALESCE(n.nspacl,pg_catalog.acldefault('n',n.nspowner))) a) AS acl \
+         FROM pg_catalog.pg_namespace n WHERE n.nspname='public'",
+    )
+    .fetch_one(admin)
+    .await?;
+    let sqlx::types::Json(mut acl): sqlx::types::Json<Vec<SchemaAclEntry>> = row.try_get("acl")?;
+    acl.sort();
+    let schema = PublicSchemaState {
+        owner_oid: u64::try_from(row.try_get::<i64, _>("owner_oid")?)
+            .map_err(|_| BackupError::Overflow)?,
+        owner_name: row.try_get("owner_name")?,
+        acl_is_null: row.try_get("acl_is_null")?,
+        acl,
+    };
+    Ok((schema, row.try_get("runtime_create")?))
 }
 
 #[cfg(target_os = "linux")]
@@ -621,6 +693,7 @@ mod tests {
             creation_nonce: uuid::Uuid::new_v4(),
             template_database: "template0".into(),
             baseline_cast_count: 203,
+            public_schema: sample_public_schema(),
         };
         let live = ObservedTargetBirth {
             database_oid: 16385,
@@ -630,6 +703,8 @@ mod tests {
             asset_dev: 43,
             asset_ino: 200,
             cast_count: 203,
+            public_schema: sample_public_schema(),
+            runtime_can_create_public: false,
         };
         assert!(birth.validate(&database, &live).is_ok());
         let mut wrong = live.clone();
@@ -668,6 +743,7 @@ mod tests {
             creation_nonce: uuid::Uuid::new_v4(),
             template_database: "template0".into(),
             baseline_cast_count: 203,
+            public_schema: sample_public_schema(),
         };
         let canonical = serde_json::to_vec(&birth).unwrap();
         let pinned = format!("{:x}", sha2::Sha256::digest(&canonical));
@@ -676,5 +752,77 @@ mod tests {
         whitespace.push(b'\n');
         assert!(parse_pinned_birth(&whitespace, &pinned).is_err());
         assert!(parse_pinned_birth(&canonical, &"0".repeat(64)).is_err());
+    }
+
+    fn sample_public_schema() -> PublicSchemaState {
+        PublicSchemaState {
+            owner_oid: 6171,
+            owner_name: "pg_database_owner".into(),
+            acl_is_null: false,
+            acl: vec![SchemaAclEntry {
+                grantor_oid: 6171,
+                grantee_oid: 0,
+                privilege: "USAGE".into(),
+                grantable: false,
+            }],
+        }
+    }
+
+    #[test]
+    fn birth_requires_identical_public_owner_acl_and_no_runtime_create() {
+        let id = uuid::Uuid::new_v4();
+        let database = format!("learning_restore_c4_{id}");
+        let project = format!("learning-system-p0c4-restore-{id}");
+        let birth = TargetBirthAttestation {
+            format_version: 1,
+            project_name: project.clone(),
+            pg_volume_name: format!("{project}_pg"),
+            database_name: database.clone(),
+            database_oid: 16385,
+            pg_system_identifier: "7361082129910479001".into(),
+            control_dev: 42,
+            control_ino: 100,
+            asset_dev: 43,
+            asset_ino: 200,
+            creation_nonce: uuid::Uuid::new_v4(),
+            template_database: "template0".into(),
+            baseline_cast_count: 203,
+            public_schema: sample_public_schema(),
+        };
+        let mut live = ObservedTargetBirth {
+            database_oid: 16385,
+            pg_system_identifier: "7361082129910479001".into(),
+            control_dev: 42,
+            control_ino: 100,
+            asset_dev: 43,
+            asset_ino: 200,
+            cast_count: 203,
+            public_schema: sample_public_schema(),
+            runtime_can_create_public: false,
+        };
+        assert!(birth.validate(&database, &live).is_ok());
+        live.public_schema.owner_name = "learning_runtime".into();
+        assert!(birth.validate(&database, &live).is_err());
+        live.public_schema = sample_public_schema();
+        live.public_schema.acl[0].privilege = "CREATE".into();
+        assert!(birth.validate(&database, &live).is_err());
+        live.public_schema = sample_public_schema();
+        live.public_schema.acl[0].grantable = true;
+        assert!(birth.validate(&database, &live).is_err());
+        live.public_schema = sample_public_schema();
+        live.public_schema.acl_is_null = true;
+        assert!(birth.validate(&database, &live).is_err());
+        live.public_schema = sample_public_schema();
+        live.runtime_can_create_public = true;
+        assert!(birth.validate(&database, &live).is_err());
+        live.runtime_can_create_public = false;
+        live.public_schema.acl[0].privilege = "CREATE".into();
+        let mut dirty_birth = birth.clone();
+        dirty_birth.public_schema = live.public_schema.clone();
+        assert!(dirty_birth.validate(&database, &live).is_err());
+        live.public_schema = sample_public_schema();
+        live.public_schema.owner_name = "learning_runtime".into();
+        dirty_birth.public_schema = live.public_schema.clone();
+        assert!(dirty_birth.validate(&database, &live).is_err());
     }
 }
