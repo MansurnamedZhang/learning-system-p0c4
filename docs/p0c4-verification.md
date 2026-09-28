@@ -15,7 +15,7 @@
 |---|---|---|
 | C3 基线源码可编译 | 已通过 | 本地 `cargo test --offline --locked --workspace --no-run`，2026-09-28，退出码 0 |
 | Rust 格式基线 | 已通过 | 本地 `cargo fmt --all -- --check`，2026-09-28，退出码 0 |
-| C4 Task 1 清单/契约 | 本地门通过；Linux 整项未验收 | `691fd4d` 静态复审无阻断；授权包 `ce62007a…` 在 Linux 隔离运行中 contract/lib/preflight 退出 0，`fmt` 因工具错误退出 1，PG18 尚未启动；失败批次保留，不在原项目重跑 |
+| C4 Task 1 清单/契约 | 本地门通过；Linux 整项未验收 | `691fd4d` 静态复审无阻断；授权包 `ce62007a…` 的 Linux 首批报告 contract/lib/preflight 退出 0、`fmt` 退出 1，但测试镜像继承入口脚本的可能性使这些退出码的命令身份待核，PG18 尚未启动；失败批次保留 |
 | C4 Task 2 安全复制/封存 | 本地门及静态复审通过；Linux 未验收 | `431e002`；Windows 拒绝门 1/1、契约 9/9、格式/严格 Clippy 通过；Linux no-follow、碰撞、SIGKILL、部分写入、同步失败专项待新隔离项目运行 |
 | C4 Task 3 写闸/dump/保护/完成收据 | 实施中；未验收 | 真 PostgreSQL 并发与独立故障域证据待验证 |
 | C4 Task 4 干净恢复 | 未开始 | 全资产/身份/权限/租约审查 |
@@ -30,7 +30,7 @@
 - 根任务复核 `cargo test --offline --locked -p learning-backup --test contract`：9/9，退出码 0；`cargo test --offline --locked -p learning-backup --test catalog_pg preflight`：2/2，退出码 0；`cargo test --offline --locked -p learning-backup --lib`：1/1，退出码 0。
 - 实现者运行 `cargo fmt --all -- --check`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings`、`cargo test --offline --locked --workspace --no-run`，均退出码 0；根任务曾独立复核格式和严格 Clippy，均退出码 0。
 - 本机没有 PostgreSQL 命令或隔离 DSN；`catalog_pg` 的真实数据库测试**只编译未运行**。必须在全新 PG18/新数据库/新 Compose 项目中执行，核验 `system_user`、角色属性、复合类型探针及全部 ready 资产，再决定 Task 1 过门。
-- 授权 Task 1 ZIP SHA-256 `ce62007afa82ae9b66c84d72251520669ef08ec72916b494082a11dbde652365`、882256 字节；Linux 隔离项目 `learning-system-p0c4-task1-static-ce62007a-ws1` 在启动 PG 前停止于 `fmt`（退出码 1）。只读诊断结果 SHA-256 `1b315ae497f300d6c92c2bdc8bbffd533fd96b7691abdc3b42af60e3aab0ab9b`、证据清单 SHA-256 `a3baf696a6d670276a8d48f0d2f3efc46b8c56e9e91cb75f0405dc22d50a0167`：源码前后与授权包相符；contract/lib/preflight 均退出 0；格式差异 0，工具错误信号为真。需只读定位工具错误，再用全新项目验证；该失败不能算 Task 1 PG 验收。
+- 授权 Task 1 ZIP SHA-256 `ce62007afa82ae9b66c84d72251520669ef08ec72916b494082a11dbde652365`、882256 字节；Linux 隔离项目 `learning-system-p0c4-task1-static-ce62007a-ws1` 在启动 PG 前停止于 `fmt`（退出码 1）。只读诊断结果 SHA-256 `1b315ae497f300d6c92c2bdc8bbffd533fd96b7691abdc3b42af60e3aab0ab9b`、证据清单 SHA-256 `a3baf696a6d670276a8d48f0d2f3efc46b8c56e9e91cb75f0405dc22d50a0167`：源码前后与授权包相符；前三项记录的退出码为 0；格式差异 0，工具错误信号为真。随后 Task 2 测试镜像发现继承旧入口脚本，故 **Task 1 前三项是否真实执行了指定命令仍待核验，不能计为 Linux 通过**。需只读定位命令身份，再用全新项目验证；该失败不能算 Task 1 PG 验收。
 
 ## Task 2 本地证据
 
