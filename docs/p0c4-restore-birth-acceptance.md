@@ -37,7 +37,9 @@ The runner prints one summary with `status`, `result_sha256`, and a
 root-private evidence path. A passing status still ends in
 `DIRTY_UNUSABLE_NOT_RESTORE_NOT_PIN`. On failure, inspect only this batch's
 root-private `result.json`; `stop.confirmed=false` means isolation could
-not be proven. Never rerun a failed batch ID or reuse its volume. Do not send
+not be proven. `issuer_diagnostic` contains only a fixed phase/reason and
+exception class, or `UNAVAILABLE`; it never changes the failure status.
+Never rerun a failed batch ID or reuse its volume. Do not send
 passwords, secret files, or full connection strings to chat.
 
 Local Python mock tests exercise the protocol and fault paths. They do not

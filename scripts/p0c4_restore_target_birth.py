@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 import re
 import stat
-import subprocess
 import uuid
 
 import p0c4_restore_target as target_provisioner
@@ -21,6 +20,49 @@ import p0c4_restore_target as target_provisioner
 
 AdmissionError = target_provisioner.AdmissionError
 require = target_provisioner.require
+
+ISSUER_FAILURE_REASONS = {
+    "CREATION_STATE": "CREATION_STATE_REJECTED",
+    "DOCKER_REINSPECTION": "DOCKER_REINSPECTION_FAILED",
+    "TRUSTED_VOLUME_PATH": "TRUSTED_VOLUME_PATH_FAILED",
+    "INITDB_RECHECK": "INITDB_RECHECK_FAILED",
+    "PG_SQL_EXECUTION": "PG_SQL_EXECUTION_FAILED",
+    "PG_SQL_PARSE": "PG_SQL_PARSE_FAILED",
+    "PG_FACTS_VALIDATION": "PG_FACTS_VALIDATION_FAILED",
+    "PRIVATE_ROOT_CREATION": "PRIVATE_ROOT_CREATION_FAILED",
+    "BIRTH_PUBLICATION": "BIRTH_PUBLICATION_FAILED",
+}
+SAFE_EXCEPTION_CLASSES = {
+    "AdmissionError", "OSError", "PermissionError", "FileNotFoundError",
+    "ValueError", "TypeError", "KeyError", "RuntimeError", "JSONDecodeError",
+    "TimeoutExpired", "KeyboardInterrupt", "InterruptedError",
+}
+
+
+def _write_failure_diagnostic(target, identity, status, phase, error):
+    """Best-effort durable private codes; never serialize the raw exception."""
+    if os.path.lexists(target / "failure.json"):
+        return
+    try:
+        target_provisioner._trusted_root(target)
+        exception_class = type(error).__name__
+        diagnostic = {
+            "format_version": 1,
+            "state": "BIRTH_ISSUER_DIAGNOSTIC_NOT_ACCEPTANCE",
+            "batch_id": status["batch_id"],
+            "project": identity["project"],
+            "phase": phase,
+            "reason_code": ISSUER_FAILURE_REASONS[phase],
+            "exception_class": (exception_class if exception_class in
+                                SAFE_EXCEPTION_CLASSES else "OtherError"),
+        }
+        target_provisioner._private_write(
+            target / "issuer-diagnostic.json",
+            json.dumps(diagnostic, ensure_ascii=False,
+                       separators=(",", ":")).encode("utf-8"))
+    except BaseException:
+        # A diagnostic failure cannot turn a failed birth into acceptance.
+        pass
 
 DIRTY_QUERIES = {
     "relations": "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%'",
@@ -98,19 +140,25 @@ def _pg_sql():
     WHERE d.datname=pg_catalog.current_database();"""
 
 
-def probe_pg_facts(identity, container_id):
+def probe_pg_facts(identity, container_id, *, _phase=None):
     require(bool(target_provisioner.HEX_ID.fullmatch(container_id)),
             "verified PG container required")
+    if _phase is not None:
+        _phase("PG_SQL_EXECUTION")
     output = target_provisioner._docker(
         "exec", "--user", "postgres", container_id, "psql", "-XAt",
         "-v", "ON_ERROR_STOP=1", "--dbname", identity["database"],
         "-c", _pg_sql())
+    if _phase is not None:
+        _phase("PG_SQL_PARSE")
     require(output.endswith("\n") and len(output.splitlines()) == 1,
             "target PG metadata shape changed")
     try:
         facts = json.loads(output)
     except json.JSONDecodeError as error:
         raise AdmissionError("target PG metadata is not JSON") from error
+    if _phase is not None:
+        _phase("PG_FACTS_VALIDATION")
     validate_pg_facts(facts)
     return facts
 
@@ -356,22 +404,29 @@ def _verify_creation_state(root, target, identity, status):
             "target creation record differs")
 
 
-def issue_birth(root, target, identity, subnet, before, ids, status, initdb):
+def _issue_birth_inner(root, target, identity, subnet, before, ids, status,
+                       initdb, phase):
     """Called only inside provisioner's creation lock, after fresh creation."""
+    phase("CREATION_STATE")
     _verify_creation_state(root, target, identity, status)
+    phase("DOCKER_REINSPECTION")
     roots = [target / name for name in ("destination", "control", "assets")]
     require(all(not os.path.lexists(path) for path in roots),
             "restore roots must be new and disjoint")
     after = target_provisioner.snapshot()
     after["images"] = target_provisioner._inspect("image", [identity["image"]])
     verify_birth_docker(identity, subnet, before, after, ids, target, initdb)
+    phase("TRUSTED_VOLUME_PATH")
     mount_dev, mount_ino = _trusted_volume_mount(ids["volume_mountpoint"])
+    phase("INITDB_RECHECK")
     target_provisioner.probe_initdb(identity, ids["container_id"])
-    facts = probe_pg_facts(identity, ids["container_id"])
+    facts = probe_pg_facts(identity, ids["container_id"], _phase=phase)
+    phase("PRIVATE_ROOT_CREATION")
     root_ids = [_new_private_root(path) for path in roots]
     destination, control, assets = roots
     require(not any(destination.iterdir()) and not any(control.iterdir()) and
             not any(assets.iterdir()), "new restore roots are not empty")
+    phase("BIRTH_PUBLICATION")
     nonce = str(uuid.uuid4())
     payload = canonical_birth(identity, facts, root_ids[1], root_ids[2], nonce)
     evidence = {
@@ -402,6 +457,23 @@ def issue_birth(root, target, identity, subnet, before, ids, status, initdb):
             "asset_root": str(assets)}
 
 
+def issue_birth(root, target, identity, subnet, before, ids, status, initdb):
+    """Failed issuer work emits only bounded diagnostic codes, never raw data."""
+    current_phase = "CREATION_STATE"
+
+    def set_phase(next_phase):
+        nonlocal current_phase
+        current_phase = next_phase
+
+    try:
+        return _issue_birth_inner(root, target, identity, subnet, before, ids,
+                                  status, initdb, set_phase)
+    except BaseException as error:
+        _write_failure_diagnostic(target, identity, status, current_phase,
+                                  error)
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
@@ -413,7 +485,7 @@ def main():
         result = target_provisioner.provision(
             args.root, args.batch_id, args.subnet, args.initdb,
             _birth_issuer=issue_birth)
-    except (AdmissionError, OSError, ValueError, subprocess.SubprocessError):
+    except BaseException:
         print("BIRTH_NOT_ISSUED_TARGET_QUARANTINED_OR_ADMISSION_REJECTED", flush=True)
         return 1
     print(json.dumps({"state": "BIRTH_ISSUED_NOT_RESTORE_ACCEPTANCE",

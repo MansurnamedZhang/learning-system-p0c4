@@ -35,6 +35,22 @@ HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 MAX_ARCHIVE = 32 * 1024 * 1024
 MAX_EXPANDED = 64 * 1024 * 1024
+ISSUER_FAILURE_REASONS = {
+    "CREATION_STATE": "CREATION_STATE_REJECTED",
+    "DOCKER_REINSPECTION": "DOCKER_REINSPECTION_FAILED",
+    "TRUSTED_VOLUME_PATH": "TRUSTED_VOLUME_PATH_FAILED",
+    "INITDB_RECHECK": "INITDB_RECHECK_FAILED",
+    "PG_SQL_EXECUTION": "PG_SQL_EXECUTION_FAILED",
+    "PG_SQL_PARSE": "PG_SQL_PARSE_FAILED",
+    "PG_FACTS_VALIDATION": "PG_FACTS_VALIDATION_FAILED",
+    "PRIVATE_ROOT_CREATION": "PRIVATE_ROOT_CREATION_FAILED",
+    "BIRTH_PUBLICATION": "BIRTH_PUBLICATION_FAILED",
+}
+SAFE_EXCEPTION_CLASSES = {
+    "AdmissionError", "OSError", "PermissionError", "FileNotFoundError",
+    "ValueError", "TypeError", "KeyError", "RuntimeError", "JSONDecodeError",
+    "TimeoutExpired", "KeyboardInterrupt", "InterruptedError", "OtherError",
+}
 BIRTH_KEYS = ("format_version", "project_name", "pg_volume_name",
               "database_name", "database_oid", "pg_system_identifier",
               "control_dev", "control_ino", "asset_dev", "asset_ino",
@@ -390,6 +406,32 @@ def _private_read(path, limit=4096):
         content = stream.read(limit + 1)
     require(0 < len(content) <= limit, "private issuance record exceeds limit")
     return content
+
+
+def read_issuer_diagnostic(target, identity, batch_id):
+    """Read private diagnostic as bounded codes or an explicit unavailable."""
+    unavailable = {"status": "UNAVAILABLE"}
+    try:
+        require(target.name == batch_id and canonical_v4(batch_id),
+                "diagnostic target differs")
+        _require_private_dir(target)
+        item = _unique_json(_private_read(target / "issuer-diagnostic.json"))
+        require(type(item) is dict and set(item) == {
+            "format_version", "state", "batch_id", "project", "phase",
+            "reason_code", "exception_class"} and
+                type(item["format_version"]) is int and
+                item["format_version"] == 1 and
+                item["state"] == "BIRTH_ISSUER_DIAGNOSTIC_NOT_ACCEPTANCE" and
+                item["batch_id"] == batch_id and
+                item["project"] == identity["project"] and
+                type(item["phase"]) is str and
+                item["phase"] in ISSUER_FAILURE_REASONS and
+                item["reason_code"] == ISSUER_FAILURE_REASONS[item["phase"]] and
+                item["exception_class"] in SAFE_EXCEPTION_CLASSES,
+                "issuer diagnostic code differs")
+        return item
+    except BaseException:
+        return unavailable
 
 
 def _safe_member(name):
@@ -837,6 +879,13 @@ def _run_batch(args, manifest, package, batch):
             "BIRTH_ISSUER_SINGLE_HOST_PG18_PASSED_DIRTY_UNUSABLE_NOT_RESTORE_NOT_PIN")
     except BaseException as error:
         result["failure_type"] = type(error).__name__
+        if issuer_started and identity is not None:
+            try:
+                result["issuer_diagnostic"] = read_issuer_diagnostic(
+                    batch / "control" / "targets" / args.batch_id,
+                    identity, args.batch_id)
+            except BaseException:
+                result["issuer_diagnostic"] = {"status": "UNAVAILABLE"}
         if provisioner is not None and identity is not None and confirmed_id:
             try:
                 result["stop"] = stop_verified_pg(

@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import p0c4_restore_birth_acceptance as runner
+import p0c4_restore_target_birth as issuer
 from p0c4_restore_target import identity_for
 from test_p0c4_restore_target import ID, SUBNET, created, empty_snapshot
 
@@ -62,6 +63,44 @@ def records():
 
 
 class CandidateGates(unittest.TestCase):
+    def test_sanitized_issuer_diagnostic_or_unavailable_only(self):
+        self.assertEqual(runner.ISSUER_FAILURE_REASONS,
+                         issuer.ISSUER_FAILURE_REASONS)
+        identity = identity_for(ID)
+        target = Path("/private/targets") / ID
+        safe = {"format_version": 1,
+                "state": "BIRTH_ISSUER_DIAGNOSTIC_NOT_ACCEPTANCE",
+                "batch_id": ID, "project": identity["project"],
+                "phase": "PG_SQL_PARSE",
+                "reason_code": "PG_SQL_PARSE_FAILED",
+                "exception_class": "AdmissionError"}
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner, "_private_read",
+                          return_value=json.dumps(safe).encode()):
+            self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
+                             safe)
+        changed = {**safe, "reason_code": "postgres_password=secret"}
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner, "_private_read",
+                          return_value=json.dumps(changed).encode()):
+            self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
+                             {"status": "UNAVAILABLE"})
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner, "_private_read",
+                          return_value=b'{"phase":"postgres_password=secret"'):
+            self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
+                             {"status": "UNAVAILABLE"})
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner, "_private_read",
+                          side_effect=FileNotFoundError):
+            self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
+                             {"status": "UNAVAILABLE"})
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner, "_private_read",
+                          side_effect=KeyboardInterrupt):
+            self.assertEqual(runner.read_issuer_diagnostic(target, identity, ID),
+                             {"status": "UNAVAILABLE"})
+
     def test_private_candidate_rejects_failure_marker_and_missing_success_seal(self):
         identity, birth_bytes, state, success, evidence = records()
         with tempfile.TemporaryDirectory() as temp:
@@ -447,7 +486,8 @@ class CandidateGates(unittest.TestCase):
         identity, birth_bytes, state, success, evidence = records()
         birth = json.loads(birth_bytes)
         manifest = {"files": [{"path": runner.INITDB, "sha256": "f" * 64}]}
-        for failure in ("pass", "issuer-exit", "timeout-no-state",
+        for failure in ("pass", "issuer-exit", "diagnostic-hostile",
+                        "timeout-no-state",
                         "missing-seal", "failure-marker",
                         "id-change", "pg-failure", "interrupted-before-exit",
                         "cleanup-failed", "early-cleanup-failed"):
@@ -501,11 +541,25 @@ class CandidateGates(unittest.TestCase):
                     early_stop = stack.enter_context(patch.object(
                         runner, "stop_early_owned_pg",
                         return_value={"confirmed": True}))
+                    diagnostic = stack.enter_context(patch.object(
+                        runner, "read_issuer_diagnostic",
+                        return_value={"status": "UNAVAILABLE"}))
                     stack.enter_context(patch.object(runner, "validate_live_docker"))
                     if failure == "issuer-exit":
                         accept.side_effect = ValueError("issuer exit nonzero")
+                        diagnostic.return_value = {
+                            "format_version": 1,
+                            "state": "BIRTH_ISSUER_DIAGNOSTIC_NOT_ACCEPTANCE",
+                            "batch_id": ID, "project": identity["project"],
+                            "phase": "PG_SQL_PARSE",
+                            "reason_code": "PG_SQL_PARSE_FAILED",
+                            "exception_class": "AdmissionError"}
                     elif failure == "missing-seal":
                         accept.side_effect = FileNotFoundError("seal")
+                    elif failure == "diagnostic-hostile":
+                        accept.side_effect = FileNotFoundError("seal")
+                        diagnostic.side_effect = RuntimeError(
+                            "postgres_password=hidden")
                     elif failure == "early-cleanup-failed":
                         accept.side_effect = FileNotFoundError("seal")
                         early_stop.side_effect = RuntimeError("stop failed")
@@ -534,6 +588,13 @@ class CandidateGates(unittest.TestCase):
                     continue
                 self.assertEqual(observed[0]["status"], "FAILED_NOT_RESTORE_NOT_PIN")
                 self.assertNotIn("sensitive", json.dumps(observed[0]))
+                self.assertIn("issuer_diagnostic", observed[0])
+                if failure == "issuer-exit":
+                    self.assertEqual(observed[0]["issuer_diagnostic"]["phase"],
+                                     "PG_SQL_PARSE")
+                else:
+                    self.assertEqual(observed[0]["issuer_diagnostic"],
+                                     {"status": "UNAVAILABLE"})
                 if failure == "cleanup-failed":
                     self.assertEqual(observed[0]["target_condition"],
                                      "DIRTY_UNUSABLE_NOT_RESTORE_NOT_PIN")
@@ -550,7 +611,8 @@ class CandidateGates(unittest.TestCase):
                     stop.assert_not_called()
                 elif failure in ("issuer-exit", "missing-seal",
                                  "failure-marker", "id-change",
-                                 "interrupted-before-exit", "timeout-no-state"):
+                                 "interrupted-before-exit", "timeout-no-state",
+                                 "diagnostic-hostile"):
                     early_stop.assert_called_once()
                     self.assertTrue(observed[0]["stop"]["confirmed"])
                     stop.assert_not_called()

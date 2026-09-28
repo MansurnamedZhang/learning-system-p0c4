@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import p0c4_restore_target_birth as birth_module
 from p0c4_restore_target import (AdmissionError, identity_for, provision,
                                  verify_created)
 from p0c4_restore_target_birth import (canonical_birth, validate_pg_facts,
@@ -56,6 +57,68 @@ def clean_facts():
 
 
 class BirthContract(unittest.TestCase):
+    def test_unexpected_issuer_failure_has_only_generic_stdout(self):
+        secret = "postgres_password=hidden"
+        with (patch("p0c4_restore_target.provision",
+                    side_effect=RuntimeError(secret)),
+              patch("sys.argv", ["birth", "--root", "/private",
+                                 "--batch-id", ID, "--subnet", SUBNET,
+                                 "--initdb", "/reviewed/initdb.sh"]),
+              patch("builtins.print") as output):
+            self.assertEqual(birth_module.main(), 1)
+        output.assert_called_once_with(
+            "BIRTH_NOT_ISSUED_TARGET_QUARANTINED_OR_ADMISSION_REJECTED",
+            flush=True)
+
+    def test_issuer_failure_diagnostic_uses_only_bounded_codes(self):
+        identity = identity_for(ID)
+        secret = "postgres_password=hidden postgresql://user:pass@host/db"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "targets" / ID
+            target.mkdir(parents=True)
+            status = {"batch_id": ID}
+            written = {}
+            def capture(path, content):
+                written[path.name] = content
+            with (patch("p0c4_restore_target_birth._verify_creation_state",
+                        side_effect=AdmissionError(secret)),
+                  patch("p0c4_restore_target._trusted_root"),
+                  patch("p0c4_restore_target._private_write",
+                        side_effect=capture)):
+                with self.assertRaises(AdmissionError):
+                    issue_birth(root, target, identity, SUBNET, empty_snapshot(),
+                                {}, status, Path("/reviewed/initdb.sh"))
+            payload = written["issuer-diagnostic.json"]
+            self.assertNotIn(secret.encode(), payload)
+            self.assertNotIn(b"postgres_password", payload)
+            diagnostic = json.loads(payload)
+            self.assertEqual(diagnostic["phase"], "CREATION_STATE")
+            self.assertEqual(diagnostic["reason_code"],
+                             "CREATION_STATE_REJECTED")
+            self.assertEqual(diagnostic["exception_class"], "AdmissionError")
+            self.assertEqual(diagnostic["batch_id"], ID)
+
+    def test_pg_failure_phase_callback_separates_execute_parse_validate(self):
+        identity = identity_for(ID)
+        secret = "postgres_password=hidden"
+        cases = (
+            (RuntimeError(secret), "PG_SQL_EXECUTION"),
+            ("not-json\n", "PG_SQL_PARSE"),
+            (json.dumps({**clean_facts(), "runtime_can_create_public": True})
+             + "\n", "PG_FACTS_VALIDATION"),
+        )
+        for output, expected in cases:
+            phases = []
+            with self.subTest(expected=expected), \
+                 patch("p0c4_restore_target._docker",
+                       side_effect=output if isinstance(output, BaseException)
+                       else None, return_value=output if isinstance(output, str)
+                       else None):
+                with self.assertRaises((AdmissionError, RuntimeError)):
+                    probe_pg_facts(identity, "a" * 64, _phase=phases.append)
+            self.assertEqual(phases[-1], expected)
+
     def test_non_rfc_version_nibble_is_not_a_python_uuid_v4(self):
         non_rfc = "550e8400-e29b-41d4-0716-446655440000"
         with self.assertRaises(AdmissionError):
