@@ -6,7 +6,7 @@ use crate::{BackupError, valid_digest};
 use crate::{GatePhase, SourceGateJournal, verify_sealed};
 #[cfg(target_os = "linux")]
 use learning_assets::backup_fs::BackupDir;
-use ring::signature::{ED25519, UnparsedPublicKey};
+use ring::signature::{ECDSA_P256_SHA256_FIXED, UnparsedPublicKey};
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "linux")]
 use sha2::{Digest, Sha256};
@@ -17,6 +17,11 @@ use std::{
     os::unix::fs::{MetadataExt, PermissionsExt},
 };
 use uuid::Uuid;
+
+// Version 2 fixes the verifier algorithm to ECDSA P-256/SHA-256 with SEC1
+// uncompressed keys and 64-byte fixed-width signatures. Version 1's Ed25519
+// verifier is never accepted for a CompleteBackup.
+const WITNESS_FORMAT_VERSION: u32 = 2;
 
 fn canonical_posix_path(value: &str) -> bool {
     value.starts_with('/')
@@ -50,7 +55,7 @@ pub struct DestinationStatement {
 
 impl DestinationStatement {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, BackupError> {
-        if self.format_version != 1
+        if self.format_version != WITNESS_FORMAT_VERSION
             || self.backup_id.is_nil()
             || !valid_digest(&self.manifest_sha256)
             || !valid_digest(&self.source_control_sha256)
@@ -71,7 +76,7 @@ impl DestinationStatement {
 }
 
 /// Installed outside the package in a management-only root-owned directory.
-/// Its Ed25519 public key must be provisioned from a verifier whose private
+/// Its P-256 public key must be provisioned from a verifier whose private
 /// key is held in a genuinely separate host/storage failure domain. The
 /// numeric identity and device checks below cannot establish that alone.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,7 +95,7 @@ pub struct VerifierTrustConfig {
 
 impl VerifierTrustConfig {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, BackupError> {
-        if self.format_version != 1
+        if self.format_version != WITNESS_FORMAT_VERSION
             || !canonical_posix_path(&self.source_root)
             || !canonical_posix_path(&self.source_control_root)
             || !canonical_posix_path(&self.destination_root)
@@ -103,7 +108,8 @@ impl VerifierTrustConfig {
             || self.destination_storage_id.is_nil()
             || self.source_host_id == self.destination_host_id
             || self.source_storage_id == self.destination_storage_id
-            || self.verifier_public_key_hex.len() != 64
+            || self.verifier_public_key_hex.len() != 130
+            || !self.verifier_public_key_hex.starts_with("04")
             || !self
                 .verifier_public_key_hex
                 .bytes()
@@ -258,7 +264,7 @@ fn read_complete_receipt(root: &BackupDir, id: Uuid) -> Result<CompleteReceipt, 
     file.take(8193).read_to_end(&mut bytes)?;
     let receipt: CompleteReceipt = serde_json::from_slice(&bytes)?;
     if serde_json::to_vec(&receipt)? != bytes
-        || receipt.body.format_version != 1
+        || receipt.body.format_version != WITNESS_FORMAT_VERSION
         || receipt.body.backup_id != id
         || receipt.body.witness.canonical_bytes().is_err()
         || receipt.receipt_sha256 != digest(&serde_json::to_vec(&receipt.body)?)
@@ -373,7 +379,7 @@ pub fn publish_complete_backup(
             return Err(BackupError::Invalid("noncanonical destination witness"));
         }
         let expected = DestinationStatement {
-            format_version: 1,
+            format_version: WITNESS_FORMAT_VERSION,
             backup_id,
             manifest_sha256: source.manifest_sha256().into(),
             source_control_sha256: control_sha,
@@ -396,7 +402,7 @@ pub fn publish_complete_backup(
             .map_err(|_| BackupError::Invalid("destination witness signature"))?;
         verify_destination_witness(&expected, &key, &signature)?;
         let body = CompleteReceiptBody {
-            format_version: 1,
+            format_version: WITNESS_FORMAT_VERSION,
             backup_id,
             witness,
         };
@@ -448,10 +454,13 @@ pub fn verify_destination_witness(
     signature: &[u8],
 ) -> Result<(), BackupError> {
     let bytes = statement.canonical_bytes()?;
-    if pinned_public_key.len() != 32 || signature.len() != 64 {
+    // SEC1 uncompressed P-256 key and fixed-width (r || s) signature.
+    // ring validates the curve point and nonzero, in-range r/s values. P-256
+    // has cofactor one, avoiding Ed25519's small-order-key acceptance class.
+    if pinned_public_key.len() != 65 || pinned_public_key[0] != 0x04 || signature.len() != 64 {
         return Err(BackupError::Invalid("destination witness key or signature"));
     }
-    UnparsedPublicKey::new(&ED25519, pinned_public_key)
+    UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, pinned_public_key)
         .verify(&bytes, signature)
         .map_err(|_| BackupError::Invalid("destination witness signature"))
 }
@@ -479,7 +488,7 @@ mod linux_tests {
     #[test]
     fn default_build_cannot_open_or_publish_complete() {
         let trust = VerifierTrustConfig {
-            format_version: 1,
+            format_version: WITNESS_FORMAT_VERSION,
             source_root: "/private/source".into(),
             source_control_root: "/private/control".into(),
             destination_root: "/private/destination".into(),
@@ -487,7 +496,7 @@ mod linux_tests {
             source_storage_id: Uuid::new_v4(),
             destination_host_id: Uuid::new_v4(),
             destination_storage_id: Uuid::new_v4(),
-            verifier_public_key_hex: "a".repeat(64),
+            verifier_public_key_hex: format!("04{}", "a".repeat(128)),
         };
         assert!(require_deployment_verifier_key(&trust).is_err());
     }
