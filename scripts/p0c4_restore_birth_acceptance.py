@@ -172,7 +172,8 @@ def validate_candidate_records(identity, batch_id, birth_bytes, state, success, 
     return birth, state, success
 
 
-def validate_live_docker(identity, subnet, before, live, expected, target, initdb):
+def validate_live_docker(identity, subnet, before, live, expected, target, initdb,
+                         *, allow_starting=False):
     """Inspect Docker fields directly, in addition to provisioner verification."""
     project = identity["project"]
     require(live.get("daemon_id") == before.get("daemon_id"),
@@ -197,23 +198,29 @@ def validate_live_docker(identity, subnet, before, live, expected, target, initd
             volume.get("Options") in (None, {}) and
             pg.get("Config", {}).get("Image") == identity["image"] and
             pg.get("State", {}).get("Running") is True and
-            pg.get("State", {}).get("Health", {}).get("Status") == "healthy",
+            (allow_starting or
+             pg.get("State", {}).get("Health", {}).get("Status") == "healthy"),
             "Docker immutable identity or health differs")
     images = live.get("images") or []
     repo_digests = images[0].get("RepoDigests") if len(images) == 1 else None
     require(len(images) == 1 and images[0].get("Id") == pg.get("Image") and
+            type(pg.get("Image")) is str and
+            HEX64.fullmatch(pg["Image"].removeprefix("sha256:")) and
             type(repo_digests) is list and
             all(type(value) is str for value in repo_digests) and
             any(value.endswith("@" + identity["image"].split("@", 1)[1])
                 for value in repo_digests),
             "PG image digest differs")
+    network_configs = (network.get("IPAM") or {}).get("Config") or []
     require(network.get("Name") == identity["network"] and
             network.get("Internal") is True and
-            (network.get("IPAM") or {}).get("Config", [{}])[0].get("Subnet") == subnet and
+            len(network_configs) == 1 and
+            network_configs[0].get("Subnet") == subnet and
             set((pg.get("NetworkSettings") or {}).get("Networks") or {}) ==
             {identity["network"]} and
             (pg.get("NetworkSettings") or {}).get("Networks", {}).get(
                 identity["network"], {}).get("NetworkID") == network["Id"] and
+            (pg.get("HostConfig") or {}).get("NetworkMode") == identity["network"] and
             not any(((pg.get("NetworkSettings") or {}).get("Ports") or {}).values()) and
             not any((pg.get("HostConfig", {}).get("PortBindings") or {}).values()),
             "PG network isolation or published port differs")
@@ -231,6 +238,10 @@ def validate_live_docker(identity, subnet, before, live, expected, target, initd
     for mount in mounts:
         require((mount.get("Type"), mount.get("Source"), mount.get("RW")) ==
                 expected_mounts[mount["Destination"]], "PG mount differs")
+    data_mount = next(mount for mount in mounts if
+                      mount.get("Destination") == "/var/lib/postgresql")
+    require(data_mount.get("Name") == identity["volume"],
+            "PG named data volume differs")
     return pg, network, volume
 
 
@@ -261,47 +272,54 @@ def stop_verified_pg(provisioner, identity, container_id):
             "volume_retained": True}
 
 
-def stop_early_owned_pg(provisioner, identity, target):
-    """On missing seal, match private creation state to fresh live Docker facts."""
+def stop_early_owned_pg(provisioner, identity, target, subnet, before, initdb):
+    """Stop a newly observed exact project without trusting a missing state."""
     require(target.name == identity["database"].removeprefix(
         "learning_restore_c4_"), "early cleanup target differs")
-    _trusted_path(target)
-    recorded = _unique_json(_private_read(target / "state.json"))
-    require(type(recorded) is dict and
-            recorded.get("state") == "CREATED_QUARANTINED" and
-            recorded.get("batch_id") == target.name and
-            recorded.get("project") == identity["project"] and
-            recorded.get("database") == identity["database"] and
-            recorded.get("volume_name") == identity["volume"] and
-            type(recorded.get("container_id")) is str and
-            HEX64.fullmatch(recorded["container_id"]),
-            "private creation state unavailable for early stop")
+    _require_private_dir(target)
+    provisioner.admit_fresh(identity, subnet, before)
     live = provisioner.snapshot()
-    volumes = [volume for volume in live["volumes"] if
-               volume.get("Name") == identity["volume"] and
-               (volume.get("Labels") or {}).get(
+    live["images"] = provisioner._inspect("image", [identity["image"]])
+    containers = [item for item in live["containers"] if
+                  (item.get("Config", {}).get("Labels") or {}).get(
+                      "com.docker.compose.project") == identity["project"]]
+    networks = [item for item in live["networks"] if
+                (item.get("Labels") or {}).get(
+                    "com.docker.compose.project") == identity["project"]]
+    volumes = [item for item in live["volumes"] if
+               (item.get("Labels") or {}).get(
                    "com.docker.compose.project") == identity["project"]]
-    require(len(volumes) == 1 and
-            type(volumes[0].get("Mountpoint")) is str,
-            "cannot identify this batch PG volume")
-    matches = [
-        container for container in live["containers"]
-        if (container.get("Config", {}).get("Labels") or {}).get(
-            "com.docker.compose.project") == identity["project"] and
-        (container.get("Config", {}).get("Labels") or {}).get(
-            "com.docker.compose.service") == "pg" and
-        container.get("Config", {}).get("Image") == identity["image"] and
-        type(container.get("Id")) is str and
-        container["Id"] == recorded["container_id"] and
-        len([mount for mount in container.get("Mounts") or []
-             if mount.get("Destination") == "/var/lib/postgresql" and
-             mount.get("Name") == identity["volume"] and
-             mount.get("Source") == volumes[0]["Mountpoint"] and
-             mount.get("Type") == "volume" and mount.get("RW") is True]) == 1
-    ]
-    require(len(matches) == 1,
-            "cannot uniquely identify this batch PG for early stop")
-    return stop_verified_pg(provisioner, identity, matches[0]["Id"])
+    require(len(containers) == len(networks) == len(volumes) == 1,
+            "cannot uniquely identify fresh batch Docker objects")
+    pg, network, volume = containers[0], networks[0], volumes[0]
+    require(volume.get("Name") == identity["volume"] and
+            type(pg.get("Id")) is str and HEX64.fullmatch(pg["Id"]) and
+            type(network.get("Id")) is str and HEX64.fullmatch(network["Id"]) and
+            pg["Id"] not in {item.get("Id") for item in before["containers"]} and
+            network["Id"] not in {item.get("Id") for item in before["networks"]} and
+            volume.get("Name") not in
+            {item.get("Name") for item in before["volumes"]},
+            "early cleanup Docker identity predates batch")
+    expected = {"container_id": pg["Id"], "network_id": network["Id"],
+                "volume_name": volume.get("Name"),
+                "volume_mountpoint": volume.get("Mountpoint")}
+    has_state = os.path.lexists(target / "state.json")
+    if has_state:
+        recorded = _unique_json(_private_read(target / "state.json"))
+        require(type(recorded) is dict and
+                recorded.get("state") == "CREATED_QUARANTINED" and
+                recorded.get("batch_id") == target.name and
+                recorded.get("project") == identity["project"] and
+                recorded.get("database") == identity["database"] and
+                recorded.get("network") == identity["network"] and
+                recorded.get("subnet") == subnet and
+                all(recorded.get(key) == value for key, value in
+                    expected.items()), "private creation state differs")
+    validate_live_docker(identity, subnet, before, live, expected,
+                         target, initdb, allow_starting=True)
+    stopped = stop_verified_pg(provisioner, identity, pg["Id"])
+    return {**stopped, "basis": ("private-state-and-live-docker" if has_state
+                                else "fresh-snapshot-no-state")}
 
 
 def accept_issuer_process(process, target, identity, batch_id):
@@ -744,7 +762,8 @@ def _run_batch(args, manifest, package, batch):
               "source_commit": args.source_commit,
               "runner_sha256": _file_digest(Path(__file__)),
               "source_before_sha256": None, "source_after_sha256": None,
-              "target_condition": "NO_TARGET_CREATED", "dirty_unusable": False,
+              "target_condition": "NO_TARGET_CREATED",
+              "target_reuse_permitted": False,
               "stop": {"confirmed": False}, "gates": [], "failure_type": None}
     provisioner = None
     identity = None
@@ -796,7 +815,6 @@ def _run_batch(args, manifest, package, batch):
             "batch_id": args.batch_id, "project": identity["project"],
             "database": identity["database"], **facts}))
         result["stage"] = "deliberate-negative-acl"
-        result["dirty_unusable"] = True
         result["target_condition"] = "DIRTY_UNUSABLE_NOT_RESTORE_NOT_PIN"
         result["negative_acl"] = _negative_acl(
             provisioner, issuer, identity, confirmed_id)
@@ -828,7 +846,8 @@ def _run_batch(args, manifest, package, batch):
             try:
                 result["stop"] = stop_early_owned_pg(
                     provisioner, identity,
-                    batch / "control" / "targets" / args.batch_id)
+                    batch / "control" / "targets" / args.batch_id,
+                    args.subnet, before, initdb)
             except BaseException as stop_error:
                 result["stop"] = {"confirmed": False,
                                   "failure_type": type(stop_error).__name__,

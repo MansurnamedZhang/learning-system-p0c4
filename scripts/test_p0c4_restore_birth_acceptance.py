@@ -269,43 +269,145 @@ class CandidateGates(unittest.TestCase):
     def test_missing_seal_early_stop_requires_unique_owned_live_container(self):
         identity = identity_for(ID)
         target = Path("/private/targets") / ID
+        initdb = Path("/private/initdb.sh")
+        before = empty_snapshot()
         state = records()[2]
         live = created(identity)
-        docker = SimpleNamespace(snapshot=lambda: live)
-        with patch.object(runner, "_trusted_path"), \
+        for destination, source in (
+            ("/docker-entrypoint-initdb.d/10-restore.sh", initdb),
+            ("/run/secrets/postgres_password", target / "secrets/postgres_password"),
+            ("/run/secrets/admin_password", target / "secrets/admin_password"),
+        ):
+            live["containers"][0]["Mounts"].append(
+                {"Type": "bind", "Source": str(source), "RW": False,
+                 "Destination": destination})
+        live["volumes"][0].update(Driver="local", Scope="local", Options=None)
+        docker = SimpleNamespace(snapshot=lambda: live,
+                                 _inspect=lambda *_: live["images"],
+                                 admit_fresh=lambda *_: None)
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=True), \
              patch.object(runner, "_private_read",
                           return_value=json.dumps(state).encode()), \
              patch.object(runner, "stop_verified_pg",
                           return_value={"confirmed": True}) as stop:
             self.assertTrue(runner.stop_early_owned_pg(
-                docker, identity, target)["confirmed"])
+                docker, identity, target, SUBNET, before, initdb)["confirmed"])
             stop.assert_called_once_with(docker, identity, "a" * 64)
         changed = copy.deepcopy(live)
         changed["containers"][0]["Mounts"][0]["Name"] = "foreign_volume"
         docker.snapshot = lambda: changed
-        with patch.object(runner, "_trusted_path"), \
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=True), \
              patch.object(runner, "_private_read",
                           return_value=json.dumps(state).encode()), \
              patch.object(runner, "stop_verified_pg") as stop:
             with self.assertRaises(ValueError):
-                runner.stop_early_owned_pg(docker, identity, target)
+                runner.stop_early_owned_pg(
+                    docker, identity, target, SUBNET, before, initdb)
             stop.assert_not_called()
         changed = copy.deepcopy(live)
         changed["containers"].append(copy.deepcopy(changed["containers"][0]))
         docker.snapshot = lambda: changed
-        with patch.object(runner, "_trusted_path"), \
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=True), \
              patch.object(runner, "_private_read",
                           return_value=json.dumps(state).encode()), \
              patch.object(runner, "stop_verified_pg") as stop:
             with self.assertRaises(ValueError):
-                runner.stop_early_owned_pg(docker, identity, target)
+                runner.stop_early_owned_pg(
+                    docker, identity, target, SUBNET, before, initdb)
             stop.assert_not_called()
+
+    def test_timeout_without_state_stops_only_new_isolated_project(self):
+        identity = identity_for(ID)
+        target = Path("/private/targets") / ID
+        initdb = Path("/private/initdb.sh")
+        before = empty_snapshot()
+        live = created(identity)
+        live["containers"][0]["State"]["Health"]["Status"] = "starting"
+        for destination, source in (
+            ("/docker-entrypoint-initdb.d/10-restore.sh", initdb),
+            ("/run/secrets/postgres_password", target / "secrets/postgres_password"),
+            ("/run/secrets/admin_password", target / "secrets/admin_password"),
+        ):
+            live["containers"][0]["Mounts"].append(
+                {"Type": "bind", "Source": str(source), "RW": False,
+                 "Destination": destination})
+        live["volumes"][0].update(Driver="local", Scope="local", Options=None)
+        external = copy.deepcopy(live["containers"][0])
+        external["Id"] = "e" * 64
+        external["Config"]["Labels"]["com.docker.compose.project"] = "other-project"
+        live["containers"].append(external)
+        stopped = copy.deepcopy(live)
+        stopped["containers"][0]["State"]["Running"] = False
+        actual = MagicMock()
+        actual.snapshot.side_effect = [live, live, stopped]
+        actual._inspect.return_value = live["images"]
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=False):
+            result = runner.stop_early_owned_pg(
+                actual, identity, target, SUBNET, before, initdb)
+        self.assertTrue(result["confirmed"])
+        self.assertFalse(stopped["containers"][0]["State"]["Running"])
+        self.assertTrue(stopped["containers"][1]["State"]["Running"])
+        actual._docker.assert_called_once_with("stop", "--time", "1", "a" * 64)
+        docker = MagicMock()
+        docker.snapshot.return_value = live
+        docker._inspect.return_value = live["images"]
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=False), \
+             patch.object(runner, "stop_verified_pg",
+                          return_value={"confirmed": True}) as stop:
+            result = runner.stop_early_owned_pg(
+                docker, identity, target, SUBNET, before, initdb)
+            self.assertEqual(result["basis"], "fresh-snapshot-no-state")
+            stop.assert_called_once_with(docker, identity, "a" * 64)
+        changed = copy.deepcopy(live)
+        changed["containers"][0]["Config"]["Image"] = "postgres:unreviewed"
+        docker.snapshot.return_value = changed
+        with patch.object(runner, "_require_private_dir"), \
+             patch.object(runner.os.path, "lexists", return_value=False), \
+             patch.object(runner, "stop_verified_pg") as stop:
+            with self.assertRaises(ValueError):
+                runner.stop_early_owned_pg(
+                    docker, identity, target, SUBNET, before, initdb)
+            stop.assert_not_called()
+        for change in ("daemon", "network", "port", "mount", "image-digest",
+                       "preexisting-id"):
+            changed = copy.deepcopy(live)
+            prior = copy.deepcopy(before)
+            if change == "daemon":
+                changed["daemon_id"] = "different-daemon"
+            elif change == "network":
+                changed["networks"][0]["Internal"] = False
+            elif change == "port":
+                changed["containers"][0]["NetworkSettings"]["Ports"] = {
+                    "5432/tcp": [{"HostPort": "5432"}]}
+            elif change == "mount":
+                changed["containers"][0]["Mounts"][0]["Source"] = "/foreign"
+            elif change == "image-digest":
+                changed["images"][0]["RepoDigests"] = [
+                    "postgres@sha256:" + "0" * 64]
+            else:
+                prior["containers"].append({"Id": "a" * 64})
+            docker.snapshot.return_value = changed
+            docker._inspect.return_value = changed["images"]
+            with self.subTest(change=change), \
+                 patch.object(runner, "_require_private_dir"), \
+                 patch.object(runner.os.path, "lexists", return_value=False), \
+                 patch.object(runner, "stop_verified_pg") as stop:
+                with self.assertRaises(ValueError):
+                    runner.stop_early_owned_pg(
+                        docker, identity, target, SUBNET, prior, initdb)
+                stop.assert_not_called()
 
     def test_issuer_exit_failure_missing_seal_id_change_interrupt_and_cleanup(self):
         identity, birth_bytes, state, success, evidence = records()
         birth = json.loads(birth_bytes)
         manifest = {"files": [{"path": runner.INITDB, "sha256": "f" * 64}]}
-        for failure in ("pass", "issuer-exit", "missing-seal", "failure-marker",
+        for failure in ("pass", "issuer-exit", "timeout-no-state",
+                        "missing-seal", "failure-marker",
                         "id-change", "pg-failure", "interrupted-before-exit",
                         "cleanup-failed", "early-cleanup-failed"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temp:
@@ -374,6 +476,8 @@ class CandidateGates(unittest.TestCase):
                         pg.side_effect = ValueError("PG identity changed")
                     elif failure == "interrupted-before-exit":
                         run_issuer.side_effect = KeyboardInterrupt()
+                    elif failure == "timeout-no-state":
+                        run_issuer.side_effect = TimeoutError()
                     elif failure == "cleanup-failed":
                         negative.side_effect = ValueError("negative probe failed")
                         stop.side_effect = RuntimeError("stop failed")
@@ -383,13 +487,15 @@ class CandidateGates(unittest.TestCase):
                 if failure == "pass":
                     self.assertTrue(observed[0]["status"].startswith(
                         "BIRTH_ISSUER_SINGLE_HOST_PG18_PASSED"))
-                    self.assertTrue(observed[0]["dirty_unusable"])
+                    self.assertEqual(observed[0]["target_condition"],
+                                     "DIRTY_UNUSABLE_NOT_RESTORE_NOT_PIN")
                     stop.assert_called_once()
                     continue
                 self.assertEqual(observed[0]["status"], "FAILED_NOT_RESTORE_NOT_PIN")
                 self.assertNotIn("sensitive", json.dumps(observed[0]))
                 if failure == "cleanup-failed":
-                    self.assertTrue(observed[0]["dirty_unusable"])
+                    self.assertEqual(observed[0]["target_condition"],
+                                     "DIRTY_UNUSABLE_NOT_RESTORE_NOT_PIN")
                     self.assertEqual(observed[0]["stop"]["failure_type"],
                                      "RuntimeError")
                     stop.assert_called_once()
@@ -403,7 +509,7 @@ class CandidateGates(unittest.TestCase):
                     stop.assert_not_called()
                 elif failure in ("issuer-exit", "missing-seal",
                                  "failure-marker", "id-change",
-                                 "interrupted-before-exit"):
+                                 "interrupted-before-exit", "timeout-no-state"):
                     early_stop.assert_called_once()
                     self.assertTrue(observed[0]["stop"]["confirmed"])
                     stop.assert_not_called()
