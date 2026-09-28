@@ -38,6 +38,10 @@ use std::{
 };
 
 #[cfg(any(target_os = "linux", test))]
+#[allow(dead_code)] // Staged internal probe; not yet part of the restore lock lifetime.
+mod target_binding;
+
+#[cfg(any(target_os = "linux", test))]
 #[derive(Debug, Default)]
 struct RestoreCatalogCounts {
     relations: i64,
