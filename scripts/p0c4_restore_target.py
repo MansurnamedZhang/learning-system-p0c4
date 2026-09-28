@@ -108,7 +108,10 @@ def compose_document(identity, subnet, target, initdb):
                             "POSTGRES_PASSWORD_FILE": "/run/secrets/postgres_password",
                             "C4_TARGET_DATABASE": identity["database"]},
             "secrets": ["postgres_password", "admin_password"],
-            "volumes": [identity["volume"] + ":/var/lib/postgresql",
+            "volumes": [{"type": "volume",
+                         "source": identity["volume"],
+                         "target": "/var/lib/postgresql",
+                         "volume": {"nocopy": True}},
                         str(initdb) + ":/docker-entrypoint-initdb.d/10-restore.sh:ro"],
             "networks": ["test"],
             # Entry point's temporary initdb server listens on Unix socket

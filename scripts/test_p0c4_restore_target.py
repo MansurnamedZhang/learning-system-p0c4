@@ -97,9 +97,31 @@ class RestoreTargetGates(unittest.TestCase):
         self.assertIn(identity["database"], pg["healthcheck"]["test"][1])
         self.assertEqual(doc["networks"]["test"]["ipam"]["config"][0]["subnet"], SUBNET)
         self.assertTrue(doc["networks"]["test"]["internal"])
-        self.assertEqual(pg["volumes"][0], identity["volume"] + ":/var/lib/postgresql")
+        self.assertEqual(pg["volumes"][0], {
+            "type": "volume", "source": identity["volume"],
+            "target": "/var/lib/postgresql", "volume": {"nocopy": True}})
         self.assertNotIn("runtime", str(doc))
         self.assertNotIn("worker", str(doc))
+
+    def test_new_pg_volume_disables_image_copy_up_without_changing_other_mounts(self):
+        identity = identity_for(ID)
+        target = Path("/trusted/new")
+        initdb = Path("/reviewed/initdb.sh")
+        doc = compose_document(identity, SUBNET, target, initdb)
+        pg = doc["services"]["pg"]
+        self.assertEqual(pg["volumes"][0], {
+            "type": "volume",
+            "source": identity["volume"],
+            "target": "/var/lib/postgresql",
+            "volume": {"nocopy": True},
+        })
+        self.assertEqual(pg["volumes"][1],
+                         str(initdb) + ":/docker-entrypoint-initdb.d/10-restore.sh:ro")
+        self.assertEqual(pg["secrets"], ["postgres_password", "admin_password"])
+        self.assertEqual(doc["secrets"]["postgres_password"]["file"],
+                         str(target / "secrets" / "postgres_password"))
+        self.assertEqual(doc["secrets"]["admin_password"]["file"],
+                         str(target / "secrets" / "admin_password"))
 
     def test_created_identity_requires_exact_labels_ids_mount_and_no_ports(self):
         identity = identity_for(ID)
