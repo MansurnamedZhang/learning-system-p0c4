@@ -17,7 +17,7 @@
 | Rust 格式基线 | 已通过 | 本地 `cargo fmt --all -- --check`，2026-09-28，退出码 0 |
 | C4 Task 1 清单/契约 | Linux PG18 专项通过；C4 全链未验收 | `691fd4d` 静态复审无阻断；ws3 的隔离 runner 返回 `TASK1_PG18_PASSED_NOT_C4_ACCEPTANCE`，按固定测试计数验证 9/2/1、格式、严格 Clippy 与新空库真实 PG18 专项；前两批失败证据保留 |
 | C4 Task 2 安全复制/封存 | Linux 专项通过；C4 全链未验收 | `431e002`；ws3 的封存集成 5/5、库内故障 5/5（含 SIGKILL）、格式、严格 Clippy、工作区编译均退出 0，命令身份与源码哈希已核；内核级真实 fsync 错误未注入，使用同步边界故障钩子 |
-| C4 Task 3 写闸/dump/保护/完成收据 | Linux 隔离候选门通过；原始结果审计中 | `c344a1e` 的三项目 runner 返回 `TASK3_CANDIDATE_GATES_PASSED_NOT_PRODUCTION`；全链仍未验收 |
+| C4 Task 3 写闸/dump/保护/完成收据 | 源端与单机传输候选门分别通过；独立完成收据未验收 | `c344a1e` 源端三项目 runner 返回候选通过；`85fd4df` 单机传输七门与 13 项专项通过；无独立目标与生产 Complete |
 | C4 Task 4 干净恢复 | 只读预检切片经定向复审；整体未验收 | `4e1cb54` 后续以 `6495251`、`56907df`、`aef6d43` 收紧对象、路径、出生证明与 public ACL；签发器、真实卷核验、Linux/PG 和实际恢复未完成 |
 | C4 Task 5 全链与失败注入 | 未开始 | 四套旧版升级、工作区回归、整关验收 |
 
@@ -57,6 +57,7 @@
 - Linux 单机传输专项脚本提交 `40121b0`、容器清理隔离修订 `8a99735`，独立静态复审通过。用户逐包授权并上传源码包 `task3-transfer-default-8a99735.zip`；服务端 SHA-256 与授权值 `8457be083689f3d3a947348e461f416d4b3300d688673a638275b35d841fc52c` 一致。该包 3,493,704 字节，含 371 个 Git 文件，内嵌清单 SHA-256 `3a0f14d45ac51a55b1e0fd7b5a833dbe064a2e7b801da6a53e473da08d7ce03f`。独立审查者从 Git blob 重新打包与候选 ZIP 逐字节相同；根任务本地核对 ZIP 内新引导脚本哈希 `51a47bc1e793423c104026e31183ff9b352cce559fd74b5e6ff424b2dd32934b`、runner 哈希 `84c84d5a285ecbf469f864b510031fb51794b7100f8d7cf28d5d821c38633299`，新旧脚本测试分别 6/6 与 5/5。设计为无网络/无 PG 凭据的独立容器，默认构建不得产生 `CompleteBackup`。
 - 服务器单机隔离批次 `transfer-8457be083689-6bce5634-67cd-42ec-a2b2-de74be4e28b4` 返回 `FAILED`，结果 SHA-256 `a06afe48106f5e39c7d790868a4bfb91c4ed7e7d2e79119e937d5bd21b38892e`；`result.json` 显示格式、严格 Clippy、工作区编译及四组专项测试全部退出 0（7+1+2+3 项），`failure=null`、`source_unchanged=true`，但七个容器清理 inspect 均被记为 `inspect-failed`。根任务只读复现 Docker 对已由 `--rm` 清除的容器输出小写 `error: no such object: ...`，而 runner 只匹配大写 `No such`；只读 `docker ps` 查询确认该项目标签无遗留容器。此轮仍按 `FAILED` 保留，清理误判修复及新批次完整重测待办，不把专项测试通过写成候选门通过。
 - `4bbf16f` 以精确容器名识别 Docker 的大小写不同“不存在”错误，其他 inspect 故障继续失败；新增回归先复现旧误报，修复后 7 项脚本测试通过，独立静态复审通过。旧 `8457be08…` 包仍对应旧代码，不可在同批次重跑；须从新提交制备源码包、逐包授权并使用全新隔离批次复测。
+- 新源码包 `task3-transfer-cleanup-fixed-85fd4df.zip` 来自提交 `85fd4dfb0dc17c5807081ed124d5c0912da00ec4`，大小 3,540,012 字节、373 个 Git 文件、SHA-256 `1e116c6c465c023db1c9efa4254c9d082197081d579bf7c7bebd9bbf2161e1f7`，清单 SHA-256 `a8988761e790a32a48b45b165dd9a4a305b41a314019855109e0cd5db32151fa`。独立复审者从提交重打包并逐字节比对通过；用户逐包授权后，根任务上传并核验最终服务端 ZIP 哈希与授权值一致，暂存上传文件已无。用户本机 sudo 执行新批次 `c22a448f-7f67-4fc1-a497-c733495759a3`；末行 JSON 和 root 私有 `result.json` 一致报告 `SINGLE_HOST_TRANSFER_GATES_PASSED_NO_COMPLETE`，结果 SHA-256 `9c3ab08f01b67c44159687550475bf17c147d3f3926c00fa2db58bf079d16152`。七门格式、严格 Clippy、工作区编译、Linux 封存 7 项、中断 1 项、默认 Complete 禁用 2 项和见证契约 3 项均退出 0；`failure=null`、`source_unchanged=true`、`cleanup.errors=[]`、`cleanup.remaining=[]`。根任务另以只读 Docker 标签查询确认无遗留容器。此单机结果不证明独立故障域，也不产生 `CompleteBackup`。
 
 ## Task 4 本地策略切片
 
