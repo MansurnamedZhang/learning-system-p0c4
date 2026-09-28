@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Root-only fresh PG18 restore-target provisioning; result stays quarantined.
 
-This creates no birth attestation, CompleteBackup, restored rows, or service
-admission. The local Docker daemon and its operators are trusted. Run only
-after reviewing the source, from a root-owned path on an isolated Linux host.
+The default entrypoint creates no birth attestation, CompleteBackup, restored
+rows, or service admission. A separate opt-in entrypoint may issue a birth
+under this provisioner's creation lock. The local Docker daemon and its
+operators are trusted. Run only after reviewing the source, from a root-owned
+path on an isolated Linux host.
 """
 
 import argparse
@@ -340,7 +342,7 @@ THEN 'OK' ELSE 'REJECT' END;"""
     require(output == "OK\n", "dedicated PG initdb facts differ")
 
 
-def provision(root, batch_id, subnet, initdb):
+def provision(root, batch_id, subnet, initdb, *, _birth_issuer=None):
     identity = identity_for(batch_id)
     _trusted_initdb(initdb)
     with _locked_root(root):  # Held before first Docker call through quarantine.
@@ -380,6 +382,11 @@ def provision(root, batch_id, subnet, initdb):
                           "project": identity["project"], "database": identity["database"],
                           "network": identity["network"], "subnet": subnet, **ids}
                 _private_write(target / "state.json", json.dumps(status, sort_keys=True).encode())
+                if _birth_issuer is not None:
+                    # The opt-in issuer runs before releasing the creation lock.
+                    # Its durable birth publication must be its final operation.
+                    status.update(_birth_issuer(root, target, identity, subnet,
+                                                before, ids, status, initdb))
             except BaseException:
                 cleanup_error = None
                 stopped = []

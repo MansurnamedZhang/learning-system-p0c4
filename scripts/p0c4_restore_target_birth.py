@@ -1,0 +1,385 @@
+#!/usr/bin/env python3
+"""Opt-in birth issuance during fresh C4 PG18 creation, under its root lock.
+
+The ordinary provisioner does not issue birth. This issuer does not issue a
+CompleteBackup, restore a package, or admit a runtime. Its digest is an input
+to a later separately reviewed build pin, never an acceptance decision.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import uuid
+
+import p0c4_restore_target as target_provisioner
+
+
+AdmissionError = target_provisioner.AdmissionError
+require = target_provisioner.require
+
+DIRTY_QUERIES = {
+    "relations": "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%'",
+    "schemas": "SELECT count(*) FROM pg_catalog.pg_namespace n WHERE n.nspname NOT IN ('pg_catalog','information_schema','public') AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%'",
+    "routines": "SELECT count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public'",
+    "types": "SELECT count(*) FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public'",
+    "extensions": "SELECT count(*) FROM pg_catalog.pg_extension WHERE extname<>'plpgsql'",
+    "event_triggers": "SELECT count(*) FROM pg_catalog.pg_event_trigger",
+    "publications": "SELECT count(*) FROM pg_catalog.pg_publication",
+    "large_objects": "SELECT count(*) FROM pg_catalog.pg_largeobject_metadata",
+    "collations": "SELECT count(*) FROM pg_catalog.pg_collation c JOIN pg_catalog.pg_namespace n ON n.oid=c.collnamespace WHERE n.nspname='public'",
+    "conversions": "SELECT count(*) FROM pg_catalog.pg_conversion c JOIN pg_catalog.pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public'",
+    "operators": "SELECT count(*) FROM pg_catalog.pg_operator o JOIN pg_catalog.pg_namespace n ON n.oid=o.oprnamespace WHERE n.nspname='public'",
+    "operator_classes": "SELECT count(*) FROM pg_catalog.pg_opclass o JOIN pg_catalog.pg_namespace n ON n.oid=o.opcnamespace WHERE n.nspname='public'",
+    "operator_families": "SELECT count(*) FROM pg_catalog.pg_opfamily o JOIN pg_catalog.pg_namespace n ON n.oid=o.opfnamespace WHERE n.nspname='public'",
+    "text_search_objects": "SELECT (SELECT count(*) FROM pg_catalog.pg_ts_config t JOIN pg_catalog.pg_namespace n ON n.oid=t.cfgnamespace WHERE n.nspname='public') + (SELECT count(*) FROM pg_catalog.pg_ts_dict t JOIN pg_catalog.pg_namespace n ON n.oid=t.dictnamespace WHERE n.nspname='public') + (SELECT count(*) FROM pg_catalog.pg_ts_parser t JOIN pg_catalog.pg_namespace n ON n.oid=t.prsnamespace WHERE n.nspname='public') + (SELECT count(*) FROM pg_catalog.pg_ts_template t JOIN pg_catalog.pg_namespace n ON n.oid=t.tmplnamespace WHERE n.nspname='public')",
+    "default_acls": "SELECT count(*) FROM pg_catalog.pg_default_acl",
+    "foreign_objects": "SELECT (SELECT count(*) FROM pg_catalog.pg_foreign_data_wrapper) + (SELECT count(*) FROM pg_catalog.pg_foreign_server)",
+    "custom_languages": "SELECT count(*) FROM pg_catalog.pg_language WHERE lanname NOT IN ('internal','c','sql','plpgsql')",
+    "custom_access_methods": "SELECT count(*) FROM pg_catalog.pg_am WHERE amname NOT IN ('heap','btree','hash','gist','gin','spgist','brin')",
+    "global_ddl": "SELECT (SELECT count(*) FROM pg_catalog.pg_transform) + (SELECT count(*) FROM pg_catalog.pg_parameter_acl) + (SELECT count(*) FROM pg_catalog.pg_subscription) + (SELECT count(*) FROM pg_catalog.pg_db_role_setting) + (SELECT count(*) FROM pg_catalog.pg_tablespace WHERE spcname NOT IN ('pg_default','pg_global')) + (SELECT count(*) FROM pg_catalog.pg_database WHERE datname NOT IN ('template0','template1','postgres',pg_catalog.current_database()))",
+}
+
+
+def _pg_sql():
+    dirty = ",".join("'%s',(%s)" % (name, query) for name, query in DIRTY_QUERIES.items())
+    return f"""SELECT pg_catalog.json_build_object(
+      'database_oid',d.oid::bigint,
+      'pg_system_identifier',pcs.system_identifier::text,
+      'cast_count',(SELECT count(*) FROM pg_catalog.pg_cast),
+      'public_schema',pg_catalog.json_build_object(
+        'owner_oid',n.nspowner::bigint,
+        'owner_name',pg_catalog.pg_get_userbyid(n.nspowner)::text,
+        'acl_is_null',n.nspacl IS NULL,
+        'acl',(SELECT COALESCE(pg_catalog.json_agg(pg_catalog.json_build_object(
+          'grantor_oid',a.grantor::bigint,'grantee_oid',a.grantee::bigint,
+          'privilege',a.privilege_type::text,'grantable',a.is_grantable)), '[]'::json)
+          FROM pg_catalog.aclexplode(COALESCE(n.nspacl,
+               pg_catalog.acldefault('n',n.nspowner))) a)),
+      'runtime_can_create_public',pg_catalog.has_schema_privilege(
+         'learning_runtime',n.oid,'CREATE'),
+      'other_sessions',(SELECT count(*) FROM pg_catalog.pg_stat_activity
+         WHERE datname=pg_catalog.current_database() AND pid<>pg_catalog.pg_backend_pid()),
+      'other_roles',(SELECT count(*) FROM pg_catalog.pg_roles
+         WHERE left(rolname,3)<>'pg_' AND rolname NOT IN
+           ('postgres','learning_admin','learning_runtime')),
+      'app_role_memberships',(SELECT count(*) FROM pg_catalog.pg_auth_members m
+         JOIN pg_catalog.pg_roles r ON r.oid=m.member
+         JOIN pg_catalog.pg_roles g ON g.oid=m.roleid
+         WHERE r.rolname IN ('learning_admin','learning_runtime')
+            OR g.rolname IN ('learning_admin','learning_runtime')),
+      'public_database_grants',(SELECT count(*) FROM pg_catalog.aclexplode(
+         COALESCE(d.datacl,pg_catalog.acldefault('d',d.datdba))) a
+         WHERE a.grantee=0),
+      'nonowner_database_grants',(SELECT count(*) FROM pg_catalog.aclexplode(
+         COALESCE(d.datacl,pg_catalog.acldefault('d',d.datdba))) a
+         WHERE a.grantee<>0 AND a.grantee<>d.datdba),
+      'runtime_can_use_database',(
+         pg_catalog.has_database_privilege('learning_runtime',d.oid,'CONNECT')
+         OR pg_catalog.has_database_privilege('learning_runtime',d.oid,'CREATE')
+         OR pg_catalog.has_database_privilege('learning_runtime',d.oid,'TEMP')),
+      'role_flags_secure',(
+         pg_catalog.pg_get_userbyid(d.datdba)='learning_admin'
+         AND EXISTS(SELECT 1 FROM pg_catalog.pg_roles a WHERE
+            a.rolname='learning_admin' AND a.rolcanlogin AND NOT a.rolsuper
+            AND NOT a.rolcreatedb AND NOT a.rolcreaterole
+            AND NOT a.rolbypassrls AND NOT a.rolreplication)
+         AND EXISTS(SELECT 1 FROM pg_catalog.pg_roles r WHERE
+            r.rolname='learning_runtime' AND NOT r.rolcanlogin
+            AND NOT r.rolsuper AND NOT r.rolcreatedb AND NOT r.rolcreaterole
+            AND NOT r.rolbypassrls AND NOT r.rolreplication)),
+      'dirty_counts',pg_catalog.json_build_object({dirty}))
+    FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs
+    JOIN pg_catalog.pg_namespace n ON n.nspname='public'
+    WHERE d.datname=pg_catalog.current_database();"""
+
+
+def probe_pg_facts(identity, container_id):
+    require(bool(target_provisioner.HEX_ID.fullmatch(container_id)),
+            "verified PG container required")
+    output = target_provisioner._docker(
+        "exec", "--user", "postgres", container_id, "psql", "-XAt",
+        "-v", "ON_ERROR_STOP=1", "--dbname", identity["database"],
+        "-c", _pg_sql())
+    require(output.endswith("\n") and len(output.splitlines()) == 1,
+            "target PG metadata shape changed")
+    try:
+        facts = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise AdmissionError("target PG metadata is not JSON") from error
+    validate_pg_facts(facts)
+    return facts
+
+
+def _positive_int(value):
+    return type(value) is int and 0 < value <= 2**64 - 1
+
+
+def validate_pg_facts(facts):
+    require(type(facts) is dict and set(facts) == {
+        "database_oid", "pg_system_identifier", "cast_count", "public_schema",
+        "runtime_can_create_public", "other_sessions", "other_roles",
+        "app_role_memberships", "public_database_grants",
+        "nonowner_database_grants", "runtime_can_use_database",
+        "role_flags_secure", "dirty_counts"},
+            "target PG fact shape differs")
+    require(_positive_int(facts["database_oid"]) and
+            _positive_int(facts["cast_count"]), "target PG identity invalid")
+    system_id = facts["pg_system_identifier"]
+    require(type(system_id) is str and re.fullmatch(r"[1-9][0-9]*", system_id) and
+            int(system_id) <= 2**64 - 1, "target PG system identifier invalid")
+    require(facts["runtime_can_create_public"] is False and
+            facts["runtime_can_use_database"] is False and
+            facts["role_flags_secure"] is True and
+            all(type(facts[key]) is int and facts[key] == 0 for key in
+                ("other_sessions", "other_roles", "app_role_memberships",
+                 "public_database_grants", "nonowner_database_grants")),
+            "target PG roles, sessions, or public CREATE differ")
+    counts = facts["dirty_counts"]
+    require(type(counts) is dict and set(counts) == set(DIRTY_QUERIES) and
+            all(type(value) is int and value == 0 for value in counts.values()),
+            "target contains non-baseline catalog objects")
+    public = facts["public_schema"]
+    require(type(public) is dict and set(public) ==
+            {"owner_oid", "owner_name", "acl_is_null", "acl"} and
+            _positive_int(public["owner_oid"]) and
+            public["owner_name"] == "pg_database_owner" and
+            public["acl_is_null"] is False and type(public["acl"]) is list,
+            "target public schema identity differs")
+    owner = public["owner_oid"]
+    expected = {(owner, owner, "CREATE", False),
+                (owner, owner, "USAGE", False),
+                (owner, 0, "USAGE", False)}
+    observed = set()
+    for entry in public["acl"]:
+        require(type(entry) is dict and set(entry) ==
+                {"grantor_oid", "grantee_oid", "privilege", "grantable"} and
+                _positive_int(entry["grantor_oid"]) and
+                type(entry["grantee_oid"]) is int and
+                0 <= entry["grantee_oid"] <= 2**64 - 1 and
+                type(entry["privilege"]) is str and
+                type(entry["grantable"]) is bool, "target schema ACL shape differs")
+        observed.add((entry["grantor_oid"], entry["grantee_oid"],
+                      entry["privilege"], entry["grantable"]))
+    require(len(public["acl"]) == len(expected) and observed == expected,
+            "target public schema ACL differs from fresh bootstrap")
+
+
+def canonical_birth(identity, facts, control_id, asset_id, nonce):
+    validate_pg_facts(facts)
+    require(identity == target_provisioner.identity_for(
+        identity["database"].removeprefix("learning_restore_c4_")),
+        "target birth identity differs")
+    require(all(_positive_int(item) for item in (*control_id, *asset_id)),
+            "private root identity invalid")
+    parsed = uuid.UUID(nonce)
+    require(parsed.version == 4 and str(parsed) == nonce, "birth nonce invalid")
+    public = facts["public_schema"]
+    acl = [{"grantor_oid": entry["grantor_oid"],
+            "grantee_oid": entry["grantee_oid"],
+            "privilege": entry["privilege"], "grantable": entry["grantable"]}
+           for entry in sorted(public["acl"], key=lambda row: (
+               row["grantor_oid"], row["grantee_oid"], row["privilege"],
+               row["grantable"]))]
+    birth = {
+        "format_version": 1,
+        "project_name": identity["project"],
+        "pg_volume_name": identity["volume"],
+        "database_name": identity["database"],
+        "database_oid": facts["database_oid"],
+        "pg_system_identifier": facts["pg_system_identifier"],
+        "control_dev": control_id[0], "control_ino": control_id[1],
+        "asset_dev": asset_id[0], "asset_ino": asset_id[1],
+        "creation_nonce": nonce,
+        "template_database": "template0",
+        "baseline_cast_count": facts["cast_count"],
+        "public_schema": {
+            "owner_oid": public["owner_oid"],
+            "owner_name": public["owner_name"],
+            "acl_is_null": public["acl_is_null"],
+            "acl": acl,
+        },
+    }
+    payload = json.dumps(birth, ensure_ascii=False,
+                         separators=(",", ":")).encode("utf-8")
+    require(len(payload) <= 4096, "birth attestation exceeds verifier limit")
+    return payload
+
+
+def verify_birth_docker(identity, subnet, before, after, original_ids,
+                        target, initdb):
+    ids = target_provisioner.verify_created(identity, subnet, before, after)
+    require(ids == original_ids, "Docker immutable object changed before birth")
+    volume = next(v for v in after["volumes"] if v.get("Name") == identity["volume"])
+    require(volume.get("Driver") == "local" and volume.get("Scope") == "local" and
+            volume.get("Options") in (None, {}), "PG volume driver or options differ")
+    pg = next(c for c in after["containers"] if c.get("Id") == ids["container_id"])
+    expected = {
+        "/var/lib/postgresql": ("volume", ids["volume_mountpoint"], True),
+        "/docker-entrypoint-initdb.d/10-restore.sh": ("bind", str(initdb), False),
+        "/run/secrets/postgres_password": (
+            "bind", str(target / "secrets" / "postgres_password"), False),
+        "/run/secrets/admin_password": (
+            "bind", str(target / "secrets" / "admin_password"), False),
+    }
+    mounts = pg.get("Mounts") or []
+    require(len(mounts) == len(expected) and
+            {m.get("Destination") for m in mounts} == set(expected),
+            "PG container has an unexpected mount")
+    for mount in mounts:
+        kind, source, writable = expected[mount["Destination"]]
+        require((mount.get("Type"), mount.get("Source"), mount.get("RW")) ==
+                (kind, source, writable), "PG mount identity differs")
+    return ids
+
+
+def _trusted_volume_mount(path):
+    mount = Path(path)
+    require(mount.is_absolute(), "PG volume mount path is not absolute")
+    for ancestor in reversed((mount, *mount.parents)):
+        meta = os.lstat(ancestor)
+        require(stat.S_ISDIR(meta.st_mode) and not meta.st_mode & 0o022,
+                "PG volume mount has an unsafe ancestor")
+        if ancestor != mount:
+            require(meta.st_uid == 0, "PG volume ancestor is not root-owned")
+    meta = os.lstat(mount)
+    require(meta.st_dev > 0 and meta.st_ino > 0, "PG volume identity unavailable")
+    return meta.st_dev, meta.st_ino
+
+
+def _new_private_root(path):
+    require(not os.path.lexists(path), "private restore root already exists")
+    path.mkdir(mode=0o700)
+    target_provisioner._sync_directory(path.parent)
+    target_provisioner._trusted_root(path)
+    require(not any(path.iterdir()), "new private restore root is not empty")
+    meta = os.lstat(path)
+    return meta.st_dev, meta.st_ino
+
+
+def _verify_birth_file(path):
+    meta = os.lstat(path)
+    require(stat.S_ISREG(meta.st_mode) and meta.st_uid == 0 and
+            stat.S_IMODE(meta.st_mode) == 0o600 and meta.st_nlink == 1,
+            "published birth permissions differ")
+
+
+def _publish_birth(control, name, payload, nonce):
+    final = control / name
+    temp = control / ("." + name + "." + nonce + ".tmp")
+    require(not os.path.lexists(final), "target birth already exists")
+    target_provisioner._private_write(temp, payload)
+    linked = False
+    try:
+        # Hard link is atomic and fails if final exists. Rust requires nlink=1,
+        # so a crash between link and unlink remains inadmissible.
+        os.link(temp, final, follow_symlinks=False)
+        linked = True
+        os.unlink(temp)
+        target_provisioner._sync_directory(control)
+        _verify_birth_file(final)
+    except BaseException:
+        if linked:
+            try:
+                os.unlink(final)
+                target_provisioner._sync_directory(control)
+            except OSError:
+                # Caller quarantines and writes failure.json. Never report a
+                # digest on an uncertain durable publication.
+                pass
+        if os.path.lexists(temp):
+            os.unlink(temp)
+        raise
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _verify_creation_state(root, target, identity, status):
+    require(status.get("state") == "CREATED_QUARANTINED" and
+            status.get("project") == identity["project"] and
+            status.get("database") == identity["database"] and
+            status.get("volume_name") == identity["volume"] and
+            target == root / "targets" / status["batch_id"] and
+            not os.path.lexists(target / "failure.json"),
+            "target is not a fresh quarantined creation")
+    target_provisioner._trusted_root(target)
+    state_file = target / "state.json"
+    meta = os.lstat(state_file)
+    require(stat.S_ISREG(meta.st_mode) and meta.st_uid == 0 and
+            stat.S_IMODE(meta.st_mode) == 0o600 and meta.st_nlink == 1 and
+            json.loads(state_file.read_bytes()) == status,
+            "target creation record differs")
+
+
+def issue_birth(root, target, identity, subnet, before, ids, status, initdb):
+    """Called only inside provisioner's creation lock, after fresh creation."""
+    _verify_creation_state(root, target, identity, status)
+    roots = [target / name for name in ("destination", "control", "assets")]
+    require(all(not os.path.lexists(path) for path in roots),
+            "restore roots must be new and disjoint")
+    after = target_provisioner.snapshot()
+    after["images"] = target_provisioner._inspect("image", [identity["image"]])
+    verify_birth_docker(identity, subnet, before, after, ids, target, initdb)
+    mount_dev, mount_ino = _trusted_volume_mount(ids["volume_mountpoint"])
+    target_provisioner.probe_initdb(identity, ids["container_id"])
+    facts = probe_pg_facts(identity, ids["container_id"])
+    root_ids = [_new_private_root(path) for path in roots]
+    destination, control, assets = roots
+    require(not any(destination.iterdir()) and not any(control.iterdir()) and
+            not any(assets.iterdir()), "new restore roots are not empty")
+    nonce = str(uuid.uuid4())
+    payload = canonical_birth(identity, facts, root_ids[1], root_ids[2], nonce)
+    evidence = {
+        "state": "BIRTH_SOURCE_REINSPECTED_NOT_RESTORE_ACCEPTANCE",
+        "project": identity["project"], "batch_id": status["batch_id"],
+        "docker_daemon_id": after["daemon_id"],
+        "container_id": ids["container_id"],
+        "network_id": ids["network_id"],
+        "volume_name": ids["volume_name"],
+        "volume_mountpoint": ids["volume_mountpoint"],
+        "volume_mount_dev": mount_dev, "volume_mount_ino": mount_ino,
+        "image_id": after["images"][0]["Id"],
+        "destination_dev": root_ids[0][0], "destination_ino": root_ids[0][1],
+        "control_dev": root_ids[1][0], "control_ino": root_ids[1][1],
+        "asset_dev": root_ids[2][0], "asset_ino": root_ids[2][1],
+        "birth_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    target_provisioner._private_write(
+        target / "birth-evidence.json",
+        json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode())
+    name = identity["database"] + ".birth.json"
+    digest = _publish_birth(control, name, payload, nonce)
+    return {"birth_sha256": digest, "birth_path": str(control / name),
+            "destination_root": str(destination), "control_root": str(control),
+            "asset_root": str(assets)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--batch-id", required=True)
+    parser.add_argument("--subnet", required=True)
+    parser.add_argument("--initdb", type=Path, required=True)
+    args = parser.parse_args()
+    try:
+        result = target_provisioner.provision(
+            args.root, args.batch_id, args.subnet, args.initdb,
+            _birth_issuer=issue_birth)
+    except (AdmissionError, OSError, ValueError, subprocess.SubprocessError):
+        print("BIRTH_NOT_ISSUED_TARGET_QUARANTINED_OR_ADMISSION_REJECTED", flush=True)
+        return 1
+    print(json.dumps({"state": "BIRTH_ISSUED_NOT_RESTORE_ACCEPTANCE",
+                      "batch_id": result["batch_id"],
+                      "birth_sha256": result["birth_sha256"],
+                      "birth_path": result["birth_path"],
+                      "destination_root": result["destination_root"],
+                      "control_root": result["control_root"],
+                      "asset_root": result["asset_root"]}, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

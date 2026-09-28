@@ -754,6 +754,36 @@ mod tests {
         assert!(parse_pinned_birth(&canonical, &"0".repeat(64)).is_err());
     }
 
+    #[test]
+    fn python_issued_birth_fixture_obeys_rust_field_order_and_live_contract() {
+        let bytes = include_bytes!("../tests/fixtures/c4_birth_python.json");
+        let digest = format!("{:x}", sha2::Sha256::digest(bytes));
+        let birth = parse_pinned_birth(bytes, &digest).unwrap();
+        let database = "learning_restore_c4_550e8400-e29b-41d4-a716-446655440000";
+        let live = ObservedTargetBirth {
+            database_oid: 16385,
+            pg_system_identifier: "7361082129910479001".into(),
+            control_dev: 42,
+            control_ino: 100,
+            asset_dev: 43,
+            asset_ino: 200,
+            cast_count: 203,
+            public_schema: birth.public_schema.clone(),
+            runtime_can_create_public: false,
+        };
+        birth.validate(database, &live).unwrap();
+        let mut newline = bytes.to_vec();
+        newline.push(b'\n');
+        let newline_digest = format!("{:x}", sha2::Sha256::digest(&newline));
+        assert!(parse_pinned_birth(&newline, &newline_digest).is_err());
+        let reordered =
+            serde_json::to_vec(&serde_json::from_slice::<serde_json::Value>(bytes).unwrap())
+                .unwrap();
+        assert_ne!(reordered, bytes);
+        let reordered_digest = format!("{:x}", sha2::Sha256::digest(&reordered));
+        assert!(parse_pinned_birth(&reordered, &reordered_digest).is_err());
+    }
+
     fn sample_public_schema() -> PublicSchemaState {
         PublicSchemaState {
             owner_oid: 6171,
