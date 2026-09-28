@@ -634,6 +634,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "learning-backup"
+version = "0.1.0"
+dependencies = [
+ "learning-db",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "learning-core"
 version = "0.1.0"
 dependencies = [
