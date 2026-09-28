@@ -11,7 +11,7 @@ import uuid
 import zipfile
 
 from p0c4_task3_transfer_acceptance import (
-    GATES, assert_test_output, private_dir, redact, run_gate, source_hashes,
+    GATES, assert_test_output, cleanup_project, private_dir, redact, run_gate, source_hashes,
     verify_archive,
 )
 
@@ -105,6 +105,24 @@ class TransferAcceptanceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 source_hashes(root, manifest)
         self.assertNotIn(b"secret-value", redact(b"password=secret-value"))
+
+    def test_cleanup_never_removes_same_name_without_batch_label(self):
+        project = "learning-system-p0c4-task3-transfer-abcdef123456"
+        commands = []
+
+        def fake_run(command, **_kwargs):
+            commands.append(command)
+            if command[1] == "inspect":
+                facts = {"Id": "a" * 64, "Name": "/" + command[-1],
+                         "Config": {"Labels": {"com.knowweave.acceptance.project": "another-project"}}}
+                return subprocess.CompletedProcess(command, 0, json.dumps(facts).encode(), b"")
+            raise AssertionError("foreign container must not be removed")
+
+        with patch("p0c4_task3_transfer_acceptance.subprocess.run", side_effect=fake_run), \
+                patch("p0c4_task3_transfer_acceptance.subprocess.check_output", return_value=b""):
+            cleanup = cleanup_project(project)
+        self.assertEqual(len(cleanup["errors"]), len(GATES))
+        self.assertFalse(any(command[1] == "rm" for command in commands))
 
 
 if __name__ == "__main__":

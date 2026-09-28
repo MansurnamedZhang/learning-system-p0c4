@@ -236,9 +236,29 @@ def cleanup_project(project):
     names = [f"{project}-{label}" for label, _, _ in GATES]
     errors = []
     for name in names:
-        result = subprocess.run(["/usr/bin/docker", "rm", "-f", name], capture_output=True)
-        if result.returncode != 0 and b"No such container" not in result.stderr:
-            errors.append(name)
+        inspection = subprocess.run(
+            ["/usr/bin/docker", "inspect", "--format", "{{json .}}", name],
+            capture_output=True)
+        if inspection.returncode != 0:
+            if b"No such" not in inspection.stderr:
+                errors.append(name + ":inspect-failed")
+            continue
+        try:
+            facts = json.loads(inspection.stdout)
+            identity = facts["Id"]
+            matching = (facts.get("Name") == "/" + name
+                        and ((facts.get("Config") or {}).get("Labels") or {}).get(
+                            "com.knowweave.acceptance.project") == project
+                        and re.fullmatch(r"[0-9a-f]{64}", identity) is not None)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            matching = False
+        if not matching:
+            errors.append(name + ":foreign-label-not-removed")
+            continue
+        # Remove the inspected immutable ID, never a name that may be reused.
+        result = subprocess.run(["/usr/bin/docker", "rm", "-f", identity], capture_output=True)
+        if result.returncode != 0:
+            errors.append(name + ":remove-failed")
     remaining = subprocess.check_output(["/usr/bin/docker", "ps", "-aq", "--filter",
                                          f"label=com.knowweave.acceptance.project={project}"])
     if remaining.strip():
