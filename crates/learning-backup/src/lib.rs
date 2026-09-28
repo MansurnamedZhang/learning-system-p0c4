@@ -4,6 +4,12 @@ mod catalog;
 pub use catalog::AdminAssetCatalog;
 mod sealed;
 pub use sealed::{SealedBackup, seal_backup, verify_sealed};
+mod maintenance;
+pub use maintenance::{GateInspection, GatePhase, PgDumpSpec, SourceGateJournal, SourceGateRecord};
+mod source;
+pub use source::{
+    SourceBackupConfig, SourceLocalPin, force_close_release_ready, prepare_source_backup,
+};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

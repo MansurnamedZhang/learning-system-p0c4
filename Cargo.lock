@@ -639,6 +639,7 @@ version = "0.1.0"
 dependencies = [
  "learning-assets",
  "learning-db",
+ "libc",
  "serde",
  "serde_json",
  "sha2",

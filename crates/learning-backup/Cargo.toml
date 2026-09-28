@@ -12,7 +12,8 @@ thiserror.workspace = true
 uuid.workspace = true
 sqlx.workspace = true
 learning-assets = { path = "../learning-assets" }
-
-[dev-dependencies]
-tokio.workspace = true
 learning-db = { path = "../learning-db" }
+tokio.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
