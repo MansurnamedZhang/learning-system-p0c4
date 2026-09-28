@@ -380,7 +380,21 @@ pub fn classify_restored_job(job: &RestoredJob) -> Result<JobRecoveryAction, Bac
         "snapshot_queued" | "snapshot_retry_wait" if snapshot && !job.lease_token_present => {
             JobRecoveryAction::AwaitExternalReconciliation
         }
-        "succeeded" | "failed" | "cancelled" if !job.lease_token_present => {
+        "succeeded" if snapshot && !job.lease_token_present => {
+            if job.external_effect == ExternalEffectFinding::AlreadyCommitted {
+                JobRecoveryAction::LeaveTerminal
+            } else {
+                JobRecoveryAction::AwaitExternalReconciliation
+            }
+        }
+        "failed" | "cancelled" if snapshot && !job.lease_token_present => {
+            if job.external_effect == ExternalEffectFinding::ConfirmedNoEffect {
+                JobRecoveryAction::LeaveTerminal
+            } else {
+                JobRecoveryAction::AwaitExternalReconciliation
+            }
+        }
+        "succeeded" | "failed" | "cancelled" if !snapshot && !job.lease_token_present => {
             JobRecoveryAction::LeaveTerminal
         }
         _ => return Err(BackupError::Invalid("invalid restored job state or lease")),

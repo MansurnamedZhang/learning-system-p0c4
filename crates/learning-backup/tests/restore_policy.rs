@@ -204,6 +204,59 @@ fn running_jobs_are_classified_for_lease_invalidation_with_retry_budget() {
 }
 
 #[test]
+fn terminal_snapshot_jobs_require_matching_durable_external_finding() {
+    let mut job = RestoredJob {
+        status: "succeeded".into(),
+        event_type: "snapshot_export_requested".into(),
+        attempt_count: 1,
+        lease_token_present: false,
+        checkpoint_present: false,
+        external_effect: ExternalEffectFinding::Unknown,
+    };
+    for finding in [
+        ExternalEffectFinding::Unknown,
+        ExternalEffectFinding::ConfirmedNoEffect,
+        ExternalEffectFinding::Conflict,
+    ] {
+        job.external_effect = finding;
+        assert_eq!(
+            classify_restored_job(&job).unwrap(),
+            JobRecoveryAction::AwaitExternalReconciliation
+        );
+    }
+    job.external_effect = ExternalEffectFinding::AlreadyCommitted;
+    assert_eq!(
+        classify_restored_job(&job).unwrap(),
+        JobRecoveryAction::LeaveTerminal
+    );
+    for status in ["failed", "cancelled"] {
+        job.status = status.into();
+        for finding in [
+            ExternalEffectFinding::Unknown,
+            ExternalEffectFinding::AlreadyCommitted,
+            ExternalEffectFinding::Conflict,
+        ] {
+            job.external_effect = finding;
+            assert_eq!(
+                classify_restored_job(&job).unwrap(),
+                JobRecoveryAction::AwaitExternalReconciliation
+            );
+        }
+        job.external_effect = ExternalEffectFinding::ConfirmedNoEffect;
+        assert_eq!(
+            classify_restored_job(&job).unwrap(),
+            JobRecoveryAction::LeaveTerminal
+        );
+    }
+    job.event_type = "asset_integrity_requested".into();
+    job.external_effect = ExternalEffectFinding::Conflict;
+    assert_eq!(
+        classify_restored_job(&job).unwrap(),
+        JobRecoveryAction::LeaveTerminal
+    );
+}
+
+#[test]
 fn restored_original_bytes_are_rehashed_and_corruption_blocks_acceptance() {
     use learning_assets::{FsAssetStore, UploadDeclaration};
     use std::fs;
