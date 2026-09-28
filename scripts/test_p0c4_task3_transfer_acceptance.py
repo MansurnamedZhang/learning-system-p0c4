@@ -124,6 +124,28 @@ class TransferAcceptanceTests(unittest.TestCase):
         self.assertEqual(len(cleanup["errors"]), len(GATES))
         self.assertFalse(any(command[1] == "rm" for command in commands))
 
+    def test_cleanup_accepts_exact_absent_container_but_keeps_other_inspect_failures(self):
+        project = "learning-system-p0c4-task3-transfer-abcdef123456"
+
+        def run_with_stderr(stderr):
+            def fake_run(command, **_kwargs):
+                if command[1] == "inspect":
+                    return subprocess.CompletedProcess(command, 1, b"", stderr + command[-1].encode())
+                raise AssertionError("absent or uninspected container must not be removed")
+
+            with patch("p0c4_task3_transfer_acceptance.subprocess.run", side_effect=fake_run), \
+                    patch("p0c4_task3_transfer_acceptance.subprocess.check_output", return_value=b""):
+                return cleanup_project(project)
+
+        absent = run_with_stderr(b"error: no such object: ")
+        self.assertEqual(absent["errors"], [])
+        self.assertEqual(absent["remaining"], [])
+        unrelated = run_with_stderr(b"permission denied inspecting ")
+        self.assertEqual(len(unrelated["errors"]), len(GATES))
+        self.assertTrue(all(error.endswith(":inspect-failed") for error in unrelated["errors"]))
+        wrong_name = run_with_stderr(b"error: no such object: other-")
+        self.assertEqual(len(wrong_name["errors"]), len(GATES))
+
 
 if __name__ == "__main__":
     unittest.main()

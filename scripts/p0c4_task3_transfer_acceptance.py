@@ -240,7 +240,14 @@ def cleanup_project(project):
             ["/usr/bin/docker", "inspect", "--format", "{{json .}}", name],
             capture_output=True)
         if inspection.returncode != 0:
-            if b"No such" not in inspection.stderr:
+            stderr = inspection.stderr.lower().strip()
+            absent = any(stderr == prefix + name.encode() for prefix in (
+                b"error: no such object: ",
+                b"error response from daemon: no such object: ",
+                b"error: no such container: ",
+                b"error response from daemon: no such container: ",
+            ))
+            if not absent:
                 errors.append(name + ":inspect-failed")
             continue
         try:
