@@ -217,15 +217,21 @@ class RuntimeGates(unittest.TestCase):
                 found, proof, stop = runner.early_failure_evidence(batch, fake, identity, ID)
                 self.assertTrue(found["container_stop_confirmed"])
                 self.assertEqual(proof["project_container_ids"], ["a" * 64])
-                self.assertTrue(stop["confirmed"])
+                self.assertTrue(stop["quarantine_confirmed"])
+                self.assertIsNone(stop["stop_command_issued"])
                 live["containers"][0]["State"]["Running"] = True
                 _, proof, stop = runner.early_failure_evidence(batch, fake, identity, ID)
                 self.assertEqual(proof["running_project_container_ids"], ["a" * 64])
-                self.assertFalse(stop["confirmed"])
+                self.assertFalse(stop["quarantine_confirmed"])
+                live["containers"] = foreign["containers"]
+                _, proof, stop = runner.early_failure_evidence(batch, fake, identity, ID)
+                self.assertEqual(proof["project_container_ids"], [])
+                self.assertTrue(stop["quarantine_confirmed"])
+                self.assertIsNone(stop["stop_command_issued"])
                 failure.unlink()
                 found, proof, stop = runner.early_failure_evidence(batch, fake, identity, ID)
                 self.assertFalse(found["present"])
-                self.assertFalse(stop["confirmed"])
+                self.assertFalse(stop["quarantine_confirmed"])
 
 
 if __name__ == "__main__":

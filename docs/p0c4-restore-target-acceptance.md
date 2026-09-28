@@ -56,5 +56,8 @@ an ID, its own quarantine path handles the early stop attempt; the runner
 reads that provisioner's private `failure.json` and records a project-only
 container snapshot, without trying to stop an unverified container. From the
 start of provisioning the target is reported as unusable even if its precise
-condition is unknown. A failed batch is never resumed; any subsequent attempt
+condition is unknown. For early failures, `quarantine_confirmed` means the
+provisioner record and live snapshot agree that no project container runs;
+`stop_command_issued` remains unknown because the record has no stop-command
+receipt. A failed batch is never resumed; any subsequent attempt
 must use a new invocation, UUID and project after review of the prior failure.

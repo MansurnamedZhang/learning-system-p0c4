@@ -343,10 +343,14 @@ def early_failure_evidence(batch, provisioner, identity, batch_id):
     except BaseException as error:
         proof = {"no_running_project_containers": None,
                  "inspection_error": type(error).__name__}
-    confirmed = (record.get("present") is True and
-                 record.get("container_stop_confirmed") is True and
-                 proof.get("no_running_project_containers") is True)
-    stop = {"confirmed": confirmed, "source": "provisioner_record_and_live_snapshot",
+    quarantined = (record.get("present") is True and
+                   record.get("container_stop_confirmed") is True and
+                   proof.get("no_running_project_containers") is True)
+    # The provisioner failure record confirms no project container remained
+    # running, but does not record whether it issued a Docker stop command.
+    stop = {"stop_command_issued": None, "quarantine_confirmed": quarantined,
+            "no_running_project_containers": proof.get("no_running_project_containers"),
+            "source": "provisioner_record_and_live_snapshot",
             "cleanup_error": record.get("cleanup_error") if record.get("present") else None}
     return record, proof, stop
 
