@@ -76,7 +76,7 @@ class DockerFake:
                 "Labels": {"com.knowweave.clone.batch": BATCH},
                 "Env": ["UNRELATED_SECRET=secret-in-inspect-env"]},
             "HostConfig": {"NetworkMode": "none", "CapDrop": ["ALL"],
-                "CapAdd": [] if self.wrong_identity else ["CHOWN"],
+                "CapAdd": [] if self.wrong_identity else ["CAP_CHOWN"],
                 "SecurityOpt": ["no-new-privileges"],
                 "Privileged": False},
             "Mounts": [{"Type": "volume", "Name": VOLUME,
@@ -152,7 +152,7 @@ class CloneSetupDiagnosticTests(unittest.TestCase):
         self.assertIn(["container", "rm", "-f", HELPER_ID], docker.calls)
         self.assertNotIn(["volume", "rm", VOLUME], docker.calls)
         self.assertEqual(result["cleanup"], "EXACT_ID_REMOVED")
-        self.assertEqual(result["observed"]["prestart"]["cap_add"], ["CHOWN"])
+        self.assertEqual(result["observed"]["prestart"]["cap_add"], ["CAP_CHOWN"])
         self.assertNotIn("secret-in-", json.dumps(result))
 
     def test_wrong_identity_is_not_started_or_blindly_removed(self):

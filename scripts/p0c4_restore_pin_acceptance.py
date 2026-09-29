@@ -387,6 +387,7 @@ def _verify_clone_helper(facts, helper_id, image, primary_id, volume,
                          passfile=None, *, batch_id, uid, gid, image_id,
                          kind):
     """Check the stopped helper before starting any copy or verification."""
+    cap_add = facts.get("HostConfig", {}).get("CapAdd")
     require(kind in ("setup", "copy", "verify") and
             _canonical_v4(batch_id) and
             type(helper_id) is str and HEX64.fullmatch(helper_id) and
@@ -403,8 +404,8 @@ def _verify_clone_helper(facts, helper_id, image, primary_id, volume,
                 ("0:0" if kind == "setup" else f"{uid}:{gid}") and
             facts.get("Config", {}).get("Entrypoint") == ["/bin/sh"] and
             facts.get("HostConfig", {}).get("CapDrop") == ["ALL"] and
-            facts.get("HostConfig", {}).get("CapAdd") ==
-                (["CHOWN"] if kind == "setup" else None) and
+            (cap_add in (["CHOWN"], ["CAP_CHOWN"]) if kind == "setup"
+             else cap_add is None) and
             facts.get("HostConfig", {}).get("SecurityOpt") ==
                 ["no-new-privileges"] and
             facts.get("HostConfig", {}).get("Privileged") is False,

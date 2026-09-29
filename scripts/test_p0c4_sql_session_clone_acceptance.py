@@ -257,6 +257,38 @@ class CloneAdmission(unittest.TestCase):
         self.assertEqual([c for c in calls if c[0] == "start"],
                          [["start", clone_id]])
 
+    def test_setup_helper_accepts_docker_cap_name_without_relaxing_cap_set(self):
+        helper_id = "f" * 64
+        image_id = "sha256:" + "1" * 64
+        image = "postgres@sha256:pin"
+        volume = "clone_pg"
+        facts = {"Id": helper_id, "Image": image_id,
+                 "Name": "/knowweave-c4-clone-" + CLONE + "-setup",
+                 "Config": {"Image": image, "User": "0:0",
+                            "Entrypoint": ["/bin/sh"],
+                            "Labels": {"com.knowweave.clone.batch": CLONE},
+                            "Env": []},
+                 "HostConfig": {"NetworkMode": "none", "CapDrop": ["ALL"],
+                                "CapAdd": ["CAP_CHOWN"],
+                                "SecurityOpt": ["no-new-privileges"],
+                                "Privileged": False},
+                 "Mounts": [{"Type": "volume", "Name": volume,
+                             "Destination": "/var/lib/postgresql", "RW": True}]}
+        args = (helper_id, image, "a" * 64, volume)
+        options = {"batch_id": CLONE, "uid": 999, "gid": 999,
+                   "image_id": image_id, "kind": "setup"}
+        for cap_add in (["CHOWN"], ["CAP_CHOWN"]):
+            with self.subTest(allowed=cap_add):
+                valid = dict(facts, HostConfig=dict(facts["HostConfig"],
+                                                    CapAdd=cap_add))
+                runner._verify_clone_helper(valid, *args, **options)
+        for cap_add in (None, [], ["CAP_CHOWN", "CAP_NET_ADMIN"],
+                        ["CHOWN", "CAP_CHOWN"]):
+            with self.subTest(rejected=cap_add), self.assertRaises(ValueError):
+                invalid = dict(facts, HostConfig=dict(facts["HostConfig"],
+                                                      CapAdd=cap_add))
+                runner._verify_clone_helper(invalid, *args, **options)
+
     def test_clone_helper_mount_contract_rejects_extra_or_wrong_volume(self):
         helper_id = "f" * 64
         clone_volume = "clone_pg"
@@ -293,6 +325,8 @@ class CloneAdmission(unittest.TestCase):
         for changed in (dict(facts, Image="sha256:" + "2" * 64),
                         dict(facts, Name="/foreign"),
                         dict(facts, Config=dict(facts["Config"], User="0:0")),
+                         dict(facts, HostConfig=dict(facts["HostConfig"],
+                                                     CapAdd=["CAP_CHOWN"])),
                         dict(facts, HostConfig=dict(facts["HostConfig"],
                                                     Privileged=True))):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
