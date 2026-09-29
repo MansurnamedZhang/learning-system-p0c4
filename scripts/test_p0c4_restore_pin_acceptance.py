@@ -167,6 +167,96 @@ class PinAcceptance(unittest.TestCase):
         self.assertIn("bound_guard", result)
         self.assertNotIn("bound_probe", result)
 
+    def test_sql_session_mode_selects_one_test_and_distinct_read_only_status(self):
+        self.args.sql_session_binding = True
+        sequence = []
+        deps = self._dependencies()
+        issuer = deps[1]._run_issuer
+        deps[1]._run_issuer = lambda *args: (sequence.append("issuer") or issuer(*args))
+        deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
+            {"confirmed": True, "volume_retained": True})
+        def preflight(*args, **kwargs):
+            self.assertEqual(kwargs, {"session": True})
+            sequence.append("preflight")
+            return {"builder_image_id": runner.BUILDER_IMAGE_ID}
+        def session(*args, **kwargs):
+            self.assertEqual(kwargs, {"session": True})
+            sequence.append("session")
+            return {"state": "SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE"}
+        with patch.object(runner, "_preflight_probe_builder", side_effect=preflight), \
+             patch.object(runner, "_run_bound_probe", side_effect=session):
+            code, result = self._run(deps)
+        self.assertEqual((code, sequence),
+                         (0, ["preflight", "issuer", "session", "stop"]))
+        self.assertEqual(result["status"], runner.SESSION_PASSED)
+        self.assertIn("sql_session_binding", result)
+        self.assertTrue(result["status"].endswith("NOT_RESTORE"))
+
+    def test_failed_sql_session_stops_only_exact_target_and_cannot_pass(self):
+        self.args.sql_session_binding = True
+        deps = self._dependencies()
+        stopped = []
+        deps[1].stop_verified_pg = lambda *args: (stopped.append(args[-1]) or
+            {"confirmed": True, "volume_retained": True})
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_run_bound_probe", side_effect=ValueError("session failed")):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.SESSION_FAILED)
+        self.assertEqual(stopped, ["e" * 64])
+
+    def test_sql_session_requires_exact_listing_and_one_marker_without_secret_env(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        name = "restore_preflight::target_binding::tests::live_read_only_sql_session_binding"
+        marker = "SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE"
+        listing = (name + ": test\n").encode()
+        with patch.object(runner, "_trusted_path"), \
+             patch.object(runner, "_compile_bound_probe",
+                          return_value=(binary, runner._file_digest(binary))), \
+             patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
+                 returncode=0, stdout=(runner.BUILDER_IMAGE_ID + "\n").encode())), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                 returncode=0, stdout=listing, stderr=b"")):
+            self.assertTrue(runner._preflight_probe_builder(
+                self.batch / "source", self.batch,
+                session=True)["host_test_listing_confirmed"])
+        with patch.object(runner, "_trusted_path"), \
+             patch.object(runner, "_compile_bound_probe",
+                          return_value=(binary, runner._file_digest(binary))), \
+             patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
+                 returncode=0, stdout=(runner.BUILDER_IMAGE_ID + "\n").encode())), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                 returncode=0, stdout=listing.replace(b"sql_session_binding", b"bound_target_guard"),
+                 stderr=b"")):
+            with self.assertRaises(ValueError):
+                runner._preflight_probe_builder(self.batch / "source", self.batch,
+                                                 session=True)
+        good = ("running 1 test\n" + marker + "\ntest " + name +
+                " ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n").encode()
+        for output, accepted in [(good, True), (good + marker.encode(), False),
+                                 (good.replace(marker.encode(), b"BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE"), False)]:
+            def execute(command, **kwargs):
+                self.assertEqual(command[1:], [name, "--exact", "--ignored", "--nocapture"])
+                self.assertEqual(set(kwargs["env"]), {
+                    "HOME", "PATH", "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT",
+                    "KNOWWEAVE_C4_PROBE_CONTROL_ROOT",
+                    "KNOWWEAVE_C4_PROBE_ASSET_ROOT",
+                    "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE"})
+                return SimpleNamespace(returncode=0, stdout=output, stderr=b"")
+            with patch.object(runner, "_compile_bound_probe",
+                              return_value=(binary, runner._file_digest(binary))), \
+                 patch.object(runner, "_run_bounded", side_effect=execute):
+                invoke = lambda: runner._run_bound_probe(
+                    self.batch / "source", self.batch,
+                    self.batch / "control" / "targets" / ID,
+                    "learning_restore_c4_" + ID, "d" * 64, session=True)
+                if accepted:
+                    self.assertEqual(invoke()["state"], marker)
+                else:
+                    with self.assertRaises(ValueError):
+                        invoke()
+
     def test_failed_guard_preflight_never_creates_pg_and_guard_failure_still_stops(self):
         self.args.bound_guard = True
         deps = self._dependencies()

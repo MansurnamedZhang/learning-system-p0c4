@@ -4,6 +4,7 @@
 use super::*;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::Value;
+use std::net::Ipv4Addr;
 
 const PINNED_IMAGE: &str = "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d";
 const PG_ID_SQL: &str = "SELECT d.oid::bigint::text || '|' || pcs.system_identifier::text FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs WHERE d.datname=pg_catalog.current_database()";
@@ -321,6 +322,54 @@ fn eq_str(value: &Value, path: &[&str], expected: &str) -> bool {
     val(value, path).and_then(Value::as_str) == Some(expected)
 }
 
+fn target_ip_from_inspects(
+    claim: &DockerClaim,
+    pg: &Value,
+    network: &Value,
+) -> Result<Ipv4Addr, BackupError> {
+    let invalid = || BackupError::Invalid("bound SQL endpoint IP differs");
+    let attached = val(pg, &["NetworkSettings", "Networks"])
+        .and_then(Value::as_object)
+        .ok_or_else(invalid)?;
+    if attached.len() != 1 {
+        return Err(invalid());
+    }
+    let target = attached.get(&claim.network_name).ok_or_else(invalid)?;
+    if !eq_str(target, &["NetworkID"], &claim.network_id) {
+        return Err(invalid());
+    }
+    let ip: Ipv4Addr = val(target, &["IPAddress"])
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?
+        .parse()
+        .map_err(|_| invalid())?;
+    let members = network
+        .get("Containers")
+        .and_then(Value::as_object)
+        .ok_or_else(invalid)?;
+    if members.len() != 1 {
+        return Err(invalid());
+    }
+    let member_ip = members
+        .get(&claim.container_id)
+        .and_then(|member| member.get("IPv4Address"))
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?;
+    let (member_addr, member_prefix) = member_ip.split_once('/').ok_or_else(invalid)?;
+    let (subnet_addr, subnet_prefix) = claim.subnet.split_once('/').ok_or_else(invalid)?;
+    let prefix: u32 = subnet_prefix.parse().map_err(|_| invalid())?;
+    let base: Ipv4Addr = subnet_addr.parse().map_err(|_| invalid())?;
+    if prefix == 0 || prefix > 30 || member_prefix != subnet_prefix || member_addr != ip.to_string()
+    {
+        return Err(invalid());
+    }
+    let mask = u32::MAX << (32 - prefix);
+    if (u32::from(ip) & mask) != u32::from(base) || ip.is_loopback() || ip.is_unspecified() {
+        return Err(invalid());
+    }
+    Ok(ip)
+}
+
 fn validate_docker(
     claim: &DockerClaim,
     pg: &Value,
@@ -587,7 +636,7 @@ mod linux {
         Ok(file)
     }
 
-    fn docker(args: &[String]) -> Result<String, BackupError> {
+    pub(super) fn docker(args: &[String]) -> Result<String, BackupError> {
         for path in ["/usr", "/usr/bin", "/usr/bin/docker"] {
             let meta = std::fs::symlink_metadata(path)?;
             if meta.uid() != 0
@@ -623,6 +672,45 @@ mod linux {
             (SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname NOT IN ('pg_catalog','information_schema','public') \
              AND nspname NOT LIKE 'pg_toast%' AND nspname NOT LIKE 'pg_temp%')::text".into();
         assert_eq!(docker(&args).unwrap(), "0|0|0\n");
+    }
+
+    #[cfg(test)]
+    pub(super) fn read_admin_password(target: &Path) -> Result<String, BackupError> {
+        let secrets = BackupDir::open_trusted_private_root(&target.join("secrets"))?;
+        let mut names = secrets.list()?;
+        names.sort();
+        if names != ["admin_password", "postgres_password"] {
+            return Err(BackupError::Invalid("bound test secret directory differs"));
+        }
+        let mut admin = secrets.open_file("admin_password")?;
+        let postgres = secrets.open_file("postgres_password")?;
+        let meta = admin.metadata()?;
+        let peer = postgres.metadata()?;
+        if !meta.is_file()
+            || meta.nlink() != 1
+            || meta.permissions().mode() & 0o777 != 0o600
+            || meta.len() != 65
+            || peer.uid() != meta.uid()
+            || peer.gid() != meta.gid()
+            || meta.uid() == 0
+        {
+            return Err(BackupError::Invalid("bound test admin secret unsafe"));
+        }
+        let mut bytes = Vec::new();
+        admin.take(66).read_to_end(&mut bytes)?;
+        let password = String::from_utf8(bytes)
+            .map_err(|_| BackupError::Invalid("bound test admin secret invalid"))?;
+        let value = password
+            .strip_suffix('\n')
+            .ok_or(BackupError::Invalid("bound test admin secret invalid"))?;
+        if value.len() != 64
+            || !value
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            return Err(BackupError::Invalid("bound test admin secret invalid"));
+        }
+        Ok(value.to_owned())
     }
 
     fn inspect(kind: &str, id: &str) -> Result<Value, BackupError> {
@@ -732,6 +820,18 @@ mod linux {
     impl BoundTargetGuard<File, Option<File>> {
         pub(in crate::restore_preflight) fn recheck(&self) -> Result<(), BackupError> {
             self.recheck_with(observe, |claim| docker(&pg_exec_args(claim)?))
+        }
+
+        #[cfg(test)]
+        pub(in crate::restore_preflight) fn target_ip(&self) -> Result<Ipv4Addr, BackupError> {
+            let before = observe(&self.claim)?;
+            same_observation(&self.observation, &before)?;
+            let pg = inspect("container", &self.claim.container_id)?;
+            let network = inspect("network", &self.claim.network_id)?;
+            let ip = target_ip_from_inspects(&self.claim, &pg, &network)?;
+            let after = observe(&self.claim)?;
+            same_observation(&self.observation, &after)?;
+            Ok(ip)
         }
 
         pub(in crate::restore_preflight) fn verify_sql_session<L>(
@@ -1248,6 +1348,29 @@ mod tests {
         &expected == after
     }
 
+    #[cfg(target_os = "linux")]
+    fn snapshot_target_files(
+        config: &RestorePreflightConfig,
+    ) -> std::collections::BTreeMap<String, Vec<u8>> {
+        let mut files = std::collections::BTreeMap::new();
+        for (prefix, path) in [
+            ("control", &config.control_root),
+            ("destination", &config.destination_root),
+            ("assets", &config.asset_root),
+        ] {
+            for entry in std::fs::read_dir(path).unwrap() {
+                let entry = entry.unwrap();
+                let meta = std::fs::symlink_metadata(entry.path()).unwrap();
+                assert!(meta.is_file() && meta.len() <= 64 * 1024);
+                files.insert(
+                    format!("{prefix}/{}", entry.file_name().to_str().unwrap()),
+                    std::fs::read(entry.path()).unwrap(),
+                );
+            }
+        }
+        files
+    }
+
     fn probe_config_from(
         get: impl Fn(&str) -> Option<String>,
     ) -> Result<RestorePreflightConfig, BackupError> {
@@ -1306,6 +1429,28 @@ mod tests {
         );
     }
 
+    #[test]
+    fn sql_session_host_address_requires_exact_container_and_network_ip() {
+        let c = claim();
+        let mut pg = json!({"NetworkSettings":{"Networks":{
+            c.network_name.clone():{"NetworkID":c.network_id,"IPAddress":"10.251.223.5"}
+        }}});
+        let mut network = json!({"Containers":{
+            c.container_id.clone():{"IPv4Address":"10.251.223.5/24"}
+        }});
+        assert_eq!(
+            target_ip_from_inspects(&c, &pg, &network)
+                .unwrap()
+                .to_string(),
+            "10.251.223.5"
+        );
+        pg["NetworkSettings"]["Networks"][&c.network_name]["IPAddress"] = json!("10.251.223.6");
+        assert!(target_ip_from_inspects(&c, &pg, &network).is_err());
+        pg["NetworkSettings"]["Networks"][&c.network_name]["IPAddress"] = json!("10.251.223.5");
+        network["Containers"][&c.container_id]["IPv4Address"] = json!("10.251.224.5/24");
+        assert!(target_ip_from_inspects(&c, &pg, &network).is_err());
+    }
+
     #[cfg(target_os = "linux")]
     #[test]
     #[ignore = "requires a new, running, root-owned isolated PG18 target and compile-time birth digest"]
@@ -1322,28 +1467,7 @@ mod tests {
     fn live_read_only_bound_target_guard() {
         use std::os::fd::AsRawFd;
         use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-
-        fn snapshot(
-            config: &RestorePreflightConfig,
-        ) -> std::collections::BTreeMap<String, Vec<u8>> {
-            let mut files = std::collections::BTreeMap::new();
-            for (prefix, path) in [
-                ("control", &config.control_root),
-                ("destination", &config.destination_root),
-                ("assets", &config.asset_root),
-            ] {
-                for entry in std::fs::read_dir(path).unwrap() {
-                    let entry = entry.unwrap();
-                    let meta = std::fs::symlink_metadata(entry.path()).unwrap();
-                    assert!(meta.is_file() && meta.len() <= 64 * 1024);
-                    files.insert(
-                        format!("{prefix}/{}", entry.file_name().to_str().unwrap()),
-                        std::fs::read(entry.path()).unwrap(),
-                    );
-                }
-            }
-            files
-        }
+        let snapshot = snapshot_target_files;
         fn open_lock(path: &Path) -> File {
             std::fs::OpenOptions::new()
                 .read(true)
@@ -1438,6 +1562,141 @@ mod tests {
         ));
         assert!(!attempt.exists());
         println!("BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    #[ignore = "requires a NEW root-owned isolated PG18 target and compile-time birth digest"]
+    async fn live_read_only_sql_session_binding() {
+        use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
+
+        async fn same_pid(challenge: &mut LockChallenge<Transaction<'static, Postgres>>, pid: i32) {
+            let conn: &mut PgConnection = challenge.lease_mut();
+            let observed: i32 = sqlx::query_scalar("SELECT pg_catalog.pg_backend_pid()")
+                .fetch_one(conn)
+                .await
+                .expect("backend PID read failed");
+            assert_eq!(observed, pid, "SQLx changed physical session");
+        }
+
+        let config = probe_config_from(|key| std::env::var(key).ok())
+            .expect("explicit nonsecret SQL session environment required");
+        assert_eq!(unsafe { libc::geteuid() }, 0);
+        let before = snapshot_target_files(&config);
+        assert_eq!(
+            before.keys().cloned().collect::<Vec<_>>(),
+            [format!("control/{}.birth.json", config.expected_database)]
+        );
+        let target = config.control_root.parent().unwrap();
+        let lock_name = format!("{}.restore.lock", config.expected_database);
+        let attempt = config
+            .control_root
+            .join(restore_attempt_name(&config.expected_database).unwrap());
+        assert!(!attempt.exists());
+        let guard =
+            linux::acquire_for_restore(&config).expect("bound target guard acquisition failed");
+        let host_ip = guard.target_ip().expect("exact container IP not proven");
+        let password =
+            linux::read_admin_password(target).expect("root-private admin secret unavailable");
+        let options = PgConnectOptions::new()
+            .host(&host_ip.to_string())
+            .port(5432)
+            .username("learning_admin")
+            .password(&password)
+            .database(&config.expected_database)
+            .ssl_mode(PgSslMode::Disable);
+        drop(password);
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect_with(options.clone())
+            .await
+            .unwrap_or_else(|_| panic!("isolated target SQLx connection failed"));
+        // This is a live wrong-database negative on the same newly issued PG.
+        // A separate, connectable wrong endpoint remains a later batch gate.
+        let wrong_pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect_with(options.clone().database("postgres"))
+            .await
+            .unwrap_or_else(|_| panic!("isolated wrong-database connection failed"));
+        let (wrong_challenge, wrong_pid, wrong_oid) = begin_sql_session(&wrong_pool)
+            .await
+            .expect("wrong database challenge failed");
+        assert_ne!(wrong_oid, guard.claim.database_oid);
+        assert!(
+            guard
+                .verify_sql_session(wrong_challenge, wrong_pid, wrong_oid)
+                .is_err()
+        );
+        wrong_pool.close().await;
+
+        let (challenge, pid, oid) = begin_sql_session(&pool)
+            .await
+            .expect("target challenge failed");
+        let mut challenge = guard
+            .verify_sql_session(challenge, pid, oid)
+            .expect("two exact-container transaction locks absent");
+        let keys = challenge.keys();
+        same_pid(&mut challenge, pid).await;
+        let conn: &mut PgConnection = challenge.lease_mut();
+        let version: String = sqlx::query_scalar("SHOW server_version_num")
+            .fetch_one(conn)
+            .await
+            .expect("PG version query failed");
+        assert_eq!(version.parse::<u32>().unwrap() / 10_000, 18);
+        same_pid(&mut challenge, pid).await;
+        let assets = BackupDir::open_trusted_private_root(&config.asset_root).unwrap();
+        let facts = target_facts(challenge.lease_mut(), assets.list().unwrap().len())
+            .await
+            .expect("read-only target facts failed");
+        facts.validate().expect("target is not clean");
+        same_pid(&mut challenge, pid).await;
+        let control = BackupDir::open_trusted_private_root(&config.control_root).unwrap();
+        verify_target_birth(challenge.lease_mut(), &config, &control, &assets)
+            .await
+            .expect("read-only target birth check failed");
+        same_pid(&mut challenge, pid).await;
+        let challenge = guard
+            .verify_sql_session(challenge, pid, oid)
+            .expect("exact-container locks changed after queries");
+        linux::assert_guard_pg_empty(&guard.claim);
+        assert!(guard_files_unchanged(
+            &before,
+            &snapshot_target_files(&config),
+            &format!("control/{lock_name}")
+        ));
+        assert!(!attempt.exists());
+
+        drop(challenge);
+        let args = challenge_exec_args(&guard.claim, keys).unwrap();
+        let mut released = false;
+        for _ in 0..100 {
+            if linux::docker(&args)
+                .expect("independent lock observation failed")
+                .is_empty()
+            {
+                released = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        assert!(released, "transaction locks remained after Drop");
+        assert!(
+            guard
+                .verify_sql_session(LockChallenge::new(keys, ()), pid, oid)
+                .is_err()
+        );
+        guard
+            .recheck()
+            .expect("target changed before final snapshot");
+        drop(guard);
+        pool.close().await;
+        assert!(guard_files_unchanged(
+            &before,
+            &snapshot_target_files(&config),
+            &format!("control/{lock_name}")
+        ));
+        assert!(!attempt.exists());
+        println!("SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE");
     }
 
     const ID: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";

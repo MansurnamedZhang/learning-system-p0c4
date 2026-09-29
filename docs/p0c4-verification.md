@@ -94,6 +94,12 @@
 
 ## 设计裁定
 
+### SQL session binding Task 3a（2026-09-29，本地待现场）
+
+- 新 `--sql-session-binding` 只读模式复用全新 UUIDv4 项目、未占用子网、PG18 卷、固定离线 builder、出生哈希与精确 ID 停机。Linux 忽略测试从目标精确容器 inspect 与其唯一网络成员提取一致 IPv4，读取 root 私有目标的 admin 密码文件，以 SQLx 单事务取得两把临时 advisory locks，并由精确容器本地 socket 独立观察前后锁、PID、数据库 OID；对同一新 PG 的错误 `postgres` 数据库做真实连接负例，Drop 后再次独立观察锁释放。该路径不调用 `preflight_restore`、`restore_database` 或 `pg_restore`，不创建目标恢复尝试标记或用户数据。
+- TDD RED：Python 新模式两项测试分别错误走旧 pin 成功路径；Rust IP 单测因函数缺失编译失败。GREEN：Python runner/邻近回归 57/57、Rust `learning-backup --lib` 29/29、`cargo fmt --all -- --check`、严格 workspace Clippy、`git diff --check` 均通过。本机仅有 Windows target，无 Docker 和 Linux PG18，Linux 忽略测试及 root 私有密码路径尚未编译或现场运行；这些本地结果不能称作 SQL 会话现场通过。
+- 成功状态被限定为 `FOCUSED_SQL_SESSION_GATES_PASSED_NOT_FULL_ENDPOINT_ACCEPTANCE_READ_ONLY_NOT_RESTORE`。单目标错误数据库负例不能代替第二个可连接 PG 端点或同 system identifier 克隆；独立 Task 3b 需新方案、独立审查、新包授权与全新双目标批次。Task 3a 未上传、未运行服务器验收，C4 写入与恢复权限仍关闭。流程见 [聚焦只读验收说明](p0c4-sql-session-binding-acceptance.md)。
+
 - Ruling: C4 走独立整库备份路径，不复用 C3 授权阅读包 — C3 排除了用户、空间、授权、作业等权威行 — 若误用会产生缺失恢复点。
 - Ruling: 本轮隔离维护窗先停止 runtime/Worker、拒绝 runtime 新连接并排空旧事务；在线只停写能力留给 P1 接入后另验 — 现有写入口分散，单入口闸无法证明完整 — 代价是隔离备份期间阅读暂停。
 - Ruling: Task 2 只交付 `sealed` 复制原语，Task 3 源端一致性/保留保护及目标校验后才可产生 `complete` — 先封存字节并不代表数据库与资产属于同一恢复点 — 代价是任务之间必须保持状态类型隔离。
