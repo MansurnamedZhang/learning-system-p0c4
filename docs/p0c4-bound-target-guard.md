@@ -2,7 +2,7 @@
 
 This opt-in gate exercises the private `BoundTargetGuard` on a **new** isolated PG18 target. It extends the reviewed pin-only acceptance path with `--bound-guard`, mutually exclusive with `--bound-probe`. The existing probe still does not create a target lock. The guard gate deliberately creates and retains one empty target lock file; it does not create a restore-attempt marker, import a dump, read a CompleteBackup, create a deployment build pin, or admit a service.
 
-Use the source packaging, root-private incoming directory, exact runner/source/manifest hashes, pinned PG18 image, unused UUIDv4 and nonoverlapping subnet requirements in [pin acceptance](p0c4-restore-pin-acceptance.md). Never reuse any prior stopped pin, probe, guard, or birth batch. This document is preparation, not evidence of a completed live run.
+Use the source packaging, root-private incoming directory, exact runner/source/manifest hashes, pinned PG18 image, unused UUIDv4 and nonoverlapping subnet requirements in [pin acceptance](p0c4-restore-pin-acceptance.md). Never reuse any prior stopped pin, probe, guard, or birth batch. The completed single-host read-only run and its evidence are recorded in [C4 verification](p0c4-verification.md); this procedure alone is not acceptance evidence.
 
 ```sh
 printf '%s  %s\n' EXACT_RUNNER_SHA256 /var/lib/knowweave-c4/tools/p0c4_restore_pin_acceptance.py | sudo sha256sum --check || exit 1
