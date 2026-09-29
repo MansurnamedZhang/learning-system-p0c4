@@ -22,18 +22,20 @@
 
 Files: `scripts/p0c4_restore_pin_acceptance.py`, its focused tests, and a small Task 3b acceptance document.
 
-- [ ] Write runner RED tests for exact two-project resource admission, failed replication preflight, secret/passfile non-disclosure, clone volume mount restrictions, and exact-ID dual stop/retained-volume failure evidence.
-- [ ] Run the focused tests and record RED, then implement a distinct opt-in `--sql-session-clone-negative` mode. Reuse the 3a primary birth and pinned offline builder. Create the second project without starting its PG; run a pinned-image temporary helper in the primary's exact network namespace to `pg_basebackup -F plain -X stream` into the new volume, then `pg_verifybackup` and assert no standby configuration before starting the copy. Preserve the primary Docker observation throughout.
-- [ ] Use only a new-batch `postgres` secret via a root-private 0600 passfile file mount; no raw secret in argument strings, Docker inspect environment, output or evidence. Inspect and strictly admit the pinned image, exact volume/network/container IDs, mount topology and second PG18 readiness.
-- [ ] Run runner tests and syntax checks; commit. Obtain independent review before Task 2.
+- [x] Write runner RED tests for exact two-project resource admission, failed replication preflight, secret/passfile non-disclosure, clone volume mount restrictions, and exact-ID dual stop/retained-volume failure evidence.
+- [x] Run the focused tests and record RED, then implement a distinct opt-in `--sql-session-clone-negative` mode. Reuse the 3a primary birth and pinned offline builder. Create the second project without starting its PG; run a pinned-image temporary helper in the primary's exact network namespace to `pg_basebackup -F plain -X stream` into the new volume, then `pg_verifybackup` and assert no standby configuration before starting the copy. Preserve the primary Docker observation throughout.
+- [x] Use only a new-batch `postgres` secret via a root-private 0600 passfile file mount; no raw secret in argument strings, Docker inspect environment, output or evidence. Inspect and strictly admit the pinned image, exact volume/network/container IDs, mount topology and second PG18 readiness.
+- [x] Run runner tests and syntax checks; commit. Obtain independent review before Task 2.
 
 ## Task 2 — live same-identifier wrong-endpoint assertion
 
 Files: `crates/learning-backup/src/restore_preflight/target_binding.rs`, runner test selection/output gate and focused tests.
 
-- [ ] Write RED tests for matching system identifier/database OID but distinct exact container ID/IP; two locks visible on the copy but absent on the primary; incorrect acceptance or primary identity drift must fail.
-- [ ] Add one ignored Linux test that connects SQLx to the copy, proves the copy and primary share PG system identifier and database OID/name, acquires two transaction locks, and confirms the original `BoundTargetGuard::verify_sql_session` rejects that live wrong endpoint. After rollback, verify both locks disappear, the primary remains bound and empty, and neither target has an attempt marker or application data.
-- [ ] Give this test a distinct one-test/one-marker result gate and success state `SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE`; no full C4 or restore success wording. Run local tests, fmt and strict Clippy; commit and obtain independent review.
+- [x] Write RED tests for matching system identifier/database OID but distinct exact container ID/IP; two locks visible on the copy but absent on the primary; incorrect acceptance or primary identity drift must fail.
+- [x] Add one ignored Linux test that connects SQLx to the copy, proves the copy and primary share PG system identifier and database OID/name, acquires two transaction locks, and confirms the original `BoundTargetGuard::verify_sql_session` rejects that live wrong endpoint. After rollback, verify both locks disappear, the primary remains bound and empty, and neither target has an attempt marker or application data.
+- [x] Give this test a distinct one-test/one-marker result gate and success state `SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE`; no full C4 or restore success wording. Run local tests, fmt and strict Clippy; commit and obtain independent review.
+
+The checked items above mean code and local/static review are complete. The Linux-only ignored test has not been compiled or run against PostgreSQL 18; Task 3 is the separate live acceptance gate.
 
 ## Task 3 — separately authorized isolated Linux batch
 
