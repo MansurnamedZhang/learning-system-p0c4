@@ -23,28 +23,30 @@
 
 Files: `crates/learning-backup/src/restore_preflight/target_binding.rs` and focused tests in that module.
 
-- [ ] Write failing dependency-injected tests for two matching transaction-lock rows on one PID/database, missing/duplicate/foreign rows, changed Docker observation, and challenge release/failure ordering.
-- [ ] Run the focused tests and record the expected RED.
-- [ ] Add the smallest internal interface that verifies two unpredictable `i64` lock keys against a fixed `pg_locks` query through the exact container ID. Require the expected backend PID and database OID, granted exclusive transaction locks, exact output shape, and Docker identity checks before/after.
-- [ ] Run focused tests, fmt and strict Clippy; commit this isolated primitive. It grants no write authority.
-- [ ] Obtain independent task review and address findings before Task 2.
+- [x] Write failing dependency-injected tests for two matching transaction-lock rows on one PID/database, missing/duplicate/foreign rows, changed Docker observation, and challenge release/failure ordering.
+- [x] Run the focused tests and record the expected RED.
+- [x] Add the smallest internal interface that verifies two unpredictable `i64` lock keys against a fixed `pg_locks` query through the exact container ID. Require the expected backend PID and database OID, granted exclusive transaction locks, exact output shape, and Docker identity checks before/after.
+- [x] Run focused tests, fmt and strict Clippy; commit this isolated primitive. It grants no write authority.
+- [x] Obtain independent task review and address findings before Task 2.
 
 ## Task 2 — one SQLx transaction for the entire preflight
 
 Files: `crates/learning-backup/src/restore_preflight.rs`, plus Task 1's internal interface if necessary.
 
-- [ ] Write failing tests for connection/transaction lifetime, fail-closed mismatched challenge, and use of the same physical connection by all preflight queries. Keep PostgreSQL integration tests ignored until a fresh Linux batch is authorized.
-- [ ] Run the focused tests and record RED.
-- [ ] Start one `Transaction<'static, Postgres>` from the pool under the existing bound guard; acquire two transaction advisory locks and read its backend PID/database OID. Verify through Task 1's exact-container observer before any clean-target SQL and once again after all queries. Change `observed_build_and_pg`, `target_facts`, `observed_public_schema` and `verify_target_birth` to use that transaction, not `&PgPool` or a newly acquired connection. Keep the transaction in `RestorePreflight` and transfer it to `RestoreDatabaseImported`; dropping either state releases it.
-- [ ] Run focused tests, Python runner regressions, fmt, strict Clippy and available non-PG workspace checks. Do not claim a full workspace pass if the dedicated PG test environment is absent. Commit and obtain independent review.
+- [x] Write failing tests for connection/transaction lifetime, fail-closed mismatched challenge, and use of the same physical connection by all preflight queries. Keep PostgreSQL integration tests ignored until a fresh Linux batch is authorized.
+- [x] Run the focused tests and record RED.
+- [x] Start one `Transaction<'static, Postgres>` from the pool under the existing bound guard; acquire two transaction advisory locks and read its backend PID/database OID. Verify through Task 1's exact-container observer before any clean-target SQL and once again after all queries. Change `observed_build_and_pg`, `target_facts`, `observed_public_schema` and `verify_target_birth` to use that transaction, not `&PgPool` or a newly acquired connection. Keep the transaction in `RestorePreflight` and transfer it to `RestoreDatabaseImported`; dropping either state releases it.
+- [x] Run focused tests, Python runner regressions, fmt, strict Clippy and available non-PG workspace checks. Do not claim a full workspace pass if the dedicated PG test environment is absent. Commit and obtain independent review.
 
 ## Task 3 — fresh Linux/PG18 read-only acceptance
 
 Files: opt-in ignored Linux test and acceptance runner, then `docs/p0c4-verification.md` after evidence.
 
-- [ ] Add a distinct `--sql-session-binding` acceptance mode for a new isolated PG18 target. Positive evidence must show one SQLx backend PID, two matching live locks and the exact container observer; negative cases must include a same-system-identifier clone or wrong endpoint, dropped connection/transaction, released lock, changed Docker start facts and wrong database. Assert no attempt marker, dump import, asset write or user catalog object.
-- [ ] Observe RED then GREEN locally where possible; independently review the source and runner. Package only tracked Git bytes, validate ZIP/manifest/runner hashes, and request the user's separate authorization for those exact files before server upload.
-- [ ] In a fresh user-authorized server batch, verify result and evidence hashes, no pending result, exact-ID stop and retained quarantined volume. Record the scope as `READ_ONLY / NOT_RESTORE`; retain all failed evidence and never replay a batch.
+- [x] Add a distinct `--sql-session-binding` acceptance mode for a new isolated PG18 target. Positive evidence shows one SQLx backend PID, two matching live locks and the exact container observer; negative cases cover a dropped connection/transaction, released lock, changed Docker start facts and wrong database. The same-system-identifier clone and wrong-endpoint negative were completed in the separate [second-endpoint plan](2026-09-29-p0c4-second-endpoint-negative.md). Assert no attempt marker, dump import, asset write or user catalog object.
+- [x] Observe RED then GREEN locally where possible; independently review the source and runner. Package only tracked Git bytes, validate ZIP/manifest/runner hashes, and obtain the user's separate authorization for those exact files before server upload.
+- [x] In fresh user-authorized server batches, verify result and evidence hashes, no pending result, exact-ID stop and retained quarantined volumes. Record the scope as `READ_ONLY / NOT_RESTORE`; retain all failed evidence and never replay a batch.
+
+Task 3a passed on the single target `5c2b0043-eef0-4925-8853-cda7088b77c8` (`result.json` SHA-256 `e5d8cd32404a105d47b7bddd112832a6e79f8a3c54218f237701ca940ac0ed07`). The separate Task 3b live physical-clone gate passed on primary `e5ff5e73-80bf-4887-a723-63afcd7eb410` and clone `b7f1f331-dd84-4dd0-975b-f649ce664f62` (`result.json` SHA-256 `647a669d376ab1294e132ee8f97737b98c69b2fc6e8aee10b65b4c8ad573e54f`). Both are read-only, single-host, quarantined test evidence; see [C4 verification](../../p0c4-verification.md) for exact limits.
 
 ## Later boundary, outside this plan
 
