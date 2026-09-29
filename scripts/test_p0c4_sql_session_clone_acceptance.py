@@ -487,9 +487,12 @@ class CloneAdmission(unittest.TestCase):
         test_name = ("restore_preflight::target_binding::tests::"
                      "live_read_only_same_id_wrong_endpoint_negative")
         marker = runner.CLONE_PASSED
-        output = ("running 1 test\n" + marker + "\ntest " + test_name +
-                  " ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; "
-                  "0 measured; 0 filtered out;\n").encode()
+        result_line = ("test result: ok. 1 passed; 0 failed; 0 ignored; "
+                       "0 measured; 0 filtered out;\n")
+        parallel = ("running 1 test\n" + marker + "\ntest " + test_name +
+                    " ... ok\n" + result_line).encode()
+        serial = ("running 1 test\ntest " + test_name + " ... " + marker +
+                  "\nok\n" + result_line).encode()
         with tempfile.TemporaryDirectory() as directory:
             batch = Path(directory) / PRIMARY
             batch.mkdir()
@@ -513,16 +516,24 @@ class CloneAdmission(unittest.TestCase):
                     "KNOWWEAVE_C4_CLONE_SUBNET", "KNOWWEAVE_C4_PRIMARY_CONTAINER_ID"})
                 self.assertEqual(env["KNOWWEAVE_C4_CLONE_CONTAINER_ID"], "b" * 64)
                 self.assertEqual(env["KNOWWEAVE_C4_PRIMARY_CONTAINER_ID"], "a" * 64)
-                return SimpleNamespace(returncode=0, stdout=output, stderr=b"")
+                return SimpleNamespace(returncode=0, stdout=current, stderr=b"")
             args = (batch / "source", batch, target, primary, clone, "d" * 64,
                     "a" * 64, "b" * 64, "c" * 64, "10.251.229.0/24")
-            with patch.object(runner, "_compile_bound_probe",
-                              return_value=(binary, runner._file_digest(binary))), \
-                 patch.object(runner, "_run_bounded", side_effect=execute):
-                self.assertEqual(runner._run_clone_negative_probe(*args)["state"], marker)
-            for bad in (output + marker.encode(), output.replace(b"running 1 test", b"running 2 tests"),
-                        output.replace(b"test " + test_name.encode() + b" ... ok", b"test other ... ok"),
-                        output.replace(marker.encode(), b"WRONG")):
+            for current in (parallel, serial):
+                with patch.object(runner, "_compile_bound_probe",
+                                  return_value=(binary, runner._file_digest(binary))), \
+                     patch.object(runner, "_run_bounded", side_effect=execute):
+                    self.assertEqual(runner._run_clone_negative_probe(*args)["state"], marker)
+            for bad in (parallel + marker.encode(),
+                        serial + marker.encode(),
+                        parallel.replace(b"running 1 test", b"running 2 tests"),
+                        serial.replace(b"\nok\n", b"\nFAILED\n"),
+                        serial.replace(b"\nok\n", b"\nok\nok\n"),
+                        serial.replace(marker.encode(), b"FORGED_" + marker.encode()),
+                        serial.replace(b"test " + test_name.encode(), b"test other"),
+                        parallel.replace(b"test " + test_name.encode() + b" ... ok", b"test other ... ok"),
+                        parallel + result_line.encode(),
+                        parallel.replace(marker.encode(), b"WRONG")):
                 with patch.object(runner, "_compile_bound_probe",
                                   return_value=(binary, runner._file_digest(binary))), \
                      patch.object(runner, "_run_bounded", return_value=SimpleNamespace(

@@ -1002,15 +1002,29 @@ def _run_clone_negative_probe(source, batch, target, primary, clone,
         cwd=source, env=env, timeout=240)
     output = process.stdout + b"\n" + process.stderr
     marker = CLONE_PASSED.encode()
-    marker_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
-                   rb" \.\.\. )?" + marker + rb"\r?$")
+    lines = output.splitlines()
+    test_prefix = ("test " + test_name + " ... ").encode()
+    test_lines = [(index, line) for index, line in enumerate(lines) if
+                  line.startswith(b"test ") and b" ... " in line]
+    parallel = (len(test_lines) == 1 and test_lines[0][1] ==
+                test_prefix + b"ok" and lines.count(marker) == 1 and
+                lines.count(b"ok") == 0 and
+                lines.index(marker) < test_lines[0][0])
+    serial = (len(test_lines) == 1 and test_lines[0][1] ==
+              test_prefix + marker and test_lines[0][0] + 1 < len(lines) and
+              lines[test_lines[0][0] + 1] == b"ok" and
+              lines.count(b"ok") == 1)
+    result_lines = [line for line in lines if line.startswith(b"test result:")]
     require(process.returncode == 0 and
             _file_digest(binary) == binary_sha and
-            len(re.findall(marker_line, output)) == 1 and
+            (parallel or serial) and
             output.count(marker) == 1 and
-            output.splitlines().count(b"running 1 test") == 1 and
-            len(re.findall(rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output)) == 1 and
-            output.splitlines().count(("test " + test_name + " ... ok").encode()) == 1,
+            lines.count(b"running 1 test") == 1 and
+            len(result_lines) == 1 and
+            re.fullmatch(
+                rb"test result: ok\. 1 passed; 0 failed; 0 ignored; "
+                rb"\d+ measured; \d+ filtered out;(?: finished in \d+(?:\.\d+)?s)?",
+                result_lines[0]) is not None,
             "exact one-test wrong-endpoint negative absent")
     return {"state": CLONE_PASSED, "birth_sha256": birth_sha256,
             "binary_sha256": binary_sha, "builder_image_id": BUILDER_IMAGE_ID,
