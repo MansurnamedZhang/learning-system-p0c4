@@ -35,6 +35,8 @@ PASSED = "PIN_CANDIDATE_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
 FAILED = "PIN_CANDIDATE_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 BOUND_PASSED = "BOUND_TARGET_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
 BOUND_FAILED = "BOUND_TARGET_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+GUARD_PASSED = "BOUND_TARGET_GUARD_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
+GUARD_FAILED = "BOUND_TARGET_GUARD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 BUILDER_IMAGE_ID = "sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b"
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
@@ -359,7 +361,7 @@ def _compile_bound_probe(source, batch, build_name, birth_sha256):
     return binary, _file_digest(binary)
 
 
-def _preflight_probe_builder(source, batch):
+def _preflight_probe_builder(source, batch, *, guard=False):
     """Prove the pinned offline Linux toolchain is ready before PG birth."""
     _trusted_path(Path("/usr/bin/docker"), file=True)
     image = _probe_docker(["image", "inspect", BUILDER_IMAGE_ID,
@@ -375,6 +377,11 @@ def _preflight_probe_builder(source, batch):
         timeout=60)
     expected = (b"restore_preflight::target_binding::tests::"
                 b"live_read_only_bound_target_probe: test")
+    if guard:
+        expected = (b"restore_preflight::target_binding::tests::"
+                    b"live_read_only_bound_target_guard: test")
+        require(listing.stdout.splitlines().count(expected) == 1,
+                "exact Linux bound guard test absent")
     require(listing.returncode == 0 and expected in listing.stdout and
             _file_digest(binary) == placeholder_sha,
             "host cannot execute pinned builder test binary")
@@ -383,7 +390,7 @@ def _preflight_probe_builder(source, batch):
             "host_test_listing_confirmed": True}
 
 
-def _run_bound_probe(source, batch, target, database, birth_sha256):
+def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=False):
     """Rebuild with sealed birth digest, then execute on the Linux host."""
     require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
             "sealed birth digest required for bound probe")
@@ -391,6 +398,9 @@ def _run_bound_probe(source, batch, target, database, birth_sha256):
         source, batch, "probe-live-build", birth_sha256)
     test_name = ("restore_preflight::target_binding::tests::"
                  "live_read_only_bound_target_probe")
+    if guard:
+        test_name = ("restore_preflight::target_binding::tests::"
+                     "live_read_only_bound_target_guard")
     env = {"HOME": "/root", "PATH": "/usr/bin:/bin",
            "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT": str(target / "destination"),
            "KNOWWEAVE_C4_PROBE_CONTROL_ROOT": str(target / "control"),
@@ -402,11 +412,22 @@ def _run_bound_probe(source, batch, target, database, birth_sha256):
         [str(binary), test_name, "--exact", "--ignored", "--nocapture"],
         cwd=source, env=env, timeout=180)
     output = process.stdout + b"\n" + process.stderr
+    marker = ("BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE" if guard else
+              "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE")
+    if guard:
+        marker_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
+                       rb" \.\.\. )?" + marker.encode() + rb"\r?$")
+        require(len(re.findall(marker_line, output)) == 1 and
+                output.count(marker.encode()) == 1 and
+                output.splitlines().count(b"running 1 test") == 1 and
+                len(re.findall(rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output)) == 1 and
+                ("test " + test_name + " ... ").encode() in output,
+                "exact one-test bound guard success absent")
     require(_file_digest(binary) == binary_sha and process.returncode == 0 and
-            b"BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE" in output and
+            marker.encode() in output and
             b"test result: ok. 1 passed; 0 failed; 0 ignored;" in output,
             "read-only bound probe failed")
-    return {"state": "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE",
+    return {"state": marker,
             "birth_sha256": birth_sha256, "binary_sha256": binary_sha,
             "builder_image_id": BUILDER_IMAGE_ID, "exit_code": process.returncode}
 
@@ -501,7 +522,11 @@ def _run_batch(args, manifest, package, batch):
               "target_reuse_permitted": False,
               "stop": {"confirmed": False}, "failure_type": None}
     bound_probe = getattr(args, "bound_probe", False)
-    if bound_probe:
+    bound_guard = getattr(args, "bound_guard", False)
+    require(not (bound_probe and bound_guard), "bound modes are mutually exclusive")
+    if bound_guard:
+        result["status"] = GUARD_FAILED
+    elif bound_probe:
         result["status"] = BOUND_FAILED
     provisioner = acceptance = identity = initdb = before = None
     confirmed_id = None
@@ -516,10 +541,11 @@ def _run_batch(args, manifest, package, batch):
         (provisioner, acceptance, pin, prepare, initdb,
          result["source_before_sha256"]) = extract_and_load(
              manifest, package, batch)
-        if bound_probe:
+        if bound_probe or bound_guard:
             result["stage"] = "offline-builder-preflight"
-            result["probe_toolchain_preflight"] = _preflight_probe_builder(
-                source, batch)
+            options = {"guard": True} if bound_guard else {}
+            key = "guard_toolchain_preflight" if bound_guard else "probe_toolchain_preflight"
+            result[key] = _preflight_probe_builder(source, batch, **options)
             require(source_digest(source, manifest) ==
                     result["source_before_sha256"],
                     "reviewed source changed during builder preflight")
@@ -600,11 +626,12 @@ def _run_batch(args, manifest, package, batch):
         require(result["source_after_sha256"] ==
                 result["source_before_sha256"],
                 "reviewed source changed during run")
-        if bound_probe:
-            result["stage"] = "read-only-bound-probe"
-            result["bound_probe"] = _run_bound_probe(
+        if bound_probe or bound_guard:
+            result["stage"] = "read-only-bound-guard" if bound_guard else "read-only-bound-probe"
+            key = "bound_guard" if bound_guard else "bound_probe"
+            result[key] = _run_bound_probe(
                 source, batch, target, identity["database"],
-                success["birth_sha256"])
+                success["birth_sha256"], **options)
         result["stage"] = "exact-id-stop"
         result["stop"] = acceptance.stop_verified_pg(
             provisioner, identity, confirmed_id)
@@ -624,7 +651,7 @@ def _run_batch(args, manifest, package, batch):
         result["inspection_record_sha256"] = digest(inspection_bytes)
         result["inspection_record_file"] = inspection_path.name
         result["target_condition"] = "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE"
-        result["status"] = BOUND_PASSED if bound_probe else PASSED
+        result["status"] = GUARD_PASSED if bound_guard else (BOUND_PASSED if bound_probe else PASSED)
     except BaseException as error:
         result["failure_type"] = type(error).__name__
         if issuer_started and identity is not None and acceptance is not None:
@@ -655,12 +682,12 @@ def _run_batch(args, manifest, package, batch):
     _publish_result(evidence, payload)
     summary = {"status": result["status"], "result_sha256": digest(payload),
                "evidence": str(evidence), "not_restore": True}
-    if result["status"] in (PASSED, BOUND_PASSED):
+    if result["status"] in (PASSED, BOUND_PASSED, GUARD_PASSED):
         summary.update(birth_sha256=result["birth_sha256"],
                        inspection_evidence_sha256=result[
                            "inspection_evidence_sha256"])
     print(json.dumps(summary, sort_keys=True), flush=True)
-    return (0 if result["status"] in (PASSED, BOUND_PASSED) else 1), result
+    return (0 if result["status"] in (PASSED, BOUND_PASSED, GUARD_PASSED) else 1), result
 
 
 def run(args):
@@ -697,8 +724,11 @@ def main(argv=None):
     parser.add_argument("--runner-sha256", required=True)
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--subnet", required=True)
-    parser.add_argument("--bound-probe", action="store_true",
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--bound-probe", action="store_true",
                         help="opt-in pinned offline builder preflight and read-only Rust bound probe before exact PG stop")
+    modes.add_argument("--bound-guard", action="store_true",
+                       help="opt-in internal guard lock-lifetime check on a new isolated PG18 target before exact stop")
     try:
         args = parser.parse_args(argv)
     except SystemExit as error:

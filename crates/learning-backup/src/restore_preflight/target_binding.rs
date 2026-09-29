@@ -457,6 +457,19 @@ mod linux {
             .map_err(|_| BackupError::Invalid("bound Docker output invalid"))
     }
 
+    #[cfg(test)]
+    pub(super) fn assert_guard_pg_empty(claim: &DockerClaim) {
+        // Catalog SELECTs only, over the same exact-ID local socket path.
+        let mut args = pg_exec_args(claim).unwrap();
+        *args.last_mut().unwrap() = "SELECT \
+            (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace \
+             WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%')::text || '|' || \
+            (SELECT count(*) FROM pg_catalog.pg_largeobject_metadata)::text || '|' || \
+            (SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname NOT IN ('pg_catalog','information_schema','public') \
+             AND nspname NOT LIKE 'pg_toast%' AND nspname NOT LIKE 'pg_temp%')::text".into();
+        assert_eq!(docker(&args).unwrap(), "0|0|0\n");
+    }
+
     fn inspect(kind: &str, id: &str) -> Result<Value, BackupError> {
         let args = [kind.to_owned(), "inspect".into(), id.into()];
         let result: Value = serde_json::from_str(&docker(&args)?)?;
@@ -831,6 +844,46 @@ mod tests {
         );
     }
 
+    #[test]
+    fn guard_snapshot_rejects_attempt_data_writes_and_missing_or_nonempty_lock() {
+        let before = std::collections::BTreeMap::from([(
+            "control/birth.json".to_owned(),
+            b"sealed".to_vec(),
+        )]);
+        let lock = "control/test.restore.lock";
+        assert!(!guard_files_unchanged(&before, &before, lock));
+        let mut after = before.clone();
+        after.insert(lock.into(), Vec::new());
+        assert!(guard_files_unchanged(&before, &after, lock));
+        for path in [
+            "control/test.restore.attempt",
+            "destination/dump",
+            "assets/file",
+        ] {
+            let mut dirty = after.clone();
+            dirty.insert(path.into(), b"write".to_vec());
+            assert!(!guard_files_unchanged(&before, &dirty, lock));
+        }
+        after.insert(lock.into(), b"write".to_vec());
+        assert!(!guard_files_unchanged(&before, &after, lock));
+        after.insert(lock.into(), Vec::new());
+        after.insert("control/birth.json".into(), b"changed".to_vec());
+        assert!(!guard_files_unchanged(&before, &after, lock));
+    }
+
+    fn guard_files_unchanged(
+        before: &std::collections::BTreeMap<String, Vec<u8>>,
+        after: &std::collections::BTreeMap<String, Vec<u8>>,
+        lock: &str,
+    ) -> bool {
+        if before.contains_key(lock) {
+            return false;
+        }
+        let mut expected = before.clone();
+        expected.insert(lock.into(), Vec::new());
+        &expected == after
+    }
+
     fn probe_config_from(
         get: impl Fn(&str) -> Option<String>,
     ) -> Result<RestorePreflightConfig, BackupError> {
@@ -897,6 +950,130 @@ mod tests {
             .expect("explicit nonsecret bound-probe environment required");
         linux::probe_bound_target(&config).expect("bound target observation failed closed");
         println!("BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires a NEW running root-owned isolated PG18 target and compile-time birth digest"]
+    fn live_read_only_bound_target_guard() {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+
+        fn snapshot(
+            config: &RestorePreflightConfig,
+        ) -> std::collections::BTreeMap<String, Vec<u8>> {
+            let mut files = std::collections::BTreeMap::new();
+            for (prefix, path) in [
+                ("control", &config.control_root),
+                ("destination", &config.destination_root),
+                ("assets", &config.asset_root),
+            ] {
+                for entry in std::fs::read_dir(path).unwrap() {
+                    let entry = entry.unwrap();
+                    let meta = std::fs::symlink_metadata(entry.path()).unwrap();
+                    assert!(meta.is_file() && meta.len() <= 64 * 1024);
+                    files.insert(
+                        format!("{prefix}/{}", entry.file_name().to_str().unwrap()),
+                        std::fs::read(entry.path()).unwrap(),
+                    );
+                }
+            }
+            files
+        }
+        fn open_lock(path: &Path) -> File {
+            std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
+                .open(path)
+                .unwrap()
+        }
+        fn try_lock(file: &File) -> io::Result<()> {
+            if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        }
+
+        let config = probe_config_from(|key| std::env::var(key).ok())
+            .expect("explicit nonsecret bound-guard environment required");
+        assert_eq!(unsafe { libc::geteuid() }, 0);
+        let target = config.control_root.parent().unwrap();
+        let global_path = target
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join(".restore-target.lock");
+        let lock_name = format!("{}.restore.lock", config.expected_database);
+        let lock_path = config.control_root.join(&lock_name);
+        let attempt = config
+            .control_root
+            .join(restore_attempt_name(&config.expected_database).unwrap());
+        let before = snapshot(&config);
+        // Fresh target only: exactly the sealed birth, empty destination/assets.
+        assert_eq!(
+            before.keys().cloned().collect::<Vec<_>>(),
+            [format!("control/{}.birth.json", config.expected_database)]
+        );
+        assert!(!lock_path.exists() && !attempt.exists());
+
+        // A competing global descriptor must block before target lock creation.
+        let blocker = open_lock(&global_path);
+        try_lock(&blocker).unwrap();
+        assert!(linux::acquire_for_restore(&config).is_err());
+        assert_eq!(before, snapshot(&config));
+        drop(blocker);
+
+        let guard = linux::acquire_for_restore(&config).expect("bound guard acquisition failed");
+        let owned = guard
+            ._target_lock
+            .as_ref()
+            .expect("guard must own created target lock");
+        let owned_meta = owned.metadata().unwrap();
+        let path_meta = std::fs::symlink_metadata(&lock_path).unwrap();
+        assert!(path_meta.is_file());
+        assert_eq!(
+            (owned_meta.dev(), owned_meta.ino()),
+            (path_meta.dev(), path_meta.ino())
+        );
+        assert_eq!(path_meta.uid(), 0);
+        assert_eq!(path_meta.nlink(), 1);
+        assert_eq!(path_meta.permissions().mode() & 0o777, 0o600);
+        assert_eq!(path_meta.len(), 0);
+        let global_contender = open_lock(&global_path);
+        let target_contender = open_lock(&lock_path);
+        for file in [&global_contender, &target_contender] {
+            assert_eq!(
+                try_lock(file).unwrap_err().kind(),
+                io::ErrorKind::WouldBlock
+            );
+        }
+        guard
+            .recheck()
+            .expect("Docker/PG identity changed while held");
+        linux::assert_guard_pg_empty(&guard.claim);
+        assert!(guard_files_unchanged(
+            &before,
+            &snapshot(&config),
+            &format!("control/{lock_name}")
+        ));
+        assert!(!attempt.exists());
+        guard
+            .recheck()
+            .expect("Docker/PG identity changed after empty-data observation");
+        drop(guard);
+        for file in [&global_contender, &target_contender] {
+            try_lock(file).expect("guard drop must release both flocks");
+        }
+        assert!(guard_files_unchanged(
+            &before,
+            &snapshot(&config),
+            &format!("control/{lock_name}")
+        ));
+        assert!(!attempt.exists());
+        println!("BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE");
     }
 
     const ID: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";

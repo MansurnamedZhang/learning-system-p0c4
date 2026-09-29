@@ -141,6 +141,113 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["status"], runner.BOUND_PASSED)
         self.assertTrue(result["stop"]["confirmed"])
 
+    def test_guard_mode_selects_guard_before_exact_stop(self):
+        self.args.bound_guard = True
+        sequence = []
+        deps = self._dependencies()
+        issuer = deps[1]._run_issuer
+        deps[1]._run_issuer = lambda *args: (sequence.append("issuer") or issuer(*args))
+        deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
+            {"confirmed": True, "volume_retained": True})
+        def preflight(*args, **kwargs):
+            self.assertEqual(kwargs, {"guard": True})
+            sequence.append("preflight")
+            return {"builder_image_id": runner.BUILDER_IMAGE_ID}
+        def guard(*args, **kwargs):
+            self.assertEqual(kwargs, {"guard": True})
+            sequence.append("guard")
+            return {"state": "BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE"}
+        with patch.object(runner, "_preflight_probe_builder", side_effect=preflight), \
+             patch.object(runner, "_run_bound_probe", side_effect=guard):
+            code, result = self._run(deps)
+        self.assertEqual(sequence, ["preflight", "issuer", "guard", "stop"])
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["status"],
+            "BOUND_TARGET_GUARD_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE")
+        self.assertIn("bound_guard", result)
+        self.assertNotIn("bound_probe", result)
+
+    def test_failed_guard_preflight_never_creates_pg_and_guard_failure_still_stops(self):
+        self.args.bound_guard = True
+        deps = self._dependencies()
+        deps[1]._run_issuer = lambda *_: self.fail("issuer reached")
+        with patch.object(runner, "_preflight_probe_builder", side_effect=ValueError("unavailable")):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.GUARD_FAILED)
+        self.assertEqual(result["target_condition"], "NO_TARGET_CREATED")
+        for name in ("attempt.json", "result.json"):
+            (self.batch / "evidence" / name).unlink()
+        deps = self._dependencies()
+        stopped = []
+        deps[1].stop_verified_pg = lambda *args: (stopped.append(args[-1]) or
+            {"confirmed": True, "volume_retained": True})
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_run_bound_probe", side_effect=ValueError("guard failed")):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.GUARD_FAILED)
+        self.assertEqual(stopped, ["e" * 64])
+        self.assertTrue(result["stop"]["volume_retained"])
+
+    def test_guard_requires_exact_single_guard_test_and_unchanged_binary(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        test_name = "restore_preflight::target_binding::tests::live_read_only_bound_target_guard"
+        marker = "BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE"
+        good = ("running 1 test\n" + marker + "\ntest " + test_name +
+                " ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n").encode()
+        bad = [b"test result: ok. 0 passed; 0 failed; 0 ignored;",
+               good.replace(marker.encode(), b"BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE"),
+               good.replace(test_name.encode(), b"another_test"),
+               good + marker.encode(),
+               good.replace(marker.encode(), (marker + "_WRONG").encode()),
+               good.replace(marker.encode(), ("WRONG_" + marker).encode()),
+               good.replace(b"running 1 test", b"running 2 tests"),
+               good.replace(b"1 passed", b"2 passed")]
+        for output, code, changed in [(good, 0, False), *((out, 0, False) for out in bad),
+                                      (good, 1, False), (good, 0, True)]:
+            with self.subTest(output=output, code=code, changed=changed):
+                binary.write_bytes(b"binary")
+                def execute(command, **kwargs):
+                    self.assertEqual(command[1:], [test_name, "--exact", "--ignored", "--nocapture"])
+                    self.assertEqual(kwargs["env"]["KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE"], "learning_restore_c4_" + ID)
+                    self.assertNotIn("PGPASSWORD", kwargs["env"])
+                    if changed:
+                        binary.write_bytes(b"changed")
+                    return SimpleNamespace(returncode=code, stdout=output, stderr=b"")
+                with patch.object(runner, "_compile_bound_probe", return_value=(binary, runner._file_digest(binary))), \
+                     patch.object(runner, "_run_bounded", side_effect=execute):
+                    args = (self.batch / "source", self.batch, self.batch / "control" / "targets" / ID,
+                            "learning_restore_c4_" + ID, "d" * 64)
+                    if output == good and code == 0 and not changed:
+                        result = runner._run_bound_probe(*args, guard=True)
+                        self.assertEqual(result["state"], marker)
+                        self.assertEqual(result["birth_sha256"], "d" * 64)
+                    else:
+                        with self.assertRaises(ValueError):
+                            runner._run_bound_probe(*args, guard=True)
+
+    def test_guard_preflight_requires_guard_listing_not_probe_listing(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        for name, valid in [("live_read_only_bound_target_guard", True),
+                            ("live_read_only_bound_target_probe", False),
+                            ("live_read_only_bound_target_guard_extra", False)]:
+            listing = ("restore_preflight::target_binding::tests::" + name + ": test\n").encode()
+            with patch.object(runner, "_trusted_path"), \
+                 patch.object(runner, "_compile_bound_probe", return_value=(binary, runner._file_digest(binary))), \
+                 patch.object(runner, "_probe_docker", return_value=SimpleNamespace(returncode=0,
+                     stdout=(runner.BUILDER_IMAGE_ID + "\n").encode())), \
+                 patch.object(runner, "_run_bounded", return_value=SimpleNamespace(returncode=0,
+                     stdout=listing, stderr=b"")):
+                if valid:
+                    self.assertTrue(runner._preflight_probe_builder(self.batch / "source", self.batch,
+                        guard=True)["host_test_listing_confirmed"])
+                else:
+                    with self.assertRaises(ValueError):
+                        runner._preflight_probe_builder(self.batch / "source", self.batch, guard=True)
+
     def test_failed_bound_probe_still_stops_and_cannot_pass(self):
         self.args.bound_probe = True
         sequence = []
@@ -516,6 +623,18 @@ class CommandLine(unittest.TestCase):
             self.assertEqual(runner.main(["--help"]), 0)
         self.assertIn("--runner-sha256", output.getvalue())
         self.assertNotIn("ADMISSION_REJECTED", output.getvalue())
+
+    def test_guard_flag_is_admitted_and_mutually_exclusive_with_probe(self):
+        argv = ["--archive", "/var/lib/knowweave-c4/incoming/REVIEWED.zip",
+                "--archive-sha256", "a" * 64, "--manifest-sha256", "b" * 64,
+                "--source-commit", "c" * 40, "--runner-sha256", "d" * 64,
+                "--batch-id", ID, "--subnet", SUBNET, "--bound-guard"]
+        with patch.object(runner, "run", return_value=0) as admitted:
+            self.assertEqual(runner.main(argv), 0)
+            self.assertTrue(admitted.call_args.args[0].bound_guard)
+            admitted.reset_mock()
+            self.assertEqual(runner.main(argv + ["--bound-probe"]), 1)
+            admitted.assert_not_called()
 
     def test_documented_runner_sha_is_passed_to_admission(self):
         argv = ["--archive", "/var/lib/knowweave-c4/incoming/REVIEWED.zip",
