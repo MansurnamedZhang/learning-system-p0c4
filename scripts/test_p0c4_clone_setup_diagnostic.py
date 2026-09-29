@@ -2,8 +2,10 @@
 
 import json
 import contextlib
+import hashlib
 import io
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -27,13 +29,15 @@ def reply(code=0, value=b"", error=b""):
 
 class DockerFake:
     def __init__(self, *, wrong_identity=False, start_code=0, volume_exists=False,
-                 image_inspect_fails=False, create_raises=False):
+                 image_inspect_fails=False, create_raises=False,
+                 malicious_identity=False):
         self.calls = []
         self.wrong_identity = wrong_identity
         self.start_code = start_code
         self.volume_exists = volume_exists
         self.image_inspect_fails = image_inspect_fails
         self.create_raises = create_raises
+        self.malicious_identity = malicious_identity
 
     def __call__(self, args, **kwargs):
         self.calls.append(args)
@@ -69,7 +73,7 @@ class DockerFake:
     started = False
 
     def facts(self, *, running, exit_code):
-        return {"Id": HELPER_ID, "Image": IMAGE_ID,
+        facts = {"Id": HELPER_ID, "Image": IMAGE_ID,
             "Name": "/" + NAME,
             "Config": {"Image": IMAGE, "User": "0:0",
                 "Entrypoint": ["/bin/sh"],
@@ -82,9 +86,48 @@ class DockerFake:
             "Mounts": [{"Type": "volume", "Name": VOLUME,
                 "Destination": "/var/lib/postgresql", "RW": True}],
             "State": {"Running": running, "ExitCode": exit_code}}
+        if self.malicious_identity:
+            facts.update(Id="secret-in-id", Image="secret-in-image",
+                         Name="secret-in-name")
+            facts["Config"].update(Image="secret-in-image-ref",
+                                   User="secret-in-user",
+                                   Entrypoint=["secret-in-entrypoint"],
+                                   Labels={"com.knowweave.clone.batch": "secret-in-label"})
+            facts["HostConfig"].update(NetworkMode="secret-in-network",
+                                       CapAdd=["secret-in-cap"],
+                                       SecurityOpt=["secret-in-security"])
+            facts["Mounts"][0].update(Name="secret-in-mount",
+                                      Destination="secret-in-destination")
+        return facts
 
 
 class CloneSetupDiagnosticTests(unittest.TestCase):
+    def test_new_packaged_runner_bytes_pass_without_git_or_ignored_artifacts(self):
+        data = RUNNER.read_bytes().replace(b"\r\n", b"\n")
+        self.assertEqual(len(data), 82160)
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+            "b298f6814d50eff3a6fc1b6e322492264183e5fd263486a6a871cce3b5a5b97a")
+        with tempfile.TemporaryDirectory(dir=RUNNER.parent) as temporary:
+            installed = Path(temporary) / "installed-runner.py"
+            installed.write_bytes(data)
+            docker = DockerFake()
+            result = diagnostic.diagnose(installed, IMAGE, 999, 999,
+                                         batch_id=BATCH, docker=docker)
+        self.assertEqual(result["code"], "CLONE_SETUP_DIAG_PASSED")
+        self.assertIn("RUNNER_VERIFIED", result["stages"])
+
+    def test_modified_runner_bytes_are_rejected_before_docker(self):
+        data = bytearray(RUNNER.read_bytes().replace(b"\r\n", b"\n"))
+        data[0] ^= 1
+        with tempfile.TemporaryDirectory(dir=RUNNER.parent) as temporary:
+            installed = Path(temporary) / "modified-runner.py"
+            installed.write_bytes(data)
+            docker = DockerFake()
+            result = diagnostic.diagnose(installed, IMAGE, 999, 999,
+                                         batch_id=BATCH, docker=docker)
+        self.assertEqual(result["code"], "RUNNER_HASH_REJECTED")
+        self.assertEqual(docker.calls, [])
+
     def test_cli_requires_explicit_new_batch_uuid(self):
         with contextlib.redirect_stderr(io.StringIO()), \
              contextlib.redirect_stdout(io.StringIO()):
@@ -152,7 +195,7 @@ class CloneSetupDiagnosticTests(unittest.TestCase):
         self.assertIn(["container", "rm", "-f", HELPER_ID], docker.calls)
         self.assertNotIn(["volume", "rm", VOLUME], docker.calls)
         self.assertEqual(result["cleanup"], "EXACT_ID_REMOVED")
-        self.assertEqual(result["observed"]["prestart"]["cap_add"], ["CAP_CHOWN"])
+        self.assertEqual(result["observed"]["prestart"]["cap_add_class"], "CAP_CHOWN")
         self.assertNotIn("secret-in-", json.dumps(result))
 
     def test_wrong_identity_is_not_started_or_blindly_removed(self):
@@ -164,8 +207,19 @@ class CloneSetupDiagnosticTests(unittest.TestCase):
         self.assertEqual(result["cleanup"], "UNCONFIRMED")
         self.assertFalse(any(c[:1] == ["start"] for c in docker.calls))
         self.assertFalse(any(c[:2] == ["container", "rm"] for c in docker.calls))
-        self.assertEqual(result["observed"]["prestart"]["cap_add"], [])
+        self.assertEqual(result["observed"]["prestart"]["cap_add_class"], "OTHER")
         self.assertNotIn("secret-in-", json.dumps(result))
+
+    def test_unverified_inspect_strings_never_escape_in_evidence(self):
+        docker = DockerFake(malicious_identity=True)
+        with patch.object(diagnostic, "_read_runner", return_value=runner):
+            result = diagnostic.diagnose(RUNNER, IMAGE, 999, 999,
+                                         batch_id=BATCH, docker=docker)
+        self.assertEqual(result["code"], "IDENTITY_REJECTED")
+        self.assertEqual(result["cleanup"], "UNCONFIRMED")
+        self.assertFalse(any(c[:1] == ["start"] for c in docker.calls))
+        self.assertNotIn("secret-in-", json.dumps(result))
+        self.assertFalse(result["observed"]["prestart"]["entrypoint_matches"])
 
     def test_failed_start_still_removes_verified_exact_helper(self):
         docker = DockerFake(start_code=17)

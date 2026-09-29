@@ -18,7 +18,7 @@ import uuid
 
 
 AUTHORIZED_RUNNER_SHA256 = (
-    "758a6079f046c494c4a42c02f41807533600f199c1a609fb12679243c37d1d45"
+    "b298f6814d50eff3a6fc1b6e322492264183e5fd263486a6a871cce3b5a5b97a"
 )
 PINNED_IMAGE = (
     "postgres:18.6-bookworm@sha256:"
@@ -49,33 +49,49 @@ def _one_json(process):
     return value[0]
 
 
-def _projection(facts):
-    """Fixed allowlist; never echo Docker Env, command output, or logs."""
-    config = facts.get("Config") or {}
-    host = facts.get("HostConfig") or {}
-    state = facts.get("State") or {}
-    mounts = facts.get("Mounts") or []
+def _projection(facts, helper_id, image, image_id, name, batch_id, volume):
+    """Compare untrusted inspect fields without echoing any of their values."""
+    config = facts.get("Config")
+    config = config if type(config) is dict else {}
+    host = facts.get("HostConfig")
+    host = host if type(host) is dict else {}
+    state = facts.get("State")
+    state = state if type(state) is dict else {}
+    labels = config.get("Labels")
+    labels = labels if type(labels) is dict else {}
+    mounts = facts.get("Mounts")
+    mount_count = len(mounts) if type(mounts) is list else None
+    mount = mounts[0] if type(mounts) is list and mounts and type(mounts[0]) is dict else {}
+    cap_add = host.get("CapAdd")
+    cap_add_class = ("CAP_CHOWN" if cap_add == ["CAP_CHOWN"] else
+                     "CHOWN" if cap_add == ["CHOWN"] else "OTHER")
+    env = config.get("Env")
+    env = env if type(env) is list else []
+    running = state.get("Running")
+    exit_code = state.get("ExitCode")
     return {
-        "container_id": facts.get("Id"),
-        "image_id": facts.get("Image"),
-        "name": facts.get("Name"),
-        "image_ref": config.get("Image"),
-        "batch_label": (config.get("Labels") or {}).get("com.knowweave.clone.batch"),
-        "network_mode": host.get("NetworkMode"),
-        "user": config.get("User"),
-        "entrypoint": config.get("Entrypoint"),
-        "cap_drop": host.get("CapDrop"),
-        "cap_add": host.get("CapAdd"),
-        "security_opt": host.get("SecurityOpt"),
-        "privileged": host.get("Privileged"),
-        "mounts": [{key: item.get(key) for key in
-                    ("Type", "Name", "Destination", "RW")}
-                   for item in mounts if type(item) is dict],
-        "state_running": state.get("Running"),
-        "exit_code": state.get("ExitCode"),
+        "id_matches": facts.get("Id") == helper_id,
+        "image_id_matches": facts.get("Image") == image_id,
+        "name_matches": facts.get("Name") == "/" + name,
+        "image_ref_matches": config.get("Image") == image,
+        "batch_label_matches": labels.get("com.knowweave.clone.batch") == batch_id,
+        "network_none": host.get("NetworkMode") == "none",
+        "root_user_matches": config.get("User") == "0:0",
+        "entrypoint_matches": config.get("Entrypoint") == ["/bin/sh"],
+        "cap_drop_matches": host.get("CapDrop") == ["ALL"],
+        "cap_add_class": cap_add_class,
+        "security_opt_matches": host.get("SecurityOpt") == ["no-new-privileges"],
+        "privileged_false": host.get("Privileged") is False,
+        "mount_count": mount_count,
+        "mount_type_volume": mount.get("Type") == "volume",
+        "mount_name_matches": mount.get("Name") == volume,
+        "mount_destination_matches": mount.get("Destination") == "/var/lib/postgresql",
+        "mount_rw": mount.get("RW") is True,
+        "state_running": running if type(running) is bool else None,
+        "exit_code": exit_code if type(exit_code) is int else None,
         "password_env_present": any(
             type(value) is str and value.startswith(("PGPASSWORD=", "POSTGRES_PASSWORD=", "PGPASSFILE="))
-            for value in config.get("Env") or []),
+            for value in env),
     }
 
 
@@ -167,7 +183,8 @@ def diagnose(runner_path, image, uid, gid, *, batch_id=None, docker=None):
         result["stages"].append("HELPER_CREATED")
         result["code"] = "PRESTART_INSPECT_FAILED"
         prestart = _one_json(docker(["container", "inspect", helper_id]))
-        result["observed"]["prestart"] = _projection(prestart)
+        result["observed"]["prestart"] = _projection(
+            prestart, helper_id, image, image_id, name, batch_id, volume)
         result["stages"].append("PRESTART_INSPECTED")
         result["code"] = "IDENTITY_REJECTED"
         runner._verify_clone_helper(prestart, helper_id, image, ZERO_ID, volume,
@@ -183,7 +200,8 @@ def diagnose(runner_path, image, uid, gid, *, batch_id=None, docker=None):
         result["stages"].append("HELPER_STARTED")
         result["code"] = "FINAL_INSPECT_FAILED"
         final = _one_json(docker(["container", "inspect", helper_id]))
-        result["observed"]["final"] = _projection(final)
+        result["observed"]["final"] = _projection(
+            final, helper_id, image, image_id, name, batch_id, volume)
         result["code"] = "FINAL_IDENTITY_REJECTED"
         runner._verify_clone_helper(final, helper_id, image, ZERO_ID, volume,
                                     batch_id=batch_id, uid=uid, gid=gid,
