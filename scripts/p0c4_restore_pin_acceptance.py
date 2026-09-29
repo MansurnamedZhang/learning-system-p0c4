@@ -312,17 +312,49 @@ def _admit_clone_pair(provisioner, primary, primary_subnet, clone,
     return True
 
 
+def _effective_replication_hba(rows):
+    """Evaluate the first HBA record that could accept postgres at IPv4 loopback."""
+    require(type(rows) is list, "physical replication HBA rows unavailable")
+    previous = 0
+    for rule in rows:
+        require(type(rule) is dict and type(rule.get("rule_number")) is int and
+                rule["rule_number"] > previous and rule.get("error") is None,
+                "physical replication HBA order or parse differs")
+        previous = rule["rule_number"]
+        if rule.get("type") not in ("host", "hostssl", "hostnossl") or \
+                "replication" not in (rule.get("database") or []):
+            continue
+        users = rule.get("user_name")
+        require(type(users) is list and all(type(u) is str for u in users),
+                "physical replication HBA user unreadable")
+        # Group, regex and @file membership cannot be disproved from this view.
+        if not any(u in ("all", "postgres") or u.startswith(("+", "/", "@"))
+                   for u in users):
+            continue
+        address, mask = rule.get("address"), rule.get("netmask")
+        try:
+            network = ipaddress.ip_network((address, mask), strict=False)
+        except (ValueError, TypeError):
+            # Hostnames and special HBA addresses may match loopback.
+            network = None
+        if network is not None and ipaddress.ip_address("127.0.0.1") not in network:
+            continue
+        require(rule.get("type") == "host" and
+                rule.get("database") == ["replication"] and
+                users in (["postgres"], ["all"]) and
+                address == "127.0.0.1" and mask == "255.255.255.255" and
+                not rule.get("options") and
+                rule.get("auth_method") in ("trust", "scram-sha-256"),
+                "first effective physical replication HBA rule is not exact loopback")
+        return rule["auth_method"]
+    raise ValueError("physical replication HBA rule unavailable")
+
+
 def _check_replication_contract(container_id):
-    """Admit only the first exact loopback physical-replication HBA rule."""
+    """Admit only the first effective exact loopback physical-replication rule."""
     require(type(container_id) is str and HEX64.fullmatch(container_id),
             "exact primary container required")
-    sql = """WITH first_host_replication AS (
- SELECT * FROM pg_catalog.pg_hba_file_rules
- WHERE type IN ('host', 'hostssl', 'hostnossl')
-   AND database @> ARRAY['replication']::text[]
- ORDER BY rule_number LIMIT 1
-)
-SELECT CASE WHEN current_setting('server_version_num')::int >= 180000
+    sql = """SELECT CASE WHEN current_setting('server_version_num')::int >= 180000
 AND current_setting('server_version_num')::int < 190000
 AND current_setting('wal_level') IN ('replica', 'logical')
 AND current_setting('max_wal_senders')::int >= 2
@@ -333,25 +365,22 @@ AND pg_catalog.pg_conf_load_time() >=
 AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_hba_file_rules
                 WHERE error IS NOT NULL OR file_name IS NULL
                    OR file_name <> current_setting('hba_file'))
-AND EXISTS (SELECT 1 FROM first_host_replication
-            WHERE type = 'host' AND database = ARRAY['replication']::text[]
-              AND (user_name = ARRAY['postgres']::text[]
-                   OR user_name = ARRAY['all']::text[])
-              AND address = '127.0.0.1' AND netmask = '255.255.255.255'
-              AND COALESCE(cardinality(options), 0) = 0
-              AND auth_method IN ('trust', 'scram-sha-256'))
-THEN (SELECT CASE auth_method WHEN 'trust' THEN 'TRUST_LOOPBACK'
-             WHEN 'scram-sha-256' THEN 'SCRAM_LOOPBACK' END
-      FROM first_host_replication)
+THEN (SELECT COALESCE(json_agg(row_to_json(r) ORDER BY r.rule_number),
+                      '[]'::json)::text
+      FROM pg_catalog.pg_hba_file_rules r
+      WHERE r.type IN ('host', 'hostssl', 'hostnossl')
+        AND r.database @> ARRAY['replication']::text[])
 ELSE 'REJECT' END;"""
     row = _probe_docker(["exec", "--user", "postgres", container_id,
                          "psql", "-XAt", "-v", "ON_ERROR_STOP=1",
                          "--dbname", "postgres", "-c", sql])
-    require(row.returncode == 0 and row.stdout in
-            (b"TRUST_LOOPBACK\n", b"SCRAM_LOOPBACK\n"),
+    require(row.returncode == 0 and 0 < len(row.stdout) <= 1024 * 1024 and
+            row.stdout != b"REJECT\n",
             "pinned PG18 replication permission or HBA contract unverified")
-    return ("trust" if row.stdout == b"TRUST_LOOPBACK\n" else
-            "scram-sha-256")
+    try:
+        return _effective_replication_hba(json.loads(row.stdout))
+    except (ValueError, TypeError, json.JSONDecodeError) as error:
+        raise ValueError("pinned PG18 physical replication HBA unverified") from error
 
 
 def _verify_clone_helper(facts, helper_id, image, primary_id, volume,
@@ -550,10 +579,37 @@ def _clone_verify_command(primary_id, volume, image, batch_id, uid, gid):
 
 def _run_clone_helper(command, image, primary_id, volume, passfile=None, *,
                       batch_id, uid, gid, image_id, kind):
-    created = _probe_docker(command)
-    require(created.returncode == 0, "pinned clone helper creation failed")
-    helper_id = created.stdout.decode("ascii").strip()
-    require(HEX64.fullmatch(helper_id), "clone helper ID invalid")
+    name = f"knowweave-c4-clone-{batch_id}-{kind}"
+    require(command[:1] == ["create"] and
+            any(command[i:i + 2] == ["--name", name]
+                for i in range(len(command) - 1)),
+            "clone helper creation name differs")
+    try:
+        created = _probe_docker(command)
+        require(created.returncode == 0, "pinned clone helper creation failed")
+        helper_id = created.stdout.decode("ascii").strip()
+        require(HEX64.fullmatch(helper_id), "clone helper ID invalid")
+    except BaseException as error:
+        # Docker may have created the container before its CLI failed. Resolve
+        # the deterministic name and remove only a fully verified exact ID.
+        error.clone_helper_cleanup = "UNCONFIRMED"
+        try:
+            recovered = _probe_docker(["container", "inspect", name])
+            if recovered.returncode == 0:
+                facts = json.loads(recovered.stdout)
+                require(type(facts) is list and len(facts) == 1,
+                        "ambiguous helper inspect shape differs")
+                recovered_id = facts[0].get("Id")
+                _verify_clone_helper(facts[0], recovered_id, image,
+                                     primary_id, volume, passfile,
+                                     batch_id=batch_id, uid=uid, gid=gid,
+                                     image_id=image_id, kind=kind)
+                removed = _probe_docker(["container", "rm", "-f", recovered_id])
+                if removed.returncode == 0:
+                    error.clone_helper_cleanup = "EXACT_ID_REMOVED"
+        except BaseException:
+            pass
+        raise
     try:
         inspected = _probe_docker(["container", "inspect", helper_id])
         require(inspected.returncode == 0, "clone helper inspect failed")
@@ -576,13 +632,20 @@ def _run_clone_helper(command, image, primary_id, volume, passfile=None, *,
                              passfile, batch_id=batch_id, uid=uid, gid=gid,
                              image_id=image_id, kind=kind)
     finally:
-        removed = _probe_docker(["container", "rm", "-f", helper_id])
-        require(removed.returncode == 0, "clone helper cleanup unconfirmed")
+        try:
+            removed = _probe_docker(["container", "rm", "-f", helper_id])
+            require(removed.returncode == 0, "clone helper cleanup unconfirmed")
+        except BaseException as cleanup_error:
+            cleanup_error.clone_helper_cleanup = "UNCONFIRMED"
+            raise
     return True
 
 
-def _create_clone_resources(provisioner, clone, subnet, before):
+def _create_clone_resources(provisioner, batch, clone, subnet, before):
     provisioner.admit_fresh(clone, subnet, provisioner.snapshot())
+    uid, gid = provisioner._postgres_uid()
+    require(type(uid) is int and type(gid) is int and uid > 0 and gid > 0,
+            "pinned image postgres UID unavailable")
     image = provisioner._inspect("image", [clone["image"]])
     require(type(image) is list and len(image) == 1 and
             type(image[0].get("Id")) is str and
@@ -591,27 +654,49 @@ def _create_clone_resources(provisioner, clone, subnet, before):
             any(value.endswith("@" + clone["image"].split("@", 1)[1])
                 for value in image[0].get("RepoDigests") or []),
             "pinned PG18 clone image unavailable")
-    volume = _probe_docker(["volume", "create", "--label",
-                            f"com.docker.compose.project={clone['project']}",
-                            clone["volume"]])
-    require(volume.returncode == 0 and
-            volume.stdout == (clone["volume"] + "\n").encode(),
-            "new clone volume creation failed")
-    network = _probe_docker(["network", "create", "--internal", "--subnet",
-                             subnet, "--label",
-                             f"com.docker.compose.project={clone['project']}",
-                             clone["network"]])
-    require(network.returncode == 0 and
-            HEX64.fullmatch(network.stdout.decode("ascii").strip()),
-            "new clone network creation failed")
-    network_id = network.stdout.decode("ascii").strip()
+    # Compose owns the complete second project. `create` leaves PG stopped;
+    # helpers fill its empty no-copy volume before exact-ID start.
+    document = {"name": clone["project"],
+        "services": {"pg": {"image": clone["image"],
+            "pull_policy": "never", "user": f"{uid}:{gid}",
+            "command": ["postgres"], "restart": "no",
+            "cap_drop": ["ALL"], "security_opt": ["no-new-privileges"],
+            "environment": {"PGDATA": CLONE_DATA},
+            "volumes": [{"type": "volume", "source": clone["volume"],
+                         "target": "/var/lib/postgresql",
+                         "volume": {"nocopy": True}}],
+            "networks": ["test"]}},
+        "networks": {"test": {"name": clone["network"], "internal": True,
+            "ipam": {"config": [{"subnet": subnet}]}}},
+        "volumes": {clone["volume"]: {"name": clone["volume"]}}}
+    compose_path = batch / "clone-compose.json"
+    _private_write(compose_path, _json_bytes(document))
+    prefix = ["compose", "-f", str(compose_path), "-p", clone["project"]]
+    config = _probe_docker(prefix + ["config", "-q"])
+    require(config.returncode == 0, "clone Compose configuration invalid")
+    precreate = provisioner.snapshot()
+    require(precreate["daemon_id"] == before["daemon_id"],
+            "Docker daemon changed before clone Compose creation")
+    provisioner.admit_fresh(clone, subnet, precreate)
+    created = _probe_docker(prefix + ["create", "--no-build", "--pull",
+                                     "never", "--no-recreate", "pg"])
+    require(created.returncode == 0, "clone Compose project creation failed")
     live = provisioner.snapshot()
-    require(live["daemon_id"] == before["daemon_id"] and
-            not any((c.get("Config", {}).get("Labels") or {}).get(
-                "com.docker.compose.project") == clone["project"]
-                    for c in live["containers"]),
-            "clone project container started before physical copy")
-    networks = [n for n in live["networks"] if n.get("Id") == network_id]
+    require(live["daemon_id"] == before["daemon_id"],
+            "Docker daemon changed during clone Compose creation")
+    project_containers = [c for c in live["containers"] if
+        (c.get("Config", {}).get("Labels") or {}).get(
+            "com.docker.compose.project") == clone["project"]]
+    require(len(project_containers) == 1,
+            "clone Compose project container count differs")
+    network_matches = [n for n in live["networks"] if
+                       n.get("Name") == clone["network"]]
+    require(len(network_matches) == 1,
+            "clone Compose network count differs")
+    network_id = network_matches[0].get("Id")
+    require(type(network_id) is str and HEX64.fullmatch(network_id),
+            "clone Compose network ID invalid")
+    networks = network_matches
     volumes = [v for v in live["volumes"] if v.get("Name") == clone["volume"]]
     project_networks = [n for n in live["networks"] if
                         (n.get("Labels") or {}).get(
@@ -641,16 +726,25 @@ def _create_clone_resources(provisioner, clone, subnet, before):
                 {v.get("Name") for v in before["volumes"]} and
             network_id not in {n.get("Id") for n in before["networks"]},
             "new clone network or volume identity differs")
+    pg = project_containers[0]
+    require(pg.get("Id") not in {c.get("Id") for c in precreate["containers"]}
+            and pg.get("State", {}).get("Status") == "created",
+            "clone PG started before physical copy")
+    clone_id = _verify_clone_pg(
+        pg, clone, None, network_id, volumes[0]["Mountpoint"],
+        running=False, image_id=image[0]["Id"], uid=uid, gid=gid)
     return {"network_id": network_id, "volume_name": clone["volume"],
             "volume_mountpoint": volumes[0].get("Mountpoint"),
-            "image_id": image[0]["Id"]}
+            "image_id": image[0]["Id"], "container_id": clone_id,
+            "postgres_uid": uid, "postgres_gid": gid,
+            "compose_project_created": True}
 
 
 def _copy_primary_volume(provisioner, batch, target, primary_id, clone,
                          resources, auth_method):
     require(resources["volume_name"] == clone["volume"],
             "clone copy destination changed")
-    uid, gid = provisioner._postgres_uid()
+    uid, gid = resources["postgres_uid"], resources["postgres_gid"]
     require(type(uid) is int and type(gid) is int and uid > 0 and gid > 0,
             "pinned image postgres UID unavailable")
     setup = _clone_setup_command(clone["volume"], clone["image"],
@@ -690,9 +784,11 @@ def _verify_clone_pg(facts, clone, primary_id, network_id, mountpoint,
     labels = facts.get("Config", {}).get("Labels") or {}
     require(type(pg_id) is str and HEX64.fullmatch(pg_id) and
             pg_id != primary_id and
+            facts.get("Name") == "/" + clone["project"] + "-pg-1" and
             labels.get("com.docker.compose.project") == clone["project"] and
             labels.get("com.docker.compose.service") == "pg" and
             facts.get("Config", {}).get("Image") == clone["image"] and
+            facts.get("Config", {}).get("Cmd") == ["postgres"] and
             facts.get("Image") == image_id and
             facts.get("Config", {}).get("User") == f"{uid}:{gid}" and
             facts.get("HostConfig", {}).get("NetworkMode") == clone["network"] and
@@ -732,18 +828,10 @@ def _start_clone_pg(provisioner, clone, resources, primary_id, birth,
         r"learning_restore_c4_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
         r"[89ab][0-9a-f]{3}-[0-9a-f]{12}", database),
         "dedicated primary database name invalid")
-    command = ["create", "--pull=never", "--name", clone["project"] + "-pg-1",
-               "--label", f"com.docker.compose.project={clone['project']}",
-               "--label", "com.docker.compose.service=pg",
-               "--network", clone["network"], "--cap-drop", "ALL",
-               "--security-opt", "no-new-privileges",
-               "--user", f"{uid}:{gid}",
-               "--mount", f"type=volume,src={clone['volume']},dst=/var/lib/postgresql,volume-nocopy",
-               "--env", "PGDATA=" + CLONE_DATA, clone["image"], "postgres"]
-    created = _probe_docker(command)
-    require(created.returncode == 0, "copied PG container creation failed")
-    clone_id = created.stdout.decode("ascii").strip()
-    require(HEX64.fullmatch(clone_id), "copied PG container ID invalid")
+    clone_id = resources["container_id"]
+    require(type(clone_id) is str and HEX64.fullmatch(clone_id) and
+            resources.get("compose_project_created") is True,
+            "copied PG Compose identity unavailable")
     inspected = _probe_docker(["container", "inspect", clone_id])
     require(inspected.returncode == 0, "copied PG inspect failed")
     facts = json.loads(inspected.stdout)
@@ -752,6 +840,8 @@ def _start_clone_pg(provisioner, clone, resources, primary_id, birth,
     _verify_clone_pg(facts[0], clone, primary_id, resources["network_id"],
                      resources["volume_mountpoint"], running=False,
                      image_id=resources["image_id"], uid=uid, gid=gid)
+    require(facts[0].get("State", {}).get("Status") == "created",
+            "copied PG started before backup verified")
     started = _probe_docker(["start", clone_id])
     require(started.returncode == 0 and
             started.stdout == (clone_id + "\n").encode(),
@@ -796,7 +886,7 @@ def _prepare_physical_clone(provisioner, batch, target, primary_id, clone,
     auth_method = _check_replication_contract(primary_id)
     require(auth_method in ("trust", "scram-sha-256"),
             "replication authentication unverified")
-    resources = _create_clone_resources(provisioner, clone, subnet, before)
+    resources = _create_clone_resources(provisioner, batch, clone, subnet, before)
     copied = _copy_primary_volume(provisioner, batch, target, primary_id,
                                   clone, resources, auth_method)
     require(copied.get("backup_verified") is True and
@@ -833,6 +923,18 @@ def _primary_still_pinned(provisioner, acceptance, identity, subnet, before,
             matches[0].get("State", {}).get("StartedAt") == started_at,
             "primary PG restarted during clone")
     return True
+
+
+def _primary_started_at(provisioner, container_id):
+    """Capture the immutable primary start at the first independent birth gate."""
+    live = provisioner.snapshot()
+    matches = [c for c in live["containers"] if c.get("Id") == container_id]
+    require(len(matches) == 1 and
+            matches[0].get("State", {}).get("Running") is True and
+            type(matches[0]["State"].get("StartedAt")) is str and
+            matches[0]["State"]["StartedAt"],
+            "primary PG start observation unavailable")
+    return matches[0]["State"]["StartedAt"]
 
 
 def _find_owned_clone_pg(provisioner, clone, before):
@@ -1191,6 +1293,11 @@ def _run_batch(args, manifest, package, batch):
         require(state["subnet"] == args.subnet,
                 "birth subnet differs")
         result["stage"] = "independent-docker"
+        if clone_mode:
+            # Capture before the independent gate's own snapshot; a same-ID
+            # restart during that gate must not become the accepted baseline.
+            primary_started_at = _primary_started_at(
+                provisioner, success["container_id"])
         docker = acceptance._independent_docker_gate(
             provisioner, identity, args.subnet, before, state,
             success, target, initdb)
@@ -1198,6 +1305,10 @@ def _run_batch(args, manifest, package, batch):
         require(type(confirmed_id) is str and HEX64.fullmatch(confirmed_id) and
                 confirmed_id == success["container_id"],
                 "confirmed PG ID differs")
+        if clone_mode:
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
         result["stage"] = "read-only-pin-check"
         candidate, inspection = pin.inspect_candidate(
             control, args.batch_id, initdb)
@@ -1247,15 +1358,9 @@ def _run_batch(args, manifest, package, batch):
                 "reviewed source changed during run")
         if clone_mode:
             result["stage"] = "physical-clone-preparation"
-            primary_live = provisioner.snapshot()
-            primary_rows = [c for c in primary_live["containers"] if
-                            c.get("Id") == confirmed_id]
-            require(len(primary_rows) == 1 and
-                    primary_rows[0].get("State", {}).get("Running") is True and
-                    type(primary_rows[0].get("State", {}).get("StartedAt")) is str and
-                    primary_rows[0]["State"]["StartedAt"],
-                    "primary PG start observation unavailable")
-            primary_started_at = primary_rows[0]["State"]["StartedAt"]
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
             result["clone"] = _prepare_physical_clone(
                 provisioner, batch, target, confirmed_id, clone_identity,
                 args.clone_subnet, before, birth, identity["database"])
@@ -1322,6 +1427,8 @@ def _run_batch(args, manifest, package, batch):
                             BOUND_PASSED if bound_probe else PASSED)
     except BaseException as error:
         result["failure_type"] = type(error).__name__
+        if getattr(error, "clone_helper_cleanup", None) is not None:
+            result["clone_helper_cleanup"] = error.clone_helper_cleanup
         if issuer_started and identity is not None and acceptance is not None:
             try:
                 result["issuer_diagnostic"] = acceptance.read_issuer_diagnostic(

@@ -269,6 +269,44 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["clone"]["container_id"], "f" * 64)
         self.assertTrue(result["stop"]["confirmed"])
 
+    def test_clone_rejects_primary_restart_since_first_independent_birth_observation(self):
+        self.args.sql_session_clone_negative = True
+        self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"
+        self.args.clone_subnet = "10.251.229.0/24"
+        deps = self._dependencies()
+        clone = {"project": "clone-project", "database": "clone-database",
+                 "volume": "clone-volume", "network": "clone-network",
+                 "image": "postgres:18"}
+        original = deps[0].identity_for
+        deps[0].identity_for = lambda batch_id: (
+            clone if batch_id == self.args.clone_batch_id else original(batch_id))
+        changed = [False]
+        snapshot = deps[0].snapshot()
+        def snapshots():
+            if not changed[0] and not snapshots.initial:
+                snapshots.initial = True
+                return snapshot
+            return dict(snapshot, containers=[{
+                "Id": "e" * 64,
+                "State": {"Running": True, "StartedAt": (
+                    "2026-09-29T00:01:00Z" if changed[0] else
+                    "2026-09-29T00:00:00Z")}}])
+        snapshots.initial = False
+        deps[0].snapshot = snapshots
+        inspect = deps[2].inspect_candidate
+        def restart_during_pin(*args):
+            changed[0] = True
+            return inspect(*args)
+        deps[2].inspect_candidate = restart_during_pin
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_admit_clone_pair", return_value=True), \
+             patch.object(runner, "_prepare_physical_clone",
+                          side_effect=ValueError("clone should not begin")) as prepare_clone:
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.CLONE_FAILED)
+        prepare_clone.assert_not_called()
+
     def test_sql_session_requires_exact_listing_and_one_marker_without_secret_env(self):
         binary = self.batch / "test-binary"
         binary.write_bytes(b"binary")

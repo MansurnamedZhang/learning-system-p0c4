@@ -2,6 +2,7 @@
 
 import contextlib
 import io
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -45,6 +46,10 @@ class CloneAdmission(unittest.TestCase):
 
     def test_replication_preflight_rejects_unproven_contract_before_copy(self):
         primary_id = "a" * 64
+        rule = {"rule_number": 1, "type": "host",
+                "database": ["replication"], "user_name": ["postgres"],
+                "address": "127.0.0.1", "netmask": "255.255.255.255",
+                "auth_method": "trust", "options": None, "error": None}
         for response in (b"REJECT\n", b"", b"TRUST_LOOPBACK\nSCRAM_LOOPBACK\n"):
             with self.subTest(response=response), patch.object(
                     runner, "_probe_docker", return_value=SimpleNamespace(
@@ -52,18 +57,181 @@ class CloneAdmission(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     runner._check_replication_contract(primary_id)
         with patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
-                returncode=0, stdout=b"TRUST_LOOPBACK\n", stderr=b"")) as docker:
+                returncode=0, stdout=json.dumps([rule]).encode() + b"\n",
+                stderr=b"")) as docker:
             self.assertEqual(runner._check_replication_contract(primary_id),
                              "trust")
         command = docker.call_args.args[0]
         self.assertEqual(command[:4], ["exec", "--user", "postgres", primary_id])
         self.assertNotIn("password", " ".join(command).lower())
-        self.assertIn("ORDER BY rule_number", command[-1])
-        self.assertIn("127.0.0.1", command[-1])
+        self.assertIn("ORDER BY r.rule_number", command[-1])
+        self.assertIn("pg_hba_file_rules", command[-1])
         with patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
-                returncode=0, stdout=b"SCRAM_LOOPBACK\n", stderr=b"")):
+                returncode=0, stdout=json.dumps([
+                    dict(rule, auth_method="scram-sha-256")]).encode() + b"\n",
+                stderr=b"")):
             self.assertEqual(runner._check_replication_contract(primary_id),
                              "scram-sha-256")
+
+    def test_hba_first_effective_match_skips_unrelated_rules_but_rejects_broad_match(self):
+        rule = {"rule_number": 3, "type": "host", "database": ["replication"],
+                "user_name": ["postgres"], "address": "127.0.0.1",
+                "netmask": "255.255.255.255", "auth_method": "trust",
+                "options": None}
+        unrelated_user = dict(rule, rule_number=1, user_name=["other"])
+        unrelated_address = dict(rule, rule_number=2, address="192.0.2.0",
+                                 netmask="255.255.255.0")
+        self.assertEqual(runner._effective_replication_hba(
+            [unrelated_user, unrelated_address, rule]), "trust")
+        broad = dict(rule, rule_number=1, address="0.0.0.0", netmask="0.0.0.0")
+        with self.assertRaises(ValueError):
+            runner._effective_replication_hba([broad, rule])
+
+    def test_ambiguous_helper_create_recovers_only_exact_owned_id(self):
+        helper_id = "f" * 64
+        name = "knowweave-c4-clone-" + CLONE + "-verify"
+        facts = {"Id": helper_id, "Image": "sha256:" + "1" * 64,
+                 "Name": "/" + name,
+                 "Config": {"Image": "postgres@sha256:pin",
+                            "User": "999:999", "Entrypoint": ["/bin/sh"],
+                            "Env": [], "Labels": {"com.knowweave.clone.batch": CLONE}},
+                 "HostConfig": {"NetworkMode": "none", "CapDrop": ["ALL"],
+                                "CapAdd": None,
+                                "SecurityOpt": ["no-new-privileges"],
+                                "Privileged": False},
+                 "Mounts": [{"Type": "volume", "Name": "clone_pg",
+                             "Destination": "/var/lib/postgresql", "RW": False}]}
+        calls = []
+        def docker(command, **_kwargs):
+            calls.append(command)
+            if command[0] == "create":
+                raise TimeoutError("ambiguous create")
+            if command[:2] == ["container", "inspect"]:
+                self.assertEqual(command[-1], name)
+                return SimpleNamespace(returncode=0,
+                                       stdout=json.dumps([facts]).encode())
+            if command[:2] == ["container", "rm"]:
+                return SimpleNamespace(returncode=0, stdout=b"")
+            self.fail("unexpected helper command")
+        with patch.object(runner, "_probe_docker", side_effect=docker):
+            with self.assertRaises(TimeoutError):
+                runner._run_clone_helper(["create", "--name", name],
+                                         "postgres@sha256:pin", "a" * 64,
+                                         "clone_pg", batch_id=CLONE,
+                                         uid=999, gid=999,
+                                         image_id="sha256:" + "1" * 64,
+                                         kind="verify")
+        self.assertEqual(calls[-1], ["container", "rm", "-f", helper_id])
+
+    def test_ambiguous_helper_with_foreign_identity_records_unconfirmed(self):
+        name = "knowweave-c4-clone-" + CLONE + "-verify"
+        calls = []
+        def docker(command, **_kwargs):
+            calls.append(command)
+            if command[0] == "create":
+                return SimpleNamespace(returncode=1, stdout=b"")
+            if command[:2] == ["container", "inspect"]:
+                return SimpleNamespace(returncode=0, stdout=json.dumps([{
+                    "Id": "f" * 64, "Name": "/foreign",
+                    "Config": {"Labels": {"com.knowweave.clone.batch": CLONE}}
+                }]).encode())
+            self.fail("foreign helper was removed or started")
+        with patch.object(runner, "_probe_docker", side_effect=docker):
+            with self.assertRaises(ValueError) as raised:
+                runner._run_clone_helper(["create", "--name", name],
+                                         "postgres@sha256:pin", "a" * 64,
+                                         "clone_pg", batch_id=CLONE,
+                                         uid=999, gid=999,
+                                         image_id="sha256:" + "1" * 64,
+                                         kind="verify")
+        self.assertEqual(raised.exception.clone_helper_cleanup, "UNCONFIRMED")
+        self.assertEqual(len(calls), 2)
+
+    def test_clone_project_is_created_by_compose_before_copy(self):
+        clone = {"project": "clone", "network": "clone_test", "volume": "clone_pg",
+                 "image": "postgres:18@sha256:pin"}
+        before = {"daemon_id": "daemon", "containers": [], "networks": [],
+                  "volumes": [], "routes": []}
+        image_id = "sha256:" + "1" * 64
+        pg_id, network_id = "b" * 64, "c" * 64
+        after = {"daemon_id": "daemon", "containers": [{
+            "Id": pg_id, "Image": image_id, "Name": "/clone-pg-1",
+            "Config": {"Image": clone["image"], "User": "999:999",
+                       "Cmd": ["postgres"],
+                       "Env": ["PGDATA=" + runner.CLONE_DATA],
+                       "Labels": {"com.docker.compose.project": "clone",
+                                  "com.docker.compose.service": "pg"}},
+            "HostConfig": {"NetworkMode": "clone_test", "CapDrop": ["ALL"],
+                           "SecurityOpt": ["no-new-privileges"],
+                           "Privileged": False, "PortBindings": {}},
+            "State": {"Running": False, "Status": "created"},
+            "Mounts": [{"Type": "volume",
+                "Name": "clone_pg", "Source": "/docker/clone_pg",
+                "Destination": "/var/lib/postgresql", "RW": True}]}],
+            "networks": [{"Id": network_id, "Name": "clone_test", "Internal": True,
+                          "IPAM": {"Config": [{"Subnet": "10.251.229.0/24"}]},
+                          "Labels": {"com.docker.compose.project": "clone"}}],
+            "volumes": [{"Name": "clone_pg", "Driver": "local", "Scope": "local",
+                         "Options": None, "Mountpoint": "/docker/clone_pg",
+                         "Labels": {"com.docker.compose.project": "clone"}}]}
+        seen = []
+        provisioner = SimpleNamespace(
+            admit_fresh=lambda *_: None, _postgres_uid=lambda: (999, 999),
+            _inspect=lambda *_: [{"Id": image_id,
+                                  "RepoDigests": [clone["image"]]}],
+            snapshot=lambda: (after if any("create" in command for command in seen)
+                              else before))
+        def docker(command, **_kwargs):
+            seen.append(command)
+            self.assertEqual(command[:2], ["compose", "-f"])
+            return SimpleNamespace(returncode=0, stdout=b"")
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(runner, "_probe_docker", side_effect=docker), \
+             patch.object(runner, "_private_write", side_effect=lambda path, data:
+                          path.write_bytes(data)):
+            resources = runner._create_clone_resources(
+                provisioner, Path(directory), clone, "10.251.229.0/24", before)
+            document = json.loads((Path(directory) / "clone-compose.json").read_bytes())
+        self.assertEqual(resources["container_id"], pg_id)
+        self.assertEqual(seen[-1][-6:],
+                         ["create", "--no-build", "--pull", "never",
+                          "--no-recreate", "pg"])
+        self.assertTrue(document["services"]["pg"]["volumes"][0]["volume"]["nocopy"])
+        self.assertNotIn("secrets", document)
+
+    def test_copied_pg_starts_only_the_compose_created_exact_id(self):
+        clone = {"project": "clone", "network": "clone_test", "volume": "clone_pg",
+                 "image": "postgres:18@sha256:pin"}
+        clone_id = "b" * 64
+        resources = {"container_id": clone_id, "compose_project_created": True,
+                     "network_id": "c" * 64, "volume_mountpoint": "/docker/clone_pg",
+                     "image_id": "sha256:" + "1" * 64}
+        calls = []
+        def docker(command, **_kwargs):
+            calls.append(command)
+            if command[:2] == ["container", "inspect"]:
+                running = any(item == ["start", clone_id] for item in calls)
+                return SimpleNamespace(returncode=0, stdout=json.dumps([{
+                    "State": {"Running": running,
+                              "Status": "running" if running else "created"}
+                }]).encode())
+            if command[0] == "start":
+                return SimpleNamespace(returncode=0,
+                                       stdout=(clone_id + "\n").encode())
+            if "pg_isready" in command:
+                return SimpleNamespace(returncode=0, stdout=b"")
+            if "psql" in command:
+                return SimpleNamespace(returncode=0, stdout=b"123|42\n")
+            self.fail("raw PG creation or unexpected Docker command")
+        with patch.object(runner, "_probe_docker", side_effect=docker), \
+             patch.object(runner, "_verify_clone_pg", return_value=clone_id):
+            result = runner._start_clone_pg(
+                object(), clone, resources, "a" * 64,
+                {"pg_system_identifier": "123", "database_oid": 42},
+                "learning_restore_c4_" + PRIMARY, 999, 999)
+        self.assertEqual(result["container_id"], clone_id)
+        self.assertEqual([c for c in calls if c[0] == "start"],
+                         [["start", clone_id]])
 
     def test_clone_helper_mount_contract_rejects_extra_or_wrong_volume(self):
         helper_id = "f" * 64
@@ -125,7 +293,9 @@ class CloneAdmission(unittest.TestCase):
             self.fail("helper started before inspection")
         with patch.object(runner, "_probe_docker", side_effect=docker):
             with self.assertRaises(ValueError):
-                runner._run_clone_helper(["create"], "postgres@sha256:pin",
+                runner._run_clone_helper(
+                    ["create", "--name", "knowweave-c4-clone-" + CLONE + "-verify"],
+                    "postgres@sha256:pin",
                                          "a" * 64, "clone_pg", batch_id=CLONE,
                                          uid=999, gid=999, image_id="sha256:" +
                                          "1" * 64, kind="verify")
@@ -135,7 +305,8 @@ class CloneAdmission(unittest.TestCase):
         clone = {"project": "clone", "network": "clone_test",
                  "volume": "clone_pg", "image": "postgres:18@sha256:pin"}
         facts = {"Id": "b" * 64, "Image": "sha256:" + "1" * 64,
-                 "Config": {"Image": clone["image"],
+                 "Name": "/clone-pg-1",
+                 "Config": {"Image": clone["image"], "Cmd": ["postgres"],
                             "User": "999:999", "Env": ["PGDATA=" + runner.CLONE_DATA],
                             "Labels": {"com.docker.compose.project": "clone",
                                        "com.docker.compose.service": "pg"}},
@@ -246,7 +417,8 @@ class CloneAdmission(unittest.TestCase):
         commands = []
         provisioner = SimpleNamespace(_postgres_uid=lambda: (999, 999))
         resources = {"volume_name": "clone_pg",
-                     "image_id": "sha256:" + "1" * 64}
+                     "image_id": "sha256:" + "1" * 64,
+                     "postgres_uid": 999, "postgres_gid": 999}
         with patch.object(runner, "_clone_passfile", side_effect=AssertionError(
                     "passfile created under trust")), \
              patch.object(runner, "_read_clone_secret", side_effect=AssertionError(
