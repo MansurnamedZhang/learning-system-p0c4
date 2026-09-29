@@ -1023,7 +1023,7 @@ def _run_clone_negative_probe(source, batch, target, primary, clone,
             len(result_lines) == 1 and
             re.fullmatch(
                 rb"test result: ok\. 1 passed; 0 failed; 0 ignored; "
-                rb"\d+ measured; \d+ filtered out;(?: finished in \d+(?:\.\d+)?s)?",
+                rb"0 measured; \d+ filtered out;(?: finished in \d+(?:\.\d+)?s)?",
                 result_lines[0]) is not None,
             "exact one-test wrong-endpoint negative absent")
     return {"state": CLONE_PASSED, "birth_sha256": birth_sha256,

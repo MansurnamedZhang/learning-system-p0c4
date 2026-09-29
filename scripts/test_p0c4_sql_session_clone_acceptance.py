@@ -532,6 +532,7 @@ class CloneAdmission(unittest.TestCase):
                         serial.replace(marker.encode(), b"FORGED_" + marker.encode()),
                         serial.replace(b"test " + test_name.encode(), b"test other"),
                         parallel.replace(b"test " + test_name.encode() + b" ... ok", b"test other ... ok"),
+                        parallel.replace(b"0 measured", b"1 measured"),
                         parallel + result_line.encode(),
                         parallel.replace(marker.encode(), b"WRONG")):
                 with patch.object(runner, "_compile_bound_probe",
