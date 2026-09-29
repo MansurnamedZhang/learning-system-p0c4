@@ -100,6 +100,8 @@
 
 - Task 3b setup 身份检查修复候选：现场诊断后采用 RED→GREEN，只在 setup 的 `HostConfig.CapAdd` 允许精确单元素 `CHOWN` 或 Docker inspect 规范值 `CAP_CHOWN`；缺失、空值、额外能力及双拼写并列均拒绝，copy/verify 仍要求 `None`。独立只读复审 PASS、无 P1/P2；本地 C4 Python 测试 166/166 通过，尚无新 Linux 复制或异端点负例通过证据。旧诊断脚本锁定旧 runner 哈希，不能拿来直接重测修复版；需新源码包、新双项目批次和现场验收。
 
+- Task 3b 修复版隔离候选封存于提交 `b416a93d1fbeb6b49a05d67c0f0b6bec020b49a0`：Git 跟踪源码 ZIP SHA-256 `99d0b4222cef254638da0708e900ec52e8d00bbe9eb8c1ab8a0756336243e1dd`（403 文件，manifest `31fb9db1a123813ce73a6c98dc7e7643228eff56c598d8edf93c69fe1be6c4a1`），ZIP/Git 原样 runner SHA-256 `97faf3ec7cd98d13844d8f9f5659ffc8a4f1ca1c288eed53a41b4f86f114b6eb`。用户已逐文件授权上传和只在新主批次 `2e3dcf60-91b3-479a-8b7e-32a42a481cb2`／克隆批次 `4ef67d65-379d-47ed-9c56-2da4e1a2c6b8` 重测；服务器收件目录两文件哈希二次核对通过。`10.251.230.0/24` 与 `10.251.231.0/24` 以及精确 Compose 资源名在准备时只读查证未占用；现场验收结果待回填。
+
 ## 设计裁定
 
 ### SQL session binding Task 3a（2026-09-29，设计及本地验证）
