@@ -104,6 +104,8 @@
 
 - Task 3b `b416a93` 修复版新批次返回 `CLONE_CAPFIX_RUN_EXIT=1`；用户贴回 root 私有 `result.json`：`stage=physical-clone-preparation`、`failure_type=ValueError`、`SAME_ID_WRONG_ENDPOINT_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN`，主/克隆精确容器均停机、卷保留且不可复用，源码前后 SHA-256 同为 `73aaf0d3f9e9f144660003f2962b61340ce9e431fd1acde5fe219bc71f218bd3`。只读 Docker 确认 clone PG 未启动；用户只读卷元数据见 `18/` 与 `18/docker` 已创建且属主 `999:999`、权限仍是 `755`，没有 `PG_VERSION` 或 `backup_manifest`。这与 setup 命令中先 `chown 999:999` 再由仅有 `CAP_CHOWN` 的 root `chmod 0700` 相符：Linux 非所有者改权限需 `CAP_FOWNER`（[chmod(2)](https://man7.org/linux/man-pages/man2/chmod.2.html)、[capabilities(7)](https://man7.org/linux/man-pages/man7/capabilities.7.html)）。已实现“先 chmod 0700、检查为空，再 chown 999:999”的最小修复；独立复审 PASS，本地 C4 Python 测试 167/167 通过；仍需全新空卷的 Linux 聚焦验证，不能将这轮视为复制或异端点负例通过，不重跑旧批次。
 
+- Setup 权限顺序修复在 `7990ea1` 提交，使用 `mkdir → chmod 0700 → 独立且可传播失败的空目录检查 → chown 999:999`；`2cb5157` 将单次新空卷诊断固定到该 runner SHA-256 `b298f6814d50eff3a6fc1b6e322492264183e5fd263486a6a871cce3b5a5b97a`，并使证据投影不回显未验证的 Docker inspect 字符串。两项分别经独立审查 PASS，C4 Python 测试 170/170 通过。用户逐文件授权的 Git 原样 runner（82,160 字节）及诊断脚本（SHA-256 `7119fc606b2c8c845f22418ab8770cf4036c5011f55282a87c42a135aa4c92cb`，13,440 字节）已在服务器收件目录各完成两次哈希核对。新诊断批次 `81b965f6-3f47-4c59-a796-c7506b7a5b08` 的 Docker 卷已出现、helper 当前不存在；现场 JSON/退出码及最终 `0700/999:999` 权限证明待用户终端回填，不能据此推断诊断通过。
+
 ## 设计裁定
 
 ### SQL session binding Task 3a（2026-09-29，设计及本地验证）
