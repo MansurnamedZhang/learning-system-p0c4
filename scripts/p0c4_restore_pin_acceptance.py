@@ -560,9 +560,9 @@ def _clone_setup_command(volume, image, batch_id, uid, gid):
             "--security-opt", "no-new-privileges", "--user", "0:0",
             "--mount", f"type=volume,src={volume},dst=/var/lib/postgresql,volume-nocopy",
             "--entrypoint", "/bin/sh", image, "-ec",
-            f"mkdir -p {CLONE_DATA}; chown {uid}:{gid} /var/lib/postgresql/18 "
-            f"{CLONE_DATA}; chmod 0700 {CLONE_DATA}; "
-            f"test -z \"$(ls -A {CLONE_DATA})\""]
+            f"mkdir -p {CLONE_DATA}; chmod 0700 {CLONE_DATA}; "
+            f"entries=\"$(ls -A {CLONE_DATA})\"; test -z \"$entries\"; "
+            f"chown {uid}:{gid} /var/lib/postgresql/18 {CLONE_DATA}"]
 
 
 def _clone_verify_command(primary_id, volume, image, batch_id, uid, gid):

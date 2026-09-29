@@ -289,6 +289,38 @@ class CloneAdmission(unittest.TestCase):
                                                       CapAdd=cap_add))
                 runner._verify_clone_helper(invalid, *args, **options)
 
+    def test_setup_helper_sets_mode_before_transferring_ownership(self):
+        command = runner._clone_setup_command(
+            "clone_pg", "postgres@sha256:pin", CLONE, 999, 999)
+        self.assertEqual(command[command.index("--network") + 1], "none")
+        self.assertEqual(command[command.index("--cap-drop") + 1], "ALL")
+        self.assertEqual(command[command.index("--cap-add") + 1], "CHOWN")
+        self.assertNotIn("--env", command)
+        self.assertEqual(command[-2], "-ec")
+
+        steps = command[-1].split("; ")
+        self.assertEqual(steps, [
+            f"mkdir -p {runner.CLONE_DATA}",
+            f"chmod 0700 {runner.CLONE_DATA}",
+            f'entries="$(ls -A {runner.CLONE_DATA})"',
+            'test -z "$entries"',
+            f"chown 999:999 /var/lib/postgresql/18 {runner.CLONE_DATA}",
+        ])
+        mode, owner = 0o755, (0, 0)
+        for step in steps[1:]:
+            if step.startswith("chmod "):
+                self.assertEqual(owner, (0, 0),
+                                 "root helper lacks CAP_FOWNER after chown")
+                mode = 0o700
+            elif step.startswith("entries="):
+                self.assertEqual(owner, (0, 0),
+                                 "root helper cannot read 0700 PGDATA after chown")
+            elif step.startswith("chown "):
+                owner = (999, 999)
+            elif step != 'test -z "$entries"':
+                self.fail(f"unexpected setup step: {step}")
+        self.assertEqual((mode, owner), (0o700, (999, 999)))
+
     def test_clone_helper_mount_contract_rejects_extra_or_wrong_volume(self):
         helper_id = "f" * 64
         clone_volume = "clone_pg"
