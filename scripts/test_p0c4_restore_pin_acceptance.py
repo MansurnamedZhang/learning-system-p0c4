@@ -115,6 +115,76 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(summary["inspection_evidence_sha256"],
                          hashlib.sha256(record).hexdigest())
 
+    def test_opt_in_bound_probe_runs_before_stop_and_has_distinct_status(self):
+        self.args.bound_probe_cargo = Path("/usr/bin/cargo")
+        sequence = []
+        deps = self._dependencies()
+        deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
+            {"confirmed": True, "volume_retained": True})
+        with patch.object(runner, "_run_bound_probe",
+                          side_effect=lambda *_: sequence.append("probe") or
+                          {"state": "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE"}):
+            code, result = self._run(deps)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(sequence, ["probe", "stop"])
+        self.assertEqual(result["status"], runner.BOUND_PASSED)
+        self.assertTrue(result["stop"]["confirmed"])
+
+    def test_failed_bound_probe_still_stops_and_cannot_pass(self):
+        self.args.bound_probe_cargo = Path("/usr/bin/cargo")
+        sequence = []
+        deps = self._dependencies()
+        deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
+            {"confirmed": True, "volume_retained": True})
+        def fail_probe(*_):
+            sequence.append("probe")
+            raise RuntimeError("probe failed")
+        with patch.object(runner, "_run_bound_probe",
+                          side_effect=fail_probe):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(sequence, ["probe", "stop"])
+        self.assertEqual(result["status"], runner.BOUND_FAILED)
+        self.assertTrue(result["stop"]["confirmed"])
+
+    def test_bound_probe_rejects_zero_test_cargo_result(self):
+        cargo = self.batch / "cargo"
+        cargo.write_bytes(b"binary")
+        cargo.chmod(0o555)
+        with patch.object(runner, "_trusted_path"), \
+             patch.object(runner, "_private_dir"), \
+             patch.object(runner.subprocess, "run", return_value=SimpleNamespace(
+                 returncode=0, stdout=b"test result: ok. 0 passed; 0 failed; 0 ignored;",
+                 stderr=b"")) as process:
+            with self.assertRaises(ValueError):
+                runner._run_bound_probe(cargo, self.batch / "source", self.batch,
+                                        self.batch / "control" / "targets" / ID,
+                                        "learning_restore_c4_" + ID, "d" * 64)
+        command = process.call_args.args[0]
+        self.assertIn("--offline", command)
+        self.assertIn("--exact", command)
+        self.assertIn("--ignored", command)
+        self.assertEqual(process.call_args.kwargs["env"][
+            "KNOWWEAVE_C4_TARGET_BIRTH_SHA256"], "d" * 64)
+
+    def test_bound_probe_accepts_exact_one_test_marker(self):
+        cargo = self.batch / "cargo"
+        cargo.write_bytes(b"binary")
+        cargo.chmod(0o555)
+        output = (b"BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE\n"
+                  b"test result: ok. 1 passed; 0 failed; 0 ignored; 18 filtered out;")
+        with patch.object(runner, "_trusted_path"), \
+             patch.object(runner, "_private_dir"), \
+             patch.object(runner.subprocess, "run", return_value=SimpleNamespace(
+                 returncode=0, stdout=output, stderr=b"")):
+            result = runner._run_bound_probe(
+                cargo, self.batch / "source", self.batch,
+                self.batch / "control" / "targets" / ID,
+                "learning_restore_c4_" + ID, "d" * 64)
+        self.assertEqual(result["birth_sha256"], "d" * 64)
+        self.assertEqual(result["state"],
+                         "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE")
+
     def test_pin_mismatch_cannot_be_promoted(self):
         deps = self._dependencies()
         candidate, payload = deps[2].inspect_candidate()

@@ -15,6 +15,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import subprocess
 import sys
 import uuid
 import zipfile
@@ -31,6 +32,8 @@ INITDB = "deploy/p0c4_restore_initdb.sh"
 REQUIRED = {ENTRY, HELPER, PROVISIONER, ISSUER, PIN, PREPARE, INITDB}
 PASSED = "PIN_CANDIDATE_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
 FAILED = "PIN_CANDIDATE_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+BOUND_PASSED = "BOUND_TARGET_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
+BOUND_FAILED = "BOUND_TARGET_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 MAX_ARCHIVE = 32 * 1024 * 1024
@@ -233,6 +236,40 @@ def _load(source, name, relative):
     return module
 
 
+def _run_bound_probe(cargo, source, batch, target, database, birth_sha256):
+    """Opt-in test executable; all target inspection stays in Rust."""
+    require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
+            "sealed birth digest required for bound probe")
+    cargo = Path(cargo)
+    _trusted_path(cargo, file=True)
+    require(cargo == cargo.resolve(strict=True) and
+            stat.S_IMODE(os.lstat(cargo).st_mode) & 0o022 == 0,
+            "canonical root-owned Cargo executable required")
+    build = batch / "probe-build"
+    _private_dir(build)
+    test_name = ("restore_preflight::target_binding::tests::"
+                 "live_read_only_bound_target_probe")
+    env = {"HOME": "/root", "PATH": "/root/.cargo/bin:/usr/bin:/bin",
+           "CARGO_HOME": "/root/.cargo", "CARGO_TARGET_DIR": str(build),
+           "CARGO_TERM_COLOR": "never",
+           "KNOWWEAVE_C4_TARGET_BIRTH_SHA256": birth_sha256,
+           "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT": str(target / "destination"),
+           "KNOWWEAVE_C4_PROBE_CONTROL_ROOT": str(target / "control"),
+           "KNOWWEAVE_C4_PROBE_ASSET_ROOT": str(target / "assets"),
+           "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE": database}
+    process = subprocess.run(
+        [str(cargo), "test", "--locked", "--offline", "-p", "learning-backup",
+         "--lib", test_name, "--", "--exact", "--ignored", "--nocapture"],
+        cwd=source, env=env, capture_output=True, timeout=7200, check=False)
+    output = process.stdout + b"\n" + process.stderr
+    require(process.returncode == 0 and
+            b"BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE" in output and
+            b"test result: ok. 1 passed; 0 failed; 0 ignored;" in output,
+            "read-only bound probe failed")
+    return {"state": "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE",
+            "birth_sha256": birth_sha256, "exit_code": process.returncode}
+
+
 def extract_and_load(manifest, package, batch):
     source = batch / "source"
     _private_dir(source)
@@ -322,6 +359,9 @@ def _run_batch(args, manifest, package, batch):
               "target_condition": "NO_TARGET_CREATED",
               "target_reuse_permitted": False,
               "stop": {"confirmed": False}, "failure_type": None}
+    probe_cargo = getattr(args, "bound_probe_cargo", None)
+    if probe_cargo is not None:
+        result["status"] = BOUND_FAILED
     provisioner = acceptance = identity = initdb = before = None
     confirmed_id = None
     issuer_started = False
@@ -412,6 +452,11 @@ def _run_batch(args, manifest, package, batch):
         require(result["source_after_sha256"] ==
                 result["source_before_sha256"],
                 "reviewed source changed during run")
+        if probe_cargo is not None:
+            result["stage"] = "read-only-bound-probe"
+            result["bound_probe"] = _run_bound_probe(
+                probe_cargo, source, batch, target, identity["database"],
+                success["birth_sha256"])
         result["stage"] = "exact-id-stop"
         result["stop"] = acceptance.stop_verified_pg(
             provisioner, identity, confirmed_id)
@@ -431,7 +476,7 @@ def _run_batch(args, manifest, package, batch):
         result["inspection_record_sha256"] = digest(inspection_bytes)
         result["inspection_record_file"] = inspection_path.name
         result["target_condition"] = "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE"
-        result["status"] = PASSED
+        result["status"] = BOUND_PASSED if probe_cargo is not None else PASSED
     except BaseException as error:
         result["failure_type"] = type(error).__name__
         if issuer_started and identity is not None and acceptance is not None:
@@ -462,12 +507,12 @@ def _run_batch(args, manifest, package, batch):
     _publish_result(evidence, payload)
     summary = {"status": result["status"], "result_sha256": digest(payload),
                "evidence": str(evidence), "not_restore": True}
-    if result["status"] == PASSED:
+    if result["status"] in (PASSED, BOUND_PASSED):
         summary.update(birth_sha256=result["birth_sha256"],
                        inspection_evidence_sha256=result[
                            "inspection_evidence_sha256"])
     print(json.dumps(summary, sort_keys=True), flush=True)
-    return (0 if result["status"] == PASSED else 1), result
+    return (0 if result["status"] in (PASSED, BOUND_PASSED) else 1), result
 
 
 def run(args):
@@ -504,6 +549,8 @@ def main(argv=None):
     parser.add_argument("--runner-sha256", required=True)
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--subnet", required=True)
+    parser.add_argument("--bound-probe-cargo", type=Path,
+                        help="opt-in canonical root-owned Cargo executable; run the ignored read-only Rust bound probe before exact PG stop")
     try:
         args = parser.parse_args(argv)
     except SystemExit as error:

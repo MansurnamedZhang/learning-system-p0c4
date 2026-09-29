@@ -646,6 +646,74 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn probe_config_from(
+        get: impl Fn(&str) -> Option<String>,
+    ) -> Result<RestorePreflightConfig, BackupError> {
+        let required = |key| {
+            get(key)
+                .filter(|value| !value.is_empty())
+                .ok_or(BackupError::Invalid("bound probe environment missing"))
+        };
+        let config = RestorePreflightConfig {
+            destination_root: required("KNOWWEAVE_C4_PROBE_DESTINATION_ROOT")?.into(),
+            control_root: required("KNOWWEAVE_C4_PROBE_CONTROL_ROOT")?.into(),
+            asset_root: required("KNOWWEAVE_C4_PROBE_ASSET_ROOT")?.into(),
+            expected_database: required("KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE")?,
+            // The probe never opens verifier trust. This absolute value stays
+            // outside all target roots and is needed only by config validation.
+            trust_path: std::env::temp_dir(),
+        };
+        config.validate()?;
+        Ok(config)
+    }
+
+    #[test]
+    fn probe_environment_requires_all_explicit_nonsecret_inputs() {
+        let target = std::env::temp_dir().join("bound-probe-test-target");
+        let destination = target.join("database").to_string_lossy().into_owned();
+        let control = target.join("control").to_string_lossy().into_owned();
+        let assets = target.join("assets").to_string_lossy().into_owned();
+        let values = [
+            ("KNOWWEAVE_C4_PROBE_DESTINATION_ROOT", destination.as_str()),
+            ("KNOWWEAVE_C4_PROBE_CONTROL_ROOT", control.as_str()),
+            ("KNOWWEAVE_C4_PROBE_ASSET_ROOT", assets.as_str()),
+            (
+                "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE",
+                "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3",
+            ),
+        ];
+        for missing in values.map(|(key, _)| key) {
+            assert!(
+                probe_config_from(|key| {
+                    values
+                        .iter()
+                        .find(|(name, _)| *name == key && *name != missing)
+                        .map(|(_, value)| (*value).to_owned())
+                })
+                .is_err()
+            );
+        }
+        assert!(
+            probe_config_from(|key| {
+                values
+                    .iter()
+                    .find(|(name, _)| *name == key)
+                    .map(|(_, value)| (*value).to_owned())
+            })
+            .is_ok()
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires a new, running, root-owned isolated PG18 target and compile-time birth digest"]
+    fn live_read_only_bound_target_probe() {
+        let config = probe_config_from(|key| std::env::var(key).ok())
+            .expect("explicit nonsecret bound-probe environment required");
+        linux::probe_bound_target(&config).expect("bound target observation failed closed");
+        println!("BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE");
+    }
+
     const ID: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const NET: &str = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
     const IMAGE: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
