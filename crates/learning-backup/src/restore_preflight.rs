@@ -29,7 +29,6 @@ use std::io::{Read, Seek, SeekFrom};
 use std::{
     fs::File,
     io::Write,
-    os::fd::AsRawFd,
     os::unix::fs::{MetadataExt, PermissionsExt},
 };
 use std::{
@@ -38,7 +37,7 @@ use std::{
 };
 
 #[cfg(any(target_os = "linux", test))]
-#[allow(dead_code)] // Staged internal probe; not yet part of the restore lock lifetime.
+#[allow(dead_code)] // Standalone probe and staged continuation remain internal.
 mod target_binding;
 
 #[cfg(any(target_os = "linux", test))]
@@ -420,9 +419,9 @@ impl RestorePreflightConfig {
     }
 }
 
-/// Holds the exclusive management lock until dropped. Preflight performs no
-/// target data write. The database stage consumes this value and retains the
-/// lock for later asset import, data closure and acceptance work.
+/// Holds the global creation and exclusive target locks until dropped.
+/// Preflight performs no target data write. The internal database stage retains
+/// both locks for later asset import, data closure and acceptance work.
 #[derive(Debug)]
 pub struct RestorePreflight {
     manifest: BackupManifestV1,
@@ -440,20 +439,21 @@ pub struct RestorePreflight {
     #[cfg(target_os = "linux")]
     control: BackupDir,
     #[cfg(target_os = "linux")]
-    _lock: File,
+    bound_target: target_binding::BoundTargetGuard<File, Option<File>>,
 }
 
 /// Internal staging result: database import completed, but the target is still
 /// private and unusable. This is not a public restore or admission API.
-/// This opaque continuation retains the same exclusive lock. Asset import,
-/// source-lease invalidation, closure checks and admission remain unimplemented.
+/// This opaque continuation retains the same two locks and exact identity.
+/// Asset import, source-lease invalidation, closure checks and admission remain
+/// unimplemented.
 #[derive(Debug)]
 #[allow(dead_code)] // Staged internal continuation; external restore is not yet admitted.
 pub(crate) struct RestoreDatabaseImported {
     manifest: BackupManifestV1,
     plan: BackupPlan,
     #[cfg(target_os = "linux")]
-    _lock: File,
+    bound_target: target_binding::BoundTargetGuard<File, Option<File>>,
 }
 
 impl RestorePreflight {
@@ -498,7 +498,11 @@ impl RestorePreflight {
         executable: &Path,
         private_pgpass: &Path,
     ) -> Result<RestoreDatabaseImported, BackupError> {
-        // `self` retains the exclusive preflight lock through the child exit.
+        // `self` retains both locks through this entire internal stage.
+        // This observation does NOT bind the SQLx pool/host pg_restore endpoint
+        // to Docker. This staged method must remain unwired until that gap and
+        // executable/credential replacement races are closed.
+        self.bound_target.recheck()?;
         // Recheck the complete receipt and all package bytes against the exact
         // receipt observed by preflight before opening the dump for execution.
         let checked = open_complete_backup(
@@ -532,6 +536,7 @@ impl RestorePreflight {
             self.manifest.backup_id,
             &self.receipt_sha256,
         )?;
+        self.bound_target.recheck()?;
         let mut attempt = self.control.create_file(&attempt_name)?;
         attempt.write_all(&attempt_bytes)?;
         attempt.sync_all()?;
@@ -540,10 +545,11 @@ impl RestorePreflight {
         // blocks another clean-target preflight for this database.
         self.restore_spec
             .run_from_open_file(executable, private_pgpass, &mut archive)?;
+        self.bound_target.recheck()?;
         Ok(RestoreDatabaseImported {
             manifest: self.manifest,
             plan: self.plan,
-            _lock: self._lock,
+            bound_target: self.bound_target,
         })
     }
 }
@@ -684,6 +690,9 @@ async fn preflight_linux(
             "root-owned restore controller required",
         ));
     }
+    // Acquire the existing global creation lock before any target lock can
+    // be created. The guard owns both locks and the original Docker/PG facts.
+    let bound_target = target_binding::acquire_for_restore(config)?;
     let lock_root = BackupDir::open_trusted_private_root(&config.control_root)?;
     let _trust_parent = BackupDir::open_trusted_private_root(
         config
@@ -691,25 +700,6 @@ async fn preflight_linux(
             .parent()
             .ok_or(BackupError::Invalid("verifier trust parent"))?,
     )?;
-    let lock_name = format!("{}.restore.lock", config.expected_database);
-    let lock = match lock_root.create_file(&lock_name) {
-        Ok(file) => {
-            file.sync_all()?;
-            lock_root.sync()?;
-            file
-        }
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            lock_root.open_file(&lock_name)?
-        }
-        Err(error) => return Err(error.into()),
-    };
-    let meta = lock.metadata()?;
-    if meta.uid() != 0 || meta.permissions().mode() & 0o777 != 0o600 {
-        return Err(BackupError::Invalid("private restore lock"));
-    }
-    if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-        return Err(BackupError::Invalid("restore target is already locked"));
-    }
     reject_existing_attempt(lock_root.kind(&restore_attempt_name(&config.expected_database)?))?;
     let checked = open_complete_backup(
         &config.destination_root,
@@ -758,6 +748,9 @@ async fn preflight_linux(
     let facts = target_facts(admin, assets.list()?.len()).await?;
     facts.validate()?;
     verify_target_birth(admin, config, &lock_root, &assets).await?;
+    // The pool's facts are necessary but not proof of an identical Docker
+    // endpoint (e.g. clones may share PG identifiers). No restore authority.
+    bound_target.recheck()?;
     let options = admin.connect_options();
     let restore_spec = PgRestoreSpec::new(
         &config.expected_database,
@@ -773,7 +766,7 @@ async fn preflight_linux(
         restore_spec,
         expected_database: config.expected_database.clone(),
         control: lock_root,
-        _lock: lock,
+        bound_target,
     })
 }
 
@@ -800,8 +793,8 @@ async fn verify_target_birth(
     let birth = parse_pinned_birth(&bytes, pinned)?;
     // The birth file can survive an interrupted publication. Bind it to the
     // final success seal and the original quarantined creation record, under
-    // the same exclusive control lock. A later driver still must re-inspect
-    // the live Docker mount before using the build-pinned candidate.
+    // the same exclusive control lock. The retained bound-target guard also
+    // re-inspects the live Docker identity around this preflight.
     let target_path = config
         .control_root
         .parent()

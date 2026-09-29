@@ -1,6 +1,6 @@
-//! Root-only, read-only Docker/PG identity probe. This is intentionally not an
-//! admission or restore API: the complete-backup and build-pin boundary remains
-//! in `preflight_restore` until this probe can be joined to its lock lifetime.
+//! Root-only Docker/PG observation guard. Retains creation/target locks and
+//! exact observed identity, but does not prove the SQLx pool or a host
+//! pg_restore connection reaches that Docker endpoint. Never write authority.
 use super::*;
 use serde_json::Value;
 
@@ -349,6 +349,50 @@ fn validate_docker(
     )
 }
 
+// The dependency boundary is generic so lock ordering and ownership can be
+// exercised without a privileged Docker daemon.
+#[derive(Debug)]
+pub(super) struct BoundTargetGuard<G, T> {
+    // Drop the target lock before releasing the global creation lock.
+    _target_lock: T,
+    _global_lock: G,
+    claim: DockerClaim,
+    observation: Value,
+}
+
+fn acquire_bound_guard<G, T>(
+    global: impl FnOnce() -> Result<G, BackupError>,
+    target: impl FnOnce() -> Result<T, BackupError>,
+    identity: impl FnOnce() -> Result<(DockerClaim, Value), BackupError>,
+) -> Result<BoundTargetGuard<G, T>, BackupError> {
+    let global_lock = global()?;
+    let target_lock = target()?;
+    let (claim, observation) = identity()?;
+    Ok(BoundTargetGuard {
+        _target_lock: target_lock,
+        _global_lock: global_lock,
+        claim,
+        observation,
+    })
+}
+
+impl<G, T> BoundTargetGuard<G, T> {
+    fn recheck_with(
+        &self,
+        mut observe: impl FnMut(&DockerClaim) -> Result<Value, BackupError>,
+        query: impl FnOnce(&DockerClaim) -> Result<String, BackupError>,
+    ) -> Result<(), BackupError> {
+        let before = observe(&self.claim)?;
+        same_observation(&self.observation, &before)?;
+        validate_pg_line(&self.claim, &query(&self.claim)?)?;
+        let after = observe(&self.claim)?;
+        same_observation(&self.observation, &after)
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(super) use linux::acquire_for_restore;
+
 #[cfg(target_os = "linux")]
 mod linux {
     use super::*;
@@ -370,7 +414,10 @@ mod linux {
     }
 
     fn lock_existing(dir: &BackupDir, name: &str) -> Result<File, BackupError> {
-        let file = dir.open_file(name)?;
+        lock_file(dir.open_file(name)?)
+    }
+
+    fn lock_file(file: File) -> Result<File, BackupError> {
         let meta = file.metadata()?;
         if meta.uid() != 0
             || !meta.is_file()
@@ -514,10 +561,28 @@ mod linux {
         Ok(projection)
     }
 
-    /// Internal read-only observation. It cannot authorize an import and is
-    /// not wired into preflight until the full locked lifetime is designed.
-    #[allow(dead_code)]
+    impl BoundTargetGuard<File, Option<File>> {
+        pub(in crate::restore_preflight) fn recheck(&self) -> Result<(), BackupError> {
+            self.recheck_with(observe, |claim| docker(&pg_exec_args(claim)?))
+        }
+    }
+
+    /// Standalone inspection keeps the control directory unchanged.
     pub(super) fn probe_bound_target(config: &RestorePreflightConfig) -> Result<(), BackupError> {
+        let _guard = acquire(config, false)?;
+        Ok(())
+    }
+
+    pub(in crate::restore_preflight) fn acquire_for_restore(
+        config: &RestorePreflightConfig,
+    ) -> Result<BoundTargetGuard<File, Option<File>>, BackupError> {
+        acquire(config, true)
+    }
+
+    fn acquire(
+        config: &RestorePreflightConfig,
+        create_target_lock: bool,
+    ) -> Result<BoundTargetGuard<File, Option<File>>, BackupError> {
         if unsafe { libc::geteuid() } != 0 {
             return Err(BackupError::Invalid("root bound target probe required"));
         }
@@ -539,105 +604,126 @@ mod linux {
             .parent()
             .ok_or(BackupError::Invalid("bound root path"))?;
         let root = BackupDir::open_trusted_private_root(root_path)?;
-        let _global_lock = lock_existing(&root, ".restore-target.lock")?;
         let target = BackupDir::open_trusted_private_root(target_path)?;
         let control = BackupDir::open_trusted_private_root(&config.control_root)?;
         let lock_name = format!("{}.restore.lock", config.expected_database);
-        // The standalone probe never creates the restore-attempt lock: a clean
-        // pin candidate must retain a control root containing only birth JSON.
-        // If another controller already created one, acquire it after the
-        // global creation lock to preserve lock ordering.
-        let _target_lock = optional_existing_lock(control.kind(&lock_name), || {
-            lock_existing(&control, &lock_name)
-        })?;
-        let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(
-            BackupError::Invalid("target birth digest is not build-pinned"),
-        )?;
-        let birth_bytes = read_private_target_file(
-            &control,
-            &format!("{}.birth.json", config.expected_database),
-            4096,
-        )?;
-        let birth = parse_pinned_birth(&birth_bytes, pinned)?;
-        validate_target_dir_batch(target_path, &birth)?;
-        let mut failure_present = false;
-        for name in ["failure.json", "issuer-diagnostic.json"] {
-            match target.kind(name) {
-                Ok(_) => failure_present = true,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => (),
-                Err(error) => return Err(error.into()),
-            }
-        }
-        let state_bytes = read_private_target_file(&target, "state.json", 4096)?;
-        let success_bytes = read_private_target_file(&target, "issuance-success.json", 4096)?;
-        validate_issuance_bytes(
-            &birth,
-            pinned,
-            &state_bytes,
-            Some(&success_bytes),
-            failure_present,
-        )?;
-        let state: TargetCreationState = serde_json::from_slice(&state_bytes)?;
-        let success: TargetIssuanceSuccess = serde_json::from_slice(&success_bytes)?;
-        let evidence: BirthEvidence = serde_json::from_slice(&read_private_target_file(
-            &target,
-            "birth-evidence.json",
-            4096,
-        )?)?;
-        let precreation = parse_precreation(&read_private_target_file(
-            &root,
-            "pin-precreation.json",
-            4096,
-        )?)?;
-        if evidence.birth_sha256 != pinned
-            || evidence.container_id != success.container_id
-            || evidence.network_id != success.network_id
-            || evidence.image_id != success.image_id
-            || evidence.volume_name != success.pg_volume_name
-            || evidence.volume_mountpoint != success.volume_mountpoint
-        {
-            return Err(BackupError::Invalid("bound issuance evidence differs"));
-        }
-        let claim = DockerClaim {
-            container_id: success.container_id,
-            network_id: success.network_id,
-            image_id: success.image_id,
-            volume_name: success.pg_volume_name,
-            mountpoint: success.volume_mountpoint,
-            project: birth.project_name.clone(),
-            network_name: state.network,
-            database: birth.database_name.clone(),
-            daemon_id: evidence.docker_daemon_id,
-            system_identifier: birth.pg_system_identifier,
-            database_oid: birth.database_oid,
-            subnet: state.subnet,
-            target_path: target_path.to_string_lossy().into_owned(),
-            initdb_source: precreation.initdb_path.clone(),
-            mount_dev: success.volume_mount_dev,
-            mount_ino: success.volume_mount_ino,
-        };
-        if claim.database != config.expected_database {
-            return Err(BackupError::Invalid("bound database differs"));
-        }
-        let targets_dir = BackupDir::open_trusted_private_root(targets)?;
-        validate_precreation(
-            &precreation,
-            &claim,
-            root_path,
-            root.identity()?,
-            targets_dir.identity()?,
-            &root.list()?,
-            &targets_dir.list()?,
-        )?;
-        if reviewed_initdb(Path::new(&precreation.initdb_path))? != precreation.initdb_sha256 {
-            return Err(BackupError::Invalid("bound initdb source differs"));
-        }
-        let before = observe(&claim)?;
-        let sql = docker(&pg_exec_args(&claim)?)?;
-        validate_pg_line(&claim, &sql)?;
-        let after = observe(&claim)?;
-        same_observation(&before, &after)?;
-        Ok(())
+        acquire_bound_guard(
+            || lock_existing(&root, ".restore-target.lock"),
+            || {
+                if create_target_lock {
+                    let file = match control.create_file(&lock_name) {
+                        Ok(file) => {
+                            file.sync_all()?;
+                            control.sync()?;
+                            file
+                        }
+                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                            control.open_file(&lock_name)?
+                        }
+                        Err(error) => return Err(error.into()),
+                    };
+                    Ok(Some(lock_file(file)?))
+                } else {
+                    // Preserve standalone probe's no-create-lock behavior.
+                    optional_existing_lock(control.kind(&lock_name), || {
+                        lock_existing(&control, &lock_name)
+                    })
+                }
+            },
+            || {
+                let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(
+                    BackupError::Invalid("target birth digest is not build-pinned"),
+                )?;
+                let birth_bytes = read_private_target_file(
+                    &control,
+                    &format!("{}.birth.json", config.expected_database),
+                    4096,
+                )?;
+                let birth = parse_pinned_birth(&birth_bytes, pinned)?;
+                validate_target_dir_batch(target_path, &birth)?;
+                let mut failure_present = false;
+                for name in ["failure.json", "issuer-diagnostic.json"] {
+                    match target.kind(name) {
+                        Ok(_) => failure_present = true,
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                let state_bytes = read_private_target_file(&target, "state.json", 4096)?;
+                let success_bytes =
+                    read_private_target_file(&target, "issuance-success.json", 4096)?;
+                validate_issuance_bytes(
+                    &birth,
+                    pinned,
+                    &state_bytes,
+                    Some(&success_bytes),
+                    failure_present,
+                )?;
+                let state: TargetCreationState = serde_json::from_slice(&state_bytes)?;
+                let success: TargetIssuanceSuccess = serde_json::from_slice(&success_bytes)?;
+                let evidence: BirthEvidence = serde_json::from_slice(&read_private_target_file(
+                    &target,
+                    "birth-evidence.json",
+                    4096,
+                )?)?;
+                let precreation = parse_precreation(&read_private_target_file(
+                    &root,
+                    "pin-precreation.json",
+                    4096,
+                )?)?;
+                if evidence.birth_sha256 != pinned
+                    || evidence.container_id != success.container_id
+                    || evidence.network_id != success.network_id
+                    || evidence.image_id != success.image_id
+                    || evidence.volume_name != success.pg_volume_name
+                    || evidence.volume_mountpoint != success.volume_mountpoint
+                {
+                    return Err(BackupError::Invalid("bound issuance evidence differs"));
+                }
+                let claim = DockerClaim {
+                    container_id: success.container_id,
+                    network_id: success.network_id,
+                    image_id: success.image_id,
+                    volume_name: success.pg_volume_name,
+                    mountpoint: success.volume_mountpoint,
+                    project: birth.project_name.clone(),
+                    network_name: state.network,
+                    database: birth.database_name.clone(),
+                    daemon_id: evidence.docker_daemon_id,
+                    system_identifier: birth.pg_system_identifier,
+                    database_oid: birth.database_oid,
+                    subnet: state.subnet,
+                    target_path: target_path.to_string_lossy().into_owned(),
+                    initdb_source: precreation.initdb_path.clone(),
+                    mount_dev: success.volume_mount_dev,
+                    mount_ino: success.volume_mount_ino,
+                };
+                if claim.database != config.expected_database {
+                    return Err(BackupError::Invalid("bound database differs"));
+                }
+                let targets_dir = BackupDir::open_trusted_private_root(targets)?;
+                validate_precreation(
+                    &precreation,
+                    &claim,
+                    root_path,
+                    root.identity()?,
+                    targets_dir.identity()?,
+                    &root.list()?,
+                    &targets_dir.list()?,
+                )?;
+                if reviewed_initdb(Path::new(&precreation.initdb_path))?
+                    != precreation.initdb_sha256
+                {
+                    return Err(BackupError::Invalid("bound initdb source differs"));
+                }
+                let before = observe(&claim)?;
+                let sql = docker(&pg_exec_args(&claim)?)?;
+                validate_pg_line(&claim, &sql)?;
+                let after = observe(&claim)?;
+                same_observation(&before, &after)?;
+                Ok((claim, before))
+            },
+        )
     }
 }
 
@@ -645,6 +731,105 @@ mod linux {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn bound_guard_retains_both_locks_until_continuation_is_dropped() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        struct Lease(&'static str, Rc<RefCell<Vec<&'static str>>>);
+        impl Drop for Lease {
+            fn drop(&mut self) {
+                self.1.borrow_mut().push(self.0);
+            }
+        }
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let guard = acquire_bound_guard(
+            || {
+                events.borrow_mut().push("global");
+                Ok(Lease("drop-global", events.clone()))
+            },
+            || {
+                events.borrow_mut().push("target");
+                Ok(Lease("drop-target", events.clone()))
+            },
+            || {
+                events.borrow_mut().push("identity");
+                Ok((claim(), json!({"restart_count": 0})))
+            },
+        )
+        .unwrap();
+        assert_eq!(*events.borrow(), ["global", "target", "identity"]);
+        // Ownership is moved, exactly as from preflight into its continuation.
+        let continuation = guard;
+        assert_eq!(*events.borrow(), ["global", "target", "identity"]);
+        drop(continuation);
+        assert_eq!(
+            *events.borrow(),
+            ["global", "target", "identity", "drop-target", "drop-global"]
+        );
+    }
+
+    #[test]
+    fn bound_guard_global_failure_precedes_all_target_mutation() {
+        for reason in ["missing", "unsafe", "busy"] {
+            let result = acquire_bound_guard::<(), ()>(
+                || Err(BackupError::Invalid(reason)),
+                || panic!("target lock or attempt marker must not be created"),
+                || panic!("target must not be observed before locks"),
+            );
+            assert!(matches!(result, Err(BackupError::Invalid(value)) if value == reason));
+        }
+    }
+
+    #[test]
+    fn bound_guard_rechecks_original_identity_before_and_after_pg_query() {
+        let guard = BoundTargetGuard {
+            _target_lock: (),
+            _global_lock: (),
+            claim: claim(),
+            observation: json!({"restart_count": 0}),
+        };
+        assert!(
+            guard
+                .recheck_with(
+                    |_| Ok(json!({"restart_count": 1})),
+                    |_| panic!("drift before query must fail closed"),
+                )
+                .is_err()
+        );
+        assert!(
+            guard
+                .recheck_with(
+                    |_| Ok(json!({"restart_count": 0})),
+                    |_| Ok("16386|7361082129910479001\n".into()),
+                )
+                .is_err()
+        );
+        let mut observation = 0;
+        assert!(
+            guard
+                .recheck_with(
+                    |_| {
+                        let value = json!({"restart_count": observation});
+                        observation += 1;
+                        Ok(value)
+                    },
+                    |_| Ok("16385|7361082129910479001\n".into()),
+                )
+                .is_err()
+        );
+        assert!(
+            guard
+                .recheck_with(
+                    |_| Ok(json!({"restart_count": 0})),
+                    |c| {
+                        assert_eq!(c.container_id, ID);
+                        Ok("16385|7361082129910479001\n".into())
+                    },
+                )
+                .is_ok()
+        );
+    }
 
     fn probe_config_from(
         get: impl Fn(&str) -> Option<String>,
