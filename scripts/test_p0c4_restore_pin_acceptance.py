@@ -205,6 +205,70 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["status"], runner.SESSION_FAILED)
         self.assertEqual(stopped, ["e" * 64])
 
+    def test_clone_mode_admits_second_project_before_primary_birth(self):
+        self.args.sql_session_clone_negative = True
+        self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"
+        self.args.clone_subnet = "10.251.229.0/24"
+        deps = self._dependencies()
+        clone = {"project": "clone-project", "database": "clone-database",
+                 "volume": "clone-volume", "network": "clone-network",
+                 "image": "postgres:18"}
+        original = deps[0].identity_for
+        deps[0].identity_for = lambda batch_id: (
+            clone if batch_id == self.args.clone_batch_id else original(batch_id))
+        admitted = []
+        deps[0].admit_fresh = lambda identity, subnet, before: admitted.append(
+            (identity["project"], subnet))
+        deps[1]._run_issuer = lambda *_: self.fail("birth before clone admission")
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_admit_clone_pair", side_effect=ValueError(
+                 "second project occupied")):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.CLONE_FAILED)
+        self.assertEqual(result["target_condition"], "NO_TARGET_CREATED")
+        self.assertEqual(result["clone_project"], "clone-project")
+
+    def test_clone_negative_failure_stops_both_exact_ids(self):
+        self.args.sql_session_clone_negative = True
+        self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"
+        self.args.clone_subnet = "10.251.229.0/24"
+        deps = self._dependencies()
+        clone = {"project": "clone-project", "database": "clone-database",
+                 "volume": "clone-volume", "network": "clone-network",
+                 "image": "postgres:18"}
+        original = deps[0].identity_for
+        deps[0].identity_for = lambda batch_id: (
+            clone if batch_id == self.args.clone_batch_id else original(batch_id))
+        stopped = []
+        deps[1].stop_verified_pg = lambda _provisioner, identity, container_id: (
+            stopped.append((identity["project"], container_id)) or
+            {"confirmed": True, "volume_retained": True})
+        snapshot = deps[0].snapshot()
+        seen = []
+        def snapshots():
+            seen.append(1)
+            if len(seen) == 1:
+                return snapshot
+            return dict(snapshot, containers=[{
+                "Id": "e" * 64,
+                "State": {"Running": True,
+                          "StartedAt": "2026-09-29T00:00:00Z"}}])
+        deps[0].snapshot = snapshots
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_admit_clone_pair", return_value=True), \
+             patch.object(runner, "_primary_still_pinned", return_value=True), \
+             patch.object(runner, "_prepare_physical_clone", return_value={
+                 "container_id": "f" * 64, "backup_verified": True,
+                 "no_standby": True, "volume_retained": True}):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.CLONE_FAILED)
+        self.assertEqual(stopped, [("clone-project", "f" * 64),
+                                   ("new-project", "e" * 64)])
+        self.assertEqual(result["clone"]["container_id"], "f" * 64)
+        self.assertTrue(result["stop"]["confirmed"])
+
     def test_sql_session_requires_exact_listing_and_one_marker_without_secret_env(self):
         binary = self.batch / "test-binary"
         binary.write_bytes(b"binary")
