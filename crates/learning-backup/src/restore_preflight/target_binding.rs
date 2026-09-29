@@ -2,6 +2,7 @@
 //! exact observed identity, but does not prove the SQLx pool or a host
 //! pg_restore connection reaches that Docker endpoint. Never write authority.
 use super::*;
+use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::Value;
 
 const PINNED_IMAGE: &str = "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d";
@@ -150,6 +151,132 @@ fn validate_pg_line(claim: &DockerClaim, output: &str) -> Result<(), BackupError
         || system != claim.system_identifier
     {
         return Err(BackupError::Invalid("bound PG identity differs"));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ChallengeKeys([i64; 2]);
+
+impl ChallengeKeys {
+    pub(super) fn random() -> Result<Self, BackupError> {
+        let rng = SystemRandom::new();
+        loop {
+            let mut bytes = [0; 16];
+            rng.fill(&mut bytes)
+                .map_err(|_| BackupError::Invalid("SQL session challenge randomness failed"))?;
+            let keys = Self([
+                i64::from_be_bytes(bytes[..8].try_into().unwrap()),
+                i64::from_be_bytes(bytes[8..].try_into().unwrap()),
+            ]);
+            if keys.validate().is_ok() {
+                return Ok(keys);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn for_test(first: i64, second: i64) -> Self {
+        Self([first, second])
+    }
+
+    fn validate(self) -> Result<(), BackupError> {
+        if self.0[0] == self.0[1] {
+            return Err(BackupError::Invalid("SQL session challenge keys repeat"));
+        }
+        Ok(())
+    }
+
+    pub(super) fn values(self) -> [i64; 2] {
+        self.0
+    }
+}
+
+// The lease is the caller's open SQL transaction. Consuming verification
+// drops it on failure; successful verification returns it for continuation.
+#[derive(Debug)]
+pub(super) struct LockChallenge<L> {
+    keys: ChallengeKeys,
+    lease: L,
+}
+
+impl<L> LockChallenge<L> {
+    pub(super) fn new(keys: ChallengeKeys, lease: L) -> Self {
+        Self { keys, lease }
+    }
+
+    pub(super) fn keys(&self) -> ChallengeKeys {
+        self.keys
+    }
+
+    pub(super) fn lease_mut(&mut self) -> &mut L {
+        &mut self.lease
+    }
+}
+
+fn lock_halves(key: i64) -> (u32, u32) {
+    let bits = key as u64;
+    ((bits >> 32) as u32, bits as u32)
+}
+
+fn challenge_exec_args(
+    claim: &DockerClaim,
+    keys: ChallengeKeys,
+) -> Result<Vec<String>, BackupError> {
+    keys.validate()?;
+    let (high_a, low_a) = lock_halves(keys.0[0]);
+    let (high_b, low_b) = lock_halves(keys.0[1]);
+    let mut args = pg_exec_args(claim)?;
+    // Numeric key halves are the only variable SQL. Query all matching locks,
+    // including wrong PID/database/mode, so the parser can reject ambiguity.
+    *args.last_mut().unwrap() = format!(
+        "SELECT pid, database::bigint, classid::bigint, objid::bigint, objsubid, mode, granted \
+         FROM pg_catalog.pg_locks WHERE locktype='advisory' \
+         AND (classid::bigint,objid::bigint) IN (({high_a},{low_a}),({high_b},{low_b}))"
+    );
+    Ok(args)
+}
+
+fn validate_challenge_rows(
+    keys: ChallengeKeys,
+    expected_pid: i32,
+    expected_database_oid: u64,
+    output: &str,
+) -> Result<(), BackupError> {
+    keys.validate()?;
+    if expected_pid <= 0 || expected_database_oid == 0 || output.len() > 4096 {
+        return Err(BackupError::Invalid(
+            "SQL session challenge expectation invalid",
+        ));
+    }
+    let lines: Vec<_> = output.lines().collect();
+    if lines.len() != 2 || !output.ends_with('\n') || output.contains('\r') {
+        return Err(BackupError::Invalid("SQL session challenge row count"));
+    }
+    let mut seen = [false; 2];
+    for line in lines {
+        let fields: Vec<_> = line.split('|').collect();
+        if fields.len() != 7
+            || fields[0] != expected_pid.to_string()
+            || fields[1] != expected_database_oid.to_string()
+            || fields[4] != "1"
+            || fields[5] != "ExclusiveLock"
+            || fields[6] != "t"
+        {
+            return Err(BackupError::Invalid("SQL session challenge lock differs"));
+        }
+        let pair = keys.0.iter().position(|key| {
+            let (high, low) = lock_halves(*key);
+            fields[2] == high.to_string() && fields[3] == low.to_string()
+        });
+        let index = pair.ok_or(BackupError::Invalid("SQL session challenge key differs"))?;
+        if seen[index] {
+            return Err(BackupError::Invalid("SQL session challenge lock repeated"));
+        }
+        seen[index] = true;
+    }
+    if seen != [true, true] {
+        return Err(BackupError::Invalid("SQL session challenge lock missing"));
     }
     Ok(())
 }
@@ -377,6 +504,28 @@ fn acquire_bound_guard<G, T>(
 }
 
 impl<G, T> BoundTargetGuard<G, T> {
+    fn verify_sql_session_with<L>(
+        &self,
+        challenge: LockChallenge<L>,
+        expected_pid: i32,
+        mut observe: impl FnMut(&DockerClaim) -> Result<Value, BackupError>,
+        query: impl FnOnce(&DockerClaim, &[String]) -> Result<String, BackupError>,
+    ) -> Result<LockChallenge<L>, BackupError> {
+        let before = observe(&self.claim)?;
+        same_observation(&self.observation, &before)?;
+        let args = challenge_exec_args(&self.claim, challenge.keys)?;
+        let output = query(&self.claim, &args)?;
+        validate_challenge_rows(
+            challenge.keys,
+            expected_pid,
+            self.claim.database_oid,
+            &output,
+        )?;
+        let after = observe(&self.claim)?;
+        same_observation(&self.observation, &after)?;
+        Ok(challenge)
+    }
+
     fn recheck_with(
         &self,
         mut observe: impl FnMut(&DockerClaim) -> Result<Value, BackupError>,
@@ -578,6 +727,15 @@ mod linux {
         pub(in crate::restore_preflight) fn recheck(&self) -> Result<(), BackupError> {
             self.recheck_with(observe, |claim| docker(&pg_exec_args(claim)?))
         }
+
+        #[allow(dead_code)] // Task 2 connects the SQLx transaction to this observer.
+        pub(in crate::restore_preflight) fn verify_sql_session<L>(
+            &self,
+            challenge: LockChallenge<L>,
+            expected_pid: i32,
+        ) -> Result<LockChallenge<L>, BackupError> {
+            self.verify_sql_session_with(challenge, expected_pid, observe, |_, args| docker(args))
+        }
     }
 
     /// Standalone inspection keeps the control directory unchanged.
@@ -744,6 +902,162 @@ mod linux {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn sql_session_challenge_generates_distinct_unpredictable_keys() {
+        let first = ChallengeKeys::random().unwrap();
+        let second = ChallengeKeys::random().unwrap();
+        assert!(first.validate().is_ok());
+        assert_ne!(first.values(), second.values());
+        assert_eq!(lock_halves(-1), (u32::MAX, u32::MAX));
+    }
+
+    #[test]
+    fn sql_session_challenge_accepts_exactly_two_live_locks_on_one_backend() {
+        let guard = BoundTargetGuard {
+            _target_lock: (),
+            _global_lock: (),
+            claim: claim(),
+            observation: json!({"restart_count": 0}),
+        };
+        let keys = ChallengeKeys::for_test(7, 4_294_967_298);
+        let challenge = LockChallenge::new(keys, ());
+        let returned = guard
+            .verify_sql_session_with(
+                challenge,
+                123,
+                |_| Ok(json!({"restart_count": 0})),
+                |c, args| {
+                    assert_eq!(c.container_id, ID);
+                    assert_eq!(&args[..6], ["exec", "-i", "--user", "postgres", ID, "psql"]);
+                    assert!(
+                        args.windows(2)
+                            .any(|pair| pair == ["-h", "/var/run/postgresql"])
+                    );
+                    assert!(args.last().unwrap().contains("pg_catalog.pg_locks"));
+                    assert!(args.last().unwrap().contains("((0,7),(1,2))"));
+                    Ok("123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|t\n".into())
+                },
+            )
+            .unwrap();
+        assert_eq!(returned.keys().values(), [7, 4_294_967_298]);
+    }
+
+    #[test]
+    fn sql_session_challenge_rejects_missing_duplicate_foreign_and_malformed_rows() {
+        let keys = ChallengeKeys::for_test(7, 4_294_967_298);
+        let expected = "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|t\n";
+        for output in [
+            "",
+            "123|16385|0|7|1|ExclusiveLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16385|0|7|1|ExclusiveLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n124|16385|1|2|1|ExclusiveLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16386|1|2|1|ExclusiveLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|3|1|ExclusiveLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|2|ExclusiveLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ShareLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|f\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|t\n125|16385|0|7|1|ExclusiveLock|t\n",
+            "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|t",
+            "123|16385|0|7|1|ExclusiveLock|t|extra\n123|16385|1|2|1|ExclusiveLock|t\n",
+        ] {
+            assert!(
+                validate_challenge_rows(keys, 123, 16385, output).is_err(),
+                "accepted {output:?}"
+            );
+        }
+        assert!(validate_challenge_rows(keys, 123, 16385, expected).is_ok());
+        assert!(validate_challenge_rows(keys, 0, 16385, expected).is_err());
+        assert!(validate_challenge_rows(keys, 123, 0, expected).is_err());
+        assert!(ChallengeKeys::for_test(7, 7).validate().is_err());
+    }
+
+    #[test]
+    fn sql_session_challenge_fails_closed_before_or_after_docker_query_and_releases_lease() {
+        use std::{cell::RefCell, rc::Rc};
+        struct Lease(Rc<RefCell<Vec<&'static str>>>);
+        impl Drop for Lease {
+            fn drop(&mut self) {
+                self.0.borrow_mut().push("released");
+            }
+        }
+        let guard = BoundTargetGuard {
+            _target_lock: (),
+            _global_lock: (),
+            claim: claim(),
+            observation: json!({"restart_count": 0}),
+        };
+        for drift_after in [false, true] {
+            let events = Rc::new(RefCell::new(Vec::new()));
+            let mut observations = 0;
+            let result = guard.verify_sql_session_with(
+                LockChallenge::new(ChallengeKeys::for_test(7, 4_294_967_298), Lease(events.clone())),
+                123,
+                |_| {
+                    events.borrow_mut().push("observe");
+                    observations += 1;
+                    Ok(json!({"restart_count": if observations == 2 || !drift_after { 1 } else { 0 }}))
+                },
+                |_, _| {
+                    events.borrow_mut().push("query");
+                    Ok("123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|t\n".into())
+                },
+            );
+            assert!(result.is_err());
+            assert_eq!(
+                *events.borrow(),
+                if drift_after {
+                    ["observe", "query", "observe", "released"].as_slice()
+                } else {
+                    ["observe", "released"].as_slice()
+                }
+            );
+        }
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let result = guard.verify_sql_session_with(
+            LockChallenge::new(
+                ChallengeKeys::for_test(7, 4_294_967_298),
+                Lease(events.clone()),
+            ),
+            123,
+            |_| {
+                events.borrow_mut().push("observe");
+                Ok(json!({"restart_count": 0}))
+            },
+            |_, _| {
+                events.borrow_mut().push("query");
+                Err(BackupError::Invalid("query failed"))
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(*events.borrow(), ["observe", "query", "released"]);
+
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let mut retained = guard
+            .verify_sql_session_with(
+                LockChallenge::new(
+                    ChallengeKeys::for_test(7, 4_294_967_298),
+                    Lease(events.clone()),
+                ),
+                123,
+                |_| {
+                    events.borrow_mut().push("observe");
+                    Ok(json!({"restart_count": 0}))
+                },
+                |_, _| {
+                    events.borrow_mut().push("query");
+                    Ok("123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|t\n".into())
+                },
+            )
+            .unwrap();
+        assert_eq!(*events.borrow(), ["observe", "query", "observe"]);
+        let _lease = retained.lease_mut();
+        drop(retained);
+        assert_eq!(
+            *events.borrow(),
+            ["observe", "query", "observe", "released"]
+        );
+    }
 
     #[test]
     fn bound_guard_retains_both_locks_until_continuation_is_dropped() {
