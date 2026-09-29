@@ -17,6 +17,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 import uuid
 import zipfile
 
@@ -34,6 +35,7 @@ PASSED = "PIN_CANDIDATE_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
 FAILED = "PIN_CANDIDATE_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 BOUND_PASSED = "BOUND_TARGET_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
 BOUND_FAILED = "BOUND_TARGET_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+BUILDER_IMAGE_ID = "sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b"
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 MAX_ARCHIVE = 32 * 1024 * 1024
@@ -236,38 +238,177 @@ def _load(source, name, relative):
     return module
 
 
-def _run_bound_probe(cargo, source, batch, target, database, birth_sha256):
-    """Opt-in test executable; all target inspection stays in Rust."""
+def _builder_artifact(stdout, build):
+    """Select only the reviewed crate's Linux library test executable."""
+    binaries = []
+    for line in stdout.splitlines():
+        row = json.loads(line)
+        if (row.get("reason") == "compiler-artifact" and
+                row.get("manifest_path") ==
+                "/reviewed/crates/learning-backup/Cargo.toml" and
+                row.get("target", {}).get("name") == "learning_backup" and
+                row.get("target", {}).get("kind") == ["lib"] and
+                row.get("profile", {}).get("test") is True):
+            binaries.append(row.get("executable"))
+    require(len(binaries) == 1 and type(binaries[0]) is str and
+            re.fullmatch(r"/target/debug/deps/learning_backup-[0-9a-f]+",
+                         binaries[0]),
+            "exact Linux bound probe test executable absent")
+    binary = build / "debug" / "deps" / Path(binaries[0]).name
+    _trusted_path(binary, file=True)
+    meta = os.lstat(binary)
+    require(stat.S_IMODE(meta.st_mode) & 0o111 != 0 and meta.st_nlink == 1 and
+            binary == binary.resolve(strict=True),
+            "bound probe binary unsafe")
+    return binary
+
+
+def _run_bounded(command, *, cwd=None, env=None, timeout=60, limit=16 * 1024 * 1024):
+    """Bound subprocess output in private temporary files, never in a pipe."""
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        process = subprocess.run(command, cwd=cwd, env=env, stdout=stdout,
+                                 stderr=stderr, timeout=timeout, check=False)
+        require(stdout.tell() <= limit and stderr.tell() <= limit,
+                "bound probe command output exceeded limit")
+        stdout.seek(0)
+        stderr.seek(0)
+        return subprocess.CompletedProcess(command, process.returncode,
+                                           stdout.read(), stderr.read())
+
+
+def _probe_docker(args, *, timeout=60):
+    return _run_bounded(
+        ["/usr/bin/docker", *args], timeout=timeout,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/root",
+             "DOCKER_HOST": "unix:///var/run/docker.sock"})
+
+
+def _builder_identity(batch, stage):
+    require(_canonical_v4(batch.name) and stage in
+            ("preflight", "live"), "bound builder batch identity invalid")
+    return (f"knowweave-c4-bound-{batch.name}-{stage}",
+            f"com.knowweave.bound-probe.batch={batch.name}")
+
+
+def _builder_container_ids(label):
+    row = _probe_docker(["container", "ls", "-aq", "--no-trunc",
+                         "--filter", f"label={label}"])
+    require(row.returncode == 0, "bound builder inventory failed")
+    ids = row.stdout.decode("ascii").splitlines()
+    require(all(HEX64.fullmatch(value) for value in ids),
+            "bound builder inventory invalid")
+    return ids
+
+
+def _cleanup_builder(batch, stage):
+    name, label = _builder_identity(batch, stage)
+    ids = _builder_container_ids(label)
+    require(len(ids) <= 1, "extra bound builder container")
+    if not ids:
+        return
+    row = _probe_docker(["container", "inspect", ids[0]])
+    require(row.returncode == 0, "bound builder inspect failed")
+    facts = json.loads(row.stdout)
+    require(type(facts) is list and len(facts) == 1 and
+            facts[0].get("Id") == ids[0] and
+            facts[0].get("Name") == "/" + name and
+            facts[0].get("Image") == BUILDER_IMAGE_ID and
+            facts[0].get("Config", {}).get("Labels", {}).get(
+                "com.knowweave.bound-probe.batch") == batch.name,
+            "bound builder cleanup identity differs")
+    removed = _probe_docker(["container", "rm", "-f", ids[0]])
+    require(removed.returncode == 0 and not _builder_container_ids(label),
+            "bound builder cleanup unconfirmed")
+
+
+def _compile_bound_probe(source, batch, build_name, birth_sha256):
+    require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
+            "bound probe compile digest invalid")
+    build = batch / build_name
+    _private_dir(build)
+    stage = "preflight" if build_name == "probe-preflight-build" else "live"
+    require(build_name in ("probe-preflight-build", "probe-live-build"),
+            "bound probe build stage invalid")
+    name, label = _builder_identity(batch, stage)
+    require(not _builder_container_ids(label),
+            "prior bound builder container remains")
+    command = ["/usr/bin/docker", "run", "--rm", "--pull", "never",
+               "--name", name, "--label", label,
+               "--network", "none", "--cap-drop", "ALL",
+               "--security-opt", "no-new-privileges", "--user", "0:0",
+               "--workdir", "/reviewed", "--tmpfs", "/tmp:rw,nosuid,nodev,size=1g",
+               "--mount", f"type=bind,src={source},dst=/reviewed,readonly",
+               "--mount", f"type=bind,src={build},dst=/target",
+               "--env", "CARGO_TARGET_DIR=/target",
+               "--env", "CARGO_NET_OFFLINE=true",
+               "--env", "RUSTUP_AUTO_INSTALL=0",
+               "--env", "CARGO_TERM_COLOR=never",
+               "--env", f"KNOWWEAVE_C4_TARGET_BIRTH_SHA256={birth_sha256}",
+               "--entrypoint", "/bin/sh", BUILDER_IMAGE_ID, "-ec",
+               "cargo test --locked --offline -p learning-backup --lib --no-run --message-format=json"]
+    try:
+        process = _run_bounded(
+            command, timeout=7200,
+            env={"PATH": "/usr/bin:/bin", "HOME": "/root",
+                 "DOCKER_HOST": "unix:///var/run/docker.sock"})
+    finally:
+        _cleanup_builder(batch, stage)
+    require(process.returncode == 0,
+            "offline pinned builder failed")
+    binary = _builder_artifact(process.stdout, build)
+    return binary, _file_digest(binary)
+
+
+def _preflight_probe_builder(source, batch):
+    """Prove the pinned offline Linux toolchain is ready before PG birth."""
+    _trusted_path(Path("/usr/bin/docker"), file=True)
+    image = _probe_docker(["image", "inspect", BUILDER_IMAGE_ID,
+                           "--format", "{{.Id}}"])
+    require(image.returncode == 0 and image.stdout ==
+            (BUILDER_IMAGE_ID + "\n").encode(),
+            "pinned offline builder image unavailable")
+    binary, placeholder_sha = _compile_bound_probe(
+        source, batch, "probe-preflight-build", "0" * 64)
+    listing = _run_bounded(
+        [str(binary), "--list"], cwd=source,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/root"},
+        timeout=60)
+    expected = (b"restore_preflight::target_binding::tests::"
+                b"live_read_only_bound_target_probe: test")
+    require(listing.returncode == 0 and expected in listing.stdout and
+            _file_digest(binary) == placeholder_sha,
+            "host cannot execute pinned builder test binary")
+    return {"builder_image_id": BUILDER_IMAGE_ID,
+            "placeholder_binary_sha256": placeholder_sha,
+            "host_test_listing_confirmed": True}
+
+
+def _run_bound_probe(source, batch, target, database, birth_sha256):
+    """Rebuild with sealed birth digest, then execute on the Linux host."""
     require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
             "sealed birth digest required for bound probe")
-    cargo = Path(cargo)
-    _trusted_path(cargo, file=True)
-    require(cargo == cargo.resolve(strict=True) and
-            stat.S_IMODE(os.lstat(cargo).st_mode) & 0o022 == 0,
-            "canonical root-owned Cargo executable required")
-    build = batch / "probe-build"
-    _private_dir(build)
+    binary, binary_sha = _compile_bound_probe(
+        source, batch, "probe-live-build", birth_sha256)
     test_name = ("restore_preflight::target_binding::tests::"
                  "live_read_only_bound_target_probe")
-    env = {"HOME": "/root", "PATH": "/root/.cargo/bin:/usr/bin:/bin",
-           "CARGO_HOME": "/root/.cargo", "CARGO_TARGET_DIR": str(build),
-           "CARGO_TERM_COLOR": "never",
-           "KNOWWEAVE_C4_TARGET_BIRTH_SHA256": birth_sha256,
+    env = {"HOME": "/root", "PATH": "/usr/bin:/bin",
            "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT": str(target / "destination"),
            "KNOWWEAVE_C4_PROBE_CONTROL_ROOT": str(target / "control"),
            "KNOWWEAVE_C4_PROBE_ASSET_ROOT": str(target / "assets"),
            "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE": database}
-    process = subprocess.run(
-        [str(cargo), "test", "--locked", "--offline", "-p", "learning-backup",
-         "--lib", test_name, "--", "--exact", "--ignored", "--nocapture"],
-        cwd=source, env=env, capture_output=True, timeout=7200, check=False)
+    require(_file_digest(binary) == binary_sha,
+            "bound probe binary changed before execution")
+    process = _run_bounded(
+        [str(binary), test_name, "--exact", "--ignored", "--nocapture"],
+        cwd=source, env=env, timeout=180)
     output = process.stdout + b"\n" + process.stderr
-    require(process.returncode == 0 and
+    require(_file_digest(binary) == binary_sha and process.returncode == 0 and
             b"BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE" in output and
             b"test result: ok. 1 passed; 0 failed; 0 ignored;" in output,
             "read-only bound probe failed")
     return {"state": "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE",
-            "birth_sha256": birth_sha256, "exit_code": process.returncode}
+            "birth_sha256": birth_sha256, "binary_sha256": binary_sha,
+            "builder_image_id": BUILDER_IMAGE_ID, "exit_code": process.returncode}
 
 
 def extract_and_load(manifest, package, batch):
@@ -359,8 +500,8 @@ def _run_batch(args, manifest, package, batch):
               "target_condition": "NO_TARGET_CREATED",
               "target_reuse_permitted": False,
               "stop": {"confirmed": False}, "failure_type": None}
-    probe_cargo = getattr(args, "bound_probe_cargo", None)
-    if probe_cargo is not None:
+    bound_probe = getattr(args, "bound_probe", False)
+    if bound_probe:
         result["status"] = BOUND_FAILED
     provisioner = acceptance = identity = initdb = before = None
     confirmed_id = None
@@ -375,6 +516,13 @@ def _run_batch(args, manifest, package, batch):
         (provisioner, acceptance, pin, prepare, initdb,
          result["source_before_sha256"]) = extract_and_load(
              manifest, package, batch)
+        if bound_probe:
+            result["stage"] = "offline-builder-preflight"
+            result["probe_toolchain_preflight"] = _preflight_probe_builder(
+                source, batch)
+            require(source_digest(source, manifest) ==
+                    result["source_before_sha256"],
+                    "reviewed source changed during builder preflight")
         identity = provisioner.identity_for(args.batch_id)
         result.update(project=identity["project"], volume=identity["volume"])
         result["stage"] = "fresh-admission"
@@ -452,10 +600,10 @@ def _run_batch(args, manifest, package, batch):
         require(result["source_after_sha256"] ==
                 result["source_before_sha256"],
                 "reviewed source changed during run")
-        if probe_cargo is not None:
+        if bound_probe:
             result["stage"] = "read-only-bound-probe"
             result["bound_probe"] = _run_bound_probe(
-                probe_cargo, source, batch, target, identity["database"],
+                source, batch, target, identity["database"],
                 success["birth_sha256"])
         result["stage"] = "exact-id-stop"
         result["stop"] = acceptance.stop_verified_pg(
@@ -476,7 +624,7 @@ def _run_batch(args, manifest, package, batch):
         result["inspection_record_sha256"] = digest(inspection_bytes)
         result["inspection_record_file"] = inspection_path.name
         result["target_condition"] = "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE"
-        result["status"] = BOUND_PASSED if probe_cargo is not None else PASSED
+        result["status"] = BOUND_PASSED if bound_probe else PASSED
     except BaseException as error:
         result["failure_type"] = type(error).__name__
         if issuer_started and identity is not None and acceptance is not None:
@@ -549,8 +697,8 @@ def main(argv=None):
     parser.add_argument("--runner-sha256", required=True)
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--subnet", required=True)
-    parser.add_argument("--bound-probe-cargo", type=Path,
-                        help="opt-in canonical root-owned Cargo executable; run the ignored read-only Rust bound probe before exact PG stop")
+    parser.add_argument("--bound-probe", action="store_true",
+                        help="opt-in pinned offline builder preflight and read-only Rust bound probe before exact PG stop")
     try:
         args = parser.parse_args(argv)
     except SystemExit as error:

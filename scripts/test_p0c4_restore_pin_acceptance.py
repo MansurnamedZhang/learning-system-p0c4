@@ -13,10 +13,15 @@ from unittest.mock import patch
 import zipfile
 
 import p0c4_restore_pin_acceptance as runner
+import p0c4_task3_transfer_acceptance as transfer_runner
 from test_p0c4_restore_target import ID, SUBNET
 
 
 class PinAcceptance(unittest.TestCase):
+    def test_bound_probe_uses_existing_reviewed_builder_image(self):
+        self.assertEqual(runner.BUILDER_IMAGE_ID,
+                         transfer_runner.BUILDER_IMAGE_ID)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -116,22 +121,28 @@ class PinAcceptance(unittest.TestCase):
                          hashlib.sha256(record).hexdigest())
 
     def test_opt_in_bound_probe_runs_before_stop_and_has_distinct_status(self):
-        self.args.bound_probe_cargo = Path("/usr/bin/cargo")
+        self.args.bound_probe = True
         sequence = []
         deps = self._dependencies()
+        issuer = deps[1]._run_issuer
+        deps[1]._run_issuer = lambda *args: (sequence.append("issuer") or
+                                             issuer(*args))
         deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
             {"confirmed": True, "volume_retained": True})
-        with patch.object(runner, "_run_bound_probe",
+        with patch.object(runner, "_preflight_probe_builder",
+                          side_effect=lambda *_: sequence.append("preflight") or
+                          {"builder_image_id": runner.BUILDER_IMAGE_ID}), \
+             patch.object(runner, "_run_bound_probe",
                           side_effect=lambda *_: sequence.append("probe") or
                           {"state": "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE"}):
             code, result = self._run(deps)
         self.assertEqual(code, 0, result)
-        self.assertEqual(sequence, ["probe", "stop"])
+        self.assertEqual(sequence, ["preflight", "issuer", "probe", "stop"])
         self.assertEqual(result["status"], runner.BOUND_PASSED)
         self.assertTrue(result["stop"]["confirmed"])
 
     def test_failed_bound_probe_still_stops_and_cannot_pass(self):
-        self.args.bound_probe_cargo = Path("/usr/bin/cargo")
+        self.args.bound_probe = True
         sequence = []
         deps = self._dependencies()
         deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
@@ -139,7 +150,9 @@ class PinAcceptance(unittest.TestCase):
         def fail_probe(*_):
             sequence.append("probe")
             raise RuntimeError("probe failed")
-        with patch.object(runner, "_run_bound_probe",
+        with patch.object(runner, "_preflight_probe_builder",
+                          return_value={"builder_image_id": runner.BUILDER_IMAGE_ID}), \
+             patch.object(runner, "_run_bound_probe",
                           side_effect=fail_probe):
             code, result = self._run(deps)
         self.assertEqual(code, 1)
@@ -147,43 +160,147 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["status"], runner.BOUND_FAILED)
         self.assertTrue(result["stop"]["confirmed"])
 
-    def test_bound_probe_rejects_zero_test_cargo_result(self):
-        cargo = self.batch / "cargo"
-        cargo.write_bytes(b"binary")
-        cargo.chmod(0o555)
+    def test_failed_builder_preflight_never_issues_target(self):
+        self.args.bound_probe = True
+        deps = self._dependencies()
+        deps[1]._run_issuer = lambda *_: self.fail("issuer reached")
+        with patch.object(runner, "_preflight_probe_builder",
+                          side_effect=ValueError("builder unavailable")):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.BOUND_FAILED)
+        self.assertEqual(result["target_condition"], "NO_TARGET_CREATED")
+
+    def test_builder_artifact_requires_exact_test_executable(self):
+        build = self.batch / "build"
+        binary = build / "debug" / "deps" / ("learning_backup-" + "a" * 16)
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b"binary")
+        binary.chmod(0o555)
+        artifact = {"reason": "compiler-artifact",
+                    "manifest_path": "/reviewed/crates/learning-backup/Cargo.toml",
+                    "target": {"name": "learning_backup", "kind": ["lib"]},
+                    "profile": {"test": True},
+                    "executable": "/target/debug/deps/" + binary.name}
         with patch.object(runner, "_trusted_path"), \
-             patch.object(runner, "_private_dir"), \
-             patch.object(runner.subprocess, "run", return_value=SimpleNamespace(
+             patch.object(runner.stat, "S_IMODE", return_value=0o755):
+            self.assertEqual(runner._builder_artifact(
+                runner._json_bytes(artifact), build), binary)
+            artifact["executable"] = "/target/debug/deps/other"
+            with self.assertRaises(ValueError):
+                runner._builder_artifact(runner._json_bytes(artifact), build)
+
+    def test_preflight_requires_host_loader_before_target_birth(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        with patch.object(runner, "_trusted_path"), \
+             patch.object(runner, "_compile_bound_probe",
+                          return_value=(binary, runner._file_digest(binary))), \
+             patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
+                 returncode=0,
+                 stdout=(runner.BUILDER_IMAGE_ID + "\n").encode())), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                 returncode=1, stdout=b"", stderr=b"loader failed")):
+            with self.assertRaises(ValueError):
+                runner._preflight_probe_builder(self.batch / "source", self.batch)
+
+    def test_preflight_lists_host_test_without_target_environment(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        listing = (b"restore_preflight::target_binding::tests::"
+                   b"live_read_only_bound_target_probe: test\n")
+        with patch.object(runner, "_trusted_path"), \
+             patch.object(runner, "_compile_bound_probe",
+                          return_value=(binary, runner._file_digest(binary))), \
+             patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
+                 returncode=0,
+                 stdout=(runner.BUILDER_IMAGE_ID + "\n").encode())), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                 returncode=0, stdout=listing,
+                 stderr=b"")) as process:
+            result = runner._preflight_probe_builder(
+                self.batch / "source", self.batch)
+        self.assertTrue(result["host_test_listing_confirmed"])
+        self.assertEqual(process.call_args.args[0],
+                         [str(binary), "--list"])
+        self.assertNotIn("KNOWWEAVE_C4_PROBE_CONTROL_ROOT",
+                         process.call_args.kwargs["env"])
+
+    def test_builder_compile_is_pinned_offline_and_never_uses_host_cargo(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        fresh_batch = self.base / ID
+        fresh_batch.mkdir()
+        with patch.object(runner, "_private_dir"), \
+             patch.object(runner, "_builder_artifact", return_value=binary), \
+             patch.object(runner, "_builder_container_ids", return_value=[]), \
+             patch.object(runner, "_cleanup_builder"), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                 returncode=0, stdout=b"{}\n", stderr=b"")) as process:
+            runner._compile_bound_probe(self.batch / "source", fresh_batch,
+                                        "probe-preflight-build", "0" * 64)
+        command = process.call_args.args[0]
+        self.assertEqual(command[0], "/usr/bin/docker")
+        self.assertIn(runner.BUILDER_IMAGE_ID, command)
+        self.assertIn("none", command)
+        self.assertIn("ALL", command)
+        self.assertIn("--name", command)
+        self.assertIn("com.knowweave.bound-probe.batch=" + ID, command)
+        self.assertIn("RUSTUP_AUTO_INSTALL=0", command)
+        self.assertIn("KNOWWEAVE_C4_TARGET_BIRTH_SHA256=" + "0" * 64,
+                      command)
+        self.assertIn("--locked --offline", command[-1])
+        self.assertNotIn("/root/.cargo/bin/cargo", command)
+
+    def test_bound_probe_rejects_zero_test_binary_result(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        with patch.object(runner, "_compile_bound_probe",
+                          return_value=(binary, runner._file_digest(binary))), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
                  returncode=0, stdout=b"test result: ok. 0 passed; 0 failed; 0 ignored;",
                  stderr=b"")) as process:
             with self.assertRaises(ValueError):
-                runner._run_bound_probe(cargo, self.batch / "source", self.batch,
+                runner._run_bound_probe(self.batch / "source", self.batch,
                                         self.batch / "control" / "targets" / ID,
                                         "learning_restore_c4_" + ID, "d" * 64)
-        command = process.call_args.args[0]
-        self.assertIn("--offline", command)
-        self.assertIn("--exact", command)
-        self.assertIn("--ignored", command)
-        self.assertEqual(process.call_args.kwargs["env"][
-            "KNOWWEAVE_C4_TARGET_BIRTH_SHA256"], "d" * 64)
+        self.assertIn("--exact", process.call_args.args[0])
+        self.assertIn("--ignored", process.call_args.args[0])
 
-    def test_bound_probe_accepts_exact_one_test_marker(self):
-        cargo = self.batch / "cargo"
-        cargo.write_bytes(b"binary")
-        cargo.chmod(0o555)
-        output = (b"BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE\n"
-                  b"test result: ok. 1 passed; 0 failed; 0 ignored; 18 filtered out;")
-        with patch.object(runner, "_trusted_path"), \
-             patch.object(runner, "_private_dir"), \
-             patch.object(runner.subprocess, "run", return_value=SimpleNamespace(
-                 returncode=0, stdout=output, stderr=b"")):
-            result = runner._run_bound_probe(
-                cargo, self.batch / "source", self.batch,
-                self.batch / "control" / "targets" / ID,
-                "learning_restore_c4_" + ID, "d" * 64)
-        self.assertEqual(result["birth_sha256"], "d" * 64)
-        self.assertEqual(result["state"],
-                         "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE")
+    def test_interrupted_builder_is_removed_only_after_exact_identity(self):
+        fresh_batch = self.base / ID
+        fresh_batch.mkdir()
+        container_id = "e" * 64
+        name = f"knowweave-c4-bound-{ID}-preflight"
+        facts = [{"Id": container_id, "Name": "/" + name,
+                  "Image": runner.BUILDER_IMAGE_ID,
+                  "Config": {"Labels": {
+                      "com.knowweave.bound-probe.batch": ID}}}]
+        with patch.object(runner, "_builder_container_ids",
+                          side_effect=[[container_id], []]), \
+             patch.object(runner, "_probe_docker", side_effect=[
+                 SimpleNamespace(returncode=0,
+                                 stdout=json.dumps(facts).encode()),
+                 SimpleNamespace(returncode=0, stdout=b"")]) as docker:
+            runner._cleanup_builder(fresh_batch, "preflight")
+        self.assertEqual(docker.call_args_list[1].args[0],
+                         ["container", "rm", "-f", container_id])
+        facts[0]["Config"]["Labels"]["com.knowweave.bound-probe.batch"] = "foreign"
+        with patch.object(runner, "_builder_container_ids",
+                          return_value=[container_id]), \
+             patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
+                 returncode=0, stdout=json.dumps(facts).encode())) as docker:
+            with self.assertRaises(ValueError):
+                runner._cleanup_builder(fresh_batch, "preflight")
+        self.assertEqual(docker.call_count, 1)
+
+    def test_command_output_is_bounded_before_read_into_memory(self):
+        def write_large(_, *, stdout, stderr, **_kwargs):
+            stdout.write(b"too long")
+            return SimpleNamespace(returncode=0)
+        with patch.object(runner.subprocess, "run", side_effect=write_large):
+            with self.assertRaises(ValueError):
+                runner._run_bounded(["dummy"], limit=3)
 
     def test_pin_mismatch_cannot_be_promoted(self):
         deps = self._dependencies()
