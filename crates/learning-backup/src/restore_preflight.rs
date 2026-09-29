@@ -5,24 +5,23 @@ use crate::FileRecord;
 #[cfg(target_os = "linux")]
 use crate::PgRestoreSpec;
 #[cfg(target_os = "linux")]
-use crate::{
-    AssetRow, MigrationRecord, RestoreEnvironment, RestoreTargetFacts, open_complete_backup,
-    validate_role_recipe,
-};
+use crate::{AssetRow, open_complete_backup, validate_role_recipe};
 use crate::{BackupError, BackupManifestV1, BackupPlan, CompleteBackup};
+#[cfg(any(target_os = "linux", test))]
+use crate::{MigrationRecord, RestoreEnvironment, RestoreTargetFacts};
 #[cfg(target_os = "linux")]
 use learning_assets::backup_fs::BackupDir;
 #[cfg(any(target_os = "linux", test))]
 use learning_assets::backup_fs::BackupEntryKind;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 use learning_db::MIGRATOR;
 #[cfg(any(target_os = "linux", test))]
 use serde::{Deserialize, Serialize};
 #[cfg(any(target_os = "linux", test))]
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
-#[cfg(target_os = "linux")]
-use sqlx::Row;
+#[cfg(any(target_os = "linux", test))]
+use sqlx::{PgConnection, Postgres, Row, Transaction};
 #[cfg(any(target_os = "linux", test))]
 use std::io::{Read, Seek, SeekFrom};
 #[cfg(target_os = "linux")]
@@ -440,6 +439,8 @@ pub struct RestorePreflight {
     control: BackupDir,
     #[cfg(target_os = "linux")]
     bound_target: target_binding::BoundTargetGuard<File, Option<File>>,
+    #[cfg(target_os = "linux")]
+    sql_session: target_binding::LockChallenge<Transaction<'static, Postgres>>,
 }
 
 /// Internal staging result: database import completed, but the target is still
@@ -454,6 +455,8 @@ pub(crate) struct RestoreDatabaseImported {
     plan: BackupPlan,
     #[cfg(target_os = "linux")]
     bound_target: target_binding::BoundTargetGuard<File, Option<File>>,
+    #[cfg(target_os = "linux")]
+    sql_session: target_binding::LockChallenge<Transaction<'static, Postgres>>,
 }
 
 impl RestorePreflight {
@@ -498,10 +501,11 @@ impl RestorePreflight {
         executable: &Path,
         private_pgpass: &Path,
     ) -> Result<RestoreDatabaseImported, BackupError> {
-        // `self` retains both locks through this entire internal stage.
-        // This observation does NOT bind the SQLx pool/host pg_restore endpoint
-        // to Docker. This staged method must remain unwired until that gap and
-        // executable/credential replacement races are closed.
+        // `self` retains both filesystem locks and the proven SQLx transaction
+        // through this internal stage. The host pg_restore child remains a
+        // separate, unproven endpoint; this method must remain unwired until
+        // that child is bound before the attempt marker and its executable and
+        // credential paths are pinned against replacement.
         self.bound_target.recheck()?;
         // Recheck the complete receipt and all package bytes against the exact
         // receipt observed by preflight before opening the dump for execution.
@@ -550,6 +554,7 @@ impl RestorePreflight {
             manifest: self.manifest,
             plan: self.plan,
             bound_target: self.bound_target,
+            sql_session: self.sql_session,
         })
     }
 }
@@ -679,6 +684,41 @@ struct AssetIndex {
     assets: Vec<AssetRow>,
 }
 
+#[cfg(any(target_os = "linux", test))]
+async fn begin_sql_session(
+    admin: &PgPool,
+) -> Result<
+    (
+        target_binding::LockChallenge<Transaction<'static, Postgres>>,
+        i32,
+        u64,
+    ),
+    BackupError,
+> {
+    let keys = target_binding::ChallengeKeys::random()?;
+    let mut transaction = admin.begin().await?;
+    for key in keys.values() {
+        sqlx::query("SELECT pg_catalog.pg_advisory_xact_lock($1)")
+            .bind(key)
+            .execute(&mut *transaction)
+            .await?;
+    }
+    let row = sqlx::query(
+        "SELECT pg_catalog.pg_backend_pid() AS backend_pid, d.oid::bigint AS database_oid \
+         FROM pg_catalog.pg_database d WHERE d.datname=pg_catalog.current_database()",
+    )
+    .fetch_one(&mut *transaction)
+    .await?;
+    let backend_pid = row.try_get("backend_pid")?;
+    let database_oid =
+        u64::try_from(row.try_get::<i64, _>("database_oid")?).map_err(|_| BackupError::Overflow)?;
+    Ok((
+        target_binding::LockChallenge::new(keys, transaction),
+        backend_pid,
+        database_oid,
+    ))
+}
+
 #[cfg(target_os = "linux")]
 async fn preflight_linux(
     complete: &CompleteBackup,
@@ -741,17 +781,24 @@ async fn preflight_linux(
     }
     let roles = read_limited(&package, "roles.json", 16 * 1024)?;
     validate_role_recipe(&roles)?;
-    observed_build_and_pg(admin, &config.expected_database)
+    let options = admin.connect_options();
+    if options.get_username() != "learning_admin"
+        || options.get_database() != Some(config.expected_database.as_str())
+    {
+        return Err(BackupError::Invalid("restore database endpoint or role"));
+    }
+    // Every clean-target SQL query below shares this one physical connection.
+    // The observer sees its transaction locks through the exact Docker target.
+    let (challenge, backend_pid, database_oid) = begin_sql_session(admin).await?;
+    let mut sql_session = bound_target.verify_sql_session(challenge, backend_pid, database_oid)?;
+    observed_build_and_pg(sql_session.lease_mut())
         .await?
         .validate(&manifest.source)?;
     let assets = BackupDir::open_trusted_private_root(&config.asset_root)?;
-    let facts = target_facts(admin, assets.list()?.len()).await?;
+    let facts = target_facts(sql_session.lease_mut(), assets.list()?.len()).await?;
     facts.validate()?;
-    verify_target_birth(admin, config, &lock_root, &assets).await?;
-    // The pool's facts are necessary but not proof of an identical Docker
-    // endpoint (e.g. clones may share PG identifiers). No restore authority.
-    bound_target.recheck()?;
-    let options = admin.connect_options();
+    verify_target_birth(sql_session.lease_mut(), config, &lock_root, &assets).await?;
+    let sql_session = bound_target.verify_sql_session(sql_session, backend_pid, database_oid)?;
     let restore_spec = PgRestoreSpec::new(
         &config.expected_database,
         options.get_host(),
@@ -767,12 +814,13 @@ async fn preflight_linux(
         expected_database: config.expected_database.clone(),
         control: lock_root,
         bound_target,
+        sql_session,
     })
 }
 
 #[cfg(target_os = "linux")]
 async fn verify_target_birth(
-    admin: &PgPool,
+    conn: &mut PgConnection,
     config: &RestorePreflightConfig,
     control: &BackupDir,
     assets: &BackupDir,
@@ -823,13 +871,13 @@ async fn verify_target_birth(
          FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs \
          WHERE d.datname=pg_catalog.current_database()",
     )
-    .fetch_one(admin)
+    .fetch_one(&mut *conn)
     .await?;
     let database_oid =
         u64::try_from(row.try_get::<i64, _>("database_oid")?).map_err(|_| BackupError::Overflow)?;
     let (control_dev, control_ino) = control.identity()?;
     let (asset_dev, asset_ino) = assets.identity()?;
-    let public_schema = observed_public_schema(admin).await?;
+    let public_schema = observed_public_schema(conn).await?;
     let live = ObservedTargetBirth {
         database_oid,
         pg_system_identifier: row.try_get("system_identifier")?,
@@ -864,8 +912,10 @@ fn read_private_target_file(
     Ok(bytes)
 }
 
-#[cfg(target_os = "linux")]
-async fn observed_public_schema(admin: &PgPool) -> Result<(PublicSchemaState, bool), BackupError> {
+#[cfg(any(target_os = "linux", test))]
+async fn observed_public_schema(
+    conn: &mut PgConnection,
+) -> Result<(PublicSchemaState, bool), BackupError> {
     let row = sqlx::query(
         "SELECT n.nspowner::bigint AS owner_oid, \
          pg_catalog.pg_get_userbyid(n.nspowner)::text AS owner_name, \
@@ -878,7 +928,7 @@ async fn observed_public_schema(admin: &PgPool) -> Result<(PublicSchemaState, bo
             COALESCE(n.nspacl,pg_catalog.acldefault('n',n.nspowner))) a) AS acl \
          FROM pg_catalog.pg_namespace n WHERE n.nspname='public'",
     )
-    .fetch_one(admin)
+    .fetch_one(&mut *conn)
     .await?;
     let sqlx::types::Json(mut acl): sqlx::types::Json<Vec<SchemaAclEntry>> = row.try_get("acl")?;
     acl.sort();
@@ -906,17 +956,10 @@ fn read_limited(dir: &BackupDir, name: &str, max: u64) -> Result<Vec<u8>, Backup
     Ok(bytes)
 }
 
-#[cfg(target_os = "linux")]
-async fn observed_build_and_pg(
-    admin: &PgPool,
-    database: &str,
-) -> Result<RestoreEnvironment, BackupError> {
-    let options = admin.connect_options();
-    if options.get_username() != "learning_admin" || options.get_database() != Some(database) {
-        return Err(BackupError::Invalid("restore database endpoint or role"));
-    }
+#[cfg(any(target_os = "linux", test))]
+async fn observed_build_and_pg(conn: &mut PgConnection) -> Result<RestoreEnvironment, BackupError> {
     let version: String = sqlx::query_scalar("SHOW server_version_num")
-        .fetch_one(admin)
+        .fetch_one(&mut *conn)
         .await?;
     let postgres_major = version
         .parse::<u32>()
@@ -944,12 +987,11 @@ async fn observed_build_and_pg(
     })
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 async fn target_facts(
-    admin: &PgPool,
+    conn: &mut PgConnection,
     asset_entries: usize,
 ) -> Result<RestoreTargetFacts, BackupError> {
-    let mut conn = admin.acquire().await?;
     let row = sqlx::query(
         "SELECT current_user::text AS current_role,session_user::text AS session_role, \
          (pg_catalog.pg_get_userbyid(d.datdba)='learning_admin') AS admin_owner, \
@@ -1039,6 +1081,92 @@ async fn target_facts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sqlx_preflight_query_boundary_borrows_one_connection() {
+        fn assert_queries_take_one_connection(
+            challenge: &mut target_binding::LockChallenge<Transaction<'static, Postgres>>,
+        ) {
+            let conn: &mut PgConnection = challenge.lease_mut();
+            drop(observed_build_and_pg(conn));
+            drop(target_facts(conn, 0));
+            drop(observed_public_schema(conn));
+        }
+        let _ = begin_sql_session;
+        let _ = assert_queries_take_one_connection;
+    }
+
+    // Requires a disposable PostgreSQL 18 database. Task 3 runs the separate
+    // exact-container acceptance gate; this only checks SQLx transaction life.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    #[ignore = "requires a fresh isolated PostgreSQL 18 test database"]
+    async fn sqlx_challenge_keeps_one_backend_and_releases_transaction_locks_on_drop() {
+        use sqlx::postgres::PgPoolOptions;
+        let url = std::env::var("KNOWWEAVE_C4_SQL_SESSION_TEST_URL")
+            .expect("fresh isolated PostgreSQL 18 test URL required");
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect(&url)
+            .await
+            .unwrap();
+        let options = pool.connect_options();
+        let database = options
+            .get_database()
+            .expect("explicit test database required");
+        let batch = database
+            .strip_prefix("learning_restore_c4_")
+            .expect("isolated C4 database required");
+        let id = uuid::Uuid::parse_str(batch).unwrap();
+        assert_eq!(id.get_version_num(), 4);
+        assert_eq!(id.to_string(), batch);
+        let version: String = sqlx::query_scalar("SHOW server_version_num")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(version.parse::<u32>().unwrap() / 10_000, 18);
+        let (mut challenge, pid, oid) = begin_sql_session(&pool).await.unwrap();
+        assert!(pid > 0 && oid > 0);
+        for _ in 0..2 {
+            let conn: &mut PgConnection = challenge.lease_mut();
+            let observed: i32 = sqlx::query_scalar("SELECT pg_catalog.pg_backend_pid()")
+                .fetch_one(conn)
+                .await
+                .unwrap();
+            assert_eq!(observed, pid);
+        }
+        let held: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pg_catalog.pg_locks WHERE pid=$1 \
+             AND database::bigint=$2 AND locktype='advisory' \
+             AND mode='ExclusiveLock' AND granted",
+        )
+        .bind(pid)
+        .bind(i64::try_from(oid).unwrap())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(held, 2);
+        drop(challenge);
+        // SQLx schedules rollback on Drop; release is eventual, not immediate.
+        let mut released = false;
+        for _ in 0..50 {
+            let held: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM pg_catalog.pg_locks WHERE pid=$1 \
+                 AND database::bigint=$2 AND locktype='advisory' AND granted",
+            )
+            .bind(pid)
+            .bind(i64::try_from(oid).unwrap())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            if held == 0 {
+                released = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        assert!(released, "transaction locks remained after rollback");
+    }
 
     #[test]
     fn durable_attempt_record_is_target_bound_and_contains_no_endpoint_or_secret() {

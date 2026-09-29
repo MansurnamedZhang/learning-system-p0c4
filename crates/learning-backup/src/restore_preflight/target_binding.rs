@@ -508,9 +508,15 @@ impl<G, T> BoundTargetGuard<G, T> {
         &self,
         challenge: LockChallenge<L>,
         expected_pid: i32,
+        expected_database_oid: u64,
         mut observe: impl FnMut(&DockerClaim) -> Result<Value, BackupError>,
         query: impl FnOnce(&DockerClaim, &[String]) -> Result<String, BackupError>,
     ) -> Result<LockChallenge<L>, BackupError> {
+        if expected_database_oid != self.claim.database_oid {
+            return Err(BackupError::Invalid(
+                "SQL session challenge database differs",
+            ));
+        }
         let before = observe(&self.claim)?;
         same_observation(&self.observation, &before)?;
         let args = challenge_exec_args(&self.claim, challenge.keys)?;
@@ -728,13 +734,19 @@ mod linux {
             self.recheck_with(observe, |claim| docker(&pg_exec_args(claim)?))
         }
 
-        #[allow(dead_code)] // Task 2 connects the SQLx transaction to this observer.
         pub(in crate::restore_preflight) fn verify_sql_session<L>(
             &self,
             challenge: LockChallenge<L>,
             expected_pid: i32,
+            expected_database_oid: u64,
         ) -> Result<LockChallenge<L>, BackupError> {
-            self.verify_sql_session_with(challenge, expected_pid, observe, |_, args| docker(args))
+            self.verify_sql_session_with(
+                challenge,
+                expected_pid,
+                expected_database_oid,
+                observe,
+                |_, args| docker(args),
+            )
         }
     }
 
@@ -926,6 +938,7 @@ mod tests {
             .verify_sql_session_with(
                 challenge,
                 123,
+                16385,
                 |_| Ok(json!({"restart_count": 0})),
                 |c, args| {
                     assert_eq!(c.container_id, ID);
@@ -941,6 +954,40 @@ mod tests {
             )
             .unwrap();
         assert_eq!(returned.keys().values(), [7, 4_294_967_298]);
+    }
+
+    #[test]
+    fn sql_session_challenge_rejects_transaction_database_oid_before_docker_query() {
+        use std::{cell::Cell, rc::Rc};
+        struct Lease(Rc<Cell<bool>>);
+        impl Drop for Lease {
+            fn drop(&mut self) {
+                self.0.set(true);
+            }
+        }
+        let guard = BoundTargetGuard {
+            _target_lock: (),
+            _global_lock: (),
+            claim: claim(),
+            observation: json!({"restart_count": 0}),
+        };
+        let released = Rc::new(Cell::new(false));
+        let challenge = LockChallenge::new(
+            ChallengeKeys::for_test(7, 4_294_967_298),
+            Lease(released.clone()),
+        );
+        assert!(
+            guard
+                .verify_sql_session_with(
+                    challenge,
+                    123,
+                    16386,
+                    |_| panic!("wrong database must fail before Docker observation"),
+                    |_, _| panic!("wrong database must not query Docker"),
+                )
+                .is_err()
+        );
+        assert!(released.get());
     }
 
     #[test]
@@ -993,6 +1040,7 @@ mod tests {
             let result = guard.verify_sql_session_with(
                 LockChallenge::new(ChallengeKeys::for_test(7, 4_294_967_298), Lease(events.clone())),
                 123,
+                16385,
                 |_| {
                     events.borrow_mut().push("observe");
                     observations += 1;
@@ -1020,6 +1068,7 @@ mod tests {
                 Lease(events.clone()),
             ),
             123,
+            16385,
             |_| {
                 events.borrow_mut().push("observe");
                 Ok(json!({"restart_count": 0}))
@@ -1040,6 +1089,7 @@ mod tests {
                     Lease(events.clone()),
                 ),
                 123,
+                16385,
                 |_| {
                     events.borrow_mut().push("observe");
                     Ok(json!({"restart_count": 0}))
