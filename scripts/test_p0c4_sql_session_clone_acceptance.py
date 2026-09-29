@@ -668,6 +668,48 @@ class CloneAdmission(unittest.TestCase):
                     {"pg_system_identifier": "123", "database_oid": 42},
                     "learning_restore_c4_" + PRIMARY)
 
+    def test_clone_phase_identifies_each_physical_boundary_and_failed_helper(self):
+        clone = {"project": "clone", "network": "clone_test",
+                 "volume": "clone_pg", "image": "postgres:18@sha256:pin"}
+        resources = {"volume_name": "clone_pg", "postgres_uid": 999,
+                     "postgres_gid": 999, "image_id": "sha256:" + "a" * 64}
+        phases = []
+        def helper(*args, **kwargs):
+            if kwargs["kind"] == "copy":
+                raise ValueError("sensitive copy failure")
+            return True
+        with patch.object(runner, "_check_replication_contract", return_value="trust"), \
+             patch.object(runner, "_create_clone_resources", return_value=resources), \
+             patch.object(runner, "_run_clone_helper", side_effect=helper), \
+             patch.object(runner, "_start_clone_pg") as start:
+            with self.assertRaises(ValueError):
+                runner._prepare_physical_clone(
+                    object(), Path("/private") / PRIMARY,
+                    Path("/private/target"),
+                    "a" * 64, clone, "10.251.229.0/24", {},
+                    {"pg_system_identifier": "123", "database_oid": 42},
+                    "learning_restore_c4_" + PRIMARY, phase=phases.append)
+        self.assertEqual(phases, ["replication-contract", "compose-resources",
+                                  "setup-helper", "basebackup-copy"])
+        start.assert_not_called()
+
+        phases.clear()
+        with patch.object(runner, "_check_replication_contract", return_value="trust"), \
+             patch.object(runner, "_create_clone_resources", return_value=resources), \
+             patch.object(runner, "_run_clone_helper", return_value=True), \
+             patch.object(runner, "_start_clone_pg", side_effect=ValueError("start")):
+            with self.assertRaises(ValueError):
+                runner._prepare_physical_clone(
+                    object(), Path("/private") / PRIMARY,
+                    Path("/private/target"),
+                    "a" * 64, clone, "10.251.229.0/24", {},
+                    {"pg_system_identifier": "123", "database_oid": 42},
+                    "learning_restore_c4_" + PRIMARY, phase=phases.append)
+        self.assertEqual(phases, ["replication-contract", "compose-resources",
+                                  "setup-helper", "basebackup-copy",
+                                  "backup-verify", "copy-evidence-check",
+                                  "clone-start"])
+
 
 if __name__ == "__main__":
     unittest.main()

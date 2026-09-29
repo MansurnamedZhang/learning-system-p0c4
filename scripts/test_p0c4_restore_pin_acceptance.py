@@ -18,6 +18,12 @@ from test_p0c4_restore_target import ID, SUBNET
 
 
 class PinAcceptance(unittest.TestCase):
+    def test_clone_phase_rejects_unapproved_or_sensitive_values(self):
+        result = {"clone_phase": "primary-recheck"}
+        with self.assertRaises(ValueError):
+            runner._mark_clone_phase(result, "sensitive DSN")
+        self.assertEqual(result["clone_phase"], "primary-recheck")
+
     def test_bound_probe_uses_existing_reviewed_builder_image(self):
         self.assertEqual(runner.BUILDER_IMAGE_ID,
                          transfer_runner.BUILDER_IMAGE_ID)
@@ -110,6 +116,7 @@ class PinAcceptance(unittest.TestCase):
             code, result = self._run()
         self.assertEqual(code, 0, result)
         self.assertEqual(result["status"], runner.PASSED)
+        self.assertNotIn("clone_phase", result)
         self.assertEqual(result["birth_sha256"], "d" * 64)
         record = (self.batch / "evidence" / "pin-inspection.json").read_bytes()
         self.assertEqual(result["inspection_evidence_sha256"],
@@ -276,6 +283,32 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["clone"]["container_id"], "f" * 64)
         self.assertTrue(result["stop"]["confirmed"])
 
+    def test_clone_failure_publishes_only_fixed_last_phase(self):
+        self.args.sql_session_clone_negative = True
+        self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"
+        self.args.clone_subnet = "10.251.229.0/24"
+        deps = self._dependencies()
+        clone = {"project": "clone-project", "database": "clone-database",
+                 "volume": "clone-volume", "network": "clone-network",
+                 "image": "postgres:18"}
+        original = deps[0].identity_for
+        deps[0].identity_for = lambda batch_id: (
+            clone if batch_id == self.args.clone_batch_id else original(batch_id))
+        def fail_copy(*args, **kwargs):
+            kwargs["phase"]("basebackup-copy")
+            raise ValueError("sensitive DSN must not be recorded")
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_admit_clone_pair", return_value=True), \
+             patch.object(runner, "_primary_still_pinned", return_value=True), \
+             patch.object(runner, "_prepare_physical_clone", side_effect=fail_copy):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.CLONE_FAILED)
+        self.assertEqual(result["clone_phase"], "basebackup-copy")
+        payload = (self.batch / "evidence" / "result.json").read_text()
+        self.assertEqual(json.loads(payload)["clone_phase"], "basebackup-copy")
+        self.assertNotIn("sensitive DSN", payload)
+
     def test_clone_probe_rechecks_birth_started_primary_after_probe_before_dual_stop(self):
         self.args.sql_session_clone_negative = True
         self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"
@@ -313,6 +346,7 @@ class PinAcceptance(unittest.TestCase):
             code, result = self._run(deps)
         self.assertEqual(code, 0, result)
         self.assertEqual(result["status"], runner.CLONE_PASSED)
+        self.assertEqual(result["clone_phase"], "complete")
         self.assertEqual(sequence[-3:], ["probe", "recheck", "stop"])
 
     def test_clone_rejects_restart_before_first_runner_docker_observation(self):

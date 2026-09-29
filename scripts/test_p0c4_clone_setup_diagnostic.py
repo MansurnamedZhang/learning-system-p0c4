@@ -102,19 +102,18 @@ class DockerFake:
 
 
 class CloneSetupDiagnosticTests(unittest.TestCase):
-    def test_new_packaged_runner_bytes_pass_without_git_or_ignored_artifacts(self):
+    def test_diagnostic_rejects_new_runner_revision_without_git_or_artifacts(self):
         data = RUNNER.read_bytes().replace(b"\r\n", b"\n")
-        self.assertEqual(len(data), 82160)
-        self.assertEqual(hashlib.sha256(data).hexdigest(),
-            "b298f6814d50eff3a6fc1b6e322492264183e5fd263486a6a871cce3b5a5b97a")
+        self.assertNotEqual(hashlib.sha256(data).hexdigest(),
+                            diagnostic.AUTHORIZED_RUNNER_SHA256)
         with tempfile.TemporaryDirectory(dir=RUNNER.parent) as temporary:
             installed = Path(temporary) / "installed-runner.py"
             installed.write_bytes(data)
             docker = DockerFake()
             result = diagnostic.diagnose(installed, IMAGE, 999, 999,
                                          batch_id=BATCH, docker=docker)
-        self.assertEqual(result["code"], "CLONE_SETUP_DIAG_PASSED")
-        self.assertIn("RUNNER_VERIFIED", result["stages"])
+        self.assertEqual(result["code"], "RUNNER_HASH_REJECTED")
+        self.assertEqual(docker.calls, [])
 
     def test_modified_runner_bytes_are_rejected_before_docker(self):
         data = bytearray(RUNNER.read_bytes().replace(b"\r\n", b"\n"))

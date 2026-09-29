@@ -43,6 +43,14 @@ SESSION_PASSED = "FOCUSED_SQL_SESSION_GATES_PASSED_NOT_FULL_ENDPOINT_ACCEPTANCE_
 SESSION_FAILED = "SQL_SESSION_BINDING_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 CLONE_FAILED = "SAME_ID_WRONG_ENDPOINT_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 CLONE_PASSED = "SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE"
+CLONE_PHASES = frozenset({
+    "not-started", "primary-recheck", "replication-contract",
+    "compose-resources", "setup-helper", "basebackup-copy", "backup-verify",
+    "copy-evidence-check",
+    "clone-start", "clone-evidence-check", "post-clone-primary-recheck",
+    "wrong-endpoint-probe", "post-probe-primary-recheck", "exact-id-stop",
+    "complete",
+})
 CLONE_PASSFILE = "/run/secrets/replication.pgpass"
 CLONE_DATA = "/var/lib/postgresql/18/docker"
 CLONE_RUNTIME_ROOT = Path("/run")
@@ -57,6 +65,12 @@ MAX_INSPECTION = 256 * 1024
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def _mark_clone_phase(result, value):
+    require(type(value) is str and value in CLONE_PHASES,
+            "unapproved clone phase")
+    result["clone_phase"] = value
 
 
 def digest(data):
@@ -742,7 +756,7 @@ def _create_clone_resources(provisioner, batch, clone, subnet, before):
 
 
 def _copy_primary_volume(provisioner, batch, target, primary_id, clone,
-                         resources, auth_method):
+                         resources, auth_method, *, phase=None):
     require(resources["volume_name"] == clone["volume"],
             "clone copy destination changed")
     uid, gid = resources["postgres_uid"], resources["postgres_gid"]
@@ -750,11 +764,15 @@ def _copy_primary_volume(provisioner, batch, target, primary_id, clone,
             "pinned image postgres UID unavailable")
     setup = _clone_setup_command(clone["volume"], clone["image"],
                                   batch.name, uid, gid)
+    if phase is not None:
+        phase("setup-helper")
     _run_clone_helper(setup, clone["image"], primary_id, clone["volume"],
                       batch_id=batch.name, uid=uid, gid=gid,
                       image_id=resources["image_id"], kind="setup")
     require(auth_method in ("trust", "scram-sha-256"),
             "unverified replication authentication")
+    if phase is not None:
+        phase("basebackup-copy")
     passfile_context = (_clone_passfile(
         batch, target / "secrets" / "postgres_password", uid, gid)
         if auth_method == "scram-sha-256" else contextlib.nullcontext(None))
@@ -767,6 +785,8 @@ def _copy_primary_volume(provisioner, batch, target, primary_id, clone,
                           kind="copy")
     verify = _clone_verify_command(primary_id, clone["volume"],
                                     clone["image"], batch.name, uid, gid)
+    if phase is not None:
+        phase("backup-verify")
     _run_clone_helper(verify, clone["image"], primary_id, clone["volume"],
                       batch_id=batch.name, uid=uid, gid=gid,
                       image_id=resources["image_id"], kind="verify")
@@ -883,13 +903,20 @@ def _start_clone_pg(provisioner, clone, resources, primary_id, birth,
 
 
 def _prepare_physical_clone(provisioner, batch, target, primary_id, clone,
-                            subnet, before, birth, database):
+                            subnet, before, birth, database, *, phase=None):
+    if phase is not None:
+        phase("replication-contract")
     auth_method = _check_replication_contract(primary_id)
     require(auth_method in ("trust", "scram-sha-256"),
             "replication authentication unverified")
+    if phase is not None:
+        phase("compose-resources")
     resources = _create_clone_resources(provisioner, batch, clone, subnet, before)
     copied = _copy_primary_volume(provisioner, batch, target, primary_id,
-                                  clone, resources, auth_method)
+                                  clone, resources, auth_method,
+                                  **({"phase": phase} if phase is not None else {}))
+    if phase is not None:
+        phase("copy-evidence-check")
     require(copied.get("backup_verified") is True and
             copied.get("no_standby") is True and
             copied.get("pgdata") == CLONE_DATA and
@@ -904,6 +931,8 @@ def _prepare_physical_clone(provisioner, batch, target, primary_id, clone,
             type(copied.get("postgres_gid")) is int and
             copied["postgres_uid"] > 0 and copied["postgres_gid"] > 0,
             "physical clone verification incomplete")
+    if phase is not None:
+        phase("clone-start")
     started = _start_clone_pg(provisioner, clone, resources, primary_id,
                               birth, database, copied["postgres_uid"],
                               copied["postgres_gid"])
@@ -1292,6 +1321,7 @@ def _run_batch(args, manifest, package, batch):
         result["status"] = CLONE_FAILED
         result["clone_batch_id"] = args.clone_batch_id
         result["clone_subnet"] = args.clone_subnet
+        result["clone_phase"] = "not-started"
     elif sql_session:
         result["status"] = SESSION_FAILED
     elif bound_guard:
@@ -1422,12 +1452,15 @@ def _run_batch(args, manifest, package, batch):
                 "reviewed source changed during run")
         if clone_mode:
             result["stage"] = "physical-clone-preparation"
+            _mark_clone_phase(result, "primary-recheck")
             _primary_still_pinned(provisioner, acceptance, identity,
                                   args.subnet, before, state, success,
                                   target, initdb, primary_started_at)
             result["clone"] = _prepare_physical_clone(
                 provisioner, batch, target, confirmed_id, clone_identity,
-                args.clone_subnet, before, birth, identity["database"])
+                args.clone_subnet, before, birth, identity["database"],
+                phase=lambda value: _mark_clone_phase(result, value))
+            _mark_clone_phase(result, "clone-evidence-check")
             clone_id = result["clone"]["container_id"]
             require(type(clone_id) is str and HEX64.fullmatch(clone_id) and
                     clone_id != confirmed_id and
@@ -1435,11 +1468,13 @@ def _run_batch(args, manifest, package, batch):
                     result["clone"].get("no_standby") is True and
                     result["clone"].get("volume_retained") is True,
                     "physical clone preparation evidence incomplete")
+            _mark_clone_phase(result, "post-clone-primary-recheck")
             _primary_still_pinned(provisioner, acceptance, identity,
                                   args.subnet, before, state, success,
                                   target, initdb, primary_started_at)
             result["primary_started_at_unchanged"] = True
             result["stage"] = "same-id-wrong-endpoint-read-only"
+            _mark_clone_phase(result, "wrong-endpoint-probe")
             result["same_id_wrong_endpoint"] = _run_clone_negative_probe(
                 source, batch, target, identity, clone_identity,
                 success["birth_sha256"], confirmed_id, clone_id,
@@ -1448,6 +1483,7 @@ def _run_batch(args, manifest, package, batch):
                     result["same_id_wrong_endpoint"].get("state") ==
                     CLONE_PASSED,
                     "distinct wrong-endpoint negative marker absent")
+            _mark_clone_phase(result, "post-probe-primary-recheck")
             _primary_still_pinned(provisioner, acceptance, identity,
                                   args.subnet, before, state, success,
                                   target, initdb, primary_started_at)
@@ -1462,6 +1498,7 @@ def _run_batch(args, manifest, package, batch):
                 success["birth_sha256"], **options)
         result["stage"] = "exact-id-stop"
         if clone_mode:
+            _mark_clone_phase(result, "exact-id-stop")
             result["stop"] = _stop_clone_pair(
                 acceptance, provisioner, identity, confirmed_id,
                 clone_identity, clone_id)
@@ -1489,6 +1526,8 @@ def _run_batch(args, manifest, package, batch):
         result["inspection_record_sha256"] = digest(inspection_bytes)
         result["inspection_record_file"] = inspection_path.name
         result["target_condition"] = "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE"
+        if clone_mode:
+            _mark_clone_phase(result, "complete")
         result["status"] = (CLONE_PASSED if clone_mode else
                             SESSION_PASSED if sql_session else
                             GUARD_PASSED if bound_guard else
