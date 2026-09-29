@@ -965,9 +965,57 @@ def _find_owned_clone_pg(provisioner, clone, before):
     return ident
 
 
-def _run_clone_negative_probe(*_args):
-    # Task 2 supplies the distinct ignored Rust test and one-marker gate.
-    raise ValueError("same-identity wrong-endpoint Rust gate not yet installed")
+def _run_clone_negative_probe(source, batch, target, primary, clone,
+                              birth_sha256, primary_id, clone_id,
+                              clone_network_id, clone_subnet):
+    """Run exactly the ignored live second-endpoint test with public IDs only."""
+    require(all(type(value) is str and HEX64.fullmatch(value) for value in
+                (birth_sha256, primary_id, clone_id, clone_network_id)) and
+            primary_id != clone_id and
+            all(type(clone.get(key)) is str and clone[key] for key in
+                ("project", "network", "volume")) and
+            primary["project"] != clone["project"] and
+            primary["network"] != clone["network"] and
+            primary["database"].startswith("learning_restore_c4_") and
+            type(clone_subnet) is str and clone_subnet,
+            "wrong-endpoint probe identities invalid")
+    binary, binary_sha = _compile_bound_probe(
+        source, batch, "probe-live-build", birth_sha256)
+    test_name = ("restore_preflight::target_binding::tests::"
+                 "live_read_only_same_id_wrong_endpoint_negative")
+    env = {"HOME": "/root", "PATH": "/usr/bin:/bin",
+           "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT": str(target / "destination"),
+           "KNOWWEAVE_C4_PROBE_CONTROL_ROOT": str(target / "control"),
+           "KNOWWEAVE_C4_PROBE_ASSET_ROOT": str(target / "assets"),
+           "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE": primary["database"],
+           "KNOWWEAVE_C4_PRIMARY_CONTAINER_ID": primary_id,
+           "KNOWWEAVE_C4_CLONE_CONTAINER_ID": clone_id,
+           "KNOWWEAVE_C4_CLONE_NETWORK_ID": clone_network_id,
+           "KNOWWEAVE_C4_CLONE_NETWORK_NAME": clone["network"],
+           "KNOWWEAVE_C4_CLONE_PROJECT": clone["project"],
+           "KNOWWEAVE_C4_CLONE_VOLUME_NAME": clone["volume"],
+           "KNOWWEAVE_C4_CLONE_SUBNET": clone_subnet}
+    require(_file_digest(binary) == binary_sha,
+            "wrong-endpoint binary changed before execution")
+    process = _run_bounded(
+        [str(binary), test_name, "--exact", "--ignored", "--nocapture"],
+        cwd=source, env=env, timeout=240)
+    output = process.stdout + b"\n" + process.stderr
+    marker = CLONE_PASSED.encode()
+    marker_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
+                   rb" \.\.\. )?" + marker + rb"\r?$")
+    require(process.returncode == 0 and
+            _file_digest(binary) == binary_sha and
+            len(re.findall(marker_line, output)) == 1 and
+            output.count(marker) == 1 and
+            output.splitlines().count(b"running 1 test") == 1 and
+            len(re.findall(rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output)) == 1 and
+            output.splitlines().count(("test " + test_name + " ... ok").encode()) == 1,
+            "exact one-test wrong-endpoint negative absent")
+    return {"state": CLONE_PASSED, "birth_sha256": birth_sha256,
+            "binary_sha256": binary_sha, "builder_image_id": BUILDER_IMAGE_ID,
+            "exit_code": process.returncode, "primary_container_id": primary_id,
+            "clone_container_id": clone_id, "clone_network_id": clone_network_id}
 
 
 def _builder_identity(batch, stage):
@@ -1379,11 +1427,15 @@ def _run_batch(args, manifest, package, batch):
             result["stage"] = "same-id-wrong-endpoint-read-only"
             result["same_id_wrong_endpoint"] = _run_clone_negative_probe(
                 source, batch, target, identity, clone_identity,
-                success["birth_sha256"], confirmed_id, clone_id)
+                success["birth_sha256"], confirmed_id, clone_id,
+                result["clone"]["network_id"], args.clone_subnet)
             require(type(result["same_id_wrong_endpoint"]) is dict and
                     result["same_id_wrong_endpoint"].get("state") ==
                     CLONE_PASSED,
                     "distinct wrong-endpoint negative marker absent")
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
         if bound_probe or bound_guard or sql_session:
             result["stage"] = ("read-only-sql-session" if sql_session else
                                "read-only-bound-guard" if bound_guard else

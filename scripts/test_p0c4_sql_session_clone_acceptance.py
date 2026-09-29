@@ -483,6 +483,53 @@ class CloneAdmission(unittest.TestCase):
                     self.assertTrue(runner._preflight_probe_builder(
                         batch, batch, clone=True)["host_test_listing_confirmed"])
 
+    def test_clone_probe_requires_exact_one_test_marker_and_only_nonsecret_identity(self):
+        test_name = ("restore_preflight::target_binding::tests::"
+                     "live_read_only_same_id_wrong_endpoint_negative")
+        marker = runner.CLONE_PASSED
+        output = ("running 1 test\n" + marker + "\ntest " + test_name +
+                  " ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; "
+                  "0 measured; 0 filtered out;\n").encode()
+        with tempfile.TemporaryDirectory() as directory:
+            batch = Path(directory) / PRIMARY
+            batch.mkdir()
+            binary = batch / "test-binary"
+            binary.write_bytes(b"binary")
+            primary = {"database": "learning_restore_c4_" + PRIMARY,
+                       "project": "learning-system-p0c4-restore-" + PRIMARY,
+                       "network": "learning-system-p0c4-restore-" + PRIMARY + "_test"}
+            clone = {"project": "learning-system-p0c4-restore-" + CLONE,
+                     "network": "learning-system-p0c4-restore-" + CLONE + "_test",
+                     "volume": "learning-system-p0c4-restore-" + CLONE + "_pg"}
+            target = batch / "control" / "targets" / PRIMARY
+            def execute(command, **kwargs):
+                self.assertEqual(command[1:], [test_name, "--exact", "--ignored", "--nocapture"])
+                env = kwargs["env"]
+                self.assertEqual(set(env), {"HOME", "PATH", "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT",
+                    "KNOWWEAVE_C4_PROBE_CONTROL_ROOT", "KNOWWEAVE_C4_PROBE_ASSET_ROOT",
+                    "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE", "KNOWWEAVE_C4_CLONE_CONTAINER_ID",
+                    "KNOWWEAVE_C4_CLONE_NETWORK_ID", "KNOWWEAVE_C4_CLONE_NETWORK_NAME",
+                    "KNOWWEAVE_C4_CLONE_PROJECT", "KNOWWEAVE_C4_CLONE_VOLUME_NAME",
+                    "KNOWWEAVE_C4_CLONE_SUBNET", "KNOWWEAVE_C4_PRIMARY_CONTAINER_ID"})
+                self.assertEqual(env["KNOWWEAVE_C4_CLONE_CONTAINER_ID"], "b" * 64)
+                self.assertEqual(env["KNOWWEAVE_C4_PRIMARY_CONTAINER_ID"], "a" * 64)
+                return SimpleNamespace(returncode=0, stdout=output, stderr=b"")
+            args = (batch / "source", batch, target, primary, clone, "d" * 64,
+                    "a" * 64, "b" * 64, "c" * 64, "10.251.229.0/24")
+            with patch.object(runner, "_compile_bound_probe",
+                              return_value=(binary, runner._file_digest(binary))), \
+                 patch.object(runner, "_run_bounded", side_effect=execute):
+                self.assertEqual(runner._run_clone_negative_probe(*args)["state"], marker)
+            for bad in (output + marker.encode(), output.replace(b"running 1 test", b"running 2 tests"),
+                        output.replace(b"test " + test_name.encode() + b" ... ok", b"test other ... ok"),
+                        output.replace(marker.encode(), b"WRONG")):
+                with patch.object(runner, "_compile_bound_probe",
+                                  return_value=(binary, runner._file_digest(binary))), \
+                     patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                         returncode=0, stdout=bad, stderr=b"")):
+                    with self.assertRaises(ValueError):
+                        runner._run_clone_negative_probe(*args)
+
     def test_failed_copy_evidence_distinguishes_retained_volumes_and_stopped_ids(self):
         primary = {"project": "primary", "volume": "primary_pg"}
         clone = {"project": "clone", "volume": "clone_pg"}

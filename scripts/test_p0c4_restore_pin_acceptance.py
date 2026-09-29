@@ -276,6 +276,45 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["clone"]["container_id"], "f" * 64)
         self.assertTrue(result["stop"]["confirmed"])
 
+    def test_clone_probe_rechecks_birth_started_primary_after_probe_before_dual_stop(self):
+        self.args.sql_session_clone_negative = True
+        self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"
+        self.args.clone_subnet = "10.251.229.0/24"
+        deps = self._dependencies()
+        clone = {"project": "clone-project", "database": "clone-database",
+                 "volume": "clone-volume", "network": "clone-network",
+                 "image": "postgres:18"}
+        original = deps[0].identity_for
+        deps[0].identity_for = lambda batch_id: (
+            clone if batch_id == self.args.clone_batch_id else original(batch_id))
+        sequence = []
+        def recheck(*args):
+            self.assertEqual(args[-1], "2026-09-29T00:00:00Z")
+            sequence.append("recheck")
+            return True
+        def probe(*args):
+            self.assertEqual(args[-3:], ("f" * 64, "a" * 64, "10.251.229.0/24"))
+            sequence.append("probe")
+            return {"state": runner.CLONE_PASSED}
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_admit_clone_pair", return_value=True), \
+             patch.object(runner, "_primary_still_pinned", side_effect=recheck), \
+             patch.object(runner, "_prepare_physical_clone", return_value={
+                 "container_id": "f" * 64, "network_id": "a" * 64,
+                 "backup_verified": True, "no_standby": True,
+                 "volume_retained": True}), \
+             patch.object(runner, "_run_clone_negative_probe", side_effect=probe), \
+             patch.object(runner, "_stop_clone_pair", side_effect=lambda *_:
+                          sequence.append("stop") or
+                          {"confirmed": True, "volume_retained": True}), \
+             patch.object(runner, "_clone_quarantine_evidence", return_value={
+                 "primary_stopped": True, "clone_stopped": True,
+                 "primary_volume_retained": True, "clone_volume_retained": True}):
+            code, result = self._run(deps)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["status"], runner.CLONE_PASSED)
+        self.assertEqual(sequence[-3:], ["probe", "recheck", "stop"])
+
     def test_clone_rejects_restart_before_first_runner_docker_observation(self):
         self.args.sql_session_clone_negative = True
         self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"

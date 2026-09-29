@@ -370,6 +370,112 @@ fn target_ip_from_inspects(
     Ok(ip)
 }
 
+#[cfg(test)]
+fn validate_same_id_wrong_endpoint(
+    primary: &DockerClaim,
+    copy: &DockerClaim,
+    primary_ip: Ipv4Addr,
+    copy_ip: Ipv4Addr,
+) -> Result<(), BackupError> {
+    if !exact_id(&primary.container_id)
+        || !exact_id(&copy.container_id)
+        || !exact_id(&primary.network_id)
+        || !exact_id(&copy.network_id)
+        || primary.container_id == copy.container_id
+        || primary.network_id == copy.network_id
+        || primary.project == copy.project
+        || primary.network_name == copy.network_name
+        || primary.volume_name == copy.volume_name
+        || primary.subnet == copy.subnet
+        || primary_ip == copy_ip
+        || primary.database != copy.database
+        || primary.database_oid == 0
+        || primary.database_oid != copy.database_oid
+        || primary.system_identifier.is_empty()
+        || primary.system_identifier != copy.system_identifier
+    {
+        return Err(BackupError::Invalid(
+            "same-ID physical copy is not a distinct exact SQL endpoint",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn validate_copy_docker(
+    primary: &DockerClaim,
+    copy: &DockerClaim,
+    pg: &Value,
+    network: &Value,
+    volume: &Value,
+) -> Result<Ipv4Addr, BackupError> {
+    let invalid = || BackupError::Invalid("physical copy Docker endpoint differs");
+    if !eq_str(pg, &["Id"], &copy.container_id)
+        || !eq_str(pg, &["Image"], &primary.image_id)
+        || !eq_str(pg, &["Config", "Image"], PINNED_IMAGE)
+        || !eq_str(
+            pg,
+            &["Config", "Labels", "com.docker.compose.project"],
+            &copy.project,
+        )
+        || !eq_str(
+            pg,
+            &["Config", "Labels", "com.docker.compose.service"],
+            "pg",
+        )
+        || !eq_str(pg, &["HostConfig", "NetworkMode"], &copy.network_name)
+        || val(pg, &["State", "Running"]) != Some(&Value::Bool(true))
+        || !eq_str(network, &["Id"], &copy.network_id)
+        || !eq_str(network, &["Name"], &copy.network_name)
+        || !eq_str(
+            network,
+            &["Labels", "com.docker.compose.project"],
+            &copy.project,
+        )
+        || val(network, &["Internal"]) != Some(&Value::Bool(true))
+        || !eq_str(volume, &["Name"], &copy.volume_name)
+        || !eq_str(
+            volume,
+            &["Labels", "com.docker.compose.project"],
+            &copy.project,
+        )
+        || !eq_str(volume, &["Mountpoint"], &copy.mountpoint)
+        || !eq_str(volume, &["Driver"], "local")
+        || val(network, &["IPAM", "Config"])
+            .and_then(Value::as_array)
+            .is_none_or(|rows| rows.len() != 1 || !eq_str(&rows[0], &["Subnet"], &copy.subnet))
+        || val(pg, &["HostConfig", "PortBindings"])
+            .and_then(Value::as_object)
+            .is_none_or(|rows| rows.values().any(|value| !value.is_null()))
+        || val(pg, &["NetworkSettings", "Ports"])
+            .and_then(Value::as_object)
+            .is_none_or(|rows| rows.values().any(|value| !value.is_null()))
+    {
+        return Err(invalid());
+    }
+    let mounts = pg
+        .get("Mounts")
+        .and_then(Value::as_array)
+        .ok_or_else(invalid)?;
+    if mounts.len() != 1
+        || !eq_str(&mounts[0], &["Type"], "volume")
+        || !eq_str(&mounts[0], &["Name"], &copy.volume_name)
+        || !eq_str(&mounts[0], &["Source"], &copy.mountpoint)
+        || !eq_str(&mounts[0], &["Destination"], "/var/lib/postgresql")
+        || val(&mounts[0], &["RW"]) != Some(&Value::Bool(true))
+    {
+        return Err(invalid());
+    }
+    let members = network
+        .get("Containers")
+        .and_then(Value::as_object)
+        .ok_or_else(invalid)?;
+    if members.len() != 1 || !members.contains_key(&copy.container_id) {
+        return Err(invalid());
+    }
+    target_ip_from_inspects(copy, pg, network)
+}
+
 fn validate_docker(
     claim: &DockerClaim,
     pg: &Value,
@@ -713,7 +819,7 @@ mod linux {
         Ok(value.to_owned())
     }
 
-    fn inspect(kind: &str, id: &str) -> Result<Value, BackupError> {
+    pub(super) fn inspect(kind: &str, id: &str) -> Result<Value, BackupError> {
         let args = [kind.to_owned(), "inspect".into(), id.into()];
         let result: Value = serde_json::from_str(&docker(&args)?)?;
         let rows = result
@@ -1087,6 +1193,133 @@ mod tests {
                 )
                 .is_err()
         );
+        assert!(released.get());
+    }
+
+    #[test]
+    fn physical_copy_requires_same_pg_identity_but_distinct_exact_docker_endpoint() {
+        let primary = claim();
+        let mut copy = primary.clone();
+        copy.container_id = "b".repeat(64);
+        copy.network_id = "c".repeat(64);
+        copy.project = "learning-system-p0c4-restore-b27f4d57-1165-4b17-92c1-4ddf9a178eaa".into();
+        copy.network_name = format!("{}_test", copy.project);
+        copy.volume_name = format!("{}_pg", copy.project);
+        copy.subnet = "10.251.229.0/24".into();
+        let primary_ip = "10.251.228.2".parse().unwrap();
+        let copy_ip = "10.251.229.2".parse().unwrap();
+        assert!(validate_same_id_wrong_endpoint(&primary, &copy, primary_ip, copy_ip).is_ok());
+        for bad in [
+            {
+                let mut x = copy.clone();
+                x.container_id = primary.container_id.clone();
+                x
+            },
+            {
+                let mut x = copy.clone();
+                x.network_id = primary.network_id.clone();
+                x
+            },
+            {
+                let mut x = copy.clone();
+                x.project = primary.project.clone();
+                x
+            },
+            {
+                let mut x = copy.clone();
+                x.database_oid += 1;
+                x
+            },
+            {
+                let mut x = copy.clone();
+                x.system_identifier = "other".into();
+                x
+            },
+        ] {
+            assert!(validate_same_id_wrong_endpoint(&primary, &bad, primary_ip, copy_ip).is_err());
+        }
+        assert!(validate_same_id_wrong_endpoint(&primary, &copy, primary_ip, primary_ip).is_err());
+    }
+
+    #[test]
+    fn physical_copy_docker_projection_rejects_wrong_id_ip_mount_and_extra_member() {
+        let primary = claim();
+        let mut copy = primary.clone();
+        copy.container_id = "b".repeat(64);
+        copy.network_id = "c".repeat(64);
+        copy.project = "learning-system-p0c4-restore-b27f4d57-1165-4b17-92c1-4ddf9a178eaa".into();
+        copy.network_name = format!("{}_test", copy.project);
+        copy.volume_name = format!("{}_pg", copy.project);
+        copy.mountpoint = "/var/lib/docker/volumes/clone/_data".into();
+        copy.subnet = "10.251.229.0/24".into();
+        let pg = json!({"Id":copy.container_id,"Image":primary.image_id,
+            "Config":{"Image":PINNED_IMAGE,"Labels":{
+                "com.docker.compose.project":copy.project,"com.docker.compose.service":"pg"}},
+            "State":{"Running":true},
+            "HostConfig":{"NetworkMode":copy.network_name,"PortBindings":{}},
+            "NetworkSettings":{"Ports":{},"Networks":{
+                copy.network_name.clone():{"NetworkID":copy.network_id,"IPAddress":"10.251.229.2"}}},
+            "Mounts":[{"Type":"volume","Name":copy.volume_name,
+                "Source":copy.mountpoint,"Destination":"/var/lib/postgresql","RW":true}]});
+        let network = json!({"Id":copy.network_id,"Name":copy.network_name,"Internal":true,
+            "Labels":{"com.docker.compose.project":copy.project},
+            "IPAM":{"Config":[{"Subnet":copy.subnet}]},
+            "Containers":{copy.container_id.clone():{"IPv4Address":"10.251.229.2/24"}}});
+        let volume = json!({"Name":copy.volume_name,"Mountpoint":copy.mountpoint,
+            "Driver":"local","Labels":{"com.docker.compose.project":copy.project}});
+        assert_eq!(
+            validate_copy_docker(&primary, &copy, &pg, &network, &volume).unwrap(),
+            "10.251.229.2".parse::<Ipv4Addr>().unwrap()
+        );
+        let mut drift = pg.clone();
+        drift["Id"] = json!(primary.container_id);
+        assert!(validate_copy_docker(&primary, &copy, &drift, &network, &volume).is_err());
+        let mut drift = pg.clone();
+        drift["Mounts"][0]["Name"] = json!(primary.volume_name);
+        assert!(validate_copy_docker(&primary, &copy, &drift, &network, &volume).is_err());
+        let mut drift = network.clone();
+        drift["Containers"][primary.container_id.clone()] =
+            json!({"IPv4Address":"10.251.229.3/24"});
+        assert!(validate_copy_docker(&primary, &copy, &pg, &drift, &volume).is_err());
+        let mut drift = network.clone();
+        drift["Containers"][copy.container_id.clone()]["IPv4Address"] = json!("10.251.229.3/24");
+        assert!(validate_copy_docker(&primary, &copy, &pg, &drift, &volume).is_err());
+    }
+
+    #[test]
+    fn same_oid_copy_locks_are_rejected_at_primary_exact_id_and_drop_lease() {
+        use std::{cell::Cell, rc::Rc};
+        struct Lease(Rc<Cell<bool>>);
+        impl Drop for Lease {
+            fn drop(&mut self) {
+                self.0.set(true);
+            }
+        }
+        let guard = BoundTargetGuard {
+            _target_lock: (),
+            _global_lock: (),
+            claim: claim(),
+            observation: json!({"restart_count": 0}),
+        };
+        let keys = ChallengeKeys::for_test(7, 4_294_967_298);
+        let copy_rows = "123|16385|0|7|1|ExclusiveLock|t\n123|16385|1|2|1|ExclusiveLock|t\n";
+        validate_challenge_rows(keys, 123, 16385, copy_rows).unwrap();
+        let released = Rc::new(Cell::new(false));
+        let error = guard.verify_sql_session_with(
+            LockChallenge::new(keys, Lease(released.clone())),
+            123,
+            16385,
+            |_| Ok(json!({"restart_count": 0})),
+            |claim, args| {
+                assert_eq!(claim.container_id, ID);
+                assert_eq!(args[4], ID);
+                Ok(String::new())
+            },
+        );
+        assert!(matches!(
+            error,
+            Err(BackupError::Invalid("SQL session challenge row count"))
+        ));
         assert!(released.get());
     }
 
@@ -1697,6 +1930,225 @@ mod tests {
         ));
         assert!(!attempt.exists());
         println!("SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    #[ignore = "requires two NEW isolated PG18 projects and a verified physical base backup"]
+    async fn live_read_only_same_id_wrong_endpoint_negative() {
+        use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
+
+        let config = probe_config_from(|key| std::env::var(key).ok())
+            .expect("explicit nonsecret wrong-endpoint environment required");
+        assert_eq!(unsafe { libc::geteuid() }, 0);
+        let before_files = snapshot_target_files(&config);
+        assert_eq!(
+            before_files.keys().cloned().collect::<Vec<_>>(),
+            [format!("control/{}.birth.json", config.expected_database)]
+        );
+        let target = config.control_root.parent().unwrap();
+        let attempt = config
+            .control_root
+            .join(restore_attempt_name(&config.expected_database).unwrap());
+        assert!(!attempt.exists());
+        let guard = linux::acquire_for_restore(&config).expect("primary bound guard failed");
+        let primary_ip = guard.target_ip().expect("primary exact IP unproven");
+        assert_eq!(
+            std::env::var("KNOWWEAVE_C4_PRIMARY_CONTAINER_ID").unwrap(),
+            guard.claim.container_id
+        );
+
+        let mut copy = guard.claim.clone();
+        copy.container_id = std::env::var("KNOWWEAVE_C4_CLONE_CONTAINER_ID").unwrap();
+        copy.network_id = std::env::var("KNOWWEAVE_C4_CLONE_NETWORK_ID").unwrap();
+        copy.network_name = std::env::var("KNOWWEAVE_C4_CLONE_NETWORK_NAME").unwrap();
+        copy.project = std::env::var("KNOWWEAVE_C4_CLONE_PROJECT").unwrap();
+        copy.volume_name = std::env::var("KNOWWEAVE_C4_CLONE_VOLUME_NAME").unwrap();
+        copy.subnet = std::env::var("KNOWWEAVE_C4_CLONE_SUBNET").unwrap();
+        assert_eq!(copy.network_name, format!("{}_test", copy.project));
+        assert_eq!(copy.volume_name, format!("{}_pg", copy.project));
+        let clone_batch = copy
+            .project
+            .strip_prefix("learning-system-p0c4-restore-")
+            .expect("clone project prefix changed");
+        assert!(
+            uuid::Uuid::parse_str(clone_batch)
+                .unwrap()
+                .get_version_num()
+                == 4
+        );
+        assert!(
+            !config
+                .control_root
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join(clone_batch)
+                .exists()
+        );
+        for (kind, expected) in [
+            ("container", &copy.container_id),
+            ("network", &copy.network_id),
+            ("volume", &copy.volume_name),
+        ] {
+            let label = format!("label=com.docker.compose.project={}", copy.project);
+            let args = match kind {
+                "container" => vec!["container", "ls", "-aq", "--no-trunc", "--filter", &label],
+                "network" => vec!["network", "ls", "-q", "--no-trunc", "--filter", &label],
+                _ => vec!["volume", "ls", "-q", "--filter", &label],
+            };
+            only_claimed_resource(
+                &linux::docker(&args.into_iter().map(str::to_owned).collect::<Vec<_>>()).unwrap(),
+                expected,
+            )
+            .expect("clone project resource inventory differs");
+        }
+        let volume = linux::inspect("volume", &copy.volume_name).unwrap();
+        copy.mountpoint = volume["Mountpoint"].as_str().unwrap().to_owned();
+        let pg = linux::inspect("container", &copy.container_id).unwrap();
+        let network = linux::inspect("network", &copy.network_id).unwrap();
+        let clone_ip = validate_copy_docker(&guard.claim, &copy, &pg, &network, &volume)
+            .expect("clone exact Docker endpoint differs");
+        validate_same_id_wrong_endpoint(&guard.claim, &copy, primary_ip, clone_ip)
+            .expect("physical clone identity or endpoint differs");
+        let clone_start = pg["State"]["StartedAt"].as_str().unwrap().to_owned();
+        let clone_restarts = pg["RestartCount"].as_u64().unwrap();
+        assert!(!clone_start.is_empty() && clone_restarts == 0);
+        guard
+            .recheck()
+            .expect("primary changed before clone SQLx connection");
+        for claim in [&guard.claim, &copy] {
+            validate_pg_line(
+                claim,
+                &linux::docker(&pg_exec_args(claim).unwrap()).unwrap(),
+            )
+            .expect("same-ID exact-container PostgreSQL facts differ");
+            linux::assert_guard_pg_empty(claim);
+        }
+
+        let password =
+            linux::read_admin_password(target).expect("root-private admin password unavailable");
+        let options = PgConnectOptions::new()
+            .port(5432)
+            .username("learning_admin")
+            .password(&password)
+            .database(&config.expected_database)
+            .ssl_mode(PgSslMode::Disable);
+        drop(password);
+        let primary_pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect_with(options.clone().host(&primary_ip.to_string()))
+            .await
+            .expect("primary SQLx connection failed");
+        let clone_pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect_with(options.host(&clone_ip.to_string()))
+            .await
+            .expect("clone SQLx connection failed");
+        let expected_id = format!(
+            "{}|{}",
+            guard.claim.database_oid, guard.claim.system_identifier
+        );
+        for pool in [&primary_pool, &clone_pool] {
+            let observed: String = sqlx::query_scalar(PG_ID_SQL)
+                .fetch_one(pool)
+                .await
+                .expect("SQLx PostgreSQL system/database identity unavailable");
+            assert_eq!(
+                observed, expected_id,
+                "SQLx did not reach copied database identity"
+            );
+        }
+
+        let (clone_challenge, clone_pid, clone_oid) = begin_sql_session(&clone_pool)
+            .await
+            .expect("clone transaction challenge failed");
+        assert_eq!(clone_oid, guard.claim.database_oid);
+        let keys = clone_challenge.keys();
+        let copy_locks = challenge_exec_args(&copy, keys).unwrap();
+        let primary_locks = challenge_exec_args(&guard.claim, keys).unwrap();
+        validate_challenge_rows(
+            keys,
+            clone_pid,
+            clone_oid,
+            &linux::docker(&copy_locks).unwrap(),
+        )
+        .expect("two clone transaction locks not visible at clone exact ID");
+        assert_eq!(
+            linux::docker(&primary_locks).unwrap(),
+            "",
+            "clone locks appeared on primary exact ID"
+        );
+        let rejection = guard
+            .verify_sql_session(clone_challenge, clone_pid, clone_oid)
+            .expect_err("wrong SQLx endpoint passed original guard");
+        assert!(
+            matches!(
+                &rejection,
+                BackupError::Invalid("SQL session challenge row count")
+            ),
+            "wrong endpoint rejected for an unrelated reason: {rejection:?}"
+        );
+        let mut released = false;
+        for _ in 0..100 {
+            if linux::docker(&copy_locks).unwrap().is_empty()
+                && linux::docker(&primary_locks).unwrap().is_empty()
+            {
+                released = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        assert!(
+            released,
+            "wrong-endpoint transaction locks remained after rejection"
+        );
+
+        let (primary_challenge, primary_pid, primary_oid) = begin_sql_session(&primary_pool)
+            .await
+            .expect("primary positive challenge failed");
+        let retained = guard
+            .verify_sql_session(primary_challenge, primary_pid, primary_oid)
+            .expect("primary endpoint no longer passes original guard");
+        let primary_keys = retained.keys();
+        drop(retained);
+        let positive_locks = challenge_exec_args(&guard.claim, primary_keys).unwrap();
+        for _ in 0..100 {
+            if linux::docker(&positive_locks).unwrap().is_empty() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        assert_eq!(linux::docker(&positive_locks).unwrap(), "");
+        let pg_after = linux::inspect("container", &copy.container_id).unwrap();
+        let net_after = linux::inspect("network", &copy.network_id).unwrap();
+        let vol_after = linux::inspect("volume", &copy.volume_name).unwrap();
+        assert_eq!(
+            validate_copy_docker(&guard.claim, &copy, &pg_after, &net_after, &vol_after).unwrap(),
+            clone_ip
+        );
+        assert_eq!(
+            pg_after["State"]["StartedAt"].as_str().unwrap(),
+            clone_start
+        );
+        assert_eq!(pg_after["RestartCount"].as_u64().unwrap(), clone_restarts);
+        for claim in [&guard.claim, &copy] {
+            linux::assert_guard_pg_empty(claim);
+        }
+        guard
+            .recheck()
+            .expect("primary identity changed after negative");
+        clone_pool.close().await;
+        primary_pool.close().await;
+        drop(guard);
+        assert!(guard_files_unchanged(
+            &before_files,
+            &snapshot_target_files(&config),
+            &format!("control/{}.restore.lock", config.expected_database),
+        ));
+        assert!(!attempt.exists());
+        println!("SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE");
     }
 
     const ID: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
