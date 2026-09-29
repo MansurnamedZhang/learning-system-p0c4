@@ -35,10 +35,12 @@ Files: `crates/learning-backup/src/restore_preflight/target_binding.rs`, runner 
 - [x] Add one ignored Linux test that connects SQLx to the copy, proves the copy and primary share PG system identifier and database OID/name, acquires two transaction locks, and confirms the original `BoundTargetGuard::verify_sql_session` rejects that live wrong endpoint. After rollback, verify both locks disappear, the primary remains bound and empty, and neither target has an attempt marker or application data.
 - [x] Give this test a distinct one-test/one-marker result gate and success state `SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE`; no full C4 or restore success wording. Run local tests, fmt and strict Clippy; commit and obtain independent review.
 
-The checked items above mean code and local/static review are complete. The Linux-only ignored test has not been compiled or run against PostgreSQL 18; Task 3 is the separate live acceptance gate.
+The checked items above mean code and local/static review are complete. The Linux-only ignored test was subsequently run against PostgreSQL 18 in the Task 3 isolated acceptance batch below.
 
 ## Task 3 — separately authorized isolated Linux batch
 
-- [ ] Rebuild a tracked-byte ZIP and exact ZIP/Git-byte runner, verify every member and manifest locally, and request the user's separate approval for these exact files and a new two-project/two-subnet batch before upload.
-- [ ] On the server, recheck unused resources, hashes, pinned image and root-only secret handling. Run only the newly authorized batch. Validate raw result and evidence SHA-256, exact two PG IDs stopped, both volumes retained and pending absent. Record any partial/failed stage without replaying the batch.
-- [ ] Update [C4 verification](../../p0c4-verification.md) with the precise result and limits. This gate still does not prove the `pg_restore` child endpoint, credentials, asset closure, lease invalidation or service admission.
+- [x] Rebuild a tracked-byte ZIP and exact ZIP/Git-byte runner, verify every member and manifest locally, and obtain the user's separate approval for these exact files and a new two-project/two-subnet batch before upload.
+- [x] On the server, recheck unused resources, hashes, pinned image and root-only secret handling. Run only the newly authorized batch. Validate result and evidence SHA-256, exact two PG IDs stopped, both volumes retained and pending absent. Preserve earlier failed batches without replay.
+- [x] Update [C4 verification](../../p0c4-verification.md) with the precise result and limits. This gate still does not prove the `pg_restore` child endpoint, credentials, asset closure, lease invalidation or service admission.
+
+The accepted batch used primary `e5ff5e73-80bf-4887-a723-63afcd7eb410` and clone `b7f1f331-dd84-4dd0-975b-f649ce664f62`. It returned `SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE` with `clone_phase=complete`; result SHA-256 `647a669d376ab1294e132ee8f97737b98c69b2fc6e8aee10b65b4c8ad573e54f`. Both exact PG IDs stopped, both volumes remain quarantined, and no pending result remains. The root-private result and SHA were read in the user's server terminal; the root task independently checked Docker stop/volume/helper state. See the verification record for hashes and scope.
