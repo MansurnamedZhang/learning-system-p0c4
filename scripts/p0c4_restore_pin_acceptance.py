@@ -925,16 +925,20 @@ def _primary_still_pinned(provisioner, acceptance, identity, subnet, before,
     return True
 
 
-def _primary_started_at(provisioner, container_id):
-    """Capture the immutable primary start at the first independent birth gate."""
-    live = provisioner.snapshot()
-    matches = [c for c in live["containers"] if c.get("Id") == container_id]
-    require(len(matches) == 1 and
-            matches[0].get("State", {}).get("Running") is True and
-            type(matches[0]["State"].get("StartedAt")) is str and
-            matches[0]["State"]["StartedAt"],
-            "primary PG start observation unavailable")
-    return matches[0]["State"]["StartedAt"]
+def _sealed_primary_started_at(acceptance, target, inspection, success):
+    """Read only the issuer birth-time start covered by the pin digest."""
+    payload = acceptance._private_read_diagnostic(
+        target / "birth-evidence.json", limit=4096)
+    require(type(payload) is bytes and
+            digest(payload) == inspection.get("birth_evidence_sha256"),
+            "sealed primary birth evidence hash differs")
+    evidence = acceptance._unique_json(payload)
+    require(type(evidence) is dict and
+            evidence.get("container_id") == success["container_id"] and
+            type(evidence.get("container_started_at")) is str and
+            evidence["container_started_at"],
+            "sealed primary birth start differs")
+    return evidence["container_started_at"]
 
 
 def _find_owned_clone_pg(provisioner, clone, before):
@@ -1293,11 +1297,6 @@ def _run_batch(args, manifest, package, batch):
         require(state["subnet"] == args.subnet,
                 "birth subnet differs")
         result["stage"] = "independent-docker"
-        if clone_mode:
-            # Capture before the independent gate's own snapshot; a same-ID
-            # restart during that gate must not become the accepted baseline.
-            primary_started_at = _primary_started_at(
-                provisioner, success["container_id"])
         docker = acceptance._independent_docker_gate(
             provisioner, identity, args.subnet, before, state,
             success, target, initdb)
@@ -1305,10 +1304,6 @@ def _run_batch(args, manifest, package, batch):
         require(type(confirmed_id) is str and HEX64.fullmatch(confirmed_id) and
                 confirmed_id == success["container_id"],
                 "confirmed PG ID differs")
-        if clone_mode:
-            _primary_still_pinned(provisioner, acceptance, identity,
-                                  args.subnet, before, state, success,
-                                  target, initdb, primary_started_at)
         result["stage"] = "read-only-pin-check"
         candidate, inspection = pin.inspect_candidate(
             control, args.batch_id, initdb)
@@ -1351,6 +1346,12 @@ def _run_batch(args, manifest, package, batch):
         require(acceptance._private_read_diagnostic(
                     inspection_path, limit=MAX_INSPECTION) == inspection_bytes,
                 "pin inspection record differs after write")
+        if clone_mode:
+            primary_started_at = _sealed_primary_started_at(
+                acceptance, target, inspection, success)
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
         result["stage"] = "source-reinspection"
         result["source_after_sha256"] = source_digest(source, manifest)
         require(result["source_after_sha256"] ==

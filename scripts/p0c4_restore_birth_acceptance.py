@@ -184,7 +184,13 @@ def validate_candidate_records(identity, batch_id, birth_bytes, state, success, 
                 "volume_mountpoint": success["volume_mountpoint"],
                 "volume_mount_dev": success["volume_mount_dev"],
                 "volume_mount_ino": success["volume_mount_ino"],
-            }.items()), "root-private birth evidence differs")
+            }.items()) and
+            type(evidence.get("container_started_at")) is str and
+            re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
+                         r"[0-9]{2}(?:\.[0-9]{1,9})?Z",
+                         evidence["container_started_at"]) and
+            not evidence["container_started_at"].startswith("0001-"),
+            "root-private birth evidence differs")
     return birth, state, success
 
 

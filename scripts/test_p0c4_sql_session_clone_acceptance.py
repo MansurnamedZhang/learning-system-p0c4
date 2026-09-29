@@ -1,6 +1,7 @@
 """Task 3b runner gates; all Docker and Linux work stays at the boundary."""
 
 import contextlib
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -43,6 +44,29 @@ class CloneAdmission(unittest.TestCase):
                                              "10.251.228.0/24", clone,
                                              subnet, self.snapshot)
                 self.assertEqual(admitted, [])
+
+    def test_clone_baseline_comes_from_sealed_birth_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            evidence = {"container_id": "a" * 64,
+                        "container_started_at": "2026-09-29T00:00:00Z"}
+            payload = json.dumps(evidence).encode()
+            (target / "birth-evidence.json").write_bytes(payload)
+            inspection = {"birth_evidence_sha256": hashlib.sha256(
+                payload).hexdigest()}
+            acceptance = SimpleNamespace(_private_read_diagnostic=lambda path,
+                                         limit: path.read_bytes(),
+                                         _unique_json=lambda raw: json.loads(raw))
+            self.assertEqual(runner._sealed_primary_started_at(
+                acceptance, target, inspection, {"container_id": "a" * 64}),
+                "2026-09-29T00:00:00Z")
+            (target / "birth-evidence.json").write_bytes(
+                json.dumps(dict(evidence,
+                    container_started_at="2026-09-29T00:01:00Z")).encode())
+            with self.assertRaises(ValueError):
+                runner._sealed_primary_started_at(
+                    acceptance, target, inspection,
+                    {"container_id": "a" * 64})
 
     def test_replication_preflight_rejects_unproven_contract_before_copy(self):
         primary_id = "a" * 64

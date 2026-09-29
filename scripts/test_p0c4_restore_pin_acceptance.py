@@ -51,6 +51,9 @@ class PinAcceptance(unittest.TestCase):
         birth = {"database_oid": 42}
         state = {"subnet": SUBNET}
         success = {"birth_sha256": "d" * 64, "container_id": "e" * 64}
+        birth_evidence = json.dumps({
+            "container_id": "e" * 64,
+            "container_started_at": "2026-09-29T00:00:00Z"}).encode()
         acceptance = SimpleNamespace(
             _run_issuer=lambda *_: SimpleNamespace(returncode=0, stdout="issued"),
             accept_issuer_process=lambda *_: (birth, state, success),
@@ -58,7 +61,10 @@ class PinAcceptance(unittest.TestCase):
             stop_verified_pg=lambda *_: {"confirmed": True, "volume_retained": True},
             stop_early_owned_pg=lambda *_: {"confirmed": True, "volume_retained": True},
             read_issuer_diagnostic=lambda *_: {"status": "UNAVAILABLE"},
-            _private_read_diagnostic=lambda path, limit=262144: path.read_bytes(),
+            _private_read_diagnostic=lambda path, limit=262144: (
+                birth_evidence if path.name == "birth-evidence.json" else
+                path.read_bytes()),
+            _unique_json=lambda payload: json.loads(payload),
         )
         projection = {"daemon_id": "new-daemon", "containers": [],
                       "networks": [], "volumes": [], "images": []}
@@ -71,7 +77,8 @@ class PinAcceptance(unittest.TestCase):
                    "birth_sha256": "d" * 64,
                    "creation_state_sha256": "a" * 64,
                    "issuance_success_sha256": "b" * 64,
-                   "birth_evidence_sha256": "c" * 64,
+                   "birth_evidence_sha256": hashlib.sha256(
+                       birth_evidence).hexdigest(),
                    "live": {"container_id": "e" * 64,
                             "docker_projection": projection,
                             "docker_sha256": hashlib.sha256(
@@ -269,7 +276,7 @@ class PinAcceptance(unittest.TestCase):
         self.assertEqual(result["clone"]["container_id"], "f" * 64)
         self.assertTrue(result["stop"]["confirmed"])
 
-    def test_clone_rejects_primary_restart_since_first_independent_birth_observation(self):
+    def test_clone_rejects_restart_before_first_runner_docker_observation(self):
         self.args.sql_session_clone_negative = True
         self.args.clone_batch_id = "b27f4d57-1165-4b17-92c1-4ddf9a178eaa"
         self.args.clone_subnet = "10.251.229.0/24"
@@ -293,11 +300,11 @@ class PinAcceptance(unittest.TestCase):
                     "2026-09-29T00:00:00Z")}}])
         snapshots.initial = False
         deps[0].snapshot = snapshots
-        inspect = deps[2].inspect_candidate
-        def restart_during_pin(*args):
+        issue = deps[1]._run_issuer
+        def restart_after_issuer(*args):
             changed[0] = True
-            return inspect(*args)
-        deps[2].inspect_candidate = restart_during_pin
+            return issue(*args)
+        deps[1]._run_issuer = restart_after_issuer
         with patch.object(runner, "_preflight_probe_builder", return_value={}), \
              patch.object(runner, "_admit_clone_pair", return_value=True), \
              patch.object(runner, "_prepare_physical_clone",

@@ -202,6 +202,7 @@ class BirthContract(unittest.TestCase):
         identity = identity_for(ID)
         before = empty_snapshot()
         after = created(identity)
+        after["containers"][0]["State"]["StartedAt"] = "2026-09-29T00:00:00Z"
         ids = verify_created(identity, SUBNET, before, after)
         status = {"state": "CREATED_QUARANTINED", "batch_id": ID,
                   "project": identity["project"], "database": identity["database"],
@@ -255,9 +256,38 @@ class BirthContract(unittest.TestCase):
             evidence = json.loads((target / "birth-evidence.json").read_bytes())
             self.assertEqual(evidence["birth_sha256"], result["birth_sha256"])
             self.assertEqual(evidence["volume_mount_ino"], 10)
+            self.assertEqual(evidence["container_started_at"],
+                             "2026-09-29T00:00:00Z")
             seal = json.loads((target / "issuance-success.json").read_bytes())
             self.assertEqual(seal["birth_sha256"], result["birth_sha256"])
             self.assertEqual(seal["container_id"], ids["container_id"])
+
+    def test_issuer_requires_start_time_on_verified_exact_id_before_publication(self):
+        identity = identity_for(ID)
+        before = empty_snapshot()
+        after = created(identity)
+        ids = verify_created(identity, SUBNET, before, after)
+        del after["containers"][0]["State"]["StartedAt"]
+        status = {"state": "CREATED_QUARANTINED", "batch_id": ID,
+                  "project": identity["project"], "database": identity["database"],
+                  "volume_name": identity["volume"]}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "targets" / ID
+            target.mkdir(parents=True)
+            with patch("p0c4_restore_target_birth._verify_creation_state"), \
+                 patch("p0c4_restore_target.snapshot", return_value=after), \
+                 patch("p0c4_restore_target._inspect", return_value=after["images"]), \
+                 patch("p0c4_restore_target_birth.verify_birth_docker",
+                       return_value=ids), \
+                 patch("p0c4_restore_target_birth._trusted_volume_mount") as mount, \
+                 patch("p0c4_restore_target_birth._publish_birth") as publish, \
+                 patch("p0c4_restore_target_birth._write_failure_diagnostic"):
+                with self.assertRaises(AdmissionError):
+                    issue_birth(root, target, identity, SUBNET, before,
+                                ids, status, Path("/reviewed/initdb.sh"))
+            mount.assert_not_called()
+            publish.assert_not_called()
 
     def test_publish_is_no_replace_and_sync_failure_removes_candidate(self):
         with tempfile.TemporaryDirectory() as directory:

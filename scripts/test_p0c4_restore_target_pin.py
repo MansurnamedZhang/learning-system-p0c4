@@ -246,6 +246,13 @@ class PinLiveGate(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises((AdmissionError, ValueError)):
                 self.run_pin(live=live)
 
+    def test_same_container_restart_since_sealed_birth_rejects_pin(self):
+        self.evidence["container_started_at"] = "2026-09-29T00:00:00Z"
+        live = copy.deepcopy(self.live)
+        live["containers"][0]["State"]["StartedAt"] = "2026-09-29T00:01:00Z"
+        with self.assertRaises((AdmissionError, ValueError)):
+            self.run_pin(live=live)
+
     def test_health_log_timestamp_churn_does_not_invalidate_stable_identity(self):
         changed = copy.deepcopy(self.live)
         changed["containers"][0]["State"]["Health"]["Log"] = [

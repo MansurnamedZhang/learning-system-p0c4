@@ -55,6 +55,7 @@ def records():
                "volume_mountpoint": status["volume_mountpoint"],
                "volume_mount_dev": 9, "volume_mount_ino": 10}
     evidence = {"birth_sha256": digest, "container_id": "a" * 64,
+                "container_started_at": "2026-09-29T00:00:00Z",
                 "network_id": "b" * 64, "volume_name": identity["volume"],
                 "image_id": "sha256:" + "d" * 64,
                 "volume_mountpoint": status["volume_mountpoint"],
@@ -203,6 +204,10 @@ class CandidateGates(unittest.TestCase):
     def test_missing_seal_failure_cross_batch_and_wrong_hash_reject(self):
         identity, birth_bytes, state, success, evidence = records()
         runner.validate_candidate_records(identity, ID, birth_bytes, state, success, evidence)
+        with self.assertRaises(ValueError):
+            runner.validate_candidate_records(
+                identity, ID, birth_bytes, state, success,
+                {**evidence, "container_started_at": ""})
         for mutate in (
             lambda b, s, c, e: c.clear(),
             lambda b, s, c, e: c.update(birth_sha256="0" * 64),

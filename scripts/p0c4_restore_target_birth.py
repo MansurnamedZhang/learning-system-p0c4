@@ -416,6 +416,17 @@ def _issue_birth_inner(root, target, identity, subnet, before, ids, status,
     after = target_provisioner.snapshot()
     after["images"] = target_provisioner._inspect("image", [identity["image"]])
     verify_birth_docker(identity, subnet, before, after, ids, target, initdb)
+    exact = [item for item in after["containers"] if
+             item.get("Id") == ids["container_id"]]
+    require(len(exact) == 1 and
+            exact[0].get("State", {}).get("Running") is True and
+            type(exact[0]["State"].get("StartedAt")) is str and
+            re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
+                         r"[0-9]{2}(?:\.[0-9]{1,9})?Z",
+                         exact[0]["State"]["StartedAt"]) and
+            not exact[0]["State"]["StartedAt"].startswith("0001-"),
+            "verified birth Docker start time unavailable")
+    container_started_at = exact[0]["State"]["StartedAt"]
     phase("TRUSTED_VOLUME_PATH")
     mount_dev, mount_ino = _trusted_volume_mount(ids["volume_mountpoint"])
     phase("INITDB_RECHECK")
@@ -434,6 +445,7 @@ def _issue_birth_inner(root, target, identity, subnet, before, ids, status,
         "project": identity["project"], "batch_id": status["batch_id"],
         "docker_daemon_id": after["daemon_id"],
         "container_id": ids["container_id"],
+        "container_started_at": container_started_at,
         "network_id": ids["network_id"],
         "volume_name": ids["volume_name"],
         "volume_mountpoint": ids["volume_mountpoint"],
