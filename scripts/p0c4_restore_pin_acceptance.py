@@ -45,6 +45,15 @@ CLONE_FAILED = "SAME_ID_WRONG_ENDPOINT_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 CLONE_PASSED = "SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE"
 CHILD_PASSED = "CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE"
 CHILD_FAILED = "CHILD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+CHILD_CHECKPOINTS = (
+    "FIRST_ATTESTATION", "RESTART_BEGIN", "RESTART_COMPLETED", "REJECTION_BEGIN",
+    "REJECTION_OBSERVED", "REASON_ACCEPTED", "ISOLATION_STOPPED",
+    "GUARD_REUSE_REJECTED", "FINAL_SNAPSHOT", "FINAL_ASSERTIONS_PASSED",
+)
+CHILD_REASON_CODES = (
+    "Session", "Identity", "Protocol", "Version", "Deadline", "StdoutLimit",
+    "StderrLimit", "Exit", "Stderr", "Io", "Unusable",
+)
 CLONE_PHASES = frozenset({
     "not-started", "primary-recheck", "replication-contract",
     "compose-resources", "setup-helper", "basebackup-copy", "backup-verify",
@@ -67,6 +76,68 @@ MAX_INSPECTION = 256 * 1024
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def _child_step(diagnostics, phase):
+    if diagnostics is None:
+        return None
+    require(phase in ("PREFLIGHT_COMPILE", "PREFLIGHT_LIST", "LIVE_COMPILE",
+                      "LIVE_EXECUTE", "LIVE_OUTPUT_VALIDATE"),
+            "unapproved child diagnostic phase")
+    step = {"phase": phase, "reason": "UNKNOWN", "exit_code": None, "checks": {}}
+    diagnostics["steps"].append(step)
+    return step
+
+
+def _child_process_fact(step, reason, exit_code=None):
+    if step is None:
+        return
+    require(reason in ("UNKNOWN", "COMPLETE", "EXIT_NONZERO", "TIMEOUT", "IO",
+                       "STDOUT_LIMIT", "STDERR_LIMIT", "OUTPUT_LIMIT",
+                       "ARTIFACT_INVALID", "OUTPUT_INVALID", "BINARY_CHANGED"),
+            "unapproved child diagnostic reason")
+    require(exit_code is None or (type(exit_code) is int and
+                                 -(2 ** 31) <= exit_code < 2 ** 31),
+            "invalid child process exit status")
+    step.update(reason=reason, exit_code=exit_code)
+
+
+def _child_observations(output, test_name):
+    """Retain only fixed observations; duplicate counts saturate at two."""
+    prefix = rb"(?m)^(?:test " + re.escape(test_name.encode()) + rb" \.\.\. )?"
+    def count(marker):
+        return min(2, len(re.findall(prefix + re.escape(marker) + rb"\r?$", output)))
+    reasons = re.findall(
+        prefix + rb"CHILD_DIAG_(FIRST|RESTART|REJECTION)_FAILURE_(" +
+        b"|".join(code.encode() for code in CHILD_REASON_CODES) + rb")\r?$", output)
+    isolation = re.findall(
+        prefix + rb"CHILD_DIAG_(?:FIRST|REJECTION)_ISOLATION_(STOPPED|UNCONFIRMED_UNUSABLE)\r?$",
+        output)
+    return {
+        "first_attestation_count": count(b"CHILD_READ_ONLY_ATTESTED_NOT_RESTORE"),
+        "restart_rejection_count": count(CHILD_PASSED.encode()),
+        "stopped_reuse_count": count(b"CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED"),
+        "restart_reason_count": min(2, len(re.findall(
+            rb"(?m)^CHILD_RESTART_FAILURE_(Session|Identity)\r?$", output))),
+        "running_one_test_count": min(2, output.splitlines().count(b"running 1 test")),
+        "passing_one_test_count": min(2, len(re.findall(
+            rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output))),
+        "selected_test_seen": ("test " + test_name + " ... ").encode() in output,
+        "checkpoint_counts": {code: count(("CHILD_DIAG_CHECKPOINT_" + code).encode())
+                              for code in CHILD_CHECKPOINTS},
+        "child_reason": reasons[0][1].decode() if len(reasons) == 1 else "UNKNOWN",
+        "child_failure_phase": reasons[0][0].decode() if len(reasons) == 1 else "UNKNOWN",
+        "child_isolation": isolation[0].decode() if len(isolation) == 1 else "UNKNOWN",
+    }
+
+
+def _child_exception_type(error):
+    # Exception class names are not a trusted diagnostic channel either.
+    for kind in (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired,
+                 KeyboardInterrupt, SystemExit):
+        if type(error) is kind:
+            return kind.__name__
+    return "UNKNOWN"
 
 
 def _mark_clone_phase(result, value):
@@ -290,11 +361,30 @@ def _builder_artifact(stdout, build):
     return binary
 
 
-def _run_bounded(command, *, cwd=None, env=None, timeout=60, limit=16 * 1024 * 1024):
+def _run_bounded(command, *, cwd=None, env=None, timeout=60, limit=16 * 1024 * 1024,
+                 diagnostic=None):
     """Bound subprocess output in private temporary files, never in a pipe."""
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
-        process = subprocess.run(command, cwd=cwd, env=env, stdout=stdout,
-                                 stderr=stderr, timeout=timeout, check=False)
+        try:
+            process = subprocess.run(command, cwd=cwd, env=env, stdout=stdout,
+                                     stderr=stderr, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired:
+            _child_process_fact(diagnostic, "TIMEOUT")
+            raise
+        except OSError:
+            _child_process_fact(diagnostic, "IO")
+            raise
+        finally:
+            if diagnostic is not None:
+                diagnostic["checks"].update(stdout_present=stdout.tell() > 0,
+                                            stderr_present=stderr.tell() > 0)
+        _child_process_fact(diagnostic,
+                            "COMPLETE" if process.returncode == 0 else "EXIT_NONZERO",
+                            process.returncode)
+        if stdout.tell() > limit or stderr.tell() > limit:
+            reason = ("OUTPUT_LIMIT" if stdout.tell() > limit and stderr.tell() > limit else
+                      "STDOUT_LIMIT" if stdout.tell() > limit else "STDERR_LIMIT")
+            _child_process_fact(diagnostic, reason, process.returncode)
         require(stdout.tell() <= limit and stderr.tell() <= limit,
                 "bound probe command output exceeded limit")
         stdout.seek(0)
@@ -1102,7 +1192,9 @@ def _cleanup_builder(batch, stage):
             "bound builder cleanup unconfirmed")
 
 
-def _compile_bound_probe(source, batch, build_name, birth_sha256):
+def _compile_bound_probe(source, batch, build_name, birth_sha256, *, diagnostics=None):
+    diagnostic = _child_step(diagnostics, "PREFLIGHT_COMPILE" if
+                             build_name == "probe-preflight-build" else "LIVE_COMPILE")
     require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
             "bound probe compile digest invalid")
     build = batch / build_name
@@ -1131,17 +1223,24 @@ def _compile_bound_probe(source, batch, build_name, birth_sha256):
         process = _run_bounded(
             command, timeout=7200,
             env={"PATH": "/usr/bin:/bin", "HOME": "/root",
-                 "DOCKER_HOST": "unix:///var/run/docker.sock"})
+                 "DOCKER_HOST": "unix:///var/run/docker.sock"},
+            **({"diagnostic": diagnostic} if diagnostic is not None else {}))
     finally:
+        if diagnostic is not None:
+            diagnostic["checks"]["builder_cleanup_confirmed"] = False
         _cleanup_builder(batch, stage)
+        if diagnostic is not None:
+            diagnostic["checks"]["builder_cleanup_confirmed"] = True
     require(process.returncode == 0,
             "offline pinned builder failed")
+    _child_process_fact(diagnostic, "ARTIFACT_INVALID", process.returncode)
     binary = _builder_artifact(process.stdout, build)
+    _child_process_fact(diagnostic, "COMPLETE", process.returncode)
     return binary, _file_digest(binary)
 
 
 def _preflight_probe_builder(source, batch, *, guard=False, session=False,
-                             clone=False, child=False):
+                             clone=False, child=False, diagnostics=None):
     """Prove the pinned offline Linux toolchain is ready before PG birth."""
     _trusted_path(Path("/usr/bin/docker"), file=True)
     image = _probe_docker(["image", "inspect", BUILDER_IMAGE_ID,
@@ -1150,11 +1249,13 @@ def _preflight_probe_builder(source, batch, *, guard=False, session=False,
             (BUILDER_IMAGE_ID + "\n").encode(),
             "pinned offline builder image unavailable")
     binary, placeholder_sha = _compile_bound_probe(
-        source, batch, "probe-preflight-build", "0" * 64)
+        source, batch, "probe-preflight-build", "0" * 64,
+        **({"diagnostics": diagnostics} if child and diagnostics is not None else {}))
+    diagnostic = _child_step(diagnostics if child else None, "PREFLIGHT_LIST")
     listing = _run_bounded(
         [str(binary), "--list"], cwd=source,
         env={"PATH": "/usr/bin:/bin", "HOME": "/root"},
-        timeout=60)
+        timeout=60, **({"diagnostic": diagnostic} if diagnostic is not None else {}))
     expected = (b"restore_preflight::target_binding::tests::"
                 b"live_read_only_bound_target_probe: test")
     if child:
@@ -1170,23 +1271,31 @@ def _preflight_probe_builder(source, batch, *, guard=False, session=False,
         expected = (b"restore_preflight::target_binding::tests::"
                     b"live_read_only_bound_target_guard: test")
     if guard or session or clone or child:
+        if diagnostic is not None:
+            diagnostic["checks"]["exact_test_listing_count"] = min(
+                2, listing.stdout.splitlines().count(expected))
+            if listing.returncode == 0:
+                _child_process_fact(diagnostic, "OUTPUT_INVALID", listing.returncode)
         require(listing.stdout.splitlines().count(expected) == 1,
                 "exact Linux read-only test absent")
     require(listing.returncode == 0 and expected in listing.stdout and
             _file_digest(binary) == placeholder_sha,
             "host cannot execute pinned builder test binary")
+    _child_process_fact(diagnostic, "COMPLETE", listing.returncode)
     return {"builder_image_id": BUILDER_IMAGE_ID,
             "placeholder_binary_sha256": placeholder_sha,
             "host_test_listing_confirmed": True}
 
 
 def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=False,
-                     session=False, child=False):
+                     session=False, child=False, diagnostics=None):
     """Rebuild with sealed birth digest, then execute on the Linux host."""
     require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
             "sealed birth digest required for bound probe")
     binary, binary_sha = _compile_bound_probe(
-        source, batch, "probe-live-build", birth_sha256)
+        source, batch, "probe-live-build", birth_sha256,
+        **({"diagnostics": diagnostics} if child and diagnostics is not None else {}))
+    diagnostic = _child_step(diagnostics if child else None, "LIVE_EXECUTE")
     test_name = ("restore_preflight::target_binding::tests::"
                  "live_read_only_bound_target_probe")
     if child:
@@ -1203,17 +1312,33 @@ def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=Fal
            "KNOWWEAVE_C4_PROBE_CONTROL_ROOT": str(target / "control"),
            "KNOWWEAVE_C4_PROBE_ASSET_ROOT": str(target / "assets"),
            "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE": database}
-    require(_file_digest(binary) == binary_sha,
+    unchanged = _file_digest(binary) == binary_sha
+    if diagnostic is not None:
+        diagnostic["checks"]["binary_unchanged_before"] = unchanged
+        if not unchanged:
+            _child_process_fact(diagnostic, "BINARY_CHANGED")
+    require(unchanged,
             "bound probe binary changed before execution")
     process = _run_bounded(
         [str(binary), test_name, "--exact", "--ignored", "--nocapture"],
-        cwd=source, env=env, timeout=180)
+        cwd=source, env=env, timeout=180,
+        **({"diagnostic": diagnostic} if diagnostic is not None else {}))
     output = process.stdout + b"\n" + process.stderr
     marker = (CHILD_PASSED if child else
               "SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE" if session else
               "BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE" if guard else
               "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE")
     if child:
+        if diagnostic is not None:
+            diagnostic["checks"].update(_child_observations(output, test_name))
+            _child_process_fact(diagnostic,
+                                "COMPLETE" if process.returncode == 0 else "EXIT_NONZERO",
+                                process.returncode)
+        require(process.returncode == 0, "child test process failed")
+        validation = _child_step(diagnostics, "LIVE_OUTPUT_VALIDATE")
+        if validation is not None:
+            validation["checks"].update(diagnostic["checks"])
+            _child_process_fact(validation, "OUTPUT_INVALID", process.returncode)
         first = b"CHILD_READ_ONLY_ATTESTED_NOT_RESTORE"
         isolation = b"CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED"
         first_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
@@ -1239,10 +1364,17 @@ def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=Fal
                 len(re.findall(rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output)) == 1 and
                 ("test " + test_name + " ... ").encode() in output,
                 "exact one-test read-only success absent")
-    require(_file_digest(binary) == binary_sha and process.returncode == 0 and
+    unchanged = _file_digest(binary) == binary_sha
+    if child and validation is not None:
+        validation["checks"]["binary_unchanged_after"] = unchanged
+        if not unchanged:
+            _child_process_fact(validation, "BINARY_CHANGED", process.returncode)
+    require(unchanged and process.returncode == 0 and
             marker.encode() in output and
             b"test result: ok. 1 passed; 0 failed; 0 ignored;" in output,
             "read-only bound probe failed")
+    if child:
+        _child_process_fact(validation, "COMPLETE", process.returncode)
     result = {"state": marker,
             "birth_sha256": birth_sha256, "binary_sha256": binary_sha,
             "builder_image_id": BUILDER_IMAGE_ID, "exit_code": process.returncode}
@@ -1352,6 +1484,7 @@ def _run_batch(args, manifest, package, batch):
     if child_mode:
         result["status"] = CHILD_FAILED
         result["child_isolation"] = "UNCONFIRMED_UNUSABLE"
+        result["child_diagnostics"] = {"format_version": 1, "steps": []}
     elif clone_mode:
         result["status"] = CLONE_FAILED
         result["clone_batch_id"] = args.clone_batch_id
@@ -1383,7 +1516,7 @@ def _run_batch(args, manifest, package, batch):
              manifest, package, batch)
         if bound_probe or bound_guard or sql_session or clone_mode or child_mode:
             result["stage"] = "offline-builder-preflight"
-            options = ({"child": True} if child_mode else
+            options = ({"child": True, "diagnostics": result["child_diagnostics"]} if child_mode else
                        {"clone": True} if clone_mode else
                        {"session": True} if sql_session else
                        {"guard": True} if bound_guard else {})
@@ -1589,8 +1722,9 @@ def _run_batch(args, manifest, package, batch):
                             GUARD_PASSED if bound_guard else
                             BOUND_PASSED if bound_probe else PASSED)
     except BaseException as error:
-        result["failure_type"] = type(error).__name__
-        if getattr(error, "clone_helper_cleanup", None) is not None:
+        result["failure_type"] = (_child_exception_type(error) if child_mode else
+                                  type(error).__name__)
+        if not child_mode and getattr(error, "clone_helper_cleanup", None) is not None:
             result["clone_helper_cleanup"] = error.clone_helper_cleanup
         if issuer_started and identity is not None and acceptance is not None:
             try:
@@ -1621,7 +1755,8 @@ def _run_batch(args, manifest, package, batch):
                         args.subnet, before, initdb)
             except BaseException as stop_error:
                 result["stop"] = {"confirmed": False,
-                                  "failure_type": type(stop_error).__name__}
+                                  "failure_type": (_child_exception_type(stop_error) if child_mode else
+                                                   type(stop_error).__name__)}
         if clone_mode and provisioner is not None and identity is not None and \
                 clone_identity is not None:
             try:

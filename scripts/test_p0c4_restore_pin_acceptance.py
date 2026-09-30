@@ -6,6 +6,7 @@ import contextlib
 import io
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -102,13 +103,263 @@ class PinAcceptance(unittest.TestCase):
         prepare = SimpleNamespace(prepare=lambda *_: "1" * 64)
         return provisioner, acceptance, pin, prepare
 
-    def _run(self, deps=None):
+    def _run(self, deps=None, *, private_writes=False):
         deps = deps or self._dependencies()
         with patch.object(runner, "extract_and_load", return_value=(*deps, Path("/initdb"), "2" * 64)), \
              patch.object(runner, "source_digest", return_value="2" * 64), \
              patch.object(runner, "_file_digest", return_value="3" * 64), \
-             patch.object(runner, "_private_write", side_effect=lambda path, data: path.write_bytes(data)):
+             (contextlib.nullcontext() if private_writes else
+              patch.object(runner, "_private_write", side_effect=lambda path, data: path.write_bytes(data))):
             return runner._run_batch(self.args, {}, b"zip", self.batch)
+
+    def _child_diagnostic_failure(self, kind, *, stop_confirmed=True):
+        """Keep driver, bounded capture and durable publication real; fake Docker/child I/O."""
+        self.args.child_read_only_restart = True
+        new_batch = self.base / ID
+        self.batch.rename(new_batch)
+        self.batch = new_batch
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        sentinel = b"untrusted-" + b"sensitive-sentinel"
+        first = b"CHILD_READ_ONLY_ATTESTED_NOT_RESTORE\n"
+        output = b"running 1 test\n" + sentinel + b"\n"
+        exit_code = 101
+        if kind == "after-first":
+            output += first + b"CHILD_DIAG_CHECKPOINT_RESTART_COMPLETED\n"
+            output += b"CHILD_DIAG_REJECTION_FAILURE_Session\n"
+            output += b"CHILD_DIAG_REJECTION_ISOLATION_UNCONFIRMED_UNUSABLE\n"
+        elif kind == "parser":
+            output += first
+            exit_code = 0
+        elif kind == "noise":
+            output += b"NOISE_CHILD_READ_ONLY_ATTESTED_NOT_RESTORE\n"
+            output += b"CHILD_DIAG_REJECTION_FAILURE_" + sentinel + b"\n"
+            output += b"CHILD_DIAG_CHECKPOINT_" + sentinel + b"\n"
+        elif kind == "duplicate":
+            output += first * 3
+            exit_code = 0
+        def process(command, *, stdout, stderr, **kwargs):
+            stdout.write(output)
+            stderr.write(sentinel)
+            if kind in ("timeout", "compiler-timeout"):
+                raise subprocess.TimeoutExpired(command, kwargs["timeout"],
+                                                output=sentinel, stderr=sentinel)
+            if kind == "output-limit":
+                stdout.write(b"x" * (16 * 1024 * 1024))
+            if kind in ("compile-then-exit", "artifact-invalid") and command[0] == "/usr/bin/docker":
+                return SimpleNamespace(returncode=0)
+            return SimpleNamespace(returncode=exit_code)
+        deps = self._dependencies()
+        stopped = []
+        def stop(*args):
+            stopped.append(args[-1])
+            return {"confirmed": stop_confirmed, "volume_retained": True}
+        deps[1].stop_verified_pg = stop
+        compile_patch = (contextlib.nullcontext() if kind in
+                         ("compiler", "compiler-timeout", "compile-then-exit", "artifact-invalid") else
+                         patch.object(runner, "_compile_bound_probe",
+                                      return_value=(binary, "3" * 64)))
+        artifact_patch = (patch.object(runner, "_builder_artifact", return_value=binary) if
+                          kind == "compile-then-exit" else contextlib.nullcontext())
+        captured = io.StringIO()
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_private_dir", side_effect=lambda path: path.mkdir()), \
+             patch.object(runner, "_builder_container_ids", return_value=[]), \
+             patch.object(runner, "_cleanup_builder"), compile_patch, artifact_patch, \
+             patch.object(runner.subprocess, "run", side_effect=process), \
+             patch.object(runner.os, "O_NOFOLLOW", 0, create=True), \
+             patch.object(runner.os, "chmod", wraps=runner.os.chmod) as chmod, \
+             contextlib.redirect_stdout(captured), contextlib.redirect_stderr(captured):
+            code, result = self._run(deps, private_writes=True)
+        final = self.batch / "evidence" / "result.json"
+        payload = final.read_bytes()
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.CHILD_FAILED)
+        self.assertEqual(stopped, ["e" * 64])
+        self.assertEqual(result["child_isolation"],
+                         "STOPPED" if stop_confirmed else "UNCONFIRMED_UNUSABLE")
+        self.assertTrue(result["stop"]["volume_retained"])
+        self.assertFalse(result["target_reuse_permitted"])
+        self.assertEqual(result["source_before_sha256"], result["source_after_sha256"])
+        self.assertFalse((final.parent / "result.pending.json").exists())
+        self.assertTrue(sentinel not in payload and sentinel.decode() not in captured.getvalue(),
+                        "untrusted output must remain absent from durable/public diagnostics")
+        self.assertEqual(json.loads(payload), result)
+        self.assertIn(((final.parent / "result.pending.json", 0o600), {}),
+                      [(call.args, call.kwargs) for call in chmod.call_args_list])
+        self.assertIn("child_diagnostics", result,
+                      "child process failure observations must survive result finalization")
+        return result["child_diagnostics"]
+
+    def test_child_diagnostics_compiler_failure_is_durable_after_exact_stop(self):
+        diagnostics = self._child_diagnostic_failure("compiler")
+        self.assertEqual(diagnostics["format_version"], 1)
+        step = diagnostics["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_COMPILE", "EXIT_NONZERO", 101))
+        self.assertTrue(step["checks"]["builder_cleanup_confirmed"])
+
+    def test_child_diagnostics_compiler_timeout_still_records_builder_cleanup(self):
+        step = self._child_diagnostic_failure("compiler-timeout")["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_COMPILE", "TIMEOUT", None))
+        self.assertTrue(step["checks"]["builder_cleanup_confirmed"])
+
+    def test_child_diagnostics_compiler_artifact_parser_failure_has_zero_exit(self):
+        step = self._child_diagnostic_failure("artifact-invalid")["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_COMPILE", "ARTIFACT_INVALID", 0))
+
+    def test_child_diagnostics_keep_successful_compile_when_later_execution_fails(self):
+        steps = self._child_diagnostic_failure("compile-then-exit")["steps"]
+        self.assertEqual([(step["phase"], step["reason"], step["exit_code"]) for step in steps],
+                         [("LIVE_COMPILE", "COMPLETE", 0),
+                          ("LIVE_EXECUTE", "EXIT_NONZERO", 101)])
+
+    def test_child_diagnostics_exit_before_first_marker_is_execution_failure(self):
+        diagnostics = self._child_diagnostic_failure("before-first")
+        step = diagnostics["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_EXECUTE", "EXIT_NONZERO", 101))
+        self.assertEqual(step["checks"]["first_attestation_count"], 0)
+        self.assertEqual(step["checks"]["child_reason"], "UNKNOWN")
+
+    def test_child_diagnostics_exit_after_first_marker_retains_fixed_rejection_observations(self):
+        step = self._child_diagnostic_failure("after-first")["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_EXECUTE", "EXIT_NONZERO", 101))
+        self.assertEqual(step["checks"]["first_attestation_count"], 1)
+        self.assertEqual(step["checks"]["restart_rejection_count"], 0)
+        self.assertEqual(step["checks"]["child_reason"], "Session")
+        self.assertEqual(step["checks"]["child_isolation"], "UNCONFIRMED_UNUSABLE")
+        self.assertEqual(step["checks"]["checkpoint_counts"]["RESTART_COMPLETED"], 1)
+
+    def test_child_diagnostics_exit_zero_parser_failure_stays_failed(self):
+        step = self._child_diagnostic_failure("parser")["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_OUTPUT_VALIDATE", "OUTPUT_INVALID", 0))
+        self.assertEqual(step["checks"]["first_attestation_count"], 1)
+        self.assertEqual(step["checks"]["passing_one_test_count"], 0)
+
+    def test_child_diagnostics_timeout_survives_capture_cleanup_and_stop(self):
+        step = self._child_diagnostic_failure("timeout")["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_EXECUTE", "TIMEOUT", None))
+        self.assertTrue(step["checks"]["stdout_present"])
+
+    def test_child_diagnostics_output_limit_retains_known_exit_without_raw_output(self):
+        step = self._child_diagnostic_failure("output-limit")["steps"][-1]
+        self.assertEqual((step["phase"], step["reason"], step["exit_code"]),
+                         ("LIVE_EXECUTE", "STDOUT_LIMIT", 101))
+
+    def test_child_diagnostics_noise_remains_unknown_when_exact_stop_unconfirmed(self):
+        step = self._child_diagnostic_failure("noise", stop_confirmed=False)["steps"][-1]
+        self.assertEqual(step["checks"]["child_reason"], "UNKNOWN")
+        self.assertEqual(step["checks"]["first_attestation_count"], 0)
+        self.assertTrue(all(count == 0 for count in step["checks"]["checkpoint_counts"].values()))
+
+    def test_child_diagnostics_marker_counts_saturate_and_do_not_relax_parser(self):
+        step = self._child_diagnostic_failure("duplicate")["steps"][-1]
+        self.assertEqual(step["reason"], "OUTPUT_INVALID")
+        self.assertEqual(step["checks"]["first_attestation_count"], 2)
+
+    def test_child_diagnostics_only_enumerated_reason_checkpoint_and_isolation_lines_survive(self):
+        name = "restore_preflight::target_binding::tests::live_read_only_child_restart_rejection"
+        for phase in ("FIRST", "RESTART", "REJECTION"):
+            for reason in ("Session", "Identity", "Protocol", "Version", "Deadline",
+                           "StdoutLimit", "StderrLimit", "Exit", "Stderr", "Io", "Unusable"):
+                with self.subTest(phase=phase, reason=reason):
+                    observations = runner._child_observations(
+                        ("test " + name + " ... CHILD_DIAG_" + phase +
+                         "_FAILURE_" + reason + "\n").encode(), name)
+                    self.assertEqual(observations["child_reason"], reason)
+                    self.assertEqual(observations["child_failure_phase"], phase)
+        checkpoints = ("FIRST_ATTESTATION", "RESTART_BEGIN", "RESTART_COMPLETED",
+                       "REJECTION_BEGIN", "REJECTION_OBSERVED", "REASON_ACCEPTED",
+                       "ISOLATION_STOPPED", "GUARD_REUSE_REJECTED", "FINAL_SNAPSHOT",
+                       "FINAL_ASSERTIONS_PASSED")
+        output = ("\n".join("CHILD_DIAG_CHECKPOINT_" + code for code in checkpoints) +
+                  "\nCHILD_DIAG_REJECTION_ISOLATION_STOPPED\n").encode()
+        observations = runner._child_observations(output, name)
+        self.assertEqual(observations["checkpoint_counts"], dict.fromkeys(checkpoints, 1))
+        self.assertEqual(observations["child_isolation"], "STOPPED")
+        observations = runner._child_observations(
+            b"CHILD_DIAG_FIRST_FAILURE_Session\nCHILD_DIAG_FIRST_FAILURE_Identity\n"
+            b"CHILD_DIAG_FIRST_ISOLATION_STOPPED\n"
+            b"CHILD_DIAG_FIRST_ISOLATION_UNCONFIRMED_UNUSABLE\n", name)
+        self.assertEqual(observations["child_reason"], "UNKNOWN")
+        self.assertEqual(observations["child_isolation"], "UNKNOWN")
+
+    def test_child_diagnostics_stderr_limits_and_io_failures_store_only_fixed_process_facts(self):
+        for stdout_bytes, stderr_bytes, want in ((b"", b"xxxx", "STDERR_LIMIT"),
+                                               (b"xxxx", b"xxxx", "OUTPUT_LIMIT")):
+            with self.subTest(reason=want):
+                step = {"phase": "LIVE_EXECUTE", "checks": {}}
+                def process(_, *, stdout, stderr, **kwargs):
+                    stdout.write(stdout_bytes)
+                    stderr.write(stderr_bytes)
+                    return SimpleNamespace(returncode=-9)
+                with patch.object(runner.subprocess, "run", side_effect=process):
+                    with self.assertRaises(ValueError):
+                        runner._run_bounded(["unused"], limit=3, diagnostic=step)
+                self.assertEqual((step["reason"], step["exit_code"]), (want, -9))
+        step = {"phase": "LIVE_EXECUTE", "checks": {}}
+        with patch.object(runner.subprocess, "run", side_effect=OSError("untrusted noise")):
+            with self.assertRaises(OSError):
+                runner._run_bounded(["unused"], diagnostic=step)
+        self.assertEqual((step["reason"], step["exit_code"]), ("IO", None))
+
+    def test_child_diagnostics_reject_arbitrary_phase_reason_status_and_exception_names(self):
+        diagnostics = {"format_version": 1, "steps": []}
+        with self.assertRaises(ValueError):
+            runner._child_step(diagnostics, "untrusted noise")
+        self.assertEqual(diagnostics["steps"], [])
+        step = runner._child_step(diagnostics, "LIVE_COMPILE")
+        for reason, exit_code in (("untrusted noise", 0), ("COMPLETE", True),
+                                  ("COMPLETE", "untrusted noise")):
+            with self.assertRaises(ValueError):
+                runner._child_process_fact(step, reason, exit_code)
+        self.assertEqual((step["reason"], step["exit_code"]), ("UNKNOWN", None))
+        arbitrary = type("untrusted_class_name", (ValueError,), {})
+        self.assertEqual(runner._child_exception_type(arbitrary("untrusted noise")), "UNKNOWN")
+
+    def test_child_diagnostics_durable_failure_omits_arbitrary_exception_attributes(self):
+        self.args.child_read_only_restart = True
+        sentinel = "untrusted-" + "sensitive-sentinel"
+        arbitrary = type("untrusted_class_name", (ValueError,), {})
+        error = arbitrary(sentinel)
+        error.clone_helper_cleanup = {"reason": sentinel}
+        captured = io.StringIO()
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_run_bound_probe", side_effect=error), \
+             contextlib.redirect_stdout(captured):
+            code, result = self._run()
+        payload = (self.batch / "evidence" / "result.json").read_text()
+        self.assertEqual(code, 1)
+        self.assertEqual(result["failure_type"], "UNKNOWN")
+        self.assertTrue(sentinel not in payload and sentinel not in captured.getvalue(),
+                        "exception attributes cannot become child diagnostics")
+        self.assertNotIn("clone_helper_cleanup", result)
+
+    def test_child_diagnostics_checkpoints_cannot_replace_acceptance_markers(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        diagnostics = {"format_version": 1, "steps": []}
+        checkpoints = (b"CHILD_DIAG_CHECKPOINT_FIRST_ATTESTATION\n"
+                       b"CHILD_DIAG_CHECKPOINT_RESTART_COMPLETED\n"
+                       b"CHILD_DIAG_CHECKPOINT_FINAL_ASSERTIONS_PASSED\n")
+        with patch.object(runner, "_compile_bound_probe", return_value=(binary, "f" * 64)), \
+             patch.object(runner, "_file_digest", return_value="f" * 64), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                 returncode=0, stdout=checkpoints, stderr=b"")):
+            with self.assertRaises(ValueError):
+                runner._run_bound_probe(self.batch / "source", self.batch,
+                    self.batch / "control" / "targets" / ID, "new-database", "d" * 64,
+                    child=True, diagnostics=diagnostics)
+        step = diagnostics["steps"][-1]
+        self.assertEqual(step["reason"], "OUTPUT_INVALID")
+        self.assertEqual(step["checks"]["first_attestation_count"], 0)
+        self.assertEqual(step["checks"]["checkpoint_counts"]["FINAL_ASSERTIONS_PASSED"], 1)
 
     def test_clean_candidate_only_after_exact_stop(self):
         output = io.StringIO()
@@ -215,11 +466,13 @@ class PinAcceptance(unittest.TestCase):
         deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
             {"confirmed": True, "volume_retained": True})
         def preflight(*args, **kwargs):
-            self.assertEqual(kwargs, {"child": True})
+            self.assertTrue(kwargs["child"])
+            self.assertEqual(kwargs["diagnostics"], {"format_version": 1, "steps": []})
             sequence.append("preflight")
             return {"host_test_listing_confirmed": True}
         def probe(*args, **kwargs):
-            self.assertEqual(kwargs, {"child": True})
+            self.assertTrue(kwargs["child"])
+            self.assertEqual(kwargs["diagnostics"], {"format_version": 1, "steps": []})
             sequence.append("probe")
             return {"state": runner.CHILD_PASSED, "first_attestation":
                     "CHILD_READ_ONLY_ATTESTED_NOT_RESTORE", "restart_rejection":

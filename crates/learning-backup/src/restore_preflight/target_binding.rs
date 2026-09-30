@@ -1253,6 +1253,42 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn child_diagnostic_reason(reason: child_attestation::ChildFailure) -> &'static str {
+        use child_attestation::ChildFailure;
+        match reason {
+            ChildFailure::Session => "Session",
+            ChildFailure::Identity => "Identity",
+            ChildFailure::Protocol => "Protocol",
+            ChildFailure::Version => "Version",
+            ChildFailure::Deadline => "Deadline",
+            ChildFailure::StdoutLimit => "StdoutLimit",
+            ChildFailure::StderrLimit => "StderrLimit",
+            ChildFailure::Exit => "Exit",
+            ChildFailure::Stderr => "Stderr",
+            ChildFailure::Io => "Io",
+            ChildFailure::Unusable => "Unusable",
+        }
+    }
+
+    #[test]
+    fn child_failure_diagnostics_use_only_fixed_reason_codes() {
+        use child_attestation::ChildFailure;
+        for (reason, code) in [
+            (ChildFailure::Session, "Session"),
+            (ChildFailure::Identity, "Identity"),
+            (ChildFailure::Protocol, "Protocol"),
+            (ChildFailure::Version, "Version"),
+            (ChildFailure::Deadline, "Deadline"),
+            (ChildFailure::StdoutLimit, "StdoutLimit"),
+            (ChildFailure::StderrLimit, "StderrLimit"),
+            (ChildFailure::Exit, "Exit"),
+            (ChildFailure::Stderr, "Stderr"),
+            (ChildFailure::Io, "Io"),
+            (ChildFailure::Unusable, "Unusable"),
+        ] {
+            assert_eq!(child_diagnostic_reason(reason), code);
+        }
+    }
     #[test]
     fn sql_session_challenge_generates_distinct_unpredictable_keys() {
         let first = ChallengeKeys::random().unwrap();
@@ -2107,38 +2143,71 @@ mod tests {
         let (mut challenge, _, _) = begin_sql_session(&pool)
             .await
             .expect("child lock challenge failed");
+        println!("CHILD_DIAG_CHECKPOINT_FIRST_ATTESTATION");
         {
-            let proof = child_attestation::attest(&guard, &mut challenge)
-                .await
-                .expect("first exact child attestation failed");
+            let proof = match child_attestation::attest(&guard, &mut challenge).await {
+                Ok(proof) => proof,
+                Err(error) => {
+                    println!(
+                        "CHILD_DIAG_FIRST_FAILURE_{}",
+                        child_diagnostic_reason(error.reason)
+                    );
+                    println!("CHILD_DIAG_FIRST_ISOLATION_{}", error.isolation.status());
+                    panic!("first exact child attestation failed");
+                }
+            };
             assert_eq!(proof.status(), "CHILD_READ_ONLY_ATTESTED_NOT_RESTORE");
         }
         assert!(!attempt.exists());
         println!("CHILD_READ_ONLY_ATTESTED_NOT_RESTORE");
 
-        child_attestation::restart_for_test(&guard.claim.container_id)
-            .await
-            .expect("bounded exact-ID restart failed");
+        println!("CHILD_DIAG_CHECKPOINT_RESTART_BEGIN");
+        if let Err(reason) = child_attestation::restart_for_test(&guard.claim.container_id).await {
+            println!(
+                "CHILD_DIAG_RESTART_FAILURE_{}",
+                child_diagnostic_reason(reason)
+            );
+            panic!("bounded exact-ID restart failed");
+        }
+        println!("CHILD_DIAG_CHECKPOINT_RESTART_COMPLETED");
+        println!("CHILD_DIAG_CHECKPOINT_REJECTION_BEGIN");
         let failed = match child_attestation::attest(&guard, &mut challenge).await {
             Err(error) => error,
             Ok(_) => panic!("restarted child accepted original guard and transaction"),
         };
+        println!("CHILD_DIAG_CHECKPOINT_REJECTION_OBSERVED");
+        println!(
+            "CHILD_DIAG_REJECTION_FAILURE_{}",
+            child_diagnostic_reason(failed.reason)
+        );
+        println!(
+            "CHILD_DIAG_REJECTION_ISOLATION_{}",
+            failed.isolation.status()
+        );
         assert!(matches!(
             failed.reason,
             child_attestation::ChildFailure::Session | child_attestation::ChildFailure::Identity
         ));
+        println!("CHILD_DIAG_CHECKPOINT_REASON_ACCEPTED");
         assert_eq!(failed.isolation.status(), "STOPPED");
+        println!("CHILD_DIAG_CHECKPOINT_ISOLATION_STOPPED");
         assert!(guard.recheck().is_err(), "failed child guard was reusable");
+        println!("CHILD_DIAG_CHECKPOINT_GUARD_REUSE_REJECTED");
         drop(challenge);
         drop(guard);
         drop(pool);
+        println!("CHILD_DIAG_CHECKPOINT_FINAL_SNAPSHOT");
         assert!(guard_files_unchanged(
             &before,
             &snapshot_target_files(&config),
             &format!("control/{}.restore.lock", config.expected_database),
         ));
         assert!(!attempt.exists());
-        println!("CHILD_RESTART_FAILURE_{:?}", failed.reason);
+        println!("CHILD_DIAG_CHECKPOINT_FINAL_ASSERTIONS_PASSED");
+        println!(
+            "CHILD_RESTART_FAILURE_{}",
+            child_diagnostic_reason(failed.reason)
+        );
         println!("CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED");
         println!("CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE");
     }
