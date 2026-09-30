@@ -3,6 +3,8 @@ mod candidate_attempt;
 mod commands;
 mod fixture_sql;
 mod protocol;
+mod state;
+mod stream;
 
 #[allow(dead_code)] // Shared failure vocabulary for the subsequent private tasks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
