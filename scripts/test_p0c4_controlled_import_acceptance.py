@@ -65,6 +65,192 @@ class LocalFiles:
 
 
 class ContractTests(unittest.TestCase):
+    def _inspection_peer(self, container_ids, payload_size=65000, delay=0,
+                         inspect_reply=None):
+        """A real child emits Docker-shaped output for the private provisioner."""
+        program = """import json, sys, time
+ids = json.loads(sys.argv[1])
+size = int(sys.argv[2])
+delay = float(sys.argv[3])
+override = sys.argv[4]
+binary, *args = sys.argv[5:]
+if binary == '/usr/sbin/ip':
+    output = '[]'
+elif args[:2] == ['info', '--format']:
+    output = 'daemon-id\\n'
+elif args[:2] == ['ps', '-aq']:
+    output = '\\n'.join(ids) + '\\n'
+elif args[:3] in (['network', 'ls', '-q'], ['volume', 'ls', '-q']):
+    output = ''
+elif args and (args[0] == 'inspect' or args[:2] in
+        (['container', 'inspect'], ['network', 'inspect'],
+         ['volume', 'inspect'], ['image', 'inspect'])):
+    selected = args[1:] if args[0] == 'inspect' else args[2:]
+    output = override or json.dumps([{'Id': name,
+        'Config': {'Env': ['CANARY=' + 'x' * size, 'LAST=ok'], 'Labels': {'owner': name}},
+        'Mounts': [{'Name': 'v-' + name, 'Destination': '/data'}],
+        'State': {'Running': True}, 'Extra': {'nested': [1, {'token': name}]}}
+        for name in selected], separators=(',', ':'))
+else:
+    raise SystemExit(2)
+time.sleep(delay if args and args[0] == 'inspect' else 0)
+sys.stdout.write(output)
+sys.stdout.flush()
+"""
+        launched, processes = [], []
+        actual = fixture.subprocess.Popen
+        def peer(command, **kwargs):
+            launched.append(command)
+            process = actual([sys.executable, '-u', '-c', program,
+                json.dumps(container_ids), str(payload_size), str(delay),
+                inspect_reply or '', *command], **kwargs)
+            processes.append(process)
+            return process
+        return peer, launched, processes
+
+    def test_full_host_snapshot_batches_complete_inspect_metadata(self):
+        ids = [f'host-{number:03d}' for number in range(65)]
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            peer, launched, processes = self._inspection_peer(ids)
+            try:
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    snapshot = backend.provisioner.snapshot()
+                self.assertEqual([item['Id'] for item in snapshot['containers']], ids)
+                self.assertEqual(len(snapshot['containers']), 65)
+                last = snapshot['containers'][-1]
+                self.assertEqual(last['Config']['Env'], ['CANARY=' + 'x' * 65000, 'LAST=ok'])
+                self.assertEqual(last['Config']['Labels'], {'owner': ids[-1]})
+                self.assertEqual(last['Mounts'], [{'Name': 'v-' + ids[-1],
+                    'Destination': '/data'}])
+                self.assertEqual(last['State'], {'Running': True})
+                self.assertEqual(last['Extra'], {'nested': [1, {'token': ids[-1]}]})
+                self.assertEqual(snapshot['networks'], [])
+                self.assertEqual(snapshot['volumes'], [])
+                self.assertEqual(snapshot['routes'], [])
+                inspect = [command for command in launched if command[1] == 'inspect']
+                self.assertEqual([len(command) - 2 for command in inspect], [64, 1])
+                self.assertTrue(all(process.poll() is not None for process in processes))
+            finally:
+                backend.release()
+
+    def test_inspect_rejects_oversized_single_reply_and_aggregate(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            try:
+                for ids, size, expected_commands in [(['one'], 4 * 1024 * 1024 + 1, 1),
+                                                      ([f'host-{n:03d}' for n in range(270)],
+                                                       65000, 5)]:
+                    with self.subTest(count=len(ids)):
+                        peer, launched, processes = self._inspection_peer(ids, size)
+                        with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                            with self.assertRaises((runner.ImportRejected,
+                                                    fixture.ImportRejected)) as failure:
+                                backend.provisioner._inspect('container', ids)
+                        self.assertEqual(failure.exception.code, 'StdoutLimit')
+                        self.assertEqual(len(launched), expected_commands)
+                        self.assertTrue(all(process.poll() is not None for process in processes))
+            finally:
+                backend.release()
+
+    def test_inspect_accepts_exact_object_count_limit_in_input_order(self):
+        ids = [f'host-{number:04d}' for number in range(4096)]
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            peer, launched, processes = self._inspection_peer([], 0)
+            try:
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    rows = backend.provisioner._inspect('container', ids)
+                self.assertEqual([row['Id'] for row in rows], ids)
+                self.assertEqual(len(launched), 64)
+                self.assertTrue(all(len(command) - 2 == 64 for command in launched))
+                self.assertTrue(all(process.poll() is not None for process in processes))
+            finally:
+                backend.release()
+
+    def test_inspect_rejects_invalid_kind_count_and_json_shape(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            try:
+                peer, launched, _ = self._inspection_peer(['one'], 0)
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    with self.assertRaises(runner.ImportRejected) as failure:
+                        backend.provisioner._inspect('exec', ['one'])
+                    self.assertEqual(failure.exception.code, 'Identity')
+                    with self.assertRaises(runner.ImportRejected) as failure:
+                        backend.provisioner._inspect('container', ['one'] * 4097)
+                    self.assertEqual(failure.exception.code, 'InputLimit')
+                self.assertEqual(launched, [])
+                for reply in ('{bad', '{}', '[]', '[1]', '[{"Id":NaN}]'):
+                    with self.subTest(reply=reply):
+                        peer, launched, processes = self._inspection_peer(
+                            ['one'], 0, inspect_reply=reply)
+                        with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                            with self.assertRaises((runner.ImportRejected,
+                                                    fixture.ImportRejected)) as failure:
+                                backend.provisioner._inspect('container', ['one'])
+                        self.assertEqual(failure.exception.code, 'Protocol')
+                        self.assertEqual(len(launched), 1)
+                        self.assertTrue(all(process.poll() is not None for process in processes))
+            finally:
+                backend.release()
+
+    def test_inspect_kind_argv_is_closed_and_shared_by_issuer_and_pin(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            peer, launched, processes = self._inspection_peer([], 0)
+            try:
+                self.assertIs(backend.issuer.target_provisioner, backend.provisioner)
+                self.assertIs(backend.pin.target_provisioner, backend.provisioner)
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    for kind in ('container', 'network', 'volume', 'image'):
+                        with self.subTest(kind=kind):
+                            rows = backend.pin.target_provisioner._inspect(kind, ['owned'])
+                            self.assertEqual(rows[0]['Id'], 'owned')
+                            self.assertEqual(rows[0]['Extra'],
+                                             {'nested': [1, {'token': 'owned'}]})
+                self.assertEqual([command[1:-1] for command in launched], [
+                    ['inspect'], ['network', 'inspect'],
+                    ['volume', 'inspect'], ['image', 'inspect']])
+                self.assertTrue(all(process.poll() is not None for process in processes))
+            finally:
+                backend.release()
+
+    def test_inspect_uses_one_operation_deadline_and_shorter_isolation_deadline(self):
+        ids = [f'host-{n:03d}' for n in range(129)]
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            try:
+                peer, launched, processes = self._inspection_peer(ids, 0, delay=0.35)
+                started = time.monotonic()
+                with patch.object(runner, 'INSPECT_OPERATION_SECONDS', 0.6), \
+                     patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    with self.assertRaises((runner.ImportRejected,
+                                            fixture.ImportRejected)) as failure:
+                        backend.provisioner._inspect('container', ids)
+                self.assertEqual(failure.exception.code, 'Deadline')
+                self.assertLess(time.monotonic() - started, 1.0)
+                self.assertLess(len(launched), 3)
+                self.assertTrue(all(process.poll() is not None for process in processes))
+                actions = launched.copy()
+                time.sleep(0.05)
+                self.assertEqual(launched, actions)
+
+                backend.commands.isolation_deadline = time.monotonic() + 0.2
+                peer, launched, processes = self._inspection_peer(ids, 0, delay=0.4)
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    with self.assertRaises((runner.ImportRejected,
+                                            fixture.ImportRejected)) as failure:
+                        backend.provisioner._inspect('container', ids)
+                self.assertEqual(failure.exception.code, 'UnconfirmedIsolation')
+                self.assertEqual(len(launched), 1)
+                self.assertTrue(all(process.poll() is not None for process in processes))
+                actions = launched.copy()
+                time.sleep(0.05)
+                self.assertEqual(launched, actions)
+            finally:
+                backend.release()
+
     def _isolated_backend(self, directory):
         root = Path(directory)
         base = root / 'base'

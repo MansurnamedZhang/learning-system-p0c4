@@ -53,6 +53,10 @@ CODES = {'Identity', 'Session', 'Version', 'Protocol', 'Fixture', 'InputLimit',
 ISOLATION_SECONDS = 15
 OBSERVATION_STDOUT_LIMIT = 4 * 1024 * 1024
 OBSERVATION_STDERR_LIMIT = 64 * 1024
+INSPECT_OPERATION_SECONDS = 30
+INSPECT_BATCH_SIZE = 64
+INSPECT_MAX_OBJECTS = 4096
+INSPECT_TOTAL_STDOUT_LIMIT = 16 * 1024 * 1024
 
 
 class BoundedCommands:
@@ -67,9 +71,16 @@ class BoundedCommands:
         self.isolation_deadline = None
 
     def __call__(self, binary, *args):
+        return self._run(binary, args)
+
+    def _run(self, binary, args, operation_deadline=None):
         require(binary in ('/usr/bin/docker', '/usr/sbin/ip'), 'Identity')
         now = time.monotonic()
-        deadline = self.isolation_deadline if self.isolation_deadline is not None else now + 30
+        deadline = now + 30
+        if operation_deadline is not None:
+            deadline = min(deadline, operation_deadline)
+        if self.isolation_deadline is not None:
+            deadline = min(deadline, self.isolation_deadline)
         if now >= deadline:
             raise fixture.ImportRejected('UnconfirmedIsolation' if self.isolation_deadline is not None else 'Deadline')
         reserve = min(0.25, (deadline - now) / 4)
@@ -87,6 +98,38 @@ class BoundedCommands:
             raise
         except UnicodeError:
             raise fixture.ImportRejected('Protocol') from None
+
+    def inspect(self, kind, ids):
+        require(kind in ('container', 'network', 'volume', 'image'), 'Identity')
+        require(type(ids) in (list, tuple), 'Identity')
+        require(len(ids) <= INSPECT_MAX_OBJECTS, 'InputLimit')
+        require(all(type(item) is str and item and len(item) <= 255 and
+                    not item.startswith('-') and not any(char.isspace() or char == '\x00'
+                    for char in item) for item in ids), 'Identity')
+        if not ids:
+            return []
+        deadline = time.monotonic() + INSPECT_OPERATION_SECONDS
+        aggregate = 0
+        inspected = []
+        for offset in range(0, len(ids), INSPECT_BATCH_SIZE):
+            batch = ids[offset:offset + INSPECT_BATCH_SIZE]
+            args = ('inspect', *batch) if kind == 'container' else (kind, 'inspect', *batch)
+            output = self._run('/usr/bin/docker', args, deadline)
+            aggregate += len(output.encode('utf-8'))
+            require(aggregate <= INSPECT_TOTAL_STDOUT_LIMIT, 'StdoutLimit')
+            try:
+                members = json.loads(output, parse_constant=lambda value: require(False, 'Protocol'))
+            except (ValueError, RecursionError):
+                raise fixture.ImportRejected('Protocol') from None
+            require(type(members) is list and len(members) == len(batch) and
+                    all(type(item) is dict for item in members), 'Protocol')
+            inspected.extend(members)
+            effective_deadline = deadline
+            if self.isolation_deadline is not None:
+                effective_deadline = min(deadline, self.isolation_deadline)
+            require(time.monotonic() < effective_deadline, 'UnconfirmedIsolation'
+                    if self.isolation_deadline is not None else 'Deadline')
+        return inspected
 
 
 def digest(data):
@@ -180,6 +223,7 @@ class ContractBackend:
             self.provisioner, self.issuer = helper._load_reviewed(self.source)
             self.commands = BoundedCommands()
             self.provisioner._command = self.commands
+            self.provisioner._inspect = self.commands.inspect
             names = ('p0c4_restore_target', 'p0c4_restore_target_birth',
                      'p0c4_restore_birth_acceptance', 'p0c4_restore_target_pin')
             previous = {name: sys.modules.get(name) for name in names}
