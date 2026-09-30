@@ -1,9 +1,7 @@
-//! Clean-target preflight and its locked database-import boundary. An opaque
+//! Clean-target preflight and its locked read-only boundary. An opaque
 //! `CompleteBackup` is mandatory; a path or `SealedBackup` cannot bypass it.
 #[cfg(any(target_os = "linux", test))]
 use crate::FileRecord;
-#[cfg(target_os = "linux")]
-use crate::PgRestoreSpec;
 #[cfg(target_os = "linux")]
 use crate::{AssetRow, open_complete_backup, validate_role_recipe};
 use crate::{BackupError, BackupManifestV1, BackupPlan, CompleteBackup};
@@ -24,15 +22,16 @@ use sqlx::PgPool;
 use sqlx::{PgConnection, Postgres, Row, Transaction};
 #[cfg(any(target_os = "linux", test))]
 use std::io::{Read, Seek, SeekFrom};
+#[cfg(any(target_os = "linux", test))]
+use std::path::Path;
 #[cfg(target_os = "linux")]
 use std::{
     fs::File,
-    io::Write,
     os::unix::fs::{MetadataExt, PermissionsExt},
 };
 use std::{
     io,
-    path::{Component, Path, PathBuf},
+    path::{Component, PathBuf},
 };
 
 #[cfg(any(target_os = "linux", test))]
@@ -419,38 +418,10 @@ impl RestorePreflightConfig {
 }
 
 /// Holds the global creation and exclusive target locks until dropped.
-/// Preflight performs no target data write. The internal database stage retains
-/// both locks for later asset import, data closure and acceptance work.
+/// Preflight performs no target data write. The guard and SQL transaction stay
+/// alive for the internal read-only child endpoint proof.
 #[derive(Debug)]
 pub struct RestorePreflight {
-    manifest: BackupManifestV1,
-    plan: BackupPlan,
-    #[cfg(target_os = "linux")]
-    destination_root: PathBuf,
-    #[cfg(target_os = "linux")]
-    trust_path: PathBuf,
-    #[cfg(target_os = "linux")]
-    receipt_sha256: String,
-    #[cfg(target_os = "linux")]
-    restore_spec: PgRestoreSpec,
-    #[cfg(target_os = "linux")]
-    expected_database: String,
-    #[cfg(target_os = "linux")]
-    control: BackupDir,
-    #[cfg(target_os = "linux")]
-    bound_target: target_binding::BoundTargetGuard<File, Option<File>>,
-    #[cfg(target_os = "linux")]
-    sql_session: target_binding::LockChallenge<Transaction<'static, Postgres>>,
-}
-
-/// Internal staging result: database import completed, but the target is still
-/// private and unusable. This is not a public restore or admission API.
-/// This opaque continuation retains the same two locks and exact identity.
-/// Asset import, source-lease invalidation, closure checks and admission remain
-/// unimplemented.
-#[derive(Debug)]
-#[allow(dead_code)] // Staged internal continuation; external restore is not yet admitted.
-pub(crate) struct RestoreDatabaseImported {
     manifest: BackupManifestV1,
     plan: BackupPlan,
     #[cfg(target_os = "linux")]
@@ -467,95 +438,21 @@ impl RestorePreflight {
         &self.plan
     }
 
-    /// Consume the locked, read-only preflight for one database import attempt.
-    /// The target remains quarantined whether pg_restore succeeds or fails;
-    /// asset import, closure checks and service admission are separate gates.
-    /// No archive path, database name or PostgreSQL flag comes from the caller.
-    /// Before this is exposed, the child connection must be bound to the
-    /// preflight-observed PG/Docker identity and executable/credential paths
-    /// must be pinned against replacement between check and exec.
-    #[allow(dead_code)] // No external write API until live endpoint binding is proven.
-    pub(crate) fn restore_database(
-        self,
-        executable: &Path,
-        private_pgpass: &Path,
-    ) -> Result<RestoreDatabaseImported, BackupError> {
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (self, executable, private_pgpass);
-            Err(BackupError::Io(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "database restore requires Linux",
-            )))
-        }
-        #[cfg(target_os = "linux")]
-        {
-            self.restore_database_linux(executable, private_pgpass)
-        }
-    }
-
+    /// Borrow both live guards for the staged read-only child proof.
     #[cfg(target_os = "linux")]
-    #[allow(dead_code)] // Kept behind the crate boundary pending Linux endpoint proof.
-    fn restore_database_linux(
-        self,
-        executable: &Path,
-        private_pgpass: &Path,
-    ) -> Result<RestoreDatabaseImported, BackupError> {
-        // `self` retains both filesystem locks and the proven SQLx transaction
-        // through this internal stage. The host pg_restore child remains a
-        // separate, unproven endpoint; this method must remain unwired until
-        // that child is bound before the attempt marker and its executable and
-        // credential paths are pinned against replacement.
-        self.bound_target.recheck()?;
-        // Recheck the complete receipt and all package bytes against the exact
-        // receipt observed by preflight before opening the dump for execution.
-        let checked = open_complete_backup(
-            &self.destination_root,
-            &self.trust_path,
-            self.manifest.backup_id,
-        )?;
-        if checked.receipt_sha256() != self.receipt_sha256
-            || checked.manifest_sha256() != self.manifest.canonical_sha256()?
-        {
-            return Err(BackupError::Invalid(
-                "complete receipt changed before restore",
-            ));
-        }
-        let dump_record = self
-            .manifest
-            .files
-            .iter()
-            .find(|record| record.path == "database.dump")
-            .ok_or(BackupError::Invalid("restore dump absent"))?;
-        let destination = BackupDir::open_trusted_private_root(&self.destination_root)?;
-        let package = destination.open_dir(&format!("{}.sealed", self.manifest.backup_id))?;
-        let mut archive = package.open_file("database.dump")?;
-        if archive.metadata()?.len() != dump_record.size {
-            return Err(BackupError::Invalid("restore dump size changed"));
-        }
-        verify_dump_reader(&mut archive, dump_record)?;
-        let attempt_name = restore_attempt_name(&self.expected_database)?;
-        let attempt_bytes = restore_attempt_bytes(
-            &self.expected_database,
-            self.manifest.backup_id,
-            &self.receipt_sha256,
-        )?;
-        self.bound_target.recheck()?;
-        let mut attempt = self.control.create_file(&attempt_name)?;
-        attempt.write_all(&attempt_bytes)?;
-        attempt.sync_all()?;
-        self.control.sync()?;
-        // Even if pg_restore fails or the process dies, the durable marker
-        // blocks another clean-target preflight for this database.
-        self.restore_spec
-            .run_from_open_file(executable, private_pgpass, &mut archive)?;
-        self.bound_target.recheck()?;
-        Ok(RestoreDatabaseImported {
-            manifest: self.manifest,
-            plan: self.plan,
-            bound_target: self.bound_target,
-            sql_session: self.sql_session,
-        })
+    #[allow(dead_code)] // Task 2 adds the bounded child runner.
+    fn exact_child_target(
+        &self,
+    ) -> Result<
+        target_binding::ExactRestoreChildTarget<
+            '_,
+            File,
+            Option<File>,
+            Transaction<'static, Postgres>,
+        >,
+        BackupError,
+    > {
+        target_binding::ExactRestoreChildTarget::bind(&self.bound_target, &self.sql_session)
     }
 }
 
@@ -799,20 +696,9 @@ async fn preflight_linux(
     facts.validate()?;
     verify_target_birth(sql_session.lease_mut(), config, &lock_root, &assets).await?;
     let sql_session = bound_target.verify_sql_session(sql_session, backend_pid, database_oid)?;
-    let restore_spec = PgRestoreSpec::new(
-        &config.expected_database,
-        options.get_host(),
-        options.get_port(),
-    )?;
     Ok(RestorePreflight {
         manifest,
         plan,
-        destination_root: config.destination_root.clone(),
-        trust_path: config.trust_path.clone(),
-        receipt_sha256: checked.receipt_sha256().to_owned(),
-        restore_spec,
-        expected_database: config.expected_database.clone(),
-        control: lock_root,
         bound_target,
         sql_session,
     })

@@ -112,6 +112,88 @@ fn exact_id(value: &str) -> bool {
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
 
+/// A borrowed command target. Keeping both references prevents a caller from
+/// retaining the command target after the Docker guard or SQL transaction dies.
+/// This grants only construction of the two fixed read-only client commands.
+pub(super) struct ExactRestoreChildTarget<'a, G, T, L> {
+    guard: &'a BoundTargetGuard<G, T>,
+    _challenge: &'a LockChallenge<L>,
+}
+
+impl<'a, G, T, L> ExactRestoreChildTarget<'a, G, T, L> {
+    pub(super) fn bind(
+        guard: &'a BoundTargetGuard<G, T>,
+        challenge: &'a LockChallenge<L>,
+    ) -> Result<Self, BackupError> {
+        let claim = &guard.claim;
+        let suffix = claim
+            .project
+            .strip_prefix("learning-system-p0c4-restore-")
+            .ok_or(BackupError::Invalid("restore child target identity"))?;
+        let valid_database = claim.database == format!("learning_restore_c4_{suffix}")
+            && uuid::Uuid::parse_str(suffix).is_ok_and(|id| {
+                id.get_version_num() == 4
+                    && id.get_variant() == uuid::Variant::RFC4122
+                    && id.to_string() == suffix
+            });
+        if !exact_id(&claim.container_id) || !valid_database || claim.database_oid == 0 {
+            return Err(BackupError::Invalid("restore child target identity"));
+        }
+        challenge.keys.validate()?;
+        Ok(Self {
+            guard,
+            _challenge: challenge,
+        })
+    }
+
+    pub(super) fn container_id(&self) -> &str {
+        &self.guard.claim.container_id
+    }
+
+    pub(super) fn database(&self) -> &str {
+        &self.guard.claim.database
+    }
+
+    fn fixed_prefix(&self, client: &'static str) -> Vec<String> {
+        [
+            "exec",
+            "--interactive",
+            "--user",
+            "999:999",
+            self.container_id(),
+            "/usr/bin/env",
+            "-i",
+            "LC_ALL=C",
+            "PGCONNECT_TIMEOUT=10",
+            client,
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    }
+
+    pub(super) fn version_argv(&self) -> Vec<String> {
+        let mut args = self.fixed_prefix("/usr/lib/postgresql/18/bin/pg_restore");
+        args.push("--version".into());
+        args
+    }
+
+    pub(super) fn socket_probe_argv(&self) -> Vec<String> {
+        let mut args = self.fixed_prefix("/usr/lib/postgresql/18/bin/psql");
+        args.extend([
+            "-XAt".into(),
+            "--no-password".into(),
+            "--host=/var/run/postgresql".into(),
+            "--port=5432".into(),
+            "--username=learning_admin".into(),
+            format!("--dbname={}", self.database()),
+            "-c".into(),
+            "SELECT current_database()".into(),
+        ]);
+        args
+    }
+}
+
 fn pg_exec_args(claim: &DockerClaim) -> Result<Vec<String>, BackupError> {
     if !exact_id(&claim.container_id) || !claim.database.starts_with("learning_restore_c4_") {
         return Err(BackupError::Invalid("bound target identity invalid"));
@@ -2189,6 +2271,83 @@ mod tests {
         let mut bad = claim();
         bad.container_id = "pg".into();
         assert!(pg_exec_args(&bad).is_err());
+    }
+
+    #[test]
+    fn child_target_uses_only_exact_id_and_fixed_read_only_clients() {
+        let guard = BoundTargetGuard {
+            _target_lock: (),
+            _global_lock: (),
+            claim: claim(),
+            observation: json!({}),
+        };
+        let challenge = LockChallenge::new(ChallengeKeys::for_test(7, 9), ());
+        let target = ExactRestoreChildTarget::bind(&guard, &challenge).unwrap();
+        assert_eq!(target.container_id(), ID);
+        assert_eq!(target.database(), claim().database);
+        assert_eq!(
+            target.version_argv(),
+            vec![
+                "exec",
+                "--interactive",
+                "--user",
+                "999:999",
+                ID,
+                "/usr/bin/env",
+                "-i",
+                "LC_ALL=C",
+                "PGCONNECT_TIMEOUT=10",
+                "/usr/lib/postgresql/18/bin/pg_restore",
+                "--version",
+            ]
+        );
+        assert_eq!(
+            target.socket_probe_argv(),
+            vec![
+                "exec",
+                "--interactive",
+                "--user",
+                "999:999",
+                ID,
+                "/usr/bin/env",
+                "-i",
+                "LC_ALL=C",
+                "PGCONNECT_TIMEOUT=10",
+                "/usr/lib/postgresql/18/bin/psql",
+                "-XAt",
+                "--no-password",
+                "--host=/var/run/postgresql",
+                "--port=5432",
+                "--username=learning_admin",
+                "--dbname=learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3",
+                "-c",
+                "SELECT current_database()",
+            ]
+        );
+    }
+
+    #[test]
+    fn child_target_rejects_name_noncanonical_id_and_wrong_database() {
+        for bad_id in ["pg".to_owned(), "A".repeat(64), "g".repeat(64)] {
+            let mut guard = BoundTargetGuard {
+                _target_lock: (),
+                _global_lock: (),
+                claim: claim(),
+                observation: json!({}),
+            };
+            guard.claim.container_id = bad_id;
+            let challenge = LockChallenge::new(ChallengeKeys::for_test(7, 9), ());
+            assert!(ExactRestoreChildTarget::bind(&guard, &challenge).is_err());
+        }
+        let mut guard = BoundTargetGuard {
+            _target_lock: (),
+            _global_lock: (),
+            claim: claim(),
+            observation: json!({}),
+        };
+        guard.claim.database = "learning_restore_c4_aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa".into();
+        let challenge = LockChallenge::new(ChallengeKeys::for_test(7, 9), ());
+        assert!(ExactRestoreChildTarget::bind(&guard, &challenge).is_err());
     }
 
     #[test]
