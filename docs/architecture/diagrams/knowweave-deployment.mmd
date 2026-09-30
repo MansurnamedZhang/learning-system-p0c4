@@ -1,0 +1,30 @@
+flowchart TB
+    browser["浏览器 / HTTPS<br/>唯一面向用户的入口 · 电脑 / 平板 / 手机<br/>【待建设】"]
+    gateway["反向代理 / TLS<br/>同源静态 Web 与 API · P1-A 部署时配置<br/>【待建设】"]
+    management["受控运维入口<br/>部署 / 迁移 / 恢复管理 · 高权凭据单独保管<br/>【待建设】"]
+    web["Web 静态资源<br/>受控内容渲染 / 草稿缓冲 · 不执行 Notebook<br/>【待建设】"]
+    api["API 运行角色<br/>服务端身份与业务授权 · 后续独立进程<br/>【待建设】"]
+    worker["Worker 运行角色<br/>C2 容器隔离已验收 · 仅 runtime secret / 只读资产<br/>【已验收】"]
+    staging["staging / derived<br/>临时工作 / 可重建派生缓存 · 各自寿命，不冒充权威正文<br/>【上下文】"]
+    pg["内部 PostgreSQL<br/>postgres 独立持久卷 · 业务事实与持久任务<br/>【已验收】"]
+    assets["assets 独立持久卷<br/>不可变原字节 / SHA-256 · 当前为 filesystem 后端<br/>【已验收】"]
+    backup["C4 备份协调器<br/>维护窗与一致性清单 · 管理权限与运行角色分开<br/>【实施中】"]
+    remote["独立备份副本<br/>另一故障域 / 可校验保留集 · 密钥另存；恢复到干净实例<br/>【待建设】"]
+    browser -- "HTTPS" --> gateway
+    gateway -- "静态资源" --> web
+    gateway -- "受保护 API" --> api
+    management -- "发布固定构建" --> worker
+    api -- "私有网络" --> pg
+    worker -- "受限作业权限" --> pg
+    worker -- "只读" --> assets
+    api -- "受控上传 / 导出" --> staging
+    pg -- "一致备份" --> backup
+    assets -. "按资产清单复制" .-> remote
+    backup -. "数据库 + 清单" .-> remote
+    class worker,pg,assets done
+    class backup next
+    class browser,gateway,management,web,api,remote planned
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362

@@ -1,0 +1,30 @@
+flowchart TB
+    web["apps/web 待建设<br/>编辑草稿与用户交互 · 不直连数据库或文件目录<br/>【待建设】"]
+    api["learning-api 待建设<br/>HTTP 身份 → 业务 actor · 稳定 DTO / 幂等与冲突语义<br/>【待建设】"]
+    worker["learning-worker<br/>进程循环 / 处理器 / 停止恢复 · 非 owner runtime 登录<br/>【已验收】"]
+    core["learning-core<br/>版本化契约 / 校验 / 摘要 · 块、位置、关系、资产、任务<br/>【已验收】"]
+    db["learning-db<br/>SQLx / 显式事务 / 授权查询 · 发布、融合视图、关系、作业<br/>【已验收】"]
+    assets["learning-assets<br/>不可变字节 / staging / 校验 · Filesystem 原件存储<br/>【已验收】"]
+    pg["PostgreSQL 内部接口<br/>最小权限 / 限定数据库函数 · 业务行、收据、两个独立 outbox<br/>【已验收】"]
+    file["文件系统存储卷<br/>原件只读；staging 私有可写 · C3 挂私有可写 snapshots<br/>【已验收】"]
+    backup["learning-backup<br/>C4 管理侧备份与恢复绑定 · 高权凭据不下发给 Worker<br/>【实施中】"]
+    web -. "JSON API" .-> api
+    api -. "身份和命令" .-> db
+    worker -- "作业与授权" --> db
+    worker -- "核对原件" --> assets
+    worker -- "契约" --> core
+    db -- "类型 / 校验" --> core
+    db -- "字节先就绪" --> assets
+    assets -- "快照包契约" --> core
+    db -- "参数化 SQL" --> pg
+    assets -- "流式 I/O" --> file
+    backup -- "直接依赖" --> db
+    backup -- "直接依赖" --> assets
+    backup -- "受控管理" --> pg
+    class worker,core,db,assets,pg,file done
+    class backup next
+    class web,api planned
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362

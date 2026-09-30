@@ -15,6 +15,7 @@ C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复�
 
 ## 代码与文档导航
 
+- [项目架构设计文档集](docs/architecture/README.md)：总体、领域模型、Rust 分层、事务权限、资产任务、快照恢复、前端学习、部署演进与决策证据；[离线 HTML](docs/architecture/KnowWeave架构设计.html)。
 - `crates/learning-core`：内容、关系、证据、阅读、资产和作业的契约类型。
 - `crates/learning-db`、`migrations`：PostgreSQL 持久化、权限、原子操作和升级。
 - `crates/learning-assets`：私有原件、安全文件操作与快照包。

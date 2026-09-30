@@ -1,0 +1,41 @@
+flowchart TB
+    user["个人学习者<br/>电脑 / 平板 / 手机 · 跨设备访问同一服务<br/>【上下文】"]
+    web["Web 学习工作台<br/>阅读 · 编辑 · 图谱 · 今日 · P1-A / P1-B 待建设<br/>【待建设】"]
+    sources["课程与实践来源<br/>PDF / PPTX / Notebook / 代码 · 原格式资料与实验产物<br/>【上下文】"]
+    learning["学习与计划模块<br/>单元 / 任务 / 尝试 / 验收 · P1-B；规则推荐延伸到 P2<br/>【待建设】"]
+    api["Rust HTTP / 身份边界<br/>会话 · DTO · 授权入口 · P1-A；Axum 为建议<br/>【待建设】"]
+    import["交换与导入入口<br/>C3 授权快照；P1-B 首批资料 · 批量来源更新在后续阶段<br/>【待建设】"]
+    content["内容与关系内核<br/>块 / 组合 / 个人层 / 审查 · P0-A / B1–B4 已验收<br/>【已验收】"]
+    jobs["持久任务与 Worker<br/>job_outbox → job → 租约 · C2 资产完整性已验收<br/>【已验收】"]
+    assetapi["资产与来源模块<br/>资源版本 · 精确使用授权 · C1 原字节与 v3 图片/附件<br/>【已验收】"]
+    pg["PostgreSQL 权威库<br/>结构化正文与关系 / 作业状态 · SQLx · 事务 · 追加迁移<br/>【已验收】"]
+    derived["可重建派生层<br/>预览 / OCR / 搜索 / 检索片段 · 处理器与索引后续按需建设<br/>【可选】"]
+    files["不可变原件库<br/>assets/sha256 · 独立持久卷 · staging 与原件分区<br/>【已验收】"]
+    portable["C3 / C4 可移植性<br/>C3 范围导出已验收 · C4 全量恢复实施中<br/>【实施中】"]
+    graph["Neo4j 可选投影<br/>首版不常驻 · 来源仍为 PostgreSQL<br/>【可选】"]
+    ai["可选 AI / 外部执行<br/>仅建议；实验默认外部运行 · 关闭后不影响核心流程<br/>【可选】"]
+    user -- "访问" --> web
+    web -- "同源 API" --> api
+    sources -- "登记 / 受控导入" --> import
+    api -- "业务调用" --> learning
+    api -- "校验与编排" --> content
+    import -- "原件与引用" --> assetapi
+    content -- "事务读写" --> pg
+    assetapi -- "校验 / 定稿 / 授权读取" --> files
+    assetapi -- "元数据 / 精确使用 / 授权" --> pg
+    learning -. "学习事实" .-> pg
+    jobs -- "转投 / 租约 / 结果" --> pg
+    jobs -- "复用精确授权" --> assetapi
+    jobs -. "未来处理器" .-> derived
+    files -- "原字节闭包" --> portable
+    pg -- "闭包与一致快照" --> portable
+    pg -. "可重建投影" .-> graph
+    derived -. "按需适配" .-> ai
+    class content,jobs,assetapi,pg,files done
+    class portable next
+    class web,learning,api,import planned
+    class derived,graph,ai optional
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362

@@ -1,0 +1,30 @@
+flowchart TB
+    view["C3 · 选定阅读快照<br/>精确版本 / 模式 / 原件选项 · 按当前主体权限取范围<br/>【已验收】"]
+    closure["只读一致快照求闭包<br/>块 / 位置 / 关系 / 审查 / 资产 · 不泄露隐藏 ID 或计数<br/>【已验收】"]
+    bundle["manifest + JSON + 原件<br/>逐对象摘要与格式版本 · HTML / Markdown 阅读副本<br/>【已验收】"]
+    visible["原子发布导入批次<br/>同 ID 同字节复用 · 失败无半可用视图<br/>【已验收】"]
+    preflight["staging 校验与预检<br/>引用闭包 / 权限归属 / 路径 · 摘要冲突或缺件即拒绝<br/>【已验收】"]
+    delivery["重验权限后交付<br/>完成时及下载时再检查 · 导入授权目标范围<br/>【已验收】"]
+    pause["C4 · 受控写入维护窗<br/>先停 runtime / Worker · 全量封存验证后再开放<br/>【实施中】"]
+    backup["一致数据库 + 资产清单<br/>源端与单机专项已通过 · 独立完成收据尚未验收<br/>【实施中】"]
+    copy["复制至独立故障域<br/>保护清单引用的全部资产 · 逐件校验后才能 complete<br/>【待建设】"]
+    check["核对后开放实例<br/>旧版 / 当前版 / 位置 / 权限 · 关系与原字节完整一致<br/>【待建设】"]
+    restore["恢复到干净实例<br/>数据库 + 原件 / 失效租约处理 · 可重建派生物后续重建<br/>【待建设】"]
+    future["P1-B 扩展恢复闭包<br/>学习事实 / 规则 / 产物 / 计划 · 另做全链恢复验收<br/>【待建设】"]
+    view -- "固定输入" --> closure
+    closure -- "精确清单" --> bundle
+    bundle -- "授权交付" --> delivery
+    delivery -- "受控导入" --> preflight
+    preflight -- "校验全通过" --> visible
+    pause -- "一致恢复点" --> backup
+    backup -- "不可变资产复制" --> copy
+    copy -- "校验完整备份" --> restore
+    restore -- "恢复验证" --> check
+    future -. "补学习事实" .-> restore
+    class view,closure,bundle,visible,preflight,delivery done
+    class pause,backup next
+    class copy,check,restore,future planned
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362
