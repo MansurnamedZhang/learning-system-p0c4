@@ -116,6 +116,11 @@
 - `e4e0126` 为双项目验收增加固定白名单 `clone_phase`：失败证据只记最后阶段，不记原始异常文本；独立审查无 P1/P2，本地 C4 Python 173/173 通过。403 个 Git 文件的确定字节包 SHA-256 `4258578757840a2aa18eb334d3e38b97ed21825c3661cf573c630ce88bec7520`（manifest `379de1d31ba812ee1834d56ce50323a30cc8b9367583cedeaf24c81ae0495aa1`），ZIP/Git 原样 runner SHA-256 `e2435d1541dfc6bdb4b00b2b145eb6f18acc20c728c21b2d79f818011cebde8c`。用户逐文件授权后，两份文件在服务器暂存和最终收件路径各核验一次，项目名、容器、卷与 `10.251.232.0/24`、`10.251.233.0/24` 子网运行前均查无占用。
 - 用户在全新主批次 `e5ff5e73-80bf-4887-a723-63afcd7eb410`、克隆批次 `b7f1f331-dd84-4dd0-975b-f649ce664f62` 执行 `--sql-session-clone-negative`，返回 `CLONE_PHASE_RUN_EXIT=0`、`SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE`。用户贴回的 root 私有 `result.json` SHA-256 `647a669d376ab1294e132ee8f97737b98c69b2fc6e8aee10b65b4c8ad573e54f`、`pin-inspection.json` SHA-256 `7356a3beba8fca7bc98ecca132806d7e1bc7c85677f8a6aed5379e573a5fec22`，`PENDING_ABSENT`。结果内 `clone_phase=complete`、`backup_verified=true`、`no_standby=true`、`same_system_identifier=true`、`same_database_oid=true`、`primary_started_at_unchanged=true`；异端点只读探针 `exit_code=0` 且固定状态相同。主、克隆容器精确 ID 分别为 `f62fd4709a945570a48e5142301346e8b483999a5bb1565d171dc0da055be092`、`9138ce1018198a41a18b9da659ea8e76945f1c07b742579e83aa6f8c64dd6529`，`stop.confirmed=true`、双卷保留、`target_reuse_permitted=false`，源码前后 SHA-256 均为 `10c6b2b7d426e509dec0f72a62a3519c417bd9a0681b60f1f9d855d145fd2c32`。根任务另以只读 Docker 查询确认两容器均 `Exited (0)`、两卷与网络留存、本批无 clone helper 残留。root 私有结果字节由用户终端核验并贴回，根任务无法直接读取；此门只证明物理克隆的同 ID/OID 异端点拒绝，不证明 `pg_restore` 子进程绑定、资产闭包、租约失效、`CompleteBackup` 或干净恢复。
 
+## 只读子进程绑定 Task 3 本地候选（2026-09-30）
+
+- 新增显式 `--child-read-only-restart` 单项目模式及 Linux ignored 测试 `live_read_only_child_restart_rejection`。同一 guard 和 SQLx 事务先完成固定 socket 子进程只读证明，再对精确容器 ID 执行受限重启，原对象的第二次证明必须以固定 `Session` 或 `Identity` 原因拒绝、精确停机确认为 `STOPPED`，旧 guard 不能再用。测试还检查目标文件、资产和恢复尝试标记未变。runner 在创建目标前列举该测试，以真实出生 SHA-256 重编译；只接受首次成功、重启拒绝、原因及隔离标记、精确一项测试和退出码 0，同时在私有 `result.json` 保留失败类型、隔离与 `target_reuse_permitted=false`。成功状态 `CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE` 与旧 3a/3b 状态区分。
+- 本地 Python C4 回归 177/177、Rust library 49/49、格式及严格 Clippy 通过。仅有 Windows MSVC target；Linux ignored 测试尚未编译或运行，固定 PG18 客户端版本行与本地 socket 认证也未现场观察。该候选须经 Git 字节制包、独立复核及用户逐文件批准，方可在新 UUIDv4 项目、未占用子网和新卷验收。它不授权导入、`restore.attempt`、`CompleteBackup` 或服务放行；失败批次不得重跑。
+
 ## 设计裁定
 
 ### SQL session binding Task 3a（2026-09-29，设计及本地验证）

@@ -43,6 +43,8 @@ SESSION_PASSED = "FOCUSED_SQL_SESSION_GATES_PASSED_NOT_FULL_ENDPOINT_ACCEPTANCE_
 SESSION_FAILED = "SQL_SESSION_BINDING_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 CLONE_FAILED = "SAME_ID_WRONG_ENDPOINT_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 CLONE_PASSED = "SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE"
+CHILD_PASSED = "CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE"
+CHILD_FAILED = "CHILD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
 CLONE_PHASES = frozenset({
     "not-started", "primary-recheck", "replication-contract",
     "compose-resources", "setup-helper", "basebackup-copy", "backup-verify",
@@ -1139,7 +1141,7 @@ def _compile_bound_probe(source, batch, build_name, birth_sha256):
 
 
 def _preflight_probe_builder(source, batch, *, guard=False, session=False,
-                             clone=False):
+                             clone=False, child=False):
     """Prove the pinned offline Linux toolchain is ready before PG birth."""
     _trusted_path(Path("/usr/bin/docker"), file=True)
     image = _probe_docker(["image", "inspect", BUILDER_IMAGE_ID,
@@ -1155,7 +1157,10 @@ def _preflight_probe_builder(source, batch, *, guard=False, session=False,
         timeout=60)
     expected = (b"restore_preflight::target_binding::tests::"
                 b"live_read_only_bound_target_probe: test")
-    if clone:
+    if child:
+        expected = (b"restore_preflight::target_binding::tests::"
+                    b"live_read_only_child_restart_rejection: test")
+    elif clone:
         expected = (b"restore_preflight::target_binding::tests::"
                     b"live_read_only_same_id_wrong_endpoint_negative: test")
     elif session:
@@ -1164,7 +1169,7 @@ def _preflight_probe_builder(source, batch, *, guard=False, session=False,
     elif guard:
         expected = (b"restore_preflight::target_binding::tests::"
                     b"live_read_only_bound_target_guard: test")
-    if guard or session or clone:
+    if guard or session or clone or child:
         require(listing.stdout.splitlines().count(expected) == 1,
                 "exact Linux read-only test absent")
     require(listing.returncode == 0 and expected in listing.stdout and
@@ -1176,7 +1181,7 @@ def _preflight_probe_builder(source, batch, *, guard=False, session=False,
 
 
 def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=False,
-                     session=False):
+                     session=False, child=False):
     """Rebuild with sealed birth digest, then execute on the Linux host."""
     require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
             "sealed birth digest required for bound probe")
@@ -1184,7 +1189,10 @@ def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=Fal
         source, batch, "probe-live-build", birth_sha256)
     test_name = ("restore_preflight::target_binding::tests::"
                  "live_read_only_bound_target_probe")
-    if session:
+    if child:
+        test_name = ("restore_preflight::target_binding::tests::"
+                     "live_read_only_child_restart_rejection")
+    elif session:
         test_name = ("restore_preflight::target_binding::tests::"
                      "live_read_only_sql_session_binding")
     elif guard:
@@ -1201,10 +1209,28 @@ def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=Fal
         [str(binary), test_name, "--exact", "--ignored", "--nocapture"],
         cwd=source, env=env, timeout=180)
     output = process.stdout + b"\n" + process.stderr
-    marker = ("SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE" if session else
+    marker = (CHILD_PASSED if child else
+              "SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE" if session else
               "BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE" if guard else
               "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE")
-    if guard or session:
+    if child:
+        first = b"CHILD_READ_ONLY_ATTESTED_NOT_RESTORE"
+        isolation = b"CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED"
+        first_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
+                      rb" \.\.\. )?" + first + rb"\r?$")
+        marker_line = rb"(?m)^" + re.escape(marker.encode()) + rb"\r?$"
+        isolation_line = rb"(?m)^" + isolation + rb"\r?$"
+        reasons = re.findall(rb"(?m)^CHILD_RESTART_FAILURE_(Session|Identity)\r?$", output)
+        require(len(re.findall(first_line, output)) == 1 and
+                len(re.findall(marker_line, output)) == 1 and
+                len(re.findall(isolation_line, output)) == 1 and
+                output.count(first) == 1 and output.count(marker.encode()) == 1 and
+                output.count(isolation) == 1 and len(reasons) == 1 and
+                output.splitlines().count(b"running 1 test") == 1 and
+                len(re.findall(rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output)) == 1 and
+                ("test " + test_name + " ... ").encode() in output,
+                "exact child restart rejection and isolation absent")
+    elif guard or session:
         marker_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
                        rb" \.\.\. )?" + marker.encode() + rb"\r?$")
         require(len(re.findall(marker_line, output)) == 1 and
@@ -1217,9 +1243,14 @@ def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=Fal
             marker.encode() in output and
             b"test result: ok. 1 passed; 0 failed; 0 ignored;" in output,
             "read-only bound probe failed")
-    return {"state": marker,
+    result = {"state": marker,
             "birth_sha256": birth_sha256, "binary_sha256": binary_sha,
             "builder_image_id": BUILDER_IMAGE_ID, "exit_code": process.returncode}
+    if child:
+        result.update(first_attestation=first.decode(), restart_rejection=marker,
+                      reason=reasons[0].decode(), isolation="STOPPED",
+                      guard_reuse_rejected=True)
+    return result
 
 
 def extract_and_load(manifest, package, batch):
@@ -1315,9 +1346,13 @@ def _run_batch(args, manifest, package, batch):
     bound_guard = getattr(args, "bound_guard", False)
     sql_session = getattr(args, "sql_session_binding", False)
     clone_mode = getattr(args, "sql_session_clone_negative", False)
-    require(sum((bound_probe, bound_guard, sql_session, clone_mode)) <= 1,
+    child_mode = getattr(args, "child_read_only_restart", False)
+    require(sum((bound_probe, bound_guard, sql_session, clone_mode, child_mode)) <= 1,
             "bound modes are mutually exclusive")
-    if clone_mode:
+    if child_mode:
+        result["status"] = CHILD_FAILED
+        result["child_isolation"] = "UNCONFIRMED_UNUSABLE"
+    elif clone_mode:
         result["status"] = CLONE_FAILED
         result["clone_batch_id"] = args.clone_batch_id
         result["clone_subnet"] = args.clone_subnet
@@ -1346,12 +1381,14 @@ def _run_batch(args, manifest, package, batch):
         (provisioner, acceptance, pin, prepare, initdb,
          result["source_before_sha256"]) = extract_and_load(
              manifest, package, batch)
-        if bound_probe or bound_guard or sql_session or clone_mode:
+        if bound_probe or bound_guard or sql_session or clone_mode or child_mode:
             result["stage"] = "offline-builder-preflight"
-            options = ({"clone": True} if clone_mode else
+            options = ({"child": True} if child_mode else
+                       {"clone": True} if clone_mode else
                        {"session": True} if sql_session else
                        {"guard": True} if bound_guard else {})
-            key = ("clone_toolchain_preflight" if clone_mode else
+            key = ("child_toolchain_preflight" if child_mode else
+                   "clone_toolchain_preflight" if clone_mode else
                    "session_toolchain_preflight" if sql_session else
                    "guard_toolchain_preflight" if bound_guard else
                    "probe_toolchain_preflight")
@@ -1487,15 +1524,29 @@ def _run_batch(args, manifest, package, batch):
             _primary_still_pinned(provisioner, acceptance, identity,
                                   args.subnet, before, state, success,
                                   target, initdb, primary_started_at)
-        if bound_probe or bound_guard or sql_session:
-            result["stage"] = ("read-only-sql-session" if sql_session else
+        if bound_probe or bound_guard or sql_session or child_mode:
+            result["stage"] = ("read-only-child-restart" if child_mode else
+                               "read-only-sql-session" if sql_session else
                                "read-only-bound-guard" if bound_guard else
                                "read-only-bound-probe")
-            key = ("sql_session_binding" if sql_session else
+            key = ("child_read_only" if child_mode else
+                   "sql_session_binding" if sql_session else
                    "bound_guard" if bound_guard else "bound_probe")
             result[key] = _run_bound_probe(
                 source, batch, target, identity["database"],
                 success["birth_sha256"], **options)
+            if child_mode:
+                require(type(result[key]) is dict and
+                        result[key].get("state") == CHILD_PASSED and
+                        result[key].get("birth_sha256") == success["birth_sha256"] and
+                        result[key].get("first_attestation") ==
+                        "CHILD_READ_ONLY_ATTESTED_NOT_RESTORE" and
+                        result[key].get("restart_rejection") == CHILD_PASSED and
+                        result[key].get("reason") in ("Session", "Identity") and
+                        result[key].get("isolation") == "STOPPED" and
+                        result[key].get("guard_reuse_rejected") is True and
+                        result[key].get("exit_code") == 0,
+                        "child restart rejection evidence incomplete")
         result["stage"] = "exact-id-stop"
         if clone_mode:
             _mark_clone_phase(result, "exact-id-stop")
@@ -1525,10 +1576,15 @@ def _run_batch(args, manifest, package, batch):
         result.update(candidate)
         result["inspection_record_sha256"] = digest(inspection_bytes)
         result["inspection_record_file"] = inspection_path.name
-        result["target_condition"] = "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE"
+        result["target_condition"] = ("CHILD_RESTART_STOPPED_QUARANTINED_NOT_RESTORE"
+                                      if child_mode else
+                                      "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE")
+        if child_mode:
+            result["child_isolation"] = "STOPPED"
         if clone_mode:
             _mark_clone_phase(result, "complete")
-        result["status"] = (CLONE_PASSED if clone_mode else
+        result["status"] = (CHILD_PASSED if child_mode else
+                            CLONE_PASSED if clone_mode else
                             SESSION_PASSED if sql_session else
                             GUARD_PASSED if bound_guard else
                             BOUND_PASSED if bound_probe else PASSED)
@@ -1581,18 +1637,22 @@ def _run_batch(args, manifest, package, batch):
                 result["source_after_sha256"] = source_digest(source, manifest)
             except BaseException:
                 pass
+        if child_mode:
+            result["child_isolation"] = ("STOPPED" if
+                result["stop"].get("confirmed") is True else
+                "UNCONFIRMED_UNUSABLE")
     payload = _json_bytes(result)
     _publish_result(evidence, payload)
     summary = {"status": result["status"], "result_sha256": digest(payload),
                "evidence": str(evidence), "not_restore": True}
     if result["status"] in (PASSED, BOUND_PASSED, GUARD_PASSED,
-                            SESSION_PASSED, CLONE_PASSED):
+                            SESSION_PASSED, CLONE_PASSED, CHILD_PASSED):
         summary.update(birth_sha256=result["birth_sha256"],
                        inspection_evidence_sha256=result[
                            "inspection_evidence_sha256"])
     print(json.dumps(summary, sort_keys=True), flush=True)
     return (0 if result["status"] in (PASSED, BOUND_PASSED, GUARD_PASSED,
-                                      SESSION_PASSED, CLONE_PASSED) else 1), result
+                                      SESSION_PASSED, CLONE_PASSED, CHILD_PASSED) else 1), result
 
 
 def run(args):
@@ -1650,6 +1710,8 @@ def main(argv=None):
                        help="opt-in root-private SQLx session proof on a new isolated PG18 target before exact stop")
     modes.add_argument("--sql-session-clone-negative", action="store_true",
                        help="opt-in two-project physical clone preparation for a distinct read-only wrong-endpoint gate")
+    modes.add_argument("--child-read-only-restart", action="store_true",
+                       help="opt-in one-project read-only child proof and same-guard restart rejection")
     try:
         args = parser.parse_args(argv)
     except SystemExit as error:

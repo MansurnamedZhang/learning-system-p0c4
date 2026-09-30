@@ -191,6 +191,28 @@ mod linux_child;
 #[cfg(target_os = "linux")]
 pub(in crate::restore_preflight) use linux_child::attest;
 
+#[cfg(all(test, target_os = "linux"))]
+pub(super) async fn restart_for_test(container_id: &str) -> Result<(), ChildFailure> {
+    if !exact_id(container_id) {
+        return Err(ChildFailure::Identity);
+    }
+    let output = linux_child::docker(
+        &[
+            "container".into(),
+            "restart".into(),
+            "--time".into(),
+            "5".into(),
+            container_id.into(),
+        ],
+        Instant::now() + Duration::from_secs(15),
+    )
+    .await?;
+    if output != format!("{container_id}\n") {
+        return Err(ChildFailure::Identity);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

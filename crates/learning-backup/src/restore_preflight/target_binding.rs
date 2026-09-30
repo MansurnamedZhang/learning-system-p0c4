@@ -2071,6 +2071,80 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[tokio::test]
+    #[ignore = "requires one NEW isolated PG18 target and compile-time birth digest"]
+    async fn live_read_only_child_restart_rejection() {
+        use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
+
+        let config = probe_config_from(|key| std::env::var(key).ok())
+            .expect("explicit nonsecret child environment required");
+        assert_eq!(unsafe { libc::geteuid() }, 0);
+        let before = snapshot_target_files(&config);
+        assert_eq!(
+            before.keys().cloned().collect::<Vec<_>>(),
+            [format!("control/{}.birth.json", config.expected_database)]
+        );
+        let target = config.control_root.parent().unwrap();
+        let attempt = config
+            .control_root
+            .join(restore_attempt_name(&config.expected_database).unwrap());
+        assert!(!attempt.exists());
+        let guard = linux::acquire_for_restore(&config).expect("child guard acquisition failed");
+        let host_ip = guard.target_ip().expect("exact child IP not proven");
+        let password = linux::read_admin_password(target).expect("admin secret unavailable");
+        let options = PgConnectOptions::new()
+            .host(&host_ip.to_string())
+            .port(5432)
+            .username("learning_admin")
+            .password(&password)
+            .database(&config.expected_database)
+            .ssl_mode(PgSslMode::Disable);
+        drop(password);
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .expect("isolated child SQLx connection failed");
+        let (mut challenge, _, _) = begin_sql_session(&pool)
+            .await
+            .expect("child lock challenge failed");
+        {
+            let proof = child_attestation::attest(&guard, &mut challenge)
+                .await
+                .expect("first exact child attestation failed");
+            assert_eq!(proof.status(), "CHILD_READ_ONLY_ATTESTED_NOT_RESTORE");
+        }
+        assert!(!attempt.exists());
+        println!("CHILD_READ_ONLY_ATTESTED_NOT_RESTORE");
+
+        child_attestation::restart_for_test(&guard.claim.container_id)
+            .await
+            .expect("bounded exact-ID restart failed");
+        let failed = match child_attestation::attest(&guard, &mut challenge).await {
+            Err(error) => error,
+            Ok(_) => panic!("restarted child accepted original guard and transaction"),
+        };
+        assert!(matches!(
+            failed.reason,
+            child_attestation::ChildFailure::Session | child_attestation::ChildFailure::Identity
+        ));
+        assert_eq!(failed.isolation.status(), "STOPPED");
+        assert!(guard.recheck().is_err(), "failed child guard was reusable");
+        drop(challenge);
+        drop(guard);
+        drop(pool);
+        assert!(guard_files_unchanged(
+            &before,
+            &snapshot_target_files(&config),
+            &format!("control/{}.restore.lock", config.expected_database),
+        ));
+        assert!(!attempt.exists());
+        println!("CHILD_RESTART_FAILURE_{:?}", failed.reason);
+        println!("CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED");
+        println!("CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
     #[ignore = "requires two NEW isolated PG18 projects and a verified physical base backup"]
     async fn live_read_only_same_id_wrong_endpoint_negative() {
         use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};

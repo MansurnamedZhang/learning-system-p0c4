@@ -3,7 +3,7 @@ use super::*;
 use sqlx::{Postgres, Row, Transaction};
 use std::fs::File;
 
-async fn docker(args: &[String], deadline: Instant) -> Result<String, ChildFailure> {
+pub(super) async fn docker(args: &[String], deadline: Instant) -> Result<String, ChildFailure> {
     #[cfg(target_os = "linux")]
     super::super::linux::trusted_docker_path().map_err(|_| ChildFailure::Identity)?;
     #[cfg(not(target_os = "linux"))]

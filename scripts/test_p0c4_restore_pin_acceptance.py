@@ -206,6 +206,103 @@ class PinAcceptance(unittest.TestCase):
         self.assertIn("sql_session_binding", result)
         self.assertTrue(result["status"].endswith("NOT_RESTORE"))
 
+    def test_child_restart_mode_preflights_then_persists_isolation_and_reuse_rejection(self):
+        self.args.child_read_only_restart = True
+        sequence = []
+        deps = self._dependencies()
+        issuer = deps[1]._run_issuer
+        deps[1]._run_issuer = lambda *args: (sequence.append("issuer") or issuer(*args))
+        deps[1].stop_verified_pg = lambda *_: (sequence.append("stop") or
+            {"confirmed": True, "volume_retained": True})
+        def preflight(*args, **kwargs):
+            self.assertEqual(kwargs, {"child": True})
+            sequence.append("preflight")
+            return {"host_test_listing_confirmed": True}
+        def probe(*args, **kwargs):
+            self.assertEqual(kwargs, {"child": True})
+            sequence.append("probe")
+            return {"state": runner.CHILD_PASSED, "first_attestation":
+                    "CHILD_READ_ONLY_ATTESTED_NOT_RESTORE", "restart_rejection":
+                    "CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE",
+                    "reason": "Session", "isolation": "STOPPED", "guard_reuse_rejected": True,
+                    "exit_code": 0, "birth_sha256": "d" * 64}
+        with patch.object(runner, "_preflight_probe_builder", side_effect=preflight), \
+             patch.object(runner, "_run_bound_probe", side_effect=probe):
+            code, result = self._run(deps)
+        self.assertEqual((code, sequence),
+                         (0, ["preflight", "issuer", "probe", "stop"]))
+        self.assertEqual(result["status"], runner.CHILD_PASSED)
+        self.assertEqual(result["child_read_only"]["isolation"], "STOPPED")
+        self.assertFalse(result["target_reuse_permitted"])
+        self.assertEqual(json.loads((self.batch / "evidence" / "result.json").read_bytes())
+                         ["child_read_only"]["guard_reuse_rejected"], True)
+
+    def test_child_restart_failure_is_durable_and_never_reuses_batch(self):
+        self.args.child_read_only_restart = True
+        deps = self._dependencies()
+        with patch.object(runner, "_preflight_probe_builder", return_value={}), \
+             patch.object(runner, "_run_bound_probe", side_effect=ValueError("bad child")):
+            code, result = self._run(deps)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["status"], runner.CHILD_FAILED)
+        self.assertEqual(result["child_isolation"], "STOPPED")
+        self.assertFalse(result["target_reuse_permitted"])
+        self.assertEqual(json.loads((self.batch / "evidence" / "result.json").read_bytes())
+                         ["status"], runner.CHILD_FAILED)
+
+    def test_child_restart_parser_requires_both_markers_reason_and_one_test(self):
+        name = "restore_preflight::target_binding::tests::live_read_only_child_restart_rejection"
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "testbin"
+            binary.write_bytes(b"binary")
+            listing = (name + ": test\n").encode()
+            passed = ("running 1 test\nCHILD_READ_ONLY_ATTESTED_NOT_RESTORE\n"
+                      "CHILD_RESTART_FAILURE_Session\n"
+                      "CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED\n"
+                      "CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE\n"
+                      "test " + name + " ... ok\n"
+                      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n").encode()
+            with patch.object(runner, "_compile_bound_probe", return_value=(binary, "f" * 64)), \
+                 patch.object(runner, "_file_digest", return_value="f" * 64), \
+                 patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                     returncode=0, stdout=passed, stderr=b"")) as execute:
+                found = runner._run_bound_probe(self.batch / "source", self.batch,
+                    self.batch / "control" / "targets" / ID, "new-database", "d" * 64,
+                    child=True)
+                self.assertEqual(found["reason"], "Session")
+                self.assertEqual(execute.call_args.args[0][1:4],
+                                 [name, "--exact", "--ignored"])
+                for damaged in (passed.replace(b"CHILD_READ_ONLY_ATTESTED_NOT_RESTORE", b""),
+                                passed.replace(b"CHILD_RESTART_FAILURE_Session", b""),
+                                passed.replace(b"CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE",
+                                               b"NOISE_CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE"),
+                                passed.replace(b"1 passed", b"0 passed")):
+                    execute.return_value = SimpleNamespace(returncode=0,
+                                                            stdout=damaged, stderr=b"")
+                    with self.assertRaises(ValueError):
+                        runner._run_bound_probe(self.batch / "source", self.batch,
+                            self.batch / "control" / "targets" / ID,
+                            "new-database", "d" * 64, child=True)
+
+    def test_child_preflight_requires_exact_listed_test_before_target_birth(self):
+        binary = self.batch / "test-binary"
+        binary.write_bytes(b"binary")
+        name = b"restore_preflight::target_binding::tests::live_read_only_child_restart_rejection: test\n"
+        with patch.object(runner, "_trusted_path"), \
+             patch.object(runner, "_compile_bound_probe",
+                          return_value=(binary, runner._file_digest(binary))), \
+             patch.object(runner, "_probe_docker", return_value=SimpleNamespace(
+                 returncode=0, stdout=(runner.BUILDER_IMAGE_ID + "\n").encode())), \
+             patch.object(runner, "_run_bounded", return_value=SimpleNamespace(
+                 returncode=0, stdout=name, stderr=b"")) as execute:
+            self.assertTrue(runner._preflight_probe_builder(
+                self.batch / "source", self.batch,
+                child=True)["host_test_listing_confirmed"])
+            execute.return_value = SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+            with self.assertRaises(ValueError):
+                runner._preflight_probe_builder(self.batch / "source", self.batch,
+                                                child=True)
+
     def test_failed_sql_session_stops_only_exact_target_and_cannot_pass(self):
         self.args.sql_session_binding = True
         deps = self._dependencies()
