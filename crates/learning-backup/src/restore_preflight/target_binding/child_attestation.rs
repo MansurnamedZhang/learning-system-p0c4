@@ -85,9 +85,26 @@ fn socket_rows<'a>(claim: &DockerClaim, output: &'a str) -> Result<&'a str, Chil
     Ok(rows)
 }
 fn version(output: &str) -> Result<(), ChildFailure> {
-    // The birth image is pinned to this exact PG18 build. Do not accept extra
-    // lines, arbitrary suffixes, or a different release from an injected path.
-    if output != "pg_restore (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+1)\n" {
+    // Grammar is tied to the separately checked 18.6-bookworm image identity.
+    // Debian package revisions/builds may differ; this is not fresh evidence of
+    // the pinned image's actual version line. Reject all noncanonical framing.
+    if output.len() > 128 || !output.is_ascii() {
+        return Err(ChildFailure::Version);
+    }
+    let package = output
+        .strip_prefix("pg_restore (PostgreSQL) 18.6 (Debian 18.6-")
+        .and_then(|value| value.strip_suffix(")\n"))
+        .ok_or(ChildFailure::Version)?;
+    let (revision, build) = package
+        .split_once(".pgdg12+")
+        .ok_or(ChildFailure::Version)?;
+    let positive_decimal = |value: &str| {
+        (1..=6).contains(&value.len())
+            && value.as_bytes()[0].is_ascii_digit()
+            && value.as_bytes()[0] != b'0'
+            && value.bytes().all(|byte| byte.is_ascii_digit())
+    };
+    if !positive_decimal(revision) || !positive_decimal(build) {
         return Err(ChildFailure::Version);
     }
     Ok(())
@@ -271,6 +288,64 @@ mod tests {
         )
         .unwrap()
     }
+    #[tokio::test]
+    async fn version_accepts_canonical_pinned_release_package_revisions_without_quarantine() {
+        for suffix in [
+            "1.pgdg12+1",
+            "1.pgdg12+2",
+            "12.pgdg12+345",
+            "999999.pgdg12+999999",
+        ] {
+            let guard = guard();
+            let mut lease = LockChallenge::new(ChallengeKeys::for_test(7, 9), ());
+            let mut io = Fake::good();
+            io.outputs[1] = Ok(format!(
+                "pg_restore (PostgreSQL) 18.6 (Debian 18.6-{suffix})\n"
+            ));
+            let proof = attest_with(&guard, &mut lease, &mut io).await.unwrap();
+            assert_eq!(proof.status(), "CHILD_READ_ONLY_ATTESTED_NOT_RESTORE");
+            assert!(io.quarantined.is_empty());
+        }
+    }
+
+    #[test]
+    fn version_rejects_wrong_release_and_noncanonical_or_unbounded_output() {
+        let good = "pg_restore (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+2)\n";
+        for bad in [
+            good.replace("18.6", "17.6"),
+            good.replacen("18.6", "18.7", 1),
+            good.replace("Debian 18.6", "Debian 18.7"),
+            good.replace("pgdg12", "pgdg13"),
+            good.replace("-1.", "-0."),
+            good.replace("-1.", "-01."),
+            good.replace("+2", "+0"),
+            good.replace("+2", "+02"),
+            good.replace("-1.", "-1000000."),
+            good.replace("+2", "+1000000"),
+            good.replace("-1.", "-+1."),
+            good.replace("+2", "+-2"),
+            good.replace("+2", "+２"),
+            good.replace("+2", "+2x"),
+            good.replace("+2", "+2\0"),
+            good.replace("+2", "+2\t"),
+            good.replace("+2", "+2 "),
+            good.replace("\n", "\r\n"),
+            good.trim_end().to_owned(),
+            format!("{good}extra\n"),
+            format!("{good}\n"),
+            format!(" {good}"),
+            good.replace(" (Debian", "  (Debian"),
+            good.replace(" (Debian 18.6-1.pgdg12+2)", ""),
+            "x".repeat(129),
+        ] {
+            assert_eq!(
+                version(&bad),
+                Err(ChildFailure::Version),
+                "unexpected accepted shape: {bad:?}"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn child_proof_requires_before_and_after_live_session_and_scope() {
         let guard = guard();

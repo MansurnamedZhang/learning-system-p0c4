@@ -37,13 +37,26 @@ pub(super) async fn execute(
     if Instant::now() >= deadline {
         return Err(ChildFailure::Deadline);
     }
-    let mut child = command
+    let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .map_err(|_| ChildFailure::Io)?;
+    supervise(child, deadline, stdout_cap, stderr_cap)?
+        .await
+        .map_err(|_| ChildFailure::Io)?
+}
+
+// Private lifecycle helper also lets tests retain an independent OS process
+// witness before transferring the spawned child to the real supervisor.
+fn supervise(
+    mut child: tokio::process::Child,
+    deadline: Instant,
+    stdout_cap: usize,
+    stderr_cap: usize,
+) -> Result<tokio::sync::oneshot::Receiver<Result<String, ChildFailure>>, ChildFailure> {
     let stdout = child.stdout.take().ok_or(ChildFailure::Io)?;
     let stderr = child.stderr.take().ok_or(ChildFailure::Io)?;
     let (mut sender, receiver) = tokio::sync::oneshot::channel();
@@ -72,7 +85,7 @@ pub(super) async fn execute(
         }
         let _ = sender.send(outcome);
     });
-    receiver.await.map_err(|_| ChildFailure::Io)?
+    Ok(receiver)
 }
 #[cfg(test)]
 mod tests {
@@ -134,12 +147,111 @@ mod tests {
         );
     }
     #[tokio::test]
-    async fn process_deadline_reaps_host_child_and_redacts_exit_stderr() {
+    async fn process_deadline_and_exit_redact_stderr() {
         let start = Instant::now();
         assert_eq!(fixture("sleep", 4096).await, Err(ChildFailure::Deadline));
         assert!(start.elapsed() < Duration::from_secs(5));
         let failure = fixture("secret", 4096).await;
         assert_eq!(failure, Err(ChildFailure::Exit));
         assert!(!format!("{failure:?}").contains("do-not-leak"));
+    }
+    // Hold a duplicate handle to the exact spawned Windows process, rather
+    // than rediscovering a potentially reused PID. Linux kill(pid,0) also
+    // observes zombies, so ESRCH after supervisor completion implies reaping.
+    #[cfg(windows)]
+    struct ProcessWitness {
+        pid: u32,
+        handle: std::os::windows::io::OwnedHandle,
+    }
+    #[cfg(windows)]
+    impl ProcessWitness {
+        fn new(child: &tokio::process::Child) -> Self {
+            use std::os::windows::io::BorrowedHandle;
+            let pid = child.id().unwrap();
+            // SAFETY: child owns this live process handle for the borrow; the
+            // cloned OwnedHandle remains independently valid until dropped.
+            let handle = unsafe { BorrowedHandle::borrow_raw(child.raw_handle().unwrap()) }
+                .try_clone_to_owned()
+                .unwrap();
+            Self { pid, handle }
+        }
+        fn exited(&self) -> bool {
+            use std::os::windows::io::AsRawHandle;
+            #[link(name = "kernel32")]
+            unsafe extern "system" {
+                fn WaitForSingleObject(handle: *mut std::ffi::c_void, milliseconds: u32) -> u32;
+            }
+            // SAFETY: handle is the retained owned process handle. Timeout zero
+            // is a nonblocking query; this never terminates arbitrary processes.
+            let status = unsafe { WaitForSingleObject(self.handle.as_raw_handle(), 0) };
+            assert!(
+                status == 0 || status == 258,
+                "PID {} wait failed: {status}",
+                self.pid
+            );
+            status == 0
+        }
+    }
+    #[cfg(target_os = "linux")]
+    struct ProcessWitness {
+        pid: u32,
+    }
+    #[cfg(target_os = "linux")]
+    impl ProcessWitness {
+        fn new(child: &tokio::process::Child) -> Self {
+            Self {
+                pid: child.id().unwrap(),
+            }
+        }
+        fn exited(&self) -> bool {
+            // SAFETY: signal 0 only queries existence of this spawned PID.
+            if unsafe { libc::kill(self.pid as i32, 0) } == 0 {
+                return false;
+            }
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(libc::ESRCH)
+            );
+            true
+        }
+    }
+    #[cfg(any(windows, target_os = "linux"))]
+    fn observed_sleep(
+        deadline: Instant,
+    ) -> (
+        ProcessWitness,
+        tokio::sync::oneshot::Receiver<Result<String, ChildFailure>>,
+    ) {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "restore_preflight::target_binding::child_attestation::bounded_process::tests::process_fixture", "--nocapture"])
+            .env_clear().env("C4_CHILD_UNIT_FIXTURE", "sleep")
+            .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+        let child = command.spawn().unwrap();
+        let witness = ProcessWitness::new(&child);
+        assert!(!witness.exited());
+        (witness, supervise(child, deadline, 4096, 4096).unwrap())
+    }
+    #[cfg(any(windows, target_os = "linux"))]
+    #[tokio::test]
+    async fn real_supervisor_deadline_terminates_observed_host_pid() {
+        let (witness, result) = observed_sleep(Instant::now() + Duration::from_millis(800));
+        assert_eq!(result.await.unwrap(), Err(ChildFailure::Deadline));
+        assert!(
+            witness.exited(),
+            "deadline returned while child PID was still alive"
+        );
+    }
+    #[cfg(any(windows, target_os = "linux"))]
+    #[tokio::test]
+    async fn real_supervisor_cancellation_terminates_observed_host_pid() {
+        let (witness, result) = observed_sleep(Instant::now() + Duration::from_secs(10));
+        // Dropping the actual awaiting receiver is the cancellation boundary
+        // used by execute; its supervisor has already taken ownership.
+        drop(result);
+        let cleanup_deadline = Instant::now() + Duration::from_secs(2);
+        while !witness.exited() && Instant::now() < cleanup_deadline {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(witness.exited(), "cancelled waiter left child PID alive");
     }
 }
