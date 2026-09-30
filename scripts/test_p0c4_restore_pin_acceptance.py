@@ -1023,6 +1023,55 @@ class PinAcceptance(unittest.TestCase):
                 runner._cleanup_builder(fresh_batch, "preflight")
         self.assertEqual(docker.call_count, 1)
 
+    def test_captured_builder_cleanup_removes_only_expected_id(self):
+        batch = self.base / ID
+        captured = 'a' * 64
+        name, _ = runner._builder_identity(batch, 'preflight')
+        facts = [{'Id': captured, 'Name': '/' + name, 'Image': runner.BUILDER_IMAGE_ID,
+                  'Config': {'Labels': {'com.knowweave.bound-probe.batch': ID}}}]
+        with patch.object(runner, '_builder_container_ids', side_effect=[[captured], []]), \
+             patch.object(runner, '_probe_docker', side_effect=[
+                 SimpleNamespace(returncode=0, stdout=json.dumps(facts).encode()),
+                 SimpleNamespace(returncode=0, stdout=b'')]) as docker:
+            runner._cleanup_builder(batch, 'preflight', expected_id=captured)
+        self.assertEqual([call.args[0] for call in docker.call_args_list],
+            [['container', 'inspect', captured], ['container', 'rm', '-f', captured]])
+
+    def test_captured_builder_absent_with_replacement_is_never_substituted(self):
+        with patch.object(runner, '_builder_container_ids', return_value=['b' * 64]), \
+             patch.object(runner, '_probe_docker') as docker:
+            with self.assertRaisesRegex(ValueError, 'captured ID differs'):
+                runner._cleanup_builder(self.base / ID, 'preflight', expected_id='a' * 64)
+        docker.assert_not_called()
+
+    def test_builder_auto_removed_is_confirmed_for_captured_and_legacy_callers(self):
+        for expected in ({'expected_id': 'a' * 64}, {}):
+            with self.subTest(expected=expected), \
+                 patch.object(runner, '_builder_container_ids', return_value=[]), \
+                 patch.object(runner, '_probe_docker') as docker:
+                runner._cleanup_builder(self.base / ID, 'preflight', **expected)
+            docker.assert_not_called()
+
+    def test_captured_builder_inspection_replacement_never_removes(self):
+        captured = 'a' * 64
+        name, _ = runner._builder_identity(self.base / ID, 'preflight')
+        facts = [{'Id': 'b' * 64, 'Name': '/' + name, 'Image': runner.BUILDER_IMAGE_ID,
+                  'Config': {'Labels': {'com.knowweave.bound-probe.batch': ID}}}]
+        with patch.object(runner, '_builder_container_ids', return_value=[captured]), \
+             patch.object(runner, '_probe_docker', return_value=SimpleNamespace(
+                 returncode=0, stdout=json.dumps(facts).encode())) as docker:
+            with self.assertRaisesRegex(ValueError, 'cleanup identity differs'):
+                runner._cleanup_builder(self.base / ID, 'preflight', expected_id=captured)
+        self.assertEqual([call.args[0] for call in docker.call_args_list],
+                         [['container', 'inspect', captured]])
+
+    def test_captured_builder_rejects_invalid_expected_id_before_inventory(self):
+        for invalid in ('builder', 'a' * 12, 'A' * 64, True):
+            with self.subTest(invalid=invalid), patch.object(runner, '_builder_container_ids') as inventory:
+                with self.assertRaisesRegex(ValueError, 'expected ID invalid'):
+                    runner._cleanup_builder(self.base / ID, 'preflight', expected_id=invalid)
+                inventory.assert_not_called()
+
     def test_command_output_is_bounded_before_read_into_memory(self):
         def write_large(_, *, stdout, stderr, **_kwargs):
             stdout.write(b"too long")

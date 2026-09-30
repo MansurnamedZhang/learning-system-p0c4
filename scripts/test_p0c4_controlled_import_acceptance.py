@@ -757,7 +757,7 @@ class ImportPhaseTests(unittest.TestCase):
         backend.source = Path('/private/source')
         backend.batch = Path('/private/batch')
         backend.source_hash = 'c' * 64
-        commands, build_names = [], []
+        commands, build_names, cleanup_expectations = [], [], []
         binary = Path('/private/batch/test-binary')
         def bounded(command, **kwargs):
             commands.append(command)
@@ -773,7 +773,7 @@ class ImportPhaseTests(unittest.TestCase):
             backend.delegate._cleanup_builder(batch, 'preflight' if name == 'probe-preflight-build' else 'live')
             return binary, 'b' * 64
         backend.delegate = SimpleNamespace(_run_bounded=bounded, _compile_bound_probe=compile_probe,
-                                          _cleanup_builder=lambda *args: None,
+                                          _cleanup_builder=lambda *args, **kwargs: cleanup_expectations.append(kwargs),
                                           _builder_identity=lambda *args: ('builder', 'label=value'),
                                           _builder_container_ids=lambda *args: [],
                                           _file_digest=lambda path: 'b' * 64)
@@ -790,6 +790,7 @@ class ImportPhaseTests(unittest.TestCase):
         for option in ('--cpus=4', '--memory=8g', '--memory-swap=8g'):
             self.assertEqual(commands[0].count(option), 1)
         self.assertTrue(result['builder_observation']['cleanup_confirmed'])
+        self.assertEqual(cleanup_expectations, [{'expected_id': 'e' * 64}])
         self.assertEqual(commands[1], [str(binary), '--list', '--ignored'])
         self.assertIs(backend.delegate._run_bounded, bounded)
         backend._compile_import_binary('a' * 64, 'd' * 64, placeholder=False)
@@ -798,6 +799,50 @@ class ImportPhaseTests(unittest.TestCase):
         for source_pin, target_pin in [('0' * 64, '0' * 64), ('a' * 64, 'a' * 64), ('bad', 'a' * 64)]:
             with self.subTest(source_pin=source_pin), self.assertRaises(runner.ImportRejected):
                 backend._compile_import_binary(source_pin, target_pin, placeholder=False)
+
+    def test_import_cleanup_never_removes_replacement_after_admission_inventory(self):
+        # Exercise the real cleanup recipe through the import adapter. The
+        # label inventory changes AFTER its initial admission check.
+        delegate = runner._load(Path(__file__).with_name('p0c4_restore_pin_acceptance.py'),
+                                'task6_builder_cleanup_model')
+        batch = Path('/private/2b8a1252-54d5-48aa-b176-a9586a86bea3')
+        captured, replacement = 'a' * 64, 'b' * 64
+        for first_inventory in ([captured], []):
+            backend = object.__new__(runner.ImportBackend)
+            backend.source, backend.batch, backend.source_hash = Path('/private/source'), batch, 'c' * 64
+            backend.delegate = delegate
+            observed_reference = []
+            def inspected(command, kwargs, observed):
+                observed.update(container_id=captured, cleanup_confirmed=False)
+                observed_reference.append(observed)
+                return SimpleNamespace(returncode=0)
+            backend._run_import_builder = inspected
+            def compile_probe(source, root, build_name, target_pin):
+                delegate._run_bounded(['/usr/bin/docker', 'run', '--network', 'none',
+                    '--env', 'KNOWWEAVE_C4_TARGET_BIRTH_SHA256=' + target_pin,
+                    '--entrypoint', '/bin/sh', runner.BUILDER_ID])
+                delegate._cleanup_builder(root, 'preflight')
+                return root / 'binary', 'd' * 64
+            name, _ = delegate._builder_identity(batch, 'preflight')
+            facts = [{'Id': replacement, 'Name': '/' + name, 'Image': runner.BUILDER_ID,
+                      'Config': {'Labels': {'com.knowweave.bound-probe.batch': batch.name}}}]
+            with self.subTest(first_inventory=first_inventory), \
+                 patch.object(delegate, '_compile_bound_probe', side_effect=compile_probe), \
+                 patch.object(delegate, '_file_digest', return_value='d' * 64), \
+                 patch.object(delegate, '_builder_container_ids', side_effect=[first_inventory, [replacement], []]), \
+                 patch.object(delegate, '_probe_docker', side_effect=[
+                     SimpleNamespace(returncode=0, stdout=json.dumps(facts).encode()),
+                     SimpleNamespace(returncode=0, stdout=b'')]) as docker:
+                failure = None
+                try:
+                    backend._compile_import_binary('0' * 64, '0' * 64, placeholder=True)
+                except ValueError as error:
+                    failure = error
+                destructive = [call.args[0] for call in docker.call_args_list
+                               if call.args[0][1] in ('rm', 'stop', 'kill')]
+                self.assertEqual(destructive, [], 'replacement B must never be removed or stopped')
+                self.assertIsNotNone(failure)
+                self.assertFalse(observed_reference[0]['cleanup_confirmed'])
 
     def test_listing_missing_one_case_never_authorizes_resource_creation(self):
         backend = object.__new__(runner.ImportBackend)

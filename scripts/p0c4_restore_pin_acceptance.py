@@ -1171,23 +1171,31 @@ def _builder_container_ids(label):
     return ids
 
 
-def _cleanup_builder(batch, stage):
+def _cleanup_builder(batch, stage, *, expected_id=None):
     name, label = _builder_identity(batch, stage)
+    require(expected_id is None or
+            (type(expected_id) is str and HEX64.fullmatch(expected_id)),
+            "bound builder expected ID invalid")
     ids = _builder_container_ids(label)
     require(len(ids) <= 1, "extra bound builder container")
+    # The expectation must enter this actual inspect/remove recipe: an outer
+    # inventory check cannot bind a later label lookup to the observed builder.
+    require(expected_id is None or ids in ([], [expected_id]),
+            "bound builder cleanup captured ID differs")
     if not ids:
         return
-    row = _probe_docker(["container", "inspect", ids[0]])
+    container_id = expected_id if expected_id is not None else ids[0]
+    row = _probe_docker(["container", "inspect", container_id])
     require(row.returncode == 0, "bound builder inspect failed")
     facts = json.loads(row.stdout)
     require(type(facts) is list and len(facts) == 1 and
-            facts[0].get("Id") == ids[0] and
+            facts[0].get("Id") == container_id and
             facts[0].get("Name") == "/" + name and
             facts[0].get("Image") == BUILDER_IMAGE_ID and
             facts[0].get("Config", {}).get("Labels", {}).get(
                 "com.knowweave.bound-probe.batch") == batch.name,
             "bound builder cleanup identity differs")
-    removed = _probe_docker(["container", "rm", "-f", ids[0]])
+    removed = _probe_docker(["container", "rm", "-f", container_id])
     require(removed.returncode == 0 and not _builder_container_ids(label),
             "bound builder cleanup unconfirmed")
 

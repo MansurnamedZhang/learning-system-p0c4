@@ -599,11 +599,11 @@ class ImportBackend(ContractBackend):
                 _, label = self.delegate._builder_identity(batch, stage)
                 ids = self.delegate._builder_container_ids(label)
                 require(ids in ([], [observed['container_id']]), 'Identity')
-            original_cleanup(batch, stage)
+            original_cleanup(batch, stage, expected_id=observed.get('container_id'))
             if observed:
                 observed['cleanup_confirmed'] = True
         # Scoped adaptation of this separately loaded verified module instance;
-        # no legacy file, global process environment, or old runner mode changes.
+        # no global process environment or old runner mode changes.
         self.delegate._run_bounded = compile_command
         self.delegate._cleanup_builder = cleanup
         try:
