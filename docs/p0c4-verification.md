@@ -253,3 +253,13 @@
 - 首轮独立审查发现两项Important：已就绪成功分支可能绕过过期finish截止，继承管道可在宿主回收后无限阻塞reader清理。聚焦RED分别0/1及0/2；修复保留同一绝对截止、定时分支优先和最终截止核对，未排空reader显式abort并逐一join。自进程夹具证明持有管道的进程仍存活、两侧reader均阻塞；单侧reader失败也核对另一侧结束。新增中间JoinHandle重复poll及Clippy失败日志保留，未掩盖。
 - 最终修复源管道15/15、相邻监督器5/5，格式及严格package all-targets Clippy退出0；状态机3/3运行于未改动的状态源码。修复前完整package库83/83；仅stream.rs修订后的全包未重复运行，不能把旧83/83当最终全包证据。独立规格审查的两项缺陷均经复审ADDRESSED，无新增Critical/Important，控制器核对完整报告和留存日志。
 - **T4-LIMIT-01：** Windows真实自进程管道/OS句柄证据只证明宿主回收与reader结束，不能证明Linux Docker客户端、PG事务/提交、真实journal同步或目标容器停机。仍需Task5组合和Task6另授权现场门；现有M3计时失败留给最终整支审查。Task4本地实现/审查完成，Task5开始；目标导入、CompleteBackup、整支/C4/生产尚未验收。
+
+
+### 受控小型 dump Task5：私有写入组合本地完成（2026-10-01）
+
+- 实现提交 `fae1e56d123eda31623bbc566258d48da1473cb5`，修复提交 `fbdcd1a6649d2645707139ec9fb10c4a75131a76`、`cfea8e5bb08e824e4e5dabdf35ef9cbd48825005`。单监督器拥有原guard/SQLx双锁事务和stdin；完整golden之后才启动writer，真正attempt持久化先于payload，commit-intent与最终复验先于首次COMMIT尝试。解码、writer、journal、独立读回和精确停机是分别验证的事实。原产品恢复入口与CompleteBackup门槛未改。
+- 独立审查发现四项Important：T5-SQL-01合法PG18约束形状被误拒绝；T5-OWNERSHIP-01外层取消finish可能丢失reader句柄；T5-COMMIT-01未poll发送即记录提交尝试；T5-OWNERSHIP-02已排队的准入取消可能提前释放authority。修复采用同一严格约束合同、owner字段内可续接reader清理、首个发送poll内的单调提交标记，以及保存原Tokio运行器句柄的清理交接；离开运行上下文后的普通取消也保留authority直到隔离settle。四项经两轮新代理定向复审全部ADDRESSED，无新增Critical/Important。
+- 实际留存RED包括未发送COMMIT、finish取消/截止、已回收child、排队/未送达交接及运行上下文外取消；各自先失败再修复。组合修复后61/61，之后仅增强两个已完成reader的断言，定向2/2；最后单文件运行器交接修复定向4/4。相邻bounded_process 5/5；最终严格all-targets Clippy退出0。普通/all-features库检查通过于该最后cfg(test)单文件修复之前。原98/98 package结果属于最初修复前历史，最终未重复全包/工作区，不能合并成最终完整通过。
+- 格式最终原工具回执 `29cbe0` 退出0，空输出经PowerShell Tee-Object未创建所引用的日志文件；初次回执 `45dd91` 同样如此。报告已改为原回执并明确无日志，控制器和复审代理没有独立读取不存在的文件，没有补造或重跑替代历史证据。中间Clippy/test fixture失败保留并分别标记，最终源码/索引干净。
+- **T5-PROVENANCE-01仍开放：** 普通freeze_dump只检查不可变字节，不能签发导入能力；本地组合在真实可信producer/no-follow/TOC issuer缺失时先拒绝，尚不是可用写入链。Task6负责唯一实产签发与每个独立新case。**Linux/PG18门仍开放：** 当前Windows未编译真实Linux adapter/Send/SQLx查询、未执行生成的PG18 PRECOMMIT/独立读回谓词、未验证现场journal/EOF/COPY/部分COMMIT/停机。运行器关闭或panic不保证隔离完成，保守报告不可冒充成功。
+- Task5本地实现/审查关闭，Task6开始静态实现；现有M3计时失败仍待最终整分支审查。新的文件、UUID、子网、卷和现场场景分别授权，旧失败批次留存不重跑；CompleteBackup、完整C4与生产尚未验收。

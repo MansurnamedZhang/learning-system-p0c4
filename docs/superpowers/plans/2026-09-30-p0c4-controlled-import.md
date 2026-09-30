@@ -10,7 +10,7 @@
 
 **Spec:** [已获批准的首次写入设计](../specs/2026-09-30-p0c4-controlled-import-design.md)。开始编码前执行者必须同时阅读本计划与规格。
 
-**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3提交 `f815b6e62bc78abe45b0610876ce4926e5346835` 已完成候选attempt/提交意图、两道sync屏障及同目录/writer/初始SHA绑定；定向4/4、包内库70/70、格式及严格Clippy通过，独立规格/质量Approved。Task3真实Linux no-follow/fsync门尚未编译/执行，留给另授权批次。Task4实现 `1e4dbda`、修复 `986137b` 已完成本地管道/取消状态机及独立审查：最终管道15/15、状态机3/3、相邻监督器5/5、格式/严格Clippy通过；修复前包内库83/83，修复后未重复全包。独立审查发现的过期finish竞态和继承管道清理阻塞两项Important已修复并复审全部ADDRESSED，未发现新增阻断。Task5开始Linux组合层，Task6随后推进；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
+**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3提交 `f815b6e62bc78abe45b0610876ce4926e5346835` 已完成候选attempt/提交意图、两道sync屏障及同目录/writer/初始SHA绑定；定向4/4、包内库70/70、格式及严格Clippy通过，独立规格/质量Approved。Task3真实Linux no-follow/fsync门尚未编译/执行，留给另授权批次。Task4实现 `1e4dbda`、修复 `986137b` 已完成本地管道/取消状态机及独立审查：最终管道15/15、状态机3/3、相邻监督器5/5、格式/严格Clippy通过；修复前包内库83/83，修复后未重复全包。独立审查发现的过期finish竞态和继承管道清理阻塞两项Important已修复并复审全部ADDRESSED，未发现新增阻断。Task5实现 `fae1e56`、修复 `fbdcd1a`/`cfea8e5` 已完成私有同writer准入、持久屏障、首次提交尝试与清理整合，四项Important经两轮独立复审全部ADDRESSED。本地组合61/61后仅强化两项测试断言，定向2/2；后续交接修复定向4/4及严格Clippy通过，未重复全包。Linux组合尚未编译，真实PG18谓词与可信来源签发T5-PROVENANCE-01仍待Task6。Task6开始静态实现；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
 
 ## Global Constraints
 
@@ -114,11 +114,13 @@ assert!(precommit.accept(ImportEvent::CommitPermitRequested).is_err());
 
 `writer_sql::prelude(expected:&WriterExpected,sql:&VerifiedFixtureSql)->Result<Vec<u8>,ImportFailure>`、`postcheck(expected:&WriterExpected,writer:&WriterIdentity)->Vec<u8>`、`commit_confirmation(nonce:&Nonce)->Vec<u8>`。prelude为BEGIN+完整已审定header+前置断言/READY；postcheck验同writer/同事务、原双锁、四timeout、表两行/主键并输出PRECOMMIT，无COMMIT。COMMIT仅独立固定字节 `b"COMMIT;\n"`，先发送成功后再发送确认SQL；最早发送尝试即提交未知边界。
 
-- [ ] 写RED：`writer_rejects_identity_before_marker`、`writer_requires_original_control_pid_locks_and_distinct_writer`、`no_payload_before_attempt_sync`、`no_commit_before_intent_and_final_recheck`、`cancel_keeps_guards_until_quarantine`；使用依赖注入事件/目标IO核对顺序和固定原因，不能把mock通过当现场通过。
-- [ ] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import`，记录新增预期RED及旧门结果。
-- [ ] 实现原事务观察、root候选准入、同writer PID/backend_start/xid与schema-qualified断言；默认学习角色不能指定任意SQL。已完整匹配后再启动writer；READY精确空行协议与nonce通过、Docker/SQLx复验、attempt持久化后才发送payload。PRECOMMIT复验、intent持久化、最终复验/剩余预算、单owner提交放行按序。
-- [ ] 实现独立读回/失败状态：observer用新的已绑定只读连接验证原双锁，避免长事务统计缓存；只在writer消失且目标可信仍运行时停机前读回。未知COPY不能发ROLLBACK；COMMIT确认不可靠归CommitUnknown，最终停机不可靠归UnconfirmedIsolation。已取消状态不能被late IO重新放行；旧guard无二次消费。
-- [ ] GREEN、旧只读/3a/3b模型、格式/严格package Clippy；用 `cargo check --offline --locked -p learning-backup --lib` 及同命令加 `--all-features` 检查正常库构建，确认没有候选公开方法/feature。提交并独立规格/质量审查；整合通过仍不运行实际导入，需任务6授权现场门。
+- [x] 写RED：`writer_rejects_identity_before_marker`、`writer_requires_original_control_pid_locks_and_distinct_writer`、`no_payload_before_attempt_sync`、`no_commit_before_intent_and_final_recheck`、`cancel_keeps_guards_until_quarantine`；使用依赖注入事件/目标IO核对顺序和固定原因，不能把mock通过当现场通过。
+- [x] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import`，记录新增预期RED及旧门结果。
+- [x] 实现原事务观察、root候选准入、同writer PID/backend_start/xid与schema-qualified断言；默认学习角色不能指定任意SQL。已完整匹配后再启动writer；READY精确空行协议与nonce通过、Docker/SQLx复验、attempt持久化后才发送payload。PRECOMMIT复验、intent持久化、最终复验/剩余预算、单owner提交放行按序。
+- [x] 实现独立读回/失败状态：observer用新的已绑定只读连接验证原双锁，避免长事务统计缓存；只在writer消失且目标可信仍运行时停机前读回。未知COPY不能发ROLLBACK；COMMIT确认不可靠归CommitUnknown，最终停机不可靠归UnconfirmedIsolation。已取消状态不能被late IO重新放行；旧guard无二次消费。
+- [x] GREEN、旧只读/3a/3b模型、格式/严格package Clippy；用 `cargo check --offline --locked -p learning-backup --lib` 及同命令加 `--all-features` 检查正常库构建，确认没有候选公开方法/feature。提交并独立规格/质量审查；整合通过仍不运行实际导入，需任务6授权现场门。
+
+**本地关闭边界（2026-10-01）：** Task5本地实现与独立审查完成，不能据此称Linux编译或实际导入通过。真实可信来源、no-follow/TOC签发、PG18谓词求值、原目录sync与每个写入/负例现场门由Task6另行逐文件/逐新资源授权验证。前述61/61、后续2/2及4/4分别对应各次修订覆盖，不是最终全包或工作区验收。
 
 ## Task 6 — 新项目真实写入、错误端点与证据关闭
 
