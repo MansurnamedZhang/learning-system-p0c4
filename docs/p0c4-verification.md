@@ -182,3 +182,9 @@
 - 源码前后SHA均为 `3fd459ed6033e71efb7da51cfce590cc40dcfd97363cb5f412d19fe472813029`；出生证明SHA `caef819615ac61d76cf2290931fcff62aed3b2be57dc57a2b62453e78d55b6e3` 在结果与child证明中一致。最终快照/断言检查通过，无restore.attempt、数据库导入、资产写入或服务放行；只读目标控制锁是计划允许的状态。
 - root结果确认精确容器ID `b01995579648d5816bb7e9c8f354bb8ecd99bb6443bd1e7763ce48037af3b607` 已停止且留卷。控制器再次独立只读Docker核对：本项目唯一容器正是该ID、项目标签匹配、Running=false、退出0，卷 `learning-system-p0c4-restore-aa3feac4-45ab-4b48-a117-098d2e42b2fd_pg` 存在。目标状态 `CHILD_RESTART_STOPPED_QUARANTINED_NOT_RESTORE`、`target_reuse_permitted=false`；本批与旧af49/124c失败批次全部保留隔离，不重跑、不复用。
 - 关闭本施工单的三任务，只认定精确子进程**只读**准入和同guard重启拒绝的既定验收范围。postmaster独立重启、错误库/认证及其他漂移由已审查依赖注入测试覆盖，不冒充本轮全部现场复现。本结果不是 `CompleteBackup`、真实 `pg_restore` 首次写入、资产恢复闭包、C4整关或生产验收。下一步单独设计固定导入子进程/凭据契约及全新目标上的受控小型dump写入验收，再衔接完整恢复。
+
+### 下一切片：受控小型 dump 写入设计草案（2026-09-30）
+
+- 基线 `e2435e4` 上完成只读源码梳理和独立契约审计，整理 [受控小型 dump 首次写入设计](superpowers/specs/2026-09-30-p0c4-controlled-import-design.md)。取消/提交串行边界、停机前取证和disabled passfile修订后，独立全文复审无剩余阻断或重要矛盾。目前为待用户审阅的设计草案，不是实现完成或现场通过记录。
+- 推荐固定 `pg_restore` 离线解码与单一 `psql` writer 的显式事务：writer自己先核对目标及原SQLx双锁，持久attempt后才写DDL/COPY，提交意图先持久化再单独发送COMMIT。输入只接受完整审查过的小型fixture/golden，默认/发布构建无候选写入口；不伪造CompleteBackup。
+- 本轮未运行数据库测试、未上传新包、未创建服务器批次、未导入或改动旧隔离目标。用户审阅后编写逐任务计划；具体新包、runner及现场批次仍逐文件单独确认。
