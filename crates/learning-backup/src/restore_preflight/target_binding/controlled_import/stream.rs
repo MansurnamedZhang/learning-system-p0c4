@@ -230,25 +230,84 @@ impl StreamOwner {
     pub(super) async fn kill_and_wait(&mut self) -> Result<(), ImportFailure> {
         drop(self.stdin.take());
         let child = self.child.as_mut().ok_or(ImportFailure::Io)?;
-        let _ = child.start_kill();
+        if child.start_kill().is_err() && !matches!(child.try_wait(), Ok(Some(_))) {
+            // Keep the still-owned Child for Drop's emergency reaper.
+            return Err(ImportFailure::Io);
+        }
         child.wait().await.map_err(|_| ImportFailure::Io)?;
         self.child.take();
-        if let Some(task) = self.stdout_task.take() {
-            task.await.map_err(|_| ImportFailure::Io)?;
-        }
-        if let Some(task) = self.stderr_task.take() {
-            let _ = task.await.map_err(|_| ImportFailure::Io)?;
-        }
+        let _ = self.join_readers().await?;
         Ok(())
+    }
+
+    // Both handles are always awaited or aborted and awaited. A completed
+    // child alone does not prove pipe EOF: a descendant may retain the writers.
+    async fn join_readers(&mut self) -> Result<Result<bool, ImportFailure>, ImportFailure> {
+        let mut stdout_task = Some(self.stdout_task.take().ok_or(ImportFailure::Io)?);
+        let mut stderr_task = Some(self.stderr_task.take().ok_or(ImportFailure::Io)?);
+        let mut stdout_result = None;
+        let mut stderr_result = None;
+        while stdout_task.is_some() || stderr_task.is_some() {
+            if Instant::now() >= self.deadline {
+                break;
+            }
+            let wait_stdout = stdout_task.is_some();
+            let wait_stderr = stderr_task.is_some();
+            tokio::select! {
+                biased;
+                _ = tokio::time::sleep_until(self.deadline.into()) => break,
+                result = async { stdout_task.as_mut().unwrap().await }, if wait_stdout => {
+                    stdout_task.take();
+                    stdout_result = Some(result);
+                }
+                result = async { stderr_task.as_mut().unwrap().await }, if wait_stderr => {
+                    stderr_task.take();
+                    stderr_result = Some(result);
+                }
+            }
+        }
+        let mut aborted = false;
+        if let Some(task) = stdout_task.as_ref()
+            && !task.is_finished()
+        {
+            task.abort();
+            aborted = true;
+        }
+        if let Some(task) = stderr_task.as_ref()
+            && !task.is_finished()
+        {
+            task.abort();
+            aborted = true;
+        }
+        if let Some(task) = stdout_task.take() {
+            stdout_result = Some(task.await);
+        }
+        if let Some(task) = stderr_task.take() {
+            stderr_result = Some(task.await);
+        }
+        if aborted {
+            return Err(ImportFailure::Deadline);
+        }
+        stdout_result
+            .ok_or(ImportFailure::Io)?
+            .map_err(|_| ImportFailure::Io)?;
+        stderr_result
+            .ok_or(ImportFailure::Io)?
+            .map_err(|_| ImportFailure::Io)
     }
 
     // Success requires the same child, both output readers and zero exit.
     pub(super) async fn finish(&mut self) -> Result<(), ImportFailure> {
         drop(self.stdin.take());
+        if Instant::now() >= self.deadline {
+            self.kill_and_wait().await?;
+            return Err(ImportFailure::Deadline);
+        }
         let child = self.child.as_mut().ok_or(ImportFailure::Io)?;
         let mut watching = true;
         let outcome = loop {
             break tokio::select! {
+                biased;
                 _ = tokio::time::sleep_until(self.deadline.into()) => Err(ImportFailure::Deadline),
                 changed = self.failure.changed(), if watching => {
                     if let Some(error) = *self.failure.borrow() { Err(error) }
@@ -265,21 +324,10 @@ impl StreamOwner {
             }
         };
         self.child.take();
-        let mut stdout_task = self.stdout_task.take().ok_or(ImportFailure::Io)?;
-        let mut stderr_task = self.stderr_task.take().ok_or(ImportFailure::Io)?;
-        let drained = tokio::select! {
-            _ = tokio::time::sleep_until(self.deadline.into()) => None,
-            result = async { tokio::try_join!(&mut stdout_task, &mut stderr_task) } => Some(result),
-        };
-        let (_, stderr_used) = match drained {
-            Some(result) => result.map_err(|_| ImportFailure::Io)?,
-            None => {
-                stdout_task.abort();
-                stderr_task.abort();
-                let _ = tokio::join!(stdout_task, stderr_task);
-                return Err(ImportFailure::Deadline);
-            }
-        };
+        let stderr_used = self.join_readers().await?;
+        if Instant::now() >= self.deadline {
+            return Err(ImportFailure::Deadline);
+        }
         if let Some(error) = self.error() {
             return Err(error);
         }
@@ -375,6 +423,30 @@ mod tests {
             "nonzero" => {
                 std::io::stdout().write_all(b"TERMINAL\n").unwrap();
                 std::process::exit(7);
+            }
+            "pipe_holder" => {
+                let release =
+                    std::path::PathBuf::from(std::env::var_os("C4_STREAM_HOLDER_RELEASE").unwrap());
+                std::fs::write(release.with_extension("started"), b"").unwrap();
+                let limit = Instant::now() + Duration::from_secs(10);
+                while !release.exists() && Instant::now() < limit {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                std::fs::write(release.with_extension("done"), b"").unwrap();
+            }
+            "spawn_pipe_holder" | "spawn_pipe_holder_block" => {
+                let release = std::env::var_os("C4_STREAM_HOLDER_RELEASE").unwrap();
+                let mut holder = std::process::Command::new(std::env::current_exe().unwrap());
+                holder.args(["--exact", "restore_preflight::target_binding::controlled_import::stream::tests::process_fixture", "--nocapture"])
+                    .env_clear().env("C4_STREAM_FIXTURE", "pipe_holder")
+                    .env("C4_STREAM_HOLDER_RELEASE", release)
+                    .stdin(Stdio::null()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+                let mut holder_child = holder.spawn().unwrap();
+                std::io::stdout().write_all(b"HOLDER_READY\n").unwrap();
+                std::io::stdout().flush().unwrap();
+                // The test kills this owner before release, leaving the
+                // separately started holder as the surviving pipe writer.
+                let _ = holder_child.wait();
             }
             _ => panic!("unknown fixture"),
         }
@@ -545,5 +617,135 @@ mod tests {
             unsafe { WaitForSingleObject(witness.as_raw_handle(), 0) },
             0
         );
+    }
+
+    #[tokio::test]
+    async fn expired_finish_rejects_already_exited_and_drained_success() {
+        for _ in 0..32 {
+            let mut owner = fixture("ready", Duration::from_secs(3), 1024, 1024);
+            assert_eq!(
+                fixture_line(&mut owner).await,
+                Ok(Some(b"READY\n".to_vec()))
+            );
+            owner.close_input().await.unwrap();
+            owner.child.as_mut().unwrap().wait().await.unwrap();
+            tokio::time::timeout(Duration::from_secs(2), async {
+                while !owner.stdout_task.as_ref().unwrap().is_finished()
+                    || !owner.stderr_task.as_ref().unwrap().is_finished()
+                {
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                }
+            })
+            .await
+            .unwrap();
+            owner.deadline = Instant::now() - Duration::from_millis(1);
+            assert_eq!(owner.finish().await, Err(ImportFailure::Deadline));
+            assert!(owner.child.is_none());
+            assert!(owner.stdout_task.is_none() && owner.stderr_task.is_none());
+        }
+    }
+
+    async fn assert_bounded_pipe_holder_cleanup(
+        mode: &str,
+        finish: bool,
+        abort_stdout: bool,
+        abort_stderr: bool,
+    ) {
+        let release =
+            std::env::temp_dir().join(format!("c4-task4-pipe-holder-{}", uuid::Uuid::new_v4()));
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "restore_preflight::target_binding::controlled_import::stream::tests::process_fixture", "--nocapture"])
+            .env_clear().env("C4_STREAM_FIXTURE", mode).env("C4_STREAM_HOLDER_RELEASE", &release);
+        let mut owner = spawn_stream(
+            command,
+            StreamBudget::test(Duration::from_millis(300), 1024, 1024),
+        )
+        .unwrap();
+        assert_eq!(
+            fixture_line(&mut owner).await,
+            Ok(Some(b"HOLDER_READY\n".to_vec()))
+        );
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !release.with_extension("started").exists() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(!release.exists(), "holder was already released");
+        assert!(owner.child.as_mut().unwrap().try_wait().unwrap().is_none());
+        if !abort_stdout {
+            assert!(!owner.stdout_task.as_ref().unwrap().is_finished());
+        }
+        if !abort_stderr {
+            assert!(!owner.stderr_task.as_ref().unwrap().is_finished());
+        }
+        if abort_stdout {
+            owner.stdout_task.as_ref().unwrap().abort();
+        }
+        if abort_stderr {
+            owner.stderr_task.as_ref().unwrap().abort();
+        }
+        let result = tokio::time::timeout(Duration::from_secs(1), async {
+            if finish {
+                owner.finish().await
+            } else {
+                owner.kill_and_wait().await
+            }
+        })
+        .await;
+        std::fs::write(&release, b"").unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !release.with_extension("done").exists() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        std::fs::remove_file(&release).unwrap();
+        std::fs::remove_file(release.with_extension("started")).unwrap();
+        std::fs::remove_file(release.with_extension("done")).unwrap();
+        if result.is_err() {
+            // Make a failing RED test leave no detached reader task or owned host.
+            if let Some(mut child) = owner.child.take() {
+                let _ = child.start_kill();
+                let _ = child.wait().await;
+            }
+            if let Some(task) = owner.stdout_task.take() {
+                task.abort();
+                let _ = task.await;
+            }
+            if let Some(task) = owner.stderr_task.take() {
+                task.abort();
+                let _ = task.await;
+            }
+            panic!("inherited output pipe blocked host cleanup past the bound");
+        }
+        assert_eq!(result.unwrap(), Err(ImportFailure::Deadline));
+        assert!(owner.child.is_none(), "exact host was not reaped");
+        assert!(
+            owner.stdout_task.is_none() && owner.stderr_task.is_none(),
+            "readers not settled"
+        );
+    }
+
+    #[tokio::test]
+    async fn inherited_pipe_writer_cannot_block_kill_cleanup() {
+        assert_bounded_pipe_holder_cleanup("spawn_pipe_holder", false, false, false).await;
+    }
+
+    #[tokio::test]
+    async fn inherited_pipe_writer_cannot_block_finish_error_cleanup() {
+        assert_bounded_pipe_holder_cleanup("spawn_pipe_holder_block", true, false, false).await;
+    }
+
+    #[tokio::test]
+    async fn failed_stdout_reader_does_not_detach_blocked_stderr_reader() {
+        assert_bounded_pipe_holder_cleanup("spawn_pipe_holder", false, true, false).await;
+    }
+
+    #[tokio::test]
+    async fn failed_stderr_reader_does_not_detach_blocked_stdout_reader() {
+        assert_bounded_pipe_holder_cleanup("spawn_pipe_holder", false, false, true).await;
     }
 }
