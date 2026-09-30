@@ -3,6 +3,33 @@ use super::ImportFailure;
 #[derive(Debug)]
 pub(super) struct FixedImportCommand(Vec<String>);
 impl FixedImportCommand {
+    #[cfg(target_os = "linux")]
+    pub(super) fn producer(container_id: &str, database: &str) -> Result<Self, ImportFailure> {
+        Self::writer(container_id, database)?;
+        let mut args = Self::prefix(container_id)?;
+        args.extend(
+            [
+                "/usr/lib/postgresql/18/bin/pg_dump",
+                "--format=custom",
+                "--no-owner",
+                "--no-acl",
+                "--table=public.c4_import_probe",
+                "--no-password",
+                "--host=/var/run/postgresql",
+                "--port=5432",
+                "--username=learning_admin",
+            ]
+            .map(String::from),
+        );
+        args.push(format!("--dbname={database}"));
+        Ok(Self(args))
+    }
+    #[cfg(target_os = "linux")]
+    pub(super) fn toc(container_id: &str) -> Result<Self, ImportFailure> {
+        let mut args = Self::prefix(container_id)?;
+        args.extend(["/usr/lib/postgresql/18/bin/pg_restore", "--list"].map(String::from));
+        Ok(Self(args))
+    }
     pub(super) fn decoder(container_id: &str) -> Result<Self, ImportFailure> {
         let mut args = Self::prefix(container_id)?;
         args.extend(

@@ -2,6 +2,10 @@
 use super::ImportFailure;
 use std::{
     process::Stdio,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::{
@@ -11,10 +15,113 @@ use tokio::{
     task::JoinHandle,
 };
 
+#[derive(Default)]
+struct IdentityErrorLine {
+    prefix: usize,
+    digits: usize,
+    suffix: usize,
+    invalid: bool,
+    matched: bool,
+}
+impl IdentityErrorLine {
+    fn push(&mut self, bytes: &[u8]) {
+        const PREFIX: &[u8] = b"psql:<stdin>:";
+        const SUFFIX: &[u8] = b": ERROR:  KW_C4_IDENTITY";
+        for byte in bytes {
+            if *byte == b'\n' {
+                let matched = self.matched
+                    || (!self.invalid && self.digits > 0 && self.suffix == SUFFIX.len());
+                *self = Self {
+                    matched,
+                    ..Self::default()
+                };
+            } else if !self.invalid {
+                if self.prefix < PREFIX.len() {
+                    self.invalid = *byte != PREFIX[self.prefix];
+                    self.prefix += 1;
+                } else if self.suffix == 0 && byte.is_ascii_digit() {
+                    self.invalid = self.digits == 5 || (self.digits == 0 && *byte == b'0');
+                    self.digits += 1;
+                } else if self.digits > 0 && self.suffix < SUFFIX.len() {
+                    self.invalid = *byte != SUFFIX[self.suffix];
+                    self.suffix += 1;
+                } else {
+                    self.invalid = true;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod identity_line_tests {
+    use super::*;
+    #[test]
+    fn identity_error_requires_complete_primary_line_at_every_split() {
+        let line = b"psql:<stdin>:42: ERROR:  KW_C4_IDENTITY\n";
+        for split in 0..line.len() {
+            let mut state = IdentityErrorLine::default();
+            state.push(&line[..split]);
+            assert!(!state.matched);
+            state.push(&line[split..]);
+            assert!(state.matched, "split {split}");
+        }
+        for line in [
+            b"CONTEXT: RAISE EXCEPTION 'KW_C4_IDENTITY'\n".as_slice(),
+            b"prefix psql:<stdin>:42: ERROR:  KW_C4_IDENTITY\n",
+            b"psql:<stdin>:42: ERROR:  KW_C4_IDENTITY suffix\n",
+            b"psql:<stdin>:42: ERROR:  KW_C4_IDENTITY",
+            b"psql:<stdin>:0: ERROR:  KW_C4_IDENTITY\n",
+            b"psql:<stdin>:999999: ERROR:  KW_C4_IDENTITY\n",
+        ] {
+            let mut state = IdentityErrorLine::default();
+            state.push(line);
+            assert!(!state.matched);
+        }
+    }
+    #[tokio::test]
+    async fn capped_stderr_never_exports_a_seen_identity_line() {
+        let bytes = [
+            b"psql:<stdin>:42: ERROR:  KW_C4_IDENTITY\n".as_slice(),
+            &[b'x'; 8192],
+        ]
+        .concat();
+        let observed = Arc::new(AtomicBool::new(false));
+        let (sender, receiver) = watch::channel(None);
+        assert_eq!(
+            read_stderr(bytes.as_slice(), 8192, sender, Some(observed.clone())).await,
+            Err(ImportFailure::StderrLimit)
+        );
+        assert_eq!(*receiver.borrow(), Some(ImportFailure::StderrLimit));
+        assert!(!observed.load(Ordering::Acquire));
+    }
+    #[tokio::test]
+    async fn real_reader_exports_only_opted_in_settled_primary_error() {
+        for opted_in in [false, true] {
+            let mut command = Command::new(std::env::current_exe().unwrap());
+            command.args(["--exact","restore_preflight::target_binding::controlled_import::stream::tests::process_fixture","--nocapture"])
+                .env_clear().env("C4_STREAM_FIXTURE","identity_error");
+            let mut owner = spawn_stream(
+                command,
+                if opted_in {
+                    StreamBudget::identity_diagnostic()
+                } else {
+                    StreamBudget::writer()
+                },
+            )
+            .unwrap();
+            assert!(!owner.observed_identity_error());
+            assert_eq!(owner.finish().await, Err(ImportFailure::Exit));
+            assert_eq!(owner.observed_identity_error(), opted_in);
+        }
+    }
+}
+
 pub(super) struct StreamBudget {
     deadline: Instant,
     stdout_cap: usize,
     stderr_cap: usize,
+    identity_error: bool,
 }
 
 impl StreamBudget {
@@ -23,6 +130,7 @@ impl StreamBudget {
             deadline: Instant::now() + Duration::from_secs(45),
             stdout_cap: 8 * 1024,
             stderr_cap: 8 * 1024,
+            identity_error: false,
         }
     }
     pub(super) fn decoder() -> Self {
@@ -30,6 +138,7 @@ impl StreamBudget {
             deadline: Instant::now() + Duration::from_secs(15),
             stdout_cap: 64 * 1024,
             stderr_cap: 8 * 1024,
+            identity_error: false,
         }
     }
     #[cfg(test)]
@@ -38,6 +147,13 @@ impl StreamBudget {
             deadline: Instant::now() + duration,
             stdout_cap,
             stderr_cap,
+            identity_error: false,
+        }
+    }
+    pub(super) fn identity_diagnostic() -> Self {
+        Self {
+            identity_error: true,
+            ..Self::writer()
         }
     }
 }
@@ -55,6 +171,7 @@ pub(super) struct StreamOwner {
     stdout_task: Option<JoinHandle<()>>,
     stderr_task: Option<JoinHandle<Result<bool, ImportFailure>>>,
     deadline: Instant,
+    identity_error: Option<Arc<AtomicBool>>,
 }
 
 fn fail(sender: &watch::Sender<Option<ImportFailure>>, failure: ImportFailure) {
@@ -106,18 +223,28 @@ async fn read_stderr(
     mut input: impl AsyncRead + Unpin,
     cap: usize,
     failure: watch::Sender<Option<ImportFailure>>,
+    identity_error: Option<Arc<AtomicBool>>,
 ) -> Result<bool, ImportFailure> {
     let mut buffer = [0_u8; 4096];
     let mut used = 0_usize;
+    let mut primary = IdentityErrorLine::default();
     loop {
         match input.read(&mut buffer).await {
-            Ok(0) => return Ok(used != 0),
+            Ok(0) => {
+                if let Some(observed) = &identity_error {
+                    observed.store(primary.matched, Ordering::Release);
+                }
+                return Ok(used != 0);
+            }
             Ok(n) => {
                 if n > cap.saturating_sub(used) {
                     fail(&failure, ImportFailure::StderrLimit);
                     return Err(ImportFailure::StderrLimit);
                 }
                 used += n;
+                if identity_error.is_some() {
+                    primary.push(&buffer[..n]);
+                }
             }
             Err(_) => {
                 fail(&failure, ImportFailure::Io);
@@ -152,7 +279,15 @@ pub(super) fn spawn_stream(
         lines_tx,
         failure_tx.clone(),
     ));
-    let stderr_task = tokio::spawn(read_stderr(stderr, budget.stderr_cap, failure_tx));
+    let identity_error = budget
+        .identity_error
+        .then(|| Arc::new(AtomicBool::new(false)));
+    let stderr_task = tokio::spawn(read_stderr(
+        stderr,
+        budget.stderr_cap,
+        failure_tx,
+        identity_error.clone(),
+    ));
     Ok(StreamOwner {
         child: Some(child),
         stdin: Some(stdin),
@@ -161,10 +296,21 @@ pub(super) fn spawn_stream(
         stdout_task: Some(stdout_task),
         stderr_task: Some(stderr_task),
         deadline: budget.deadline,
+        identity_error,
     })
 }
 
 impl StreamOwner {
+    pub(super) fn observed_identity_error(&self) -> bool {
+        self.child.is_none()
+            && self.stderr_task.is_none()
+            && self.stdout_task.is_none()
+            && self.error().is_none()
+            && self
+                .identity_error
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Acquire))
+    }
     fn error(&self) -> Option<ImportFailure> {
         *self.failure.borrow()
     }
@@ -419,6 +565,12 @@ mod tests {
             }
             "stderr_nonempty" => {
                 std::io::stderr().write_all(b"redacted secret").unwrap();
+            }
+            "identity_error" => {
+                std::io::stderr()
+                    .write_all(b"psql:<stdin>:42: ERROR:  KW_C4_IDENTITY\n")
+                    .unwrap();
+                std::process::exit(7);
             }
             "read_three" => {
                 let mut input = [0_u8; 3];

@@ -716,6 +716,32 @@ async fn verify_target_birth(
     let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(BackupError::Invalid(
         "target birth digest is not build-pinned",
     ))?;
+    verify_birth_with_pin(conn, config, control, assets, pinned).await
+}
+
+#[cfg(all(test, target_os = "linux"))]
+async fn verify_import_source_birth(
+    conn: &mut PgConnection,
+    config: &RestorePreflightConfig,
+    control: &BackupDir,
+    assets: &BackupDir,
+) -> Result<(), BackupError> {
+    let pinned = option_env!("KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256").ok_or(
+        BackupError::Invalid("fixture source birth is not build-pinned"),
+    )?;
+    verify_birth_with_pin(conn, config, control, assets, pinned).await
+}
+
+// Both pins enter this complete verifier. Production still obtains its sole
+// pin from KNOWWEAVE_C4_TARGET_BIRTH_SHA256, never configuration/caller input.
+#[cfg(target_os = "linux")]
+async fn verify_birth_with_pin(
+    conn: &mut PgConnection,
+    config: &RestorePreflightConfig,
+    control: &BackupDir,
+    assets: &BackupDir,
+    pinned: &str,
+) -> Result<(), BackupError> {
     let name = format!("{}.birth.json", config.expected_database);
     let file = control.open_file(&name)?;
     let meta = file.metadata()?;

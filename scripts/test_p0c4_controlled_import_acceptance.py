@@ -674,5 +674,305 @@ print('CONTROL_HELPERS_LOADED')
             self.assertEqual(old.REQUIRED, original_inventory)
 
 
+class ImportPhaseTests(unittest.TestCase):
+    """Local runner decisions only; no Docker, PostgreSQL, or live evidence."""
+
+    def entry(self, name):
+        function = getattr(runner, name, None)
+        self.assertTrue(callable(function), f"missing closed import predicate: {name}")
+        return function
+
+    def receipt(self, case):
+        """Synthetic libtest text exercises parser only, never live acceptance."""
+        _, failure, points = runner.IMPORT_CASES[case]
+        return {'schema': 1, 'case': case, 'failure': failure,
+            'checkpoints': [*runner.IMPORT_COMMON_CHECKPOINTS, *points],
+            'commit_attempted': case in ('success', 'commit-unknown'),
+            'rollback_verified': case in ('ready-eof', 'precommit-eof', 'precommit-cancel'),
+            'retry_allowed': False, 'dump_sha256': 'a' * 64, 'toc_sha256': 'b' * 64,
+            'raw_sql_sha256': 'c' * 64, 'transformed_sql_sha256': 'd' * 64,
+            'content_sha256': hashlib.sha256(b'1|alpha\n2|beta\n').hexdigest() if case == 'success' else None}
+
+    def output(self, case, record):
+        name = runner.IMPORT_PREFIX + runner.IMPORT_CASES[case][0]
+        return (f'\nrunning 1 test\ntest {name} ... '
+                f'KW_C4_IMPORT|{json.dumps(record, separators=(",", ":"))}\nok\n\n'
+                'test result: ok. 1 passed; 0 failed; 0 ignored; '
+                '0 measured; 123 filtered out; finished in 0.01s\n').encode()
+
+    def test_import_receipt_rejects_each_missing_or_fabricated_checkpoint(self):
+        parse = self.entry('_import_observations')
+        for case in runner.IMPORT_CASES:
+            record = self.receipt(case)
+            self.assertEqual(parse(self.output(case, record), case, 0), record)
+            for point in list(record['checkpoints']):
+                missing = copy.deepcopy(record)
+                missing['checkpoints'].remove(point)
+                with self.subTest(case=case, point=point), self.assertRaises(runner.ImportRejected):
+                    parse(self.output(case, missing), case, 0)
+            for extra in ('MODEL_PASSED', record['checkpoints'][0]):
+                surplus = copy.deepcopy(record)
+                surplus['checkpoints'].append(extra)
+                with self.subTest(case=case, extra=extra), self.assertRaises(runner.ImportRejected):
+                    parse(self.output(case, surplus), case, 0)
+
+    def test_import_receipt_rejects_non_exact_process_and_count_evidence(self):
+        parse = self.entry('_import_observations')
+        record = self.receipt('success')
+        valid = self.output('success', record)
+        mutations = [valid.replace(b'1 passed', b'0 passed'),
+                     valid.replace(b'0 ignored', b'1 ignored'),
+                     valid.replace(b'0 failed', b'1 failed'),
+                     valid.replace(b'\nok\n', b'\nFAILED\n'),
+                     valid.replace(b'running 1 test', b'running 2 tests'),
+                     valid.replace(b'\n\ntest result:', b'\ntest unrelated ... ok\n\ntest result:'),
+                     valid.replace(b'live_controlled_import_commits_fixture', b'other_test'),
+                     valid + valid,
+                     valid.replace(b'"schema":1', b'"schema":1,"schema":1'),
+                     valid.replace(b'"schema":1', b'"schema":true')]
+        for output in mutations:
+            with self.subTest(output=output[:80]), self.assertRaises(runner.ImportRejected):
+                parse(output, 'success', 0)
+        for code in (1, -9, True, None):
+            with self.subTest(code=code), self.assertRaises(runner.ImportRejected):
+                parse(valid, 'success', code)
+
+    def test_commit_unknown_complete_receipt_rejects_retry_and_rollback_claims(self):
+        parse = self.entry('_import_observations')
+        record = self.receipt('commit-unknown')
+        for key, invalid in [('rollback_verified', True), ('retry_allowed', True),
+                             ('commit_attempted', False), ('failure', None)]:
+            changed = {**record, key: invalid}
+            with self.subTest(key=key), self.assertRaises(runner.ImportRejected):
+                parse(self.output('commit-unknown', changed), 'commit-unknown', 0)
+
+    def test_success_requires_actual_independent_content_digest(self):
+        record = self.receipt('success')
+        for invalid in (None, 'a' * 64, True):
+            with self.subTest(invalid=invalid), self.assertRaises(runner.ImportRejected):
+                runner._import_observations(self.output('success', {**record, 'content_sha256': invalid}), 'success', 0)
+
+    def test_compile_only_placeholder_injects_separate_source_pin_and_lists_all_eleven(self):
+        backend = object.__new__(runner.ImportBackend)
+        backend.source = Path('/private/source')
+        backend.batch = Path('/private/batch')
+        backend.source_hash = 'c' * 64
+        commands, build_names = [], []
+        binary = Path('/private/batch/test-binary')
+        def bounded(command, **kwargs):
+            commands.append(command)
+            if command[:2] == ['/usr/bin/docker', 'run']:
+                return SimpleNamespace(returncode=0)
+            return SimpleNamespace(returncode=0, stderr=b'', stdout=b'\n'.join(
+                (runner.IMPORT_PREFIX + value[0] + ': test').encode() for value in runner.IMPORT_CASES.values()))
+        def compile_probe(source, batch, name, target_pin):
+            build_names.append(name)
+            backend.delegate._run_bounded(['/usr/bin/docker', 'run', '--network', 'none',
+                '--env', 'KNOWWEAVE_C4_TARGET_BIRTH_SHA256=' + target_pin,
+                '--entrypoint', '/bin/sh', runner.BUILDER_ID])
+            backend.delegate._cleanup_builder(batch, 'preflight' if name == 'probe-preflight-build' else 'live')
+            return binary, 'b' * 64
+        backend.delegate = SimpleNamespace(_run_bounded=bounded, _compile_bound_probe=compile_probe,
+                                          _cleanup_builder=lambda *args: None,
+                                          _builder_identity=lambda *args: ('builder', 'label=value'),
+                                          _builder_container_ids=lambda *args: [],
+                                          _file_digest=lambda path: 'b' * 64)
+        def inspected(command, kwargs, observed):
+            observed.update(container_id='e' * 64, cleanup_confirmed=False)
+            return bounded(command, **kwargs)
+        backend._run_import_builder = inspected
+        result = backend._preflight_import_builder()
+        self.assertTrue(result['placeholder'])
+        self.assertFalse(result['executed'])
+        self.assertEqual(len(result['exact_tests_listed']), 11)
+        self.assertEqual(build_names, ['probe-preflight-build'])
+        self.assertEqual(commands[0].count('KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256=' + '0' * 64), 1)
+        for option in ('--cpus=4', '--memory=8g', '--memory-swap=8g'):
+            self.assertEqual(commands[0].count(option), 1)
+        self.assertTrue(result['builder_observation']['cleanup_confirmed'])
+        self.assertEqual(commands[1], [str(binary), '--list', '--ignored'])
+        self.assertIs(backend.delegate._run_bounded, bounded)
+        backend._compile_import_binary('a' * 64, 'd' * 64, placeholder=False)
+        self.assertEqual(build_names[-1], 'probe-live-build')
+        self.assertIn('KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256=' + 'a' * 64, commands[-1])
+        for source_pin, target_pin in [('0' * 64, '0' * 64), ('a' * 64, 'a' * 64), ('bad', 'a' * 64)]:
+            with self.subTest(source_pin=source_pin), self.assertRaises(runner.ImportRejected):
+                backend._compile_import_binary(source_pin, target_pin, placeholder=False)
+
+    def test_listing_missing_one_case_never_authorizes_resource_creation(self):
+        backend = object.__new__(runner.ImportBackend)
+        backend.source, backend.batch = Path('/source'), Path('/batch')
+        for missing in runner.IMPORT_CASES:
+            listing = b'\n'.join((runner.IMPORT_PREFIX + value[0] + ': test').encode()
+                for key, value in runner.IMPORT_CASES.items() if key != missing)
+            backend.delegate = SimpleNamespace(_file_digest=lambda path: 'b' * 64,
+                _run_bounded=lambda *args, **kwargs: SimpleNamespace(returncode=0, stderr=b'', stdout=listing))
+            with self.subTest(missing=missing), self.assertRaises(runner.ImportRejected):
+                backend._list_import_tests(Path('/binary'), 'b' * 64)
+
+    def builder(self):
+        backend = object.__new__(runner.ImportBackend)
+        backend.source, backend.batch = Path('/source'), Path('/batch')
+        build = backend.batch / 'probe-preflight-build'
+        command = ['/usr/bin/docker', 'run', '--name', 'builder', '--label', 'owner=case',
+                   '--mount', f'type=bind,src={backend.source},dst=/reviewed,readonly',
+                   '--mount', f'type=bind,src={build},dst=/target']
+        row = {'Id': 'a' * 64, 'Name': '/builder', 'Image': runner.BUILDER_ID,
+            'State': {'Running': True}, 'Config': {'Image': runner.BUILDER_ID,
+                'Labels': {'owner': 'case'}, 'User': '0:0', 'Env': ['PRIVATE=do-not-emit']},
+            'HostConfig': {'NanoCpus': 4_000_000_000, 'Memory': 8 * 1024**3,
+                'MemorySwap': 8 * 1024**3, 'NetworkMode': 'none', 'Privileged': False,
+                'CapDrop': ['ALL'], 'SecurityOpt': ['no-new-privileges']},
+            'Mounts': [{'Type': 'bind', 'Source': str(backend.source), 'Destination': '/reviewed', 'RW': False},
+                       {'Type': 'bind', 'Source': str(build), 'Destination': '/target', 'RW': True}]}
+        return backend, command, row
+
+    def test_builder_receipt_requires_actual_limits_identity_and_readonly_source(self):
+        backend, command, row = self.builder()
+        projection = backend._builder_projection(command, row)
+        self.assertEqual(projection['container_id'], row['Id'])
+        self.assertNotIn('PRIVATE', json.dumps(projection))
+        for parent, key, invalid in [('HostConfig', 'Memory', 0), ('HostConfig', 'MemorySwap', -1),
+                ('HostConfig', 'NanoCpus', 1), ('HostConfig', 'Privileged', True),
+                ('HostConfig', 'NetworkMode', 'bridge'), ('State', 'Running', False),
+                ('Config', 'Image', 'other'), (None, 'Id', 'short')]:
+            changed = copy.deepcopy(row)
+            (changed[parent] if parent else changed)[key] = invalid
+            with self.subTest(key=key), self.assertRaises(runner.ImportRejected):
+                backend._builder_projection(command, changed)
+        changed = copy.deepcopy(row)
+        changed['Mounts'][0]['RW'] = True
+        with self.assertRaises(runner.ImportRejected):
+            backend._builder_projection(command, changed)
+
+    def test_builder_observation_failure_reaps_owned_real_child_without_name_substitution(self):
+        backend, command, row = self.builder()
+        original = fixture.subprocess.Popen
+        processes, inspected = [], []
+        def child(_command, **kwargs):
+            process = original([sys.executable, '-u', '-c', 'import time; time.sleep(30)'], **kwargs)
+            processes.append(process)
+            return process
+        replacement = {**row, 'Id': 'b' * 64}
+        replies = iter([row, replacement])
+        def inspect(binary, args, deadline):
+            inspected.append(args[-1])
+            return json.dumps([next(replies)])
+        backend.commands = SimpleNamespace(_run=inspect)
+        with patch.object(runner, 'fixture', fixture), patch.object(fixture.subprocess, 'Popen', side_effect=child):
+            with self.assertRaises(runner.ImportRejected):
+                backend._run_import_builder(command, {'timeout': 30, 'env': {'LC_ALL': 'C'}}, {})
+        self.assertEqual(inspected, ['builder', 'a' * 64])
+        self.assertEqual(len(processes), 1)
+        self.assertIsNotNone(processes[0].poll())
+        self.assertTrue(all(pipe.closed for pipe in (processes[0].stdin, processes[0].stdout, processes[0].stderr)))
+
+    def test_marker_records_require_actual_case_stage_and_bound_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            batch = '2b8a1252-54d5-48aa-b176-a9586a86bea3'
+            database = 'learning_restore_c4_' + batch
+            control = root / 'targets' / batch / 'control'
+            control.mkdir(parents=True)
+            target = {'control': root, 'batch_id': batch, 'birth_sha256': 'e' * 64,
+                      'identity': {'database': database}}
+            backend = object.__new__(runner.ImportBackend)
+            backend.helper = SimpleNamespace(_private_read=lambda path, **kwargs: path.read_bytes())
+            observation = self.receipt('success')
+            attempt = {'format_version': 1, 'record_type': 'CONTROLLED_IMPORT_CANDIDATE',
+                'phase': 'ATTEMPT', 'batch_id': batch, 'database': database, 'fixture_version': 1,
+                'birth_sha256': 'e' * 64, 'inspection_sha256': 'f' * 64,
+                'dump_sha256': 'a' * 64, 'raw_sql_sha256': 'c' * 64,
+                'transformed_sql_sha256': 'd' * 64, 'writer_sha256': '1' * 64}
+            attempt_path = control / (database + '.restore.attempt')
+            intent_path = control / (database + '.restore.commit-attempt')
+            def save(record):
+                raw = json.dumps(record).encode()
+                attempt_path.write_bytes(raw)
+                intent = {'format_version': 1, 'record_type': 'CONTROLLED_IMPORT_CANDIDATE',
+                    'phase': 'COMMIT_ATTEMPTED', 'database': database,
+                    'attempt_sha256': hashlib.sha256(raw).hexdigest(), 'writer_sha256': record['writer_sha256']}
+                intent_path.write_text(json.dumps(intent))
+            save(attempt)
+            self.assertTrue(backend._markers(target, observation)['intent']['exists'])
+            for key, value in [('phase', 'COMMITTED'), ('batch_id', '11111111-1111-4111-8111-111111111111'),
+                               ('writer_sha256', 'caller-token'), ('format_version', True)]:
+                save({**attempt, key: value})
+                with self.subTest(key=key), self.assertRaises(runner.ImportRejected):
+                    backend._markers(target, observation)
+            save(attempt)
+            with self.assertRaises(runner.ImportRejected):
+                backend._markers(target, self.receipt('ready-eof'))
+            intent_path.unlink()
+            with self.assertRaises(runner.ImportRejected):
+                backend._markers(target, observation)
+
+    def test_missing_gate1_attestation_prevents_creation(self):
+        run = self.entry('run_import_case')
+        with patch.object(runner, '_prepare_backend') as prepare:
+            with self.assertRaisesRegex(runner.ImportRejected, 'Identity'):
+                run(SimpleNamespace(phase='import'), 'success')
+        prepare.assert_not_called()
+
+    def test_selects_one_exact_live_test(self):
+        command = self.entry('_import_test_command')
+        expected = ('restore_preflight::target_binding::controlled_import::'
+                    'live_tests::live_controlled_import_commits_fixture')
+        self.assertEqual(command(Path('/private/test-binary'), 'success'),
+            [str(Path('/private/test-binary')), '--exact', expected, '--ignored',
+             '--nocapture', '--test-threads=1'])
+        for case in ('', 'all', 'success --include-ignored', 'SUCCESS'):
+            with self.subTest(case=case), self.assertRaises(runner.ImportRejected):
+                command(Path('/private/test-binary'), case)
+
+    def test_negative_is_not_success_without_expected_evidence(self):
+        observations = self.entry('_import_observations')
+        name = ('restore_preflight::target_binding::controlled_import::'
+                'live_tests::live_controlled_import_ready_eof')
+        output = (f'\nrunning 1 test\ntest {name} ... ok\n\n'
+                  'test result: ok. 1 passed; 0 failed; 0 ignored; '
+                  '0 measured; 123 filtered out; finished in 0.01s\n').encode()
+        for code in (0, 1):
+            with self.subTest(code=code), self.assertRaises(runner.ImportRejected):
+                observations(output, 'ready-eof', code)
+
+    def test_final_result_requires_stop_and_no_pending(self):
+        validate = self.entry('_validate_import_final')
+        result = {'case': 'success', 'status':
+            'CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE',
+            'isolation': {'source_stopped': True, 'target_stopped': True,
+                          'volumes_retained': True},
+            'source_unchanged': True, 'pending_absent': True}
+        validate(result)
+        for path in (('isolation', 'source_stopped'), ('isolation', 'target_stopped'),
+                     ('isolation', 'volumes_retained'), ('source_unchanged',),
+                     ('pending_absent',)):
+            changed = copy.deepcopy(result)
+            parent = changed
+            for key in path[:-1]:
+                parent = parent[key]
+            parent[path[-1]] = False
+            with self.subTest(path=path), self.assertRaises(runner.ImportRejected):
+                validate(changed)
+        clone = copy.deepcopy(result)
+        clone['case'] = 'wrong-endpoint'
+        with self.assertRaises(runner.ImportRejected):
+            validate(clone)
+
+    def test_commit_unknown_is_never_reported_as_rollback(self):
+        observations = self.entry('_import_observations')
+        name = ('restore_preflight::target_binding::controlled_import::'
+                'live_tests::live_controlled_import_commit_confirmation_lost')
+        receipt = {'case': 'commit-unknown', 'failure': 'CommitUnknown',
+                   'rollback_verified': True, 'retry_allowed': False,
+                   'commit_attempted': True}
+        output = (f'\nrunning 1 test\ntest {name} ... '
+                  f'KW_C4_IMPORT|{json.dumps(receipt)}\nok\n\n'
+                  'test result: ok. 1 passed; 0 failed; 0 ignored; '
+                  '0 measured; 123 filtered out; finished in 0.01s\n').encode()
+        with self.assertRaisesRegex(runner.ImportRejected, 'Protocol'):
+            observations(output, 'commit-unknown', 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,6 +4,8 @@ mod commands;
 mod fixture_sql;
 #[cfg(all(test, target_os = "linux"))]
 mod linux;
+#[cfg(all(test, target_os = "linux"))]
+mod live_tests;
 mod protocol;
 mod state;
 mod stream;

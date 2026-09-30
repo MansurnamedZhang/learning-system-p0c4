@@ -11,6 +11,87 @@ const KEY_TOKEN: &[u8] = b"{{RESTRICT_KEY}}";
 // 16 bytes, so the equivalent position in the checked-in template is 623.
 const TEMPLATE_HEADER_END: usize = 623;
 
+fn verify_toc(bytes: &[u8], database: &str) -> Result<(), ImportFailure> {
+    let bad = || ImportFailure::Fixture;
+    if bytes.len() > MAX_FIXTURE_BYTES || !bytes.is_ascii() || bytes.contains(&b'\r') {
+        return Err(bad());
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| bad())?;
+    let lines: Vec<_> = text.lines().collect();
+    if lines.len() != 18 || !text.ends_with('\n') || lines[0] != ";" {
+        return Err(bad());
+    }
+    let date = lines[1]
+        .strip_prefix("; Archive created at ")
+        .ok_or_else(bad)?;
+    if date.len() != 23
+        || !date.ends_with(" UTC")
+        || date.as_bytes().iter().enumerate().any(|(i, b)| match i {
+            4 | 7 => *b != b'-',
+            10 | 19 => *b != b' ',
+            13 | 16 => *b != b':',
+            20..=22 => false,
+            _ => !b.is_ascii_digit(),
+        })
+        || lines[2] != format!(";     dbname: {database}")
+    {
+        return Err(bad());
+    }
+    let fixed = [
+        ";     TOC Entries: 7",
+        ";     Compression: gzip",
+        ";     Dump Version: 1.16-0",
+        ";     Format: CUSTOM",
+        ";     Integer: 4 bytes",
+        ";     Offset: 8 bytes",
+        ";     Dumped from database version: 18.6 (Debian 18.6-1.pgdg12+2)",
+        ";     Dumped by pg_dump version: 18.6 (Debian 18.6-1.pgdg12+2)",
+        ";",
+        ";",
+        "; Selected TOC Entries:",
+        ";",
+    ];
+    if lines[3..15] != fixed {
+        return Err(bad());
+    }
+    let mut oids = Vec::new();
+    for (line, catalog, suffix) in [
+        (
+            lines[15],
+            "1259",
+            "TABLE public c4_import_probe learning_admin",
+        ),
+        (
+            lines[16],
+            "0",
+            "TABLE DATA public c4_import_probe learning_admin",
+        ),
+        (
+            lines[17],
+            "2606",
+            "CONSTRAINT public c4_import_probe c4_import_probe_pkey learning_admin",
+        ),
+    ] {
+        let (id, row) = line.split_once("; ").ok_or_else(bad)?;
+        let (cat, row) = row.split_once(' ').ok_or_else(bad)?;
+        let (oid, name) = row.split_once(' ').ok_or_else(bad)?;
+        for number in [id, oid] {
+            let parsed: u32 = number.parse().map_err(|_| bad())?;
+            if parsed == 0 || parsed.to_string() != number {
+                return Err(bad());
+            }
+        }
+        if cat != catalog || name != suffix {
+            return Err(bad());
+        }
+        oids.push(oid);
+    }
+    if oids[0] != oids[1] || oids[0] == oids[2] {
+        return Err(bad());
+    }
+    Ok(())
+}
+
 #[allow(dead_code)]
 pub(super) struct FrozenDump {
     bytes: Box<[u8]>,
@@ -18,14 +99,16 @@ pub(super) struct FrozenDump {
     provenance: Option<FixtureProvenance>,
 }
 
-// T5-PROVENANCE-01: there is intentionally no issuing constructor in Task 5.
-// Task 6's reviewed fixed producer/no-follow/TOC adapter must supply the sole
-// issuer, after observing a fresh isolated source and these exact frozen bytes.
-// The uninhabited seal prevents a boolean/caller-digest shortcut in this slice.
-enum ValidatedFreshProducer {}
+// Constructed only by the Linux fixed producer below after full source birth,
+// real capture, no-follow snapshot, TOC and golden validation. No setter exists.
+struct ValidatedFreshProducer;
 #[allow(dead_code)]
 struct FixtureProvenance {
     batch: uuid::Uuid,
+    source_batch: uuid::Uuid,
+    case: &'static str,
+    target_database: String,
+    source_birth_sha256: [u8; 32],
     source_database: String,
     source_container: String,
     producer_image: String,
@@ -42,9 +125,13 @@ impl FrozenDump {
         &self,
         batch: uuid::Uuid,
         target_database: &str,
+        case: &str,
     ) -> Result<(), ImportFailure> {
         let proof = self.provenance.as_ref().ok_or(ImportFailure::Fixture)?;
         if proof.batch != batch
+            || proof.source_batch == batch
+            || proof.case != case
+            || proof.target_database != target_database
             || proof.source_database == target_database
             || !super::super::exact_id(&proof.source_container)
             || proof.producer_image != super::super::PINNED_IMAGE
@@ -62,6 +149,14 @@ impl FrozenDump {
 
     pub(super) fn sha256(&self) -> [u8; 32] {
         self.sha256
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn toc_sha256(&self) -> Result<[u8; 32], ImportFailure> {
+        self.provenance
+            .as_ref()
+            .map(|proof| proof.toc_sha256)
+            .ok_or(ImportFailure::Fixture)
     }
 }
 
@@ -127,6 +222,192 @@ pub(super) fn freeze_dump(
         sha256: expected_sha256,
         provenance: None,
     })
+}
+
+// Binary pg_dump output cannot use the line protocol. This fixed-command
+// collector bounds both pipes while reading and always reaps before returning.
+// Its only callers run in the ownership task below or the live-case owner.
+#[cfg(target_os = "linux")]
+pub(super) async fn fixed_bytes(
+    fixed: super::commands::FixedImportCommand,
+    input: &[u8],
+    writer: bool,
+) -> Result<Vec<u8>, ImportFailure> {
+    use std::{
+        process::Stdio,
+        time::{Duration, Instant},
+    };
+    use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+    async fn limited(
+        mut pipe: impl AsyncRead + Unpin,
+        cap: usize,
+        error: ImportFailure,
+    ) -> Result<Vec<u8>, ImportFailure> {
+        let mut bytes = Vec::new();
+        let mut buffer = [0; 4096];
+        loop {
+            let n = pipe
+                .read(&mut buffer)
+                .await
+                .map_err(|_| ImportFailure::Io)?;
+            if n == 0 {
+                return Ok(bytes);
+            }
+            if n > cap.saturating_sub(bytes.len()) {
+                return Err(error);
+            }
+            bytes.extend_from_slice(&buffer[..n]);
+        }
+    }
+    super::super::linux::trusted_docker_path().map_err(|_| ImportFailure::Identity)?;
+    let deadline = Instant::now() + Duration::from_secs(if writer { 45 } else { 15 });
+    let mut child = tokio::process::Command::new("/usr/bin/docker")
+        .args(&fixed.argv()[1..])
+        .env_clear()
+        .env("DOCKER_HOST", "unix:///var/run/docker.sock")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|_| ImportFailure::Io)?;
+    let mut stdin = child.stdin.take().ok_or(ImportFailure::Io)?;
+    let stdout = child.stdout.take().ok_or(ImportFailure::Io)?;
+    let stderr = child.stderr.take().ok_or(ImportFailure::Io)?;
+    let result = tokio::time::timeout_at(deadline.into(), async {
+        let (_, out, err, status) = tokio::try_join!(
+            async {
+                stdin
+                    .write_all(input)
+                    .await
+                    .map_err(|_| ImportFailure::Io)?;
+                stdin.shutdown().await.map_err(|_| ImportFailure::Io)?;
+                drop(stdin);
+                Ok::<_, ImportFailure>(())
+            },
+            limited(
+                stdout,
+                if writer { 8192 } else { 65536 },
+                ImportFailure::StdoutLimit
+            ),
+            limited(stderr, 8192, ImportFailure::StderrLimit),
+            async { child.wait().await.map_err(|_| ImportFailure::Io) }
+        )?;
+        if !status.success() {
+            return Err(ImportFailure::Exit);
+        }
+        if !err.is_empty() {
+            return Err(ImportFailure::Stderr);
+        }
+        Ok(out)
+    })
+    .await
+    .unwrap_or(Err(ImportFailure::Deadline));
+    if result.is_err() {
+        let _ = child.start_kill();
+        child.wait().await.map_err(|_| ImportFailure::Io)?;
+    }
+    result
+}
+
+#[cfg(target_os = "linux")]
+pub(super) async fn capture_fresh_fixture(
+    config: super::super::super::RestorePreflightConfig,
+    target_database: String,
+    case: &'static str,
+    snapshot_root: std::path::PathBuf,
+) -> Result<FrozenDump, ImportFailure> {
+    // Dropping the waiter never abandons source guard/original lease/process.
+    tokio::spawn(async move {
+        use super::super as binding;
+        use super::super::super as preflight;
+        use super::commands::FixedImportCommand;
+        use binding::child_attestation::{Isolation, linux_child};
+        use learning_assets::backup_fs::BackupDir;
+        use std::{io::Write, os::unix::fs::MetadataExt, time::{Duration, Instant}};
+        let mut guard = binding::acquire_for_restore(&config).map_err(|_| ImportFailure::Identity)?;
+        let mut lease = None;
+        let result = async {
+            if config.expected_database == target_database { return Err(ImportFailure::Identity); }
+            let batch_root=config.control_root.ancestors().nth(4).ok_or(ImportFailure::Identity)?;
+            if snapshot_root!=batch_root.join("artifacts") {return Err(ImportFailure::Identity);}
+            FixedImportCommand::writer(&guard.claim.container_id, &target_database)?;
+            let source_batch = uuid::Uuid::parse_str(config.expected_database.strip_prefix("learning_restore_c4_")
+                .ok_or(ImportFailure::Identity)?).map_err(|_| ImportFailure::Identity)?;
+            let batch = uuid::Uuid::parse_str(target_database.strip_prefix("learning_restore_c4_")
+                .ok_or(ImportFailure::Identity)?).map_err(|_| ImportFailure::Identity)?;
+            let admin = super::live_tests::control_pool(&config, &guard)?.await?;
+            let deadline = Instant::now() + Duration::from_secs(45);
+            let (original, pid, oid) = tokio::time::timeout_at(deadline.into(),preflight::begin_sql_session(&admin)).await
+                .map_err(|_|ImportFailure::Deadline)?.map_err(|_| ImportFailure::Session)?;
+            lease = Some(original);
+            let lease = lease.as_mut().ok_or(ImportFailure::Session)?;
+            let control = BackupDir::open_trusted_private_root(&config.control_root).map_err(|_| ImportFailure::Identity)?;
+            let assets = BackupDir::open_trusted_private_root(&config.asset_root).map_err(|_| ImportFailure::Identity)?;
+            linux_child::candidate_recheck(&mut guard, lease, pid, oid, deadline).await.map_err(super::linux::failure)?;
+            tokio::time::timeout_at(deadline.into(),async {
+                preflight::target_facts(lease.lease_mut(), assets.list().map_err(|_| ImportFailure::Identity)?.len())
+                    .await.map_err(|_| ImportFailure::Identity)?.validate().map_err(|_| ImportFailure::Identity)?;
+                preflight::verify_import_source_birth(lease.lease_mut(), &config, &control, &assets)
+                    .await.map_err(|_| ImportFailure::Identity)
+            }).await.map_err(|_|ImportFailure::Deadline)??;
+            let pin = option_env!("KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256").ok_or(ImportFailure::Identity)?;
+            let source_birth_sha256: [u8;32] = hex::decode(pin).map_err(|_| ImportFailure::Identity)?
+                .try_into().map_err(|_| ImportFailure::Identity)?;
+            let cid = &guard.claim.container_id;
+            // Existing version grammar validates pg_restore; actual producer version is
+            // independently checked in the complete pg_dump TOC below.
+            let mut version = FixedImportCommand::decoder(cid)?.argv()[1..12].to_vec();
+            version.push("--version".into());
+            linux_child::candidate_version(&version, deadline).await.map_err(super::linux::failure)?;
+            let fixture = b"CREATE TABLE public.c4_import_probe (id integer NOT NULL,label text NOT NULL);\nALTER TABLE ONLY public.c4_import_probe ADD CONSTRAINT c4_import_probe_pkey PRIMARY KEY (id);\nINSERT INTO public.c4_import_probe(id,label) VALUES (1,'alpha'),(2,'beta');\n";
+            if !fixed_bytes(FixedImportCommand::writer(cid, &config.expected_database)?, fixture, true).await?.is_empty() {
+                return Err(ImportFailure::Fixture);
+            }
+            let rows = fixed_bytes(FixedImportCommand::writer(cid, &config.expected_database)?,
+                b"SELECT id::text || '|' || label FROM public.c4_import_probe ORDER BY id;\n", true).await?;
+            if rows != b"1|alpha\n2|beta\n" { return Err(ImportFailure::Fixture); }
+            let produced = fixed_bytes(FixedImportCommand::producer(cid, &config.expected_database)?, &[], false).await?;
+            let snapshots = BackupDir::open_trusted_private_root(&snapshot_root).map_err(|_| ImportFailure::Identity)?;
+            let mut saved = snapshots.create_file("fixture.dump").map_err(|_| ImportFailure::Io)?;
+            saved.write_all(&produced).map_err(|_| ImportFailure::Io)?;
+            saved.sync_all().map_err(|_| ImportFailure::Io)?;
+            snapshots.sync().map_err(|_| ImportFailure::Io)?;
+            drop(saved);
+            let opened = snapshots.open_file("fixture.dump").map_err(|_| ImportFailure::Identity)?;
+            let meta = opened.metadata().map_err(|_| ImportFailure::Identity)?;
+            if meta.uid() != 0 || meta.mode() & 0o777 != 0o600 || meta.nlink() != 1 || !meta.is_file() {
+                return Err(ImportFailure::Identity);
+            }
+            let mut dump = freeze_dump(opened, produced.len() as u64, Sha256::digest(&produced).into())?;
+            let toc = fixed_bytes(FixedImportCommand::toc(cid)?, dump.bytes(), false).await?;
+            verify_toc(&toc, &config.expected_database)?;
+            let decoded = fixed_bytes(FixedImportCommand::decoder(cid)?, dump.bytes(), false).await?;
+            verify_fixture_sql(&decoded)?;
+            for (name, bytes) in [("pg_restore-list.txt", &toc), ("decoded.sql", &decoded)] {
+                let mut file = snapshots.create_file(name).map_err(|_| ImportFailure::Io)?;
+                file.write_all(bytes).map_err(|_| ImportFailure::Io)?;
+                file.sync_all().map_err(|_| ImportFailure::Io)?;
+            }
+            snapshots.sync().map_err(|_| ImportFailure::Io)?;
+            linux_child::candidate_recheck(&mut guard, lease, pid, oid,
+                Instant::now() + Duration::from_secs(10)).await.map_err(super::linux::failure)?;
+            dump.provenance = Some(FixtureProvenance {
+                batch, source_batch, case, target_database,
+                source_database: config.expected_database, source_container: guard.claim.container_id.clone(),
+                producer_image: binding::PINNED_IMAGE.into(), producer_client: "/usr/lib/postgresql/18/bin/pg_dump".into(),
+                source_birth_sha256, toc_sha256: Sha256::digest(&toc).into(),
+                snapshot_len: dump.bytes.len(), snapshot_sha256: dump.sha256, _validated: ValidatedFreshProducer,
+            });
+            Ok(dump)
+        }.await;
+        guard.child_usable.set(false);
+        let isolation = linux_child::candidate_quarantine(&guard.claim).await;
+        drop(lease);
+        drop(guard);
+        if isolation != Isolation::Stopped { return Err(ImportFailure::UnconfirmedIsolation); }
+        result
+    }).await.map_err(|_| ImportFailure::UnconfirmedIsolation)?
 }
 
 pub(super) fn verify_fixture_sql(decoded: &[u8]) -> Result<VerifiedFixtureSql, ImportFailure> {
@@ -218,13 +499,38 @@ mod tests {
     const CAPTURE_KEY: &[u8] = b"XUiXOMjlMScOdk9ZzeQOcY8XFfEhfRYfmX6zxd5b98iPfVsmzTgJE32K1SuOOui";
 
     #[test]
+    fn toc_requires_complete_fixed_pg18_shape_and_matching_source() {
+        let db = "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3";
+        let toc = format!(
+            ";\n; Archive created at 2026-10-01 00:19:15 UTC\n;     dbname: {db}\n;     TOC Entries: 7\n;     Compression: gzip\n;     Dump Version: 1.16-0\n;     Format: CUSTOM\n;     Integer: 4 bytes\n;     Offset: 8 bytes\n;     Dumped from database version: 18.6 (Debian 18.6-1.pgdg12+2)\n;     Dumped by pg_dump version: 18.6 (Debian 18.6-1.pgdg12+2)\n;\n;\n; Selected TOC Entries:\n;\n219; 1259 16387 TABLE public c4_import_probe learning_admin\n3373; 0 16387 TABLE DATA public c4_import_probe learning_admin\n3225; 2606 16395 CONSTRAINT public c4_import_probe c4_import_probe_pkey learning_admin\n"
+        );
+        assert_eq!(verify_toc(toc.as_bytes(), db), Ok(()));
+        for changed in [
+            toc.replace("TOC Entries: 7", "TOC Entries: 8"),
+            toc.replace("TABLE DATA", "BLOB"),
+            toc.replace("18.6", "18.5"),
+            toc.replace("public c4_import_probe", "private c4_import_probe"),
+            toc.replace("3373; 0 16387", "3373; 0 16388"),
+            format!("{toc}4000; 0 0 BLOB - 5 learning_admin\n"),
+            toc.replace("learning_admin", "postgres"),
+            toc.replace(db, "other"),
+        ] {
+            assert_eq!(
+                verify_toc(changed.as_bytes(), db),
+                Err(ImportFailure::Fixture)
+            );
+        }
+    }
+
+    #[test]
     fn byte_checked_dump_has_no_fresh_producer_authority() {
         let bytes = b"PGDMParbitrary-caller-bytes";
         let dump = freeze_dump(Cursor::new(bytes), bytes.len() as u64, digest(bytes)).unwrap();
         assert_eq!(
             dump.require_provenance(
                 uuid::Uuid::new_v4(),
-                "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3"
+                "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3",
+                "success"
             ),
             Err(ImportFailure::Fixture)
         );

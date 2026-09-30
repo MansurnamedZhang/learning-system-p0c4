@@ -14,6 +14,8 @@
 
 ## Global Constraints
 
+**Task6 静态实现补记（2026-10-01）：** 十一项 ignored 源码、固定可信源签发与 phase-import runner 已进入本地验证；独立任务与整计划审查待完成。Linux no-run/严格检查/测试列举及实际 PG18 门均未运行，本施工单复选项不因静态源码而关闭。后续授权、资源预算及逐 case 证据规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
+
 - 工作目录：`D:/codex/DeepLearning/.worktrees/knowweave-p0c4`；保留现有分支，不新建外部项目，不往C盘安装/生成依赖或测试数据。
 - 本地执行者在任务1设置 `CARGO_TARGET_DIR` 为该工作树的 `target/`，`TMP`/`TEMP` 为新建的 `.runtime/p0c4-controlled-import-tests/`；验证后恢复原环境。只读取已有工具/依赖缓存，不安装新运行时。Linux临时文件放本批root私有tmp目录。
 - 恢复算法和候选入口仅私有测试代码；实际执行为 `#[cfg(all(test, target_os = "linux"))]`、opt-in ignored。纯模型可 `cfg(test)` 在Windows验证。默认/发布构建无新写入口，`preflight_restore(&CompleteBackup, ...)` 原门槛不变。

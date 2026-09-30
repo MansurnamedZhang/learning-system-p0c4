@@ -136,6 +136,13 @@ impl QuarantineIo for FixedQuarantine {
 }
 async fn quarantine_with(claim: &DockerClaim, io: &mut impl QuarantineIo) -> Isolation {
     let deadline = Instant::now() + Duration::from_secs(15);
+    quarantine_with_at(claim, io, deadline).await
+}
+async fn quarantine_with_at(
+    claim: &DockerClaim,
+    io: &mut impl QuarantineIo,
+    deadline: Instant,
+) -> Isolation {
     let result = async {
         if !exact_id(&claim.container_id) {
             return Err(ChildFailure::Identity);
@@ -168,6 +175,42 @@ async fn quarantine_with(claim: &DockerClaim, io: &mut impl QuarantineIo) -> Iso
 }
 async fn quarantine(claim: &DockerClaim) -> Isolation {
     quarantine_with(claim, &mut FixedQuarantine).await
+}
+
+#[cfg(test)]
+async fn quarantine_pair_with(
+    primary: &DockerClaim,
+    peer: &DockerClaim,
+    io: &mut impl QuarantineIo,
+    deadline: Instant,
+) -> Isolation {
+    if Instant::now() >= deadline {
+        return Isolation::UnconfirmedUnusable;
+    }
+    let first = quarantine_with_at(primary, io, deadline).await;
+    if Instant::now() >= deadline {
+        return Isolation::UnconfirmedUnusable;
+    }
+    let second = quarantine_with_at(peer, io, deadline).await;
+    if first == Isolation::Stopped && second == Isolation::Stopped && Instant::now() < deadline {
+        Isolation::Stopped
+    } else {
+        Isolation::UnconfirmedUnusable
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(in crate::restore_preflight::target_binding) async fn candidate_quarantine_pair(
+    primary: &DockerClaim,
+    peer: &DockerClaim,
+) -> Isolation {
+    quarantine_pair_with(
+        primary,
+        peer,
+        &mut FixedQuarantine,
+        Instant::now() + Duration::from_secs(15),
+    )
+    .await
 }
 
 // Test-only candidate adapters retain the original transaction on every error.
@@ -222,6 +265,37 @@ pub(in crate::restore_preflight::target_binding) async fn candidate_quarantine(
     claim: &DockerClaim,
 ) -> Isolation {
     quarantine(claim).await
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(in crate::restore_preflight::target_binding) async fn candidate_restart(
+    claim: &DockerClaim,
+    deadline: Instant,
+) -> Result<(), ChildFailure> {
+    let output = docker(
+        &[
+            "restart".into(),
+            "--time".into(),
+            "1".into(),
+            claim.container_id.clone(),
+        ],
+        deadline,
+    )
+    .await?;
+    if output.trim() != claim.container_id {
+        return Err(ChildFailure::Identity);
+    }
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(in crate::restore_preflight::target_binding) async fn candidate_locks_absent(
+    claim: &DockerClaim,
+    keys: ChallengeKeys,
+    deadline: Instant,
+) -> Result<bool, ChildFailure> {
+    let args = challenge_exec_args(claim, keys).map_err(|_| ChildFailure::Identity)?;
+    Ok(docker(&args, deadline).await?.is_empty())
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -379,5 +453,89 @@ mod tests {
                 assert!(io.stops.is_empty());
             }
         }
+    }
+
+    struct PairFixture {
+        deadlines: Vec<Instant>,
+        stopped: Vec<String>,
+        fail_peer: bool,
+        peer: String,
+    }
+    impl QuarantineIo for PairFixture {
+        async fn daemon(&mut self, _: &DockerClaim, deadline: Instant) -> Result<(), ChildFailure> {
+            self.deadlines.push(deadline);
+            Ok(())
+        }
+        async fn inspect(
+            &mut self,
+            claim: &DockerClaim,
+            deadline: Instant,
+        ) -> Result<Value, ChildFailure> {
+            self.deadlines.push(deadline);
+            let stopped = self.stopped.contains(&claim.container_id);
+            Ok(
+                json!({"Id":claim.container_id,"Image":claim.image_id,"State":{"Running":!stopped,"Pid":if stopped {0}else{123}}}),
+            )
+        }
+        async fn stop(
+            &mut self,
+            claim: &DockerClaim,
+            deadline: Instant,
+        ) -> Result<(), ChildFailure> {
+            self.deadlines.push(deadline);
+            if self.fail_peer && claim.container_id == self.peer {
+                return Err(ChildFailure::Deadline);
+            }
+            self.stopped.push(claim.container_id.clone());
+            Ok(())
+        }
+    }
+    #[tokio::test]
+    async fn import_pair_uses_one_absolute_deadline_and_never_hides_peer_failure() {
+        let primary = super::super::super::tests::claim();
+        let mut peer = primary.clone();
+        peer.container_id = "b".repeat(64);
+        for fail_peer in [false, true] {
+            let deadline = Instant::now() + Duration::from_secs(1);
+            let mut io = PairFixture {
+                deadlines: vec![],
+                stopped: vec![],
+                fail_peer,
+                peer: peer.container_id.clone(),
+            };
+            let result = quarantine_pair_with(&primary, &peer, &mut io, deadline).await;
+            assert_eq!(
+                result,
+                if fail_peer {
+                    Isolation::UnconfirmedUnusable
+                } else {
+                    Isolation::Stopped
+                }
+            );
+            assert!(
+                io.deadlines.iter().all(|observed| *observed == deadline),
+                "pair reset absolute isolation deadline"
+            );
+        }
+        let mut io = PairFixture {
+            deadlines: vec![],
+            stopped: vec![],
+            fail_peer: false,
+            peer: peer.container_id.clone(),
+        };
+        assert_eq!(
+            quarantine_pair_with(
+                &primary,
+                &peer,
+                &mut io,
+                Instant::now() - Duration::from_secs(1)
+            )
+            .await,
+            Isolation::UnconfirmedUnusable
+        );
+        assert!(
+            io.deadlines.is_empty(),
+            "expired isolation issued an operation"
+        );
     }
 }

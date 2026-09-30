@@ -1,4 +1,4 @@
-"""Root-only PG18 client contract and synthetic artifact capture, never import.
+"""Root-only PG18 contract capture and opt-in controlled fixture import cases.
 
 Deployment requires this runner plus its fixture/archive helpers installed as
 individually reviewed root-private files. All other helpers load from the sealed
@@ -41,6 +41,7 @@ PROVISIONER = 'scripts/p0c4_restore_target.py'
 ISSUER = 'scripts/p0c4_restore_target_birth.py'
 PIN = 'scripts/p0c4_restore_target_pin.py'
 PREPARE = 'scripts/p0c4_restore_target_pin_prepare.py'
+CLONE_HELPER = 'scripts/p0c4_restore_pin_acceptance.py'
 INITDB = 'deploy/p0c4_restore_initdb.sh'
 REQUIRED = {ENTRY, ARCHIVE_HELPER, FIXTURE, PROVISIONER, ISSUER, PIN, PREPARE, INITDB}
 BUILDER_ID = 'sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b'
@@ -57,6 +58,130 @@ INSPECT_OPERATION_SECONDS = 30
 INSPECT_BATCH_SIZE = 64
 INSPECT_MAX_OBJECTS = 4096
 INSPECT_TOTAL_STDOUT_LIMIT = 16 * 1024 * 1024
+
+# Closed opt-in import protocol. These are predicates over actual live receipts;
+# the mapping itself never grants fixture provenance or target authority.
+IMPORT_PREFIX = 'restore_preflight::target_binding::controlled_import::live_tests::'
+IMPORT_PASSED = 'CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE'
+IMPORT_NEGATIVE = 'CONTROLLED_FIXTURE_IMPORT_EXPECTED_REJECTION_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE'
+IMPORT_FAILED = 'CONTROLLED_FIXTURE_IMPORT_FAILED_QUARANTINED_NOT_FULL_RESTORE'
+IMPORT_UNCONFIRMED = 'CONTROLLED_FIXTURE_IMPORT_UNCONFIRMED_UNUSABLE_NOT_FULL_RESTORE'
+POSTGRES_IMAGE = 'postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d'
+GATE1_SHA256 = '505ab6179e3be1f1c8afb441fa694db8d5033f27e77a0940908de208bad96508'
+IMPORT_CASES = {
+    'success': ('live_controlled_import_commits_fixture', None, (
+        'READY', 'ATTEMPT_SYNCED', 'PAYLOAD_SENT', 'PRECOMMIT', 'INTENT_SYNCED',
+        'COMMIT_ONCE', 'COMMITTED', 'WRITER_GONE', 'CONTENT_ROWS_PK_DIGEST')),
+    'ready-eof': ('live_controlled_import_ready_eof', 'Protocol', (
+        'READY', 'TRUE_EOF_NO_TRANSACTION_COMMAND', 'WRITER_GONE',
+        'ZERO_OBJECTS_BEFORE_STOP', 'ATTEMPT_ABSENT', 'INTENT_ABSENT')),
+    'precommit-eof': ('live_controlled_import_precommit_eof', 'Protocol', (
+        'READY', 'ATTEMPT_SYNCED', 'PAYLOAD_SENT', 'PRECOMMIT',
+        'TRUE_EOF_NO_TRANSACTION_COMMAND', 'WRITER_GONE',
+        'ZERO_OBJECTS_BEFORE_STOP', 'INTENT_ABSENT')),
+    'precommit-cancel': ('live_controlled_import_cancel_before_commit', 'Cancelled', (
+        'READY', 'ATTEMPT_SYNCED', 'PAYLOAD_SENT', 'PRECOMMIT',
+        'CANCEL_ACCEPTED_BEFORE_COMMIT', 'GUARDS_RETAINED', 'WRITER_GONE',
+        'ZERO_OBJECTS_BEFORE_STOP', 'INTENT_ABSENT')),
+    'ready-restart': ('live_controlled_import_restart_before_ddl', 'Identity', (
+        'READY', 'RESTART_BEFORE_DDL', 'OLD_GUARD_REJECTED',
+        'ATTEMPT_ABSENT', 'INTENT_ABSENT', 'DDL_NOT_SENT')),
+    'sql-error': ('live_controlled_import_sql_error', 'Exit', (
+        'READY', 'ATTEMPT_SYNCED', 'FIXED_SQL_ERROR_OBSERVED',
+        'COMMIT_NOT_SENT', 'INTENT_ABSENT')),
+    'copy-truncated': ('live_controlled_import_copy_truncated', 'Exit', (
+        'READY', 'ATTEMPT_SYNCED', 'FIXED_COPY_TRUNCATED',
+        'NO_BLIND_ROLLBACK', 'COMMIT_NOT_SENT', 'INTENT_ABSENT')),
+    'attempt-sync-failure': ('live_controlled_import_attempt_sync_failure', 'Journal', (
+        'READY', 'ATTEMPT_SYNC_FAILED', 'ATTEMPT_PARTIAL_RETAINED',
+        'DDL_NOT_SENT', 'COMMIT_NOT_SENT', 'INTENT_ABSENT')),
+    'commit-intent-sync-failure': ('live_controlled_import_commit_intent_sync_failure', 'Journal', (
+        'READY', 'ATTEMPT_SYNCED', 'PAYLOAD_SENT', 'PRECOMMIT',
+        'INTENT_SYNC_FAILED', 'INTENT_PARTIAL_RETAINED', 'COMMIT_NOT_SENT')),
+    'commit-unknown': ('live_controlled_import_commit_confirmation_lost', 'CommitUnknown', (
+        'READY', 'ATTEMPT_SYNCED', 'PAYLOAD_SENT', 'PRECOMMIT', 'INTENT_SYNCED',
+        'COMMIT_ONCE', 'CONFIRMATION_LOST', 'OUTCOME_UNKNOWN_NO_RETRY')),
+    'wrong-endpoint': ('live_controlled_import_same_id_wrong_endpoint', 'Exit', (
+        'CLONE_SAME_SYSTEM_ID_DATABASE_OID', 'WRITER_DOUBLE_LOCK_REJECTED',
+        'ZERO_OBJECTS_BOTH_BEFORE_STOP', 'ATTEMPT_ABSENT', 'INTENT_ABSENT',
+        'DDL_NOT_SENT', 'BOTH_EXACT_CONTAINERS_STOPPED')),
+}
+IMPORT_COMMON_CHECKPOINTS = ('FRESH_SOURCE_FIXED_PRODUCER', 'SNAPSHOT_NOFOLLOW_FROZEN',
+    'REAL_TOC_VERIFIED', 'FULL_GOLDEN_VERIFIED', 'TARGET_UNUSABLE', 'EXACT_TARGET_STOPPED')
+
+
+def _import_test_command(binary, case):
+    require(type(case) is str and case in IMPORT_CASES, 'Protocol')
+    return [str(binary), '--exact', IMPORT_PREFIX + IMPORT_CASES[case][0],
+            '--ignored', '--nocapture', '--test-threads=1']
+
+
+def _import_observations(output, case, exit_code):
+    require(type(case) is str and case in IMPORT_CASES, 'Protocol')
+    require(type(exit_code) is int and exit_code == 0 and type(output) is bytes and
+            len(output) <= 64 * 1024, 'Protocol')
+    try:
+        text = output.decode('ascii')
+    except UnicodeError:
+        raise ImportRejected('Protocol') from None
+    name, failure, checkpoints = IMPORT_CASES[case]
+    # One exact --nocapture transcript: the sole test emits one redacted receipt.
+    # Do not accept a success summary attached to failed/additional test lines.
+    require(re.fullmatch(r'\nrunning 1 test\ntest ' +
+        re.escape(IMPORT_PREFIX + name) + r' \.\.\. KW_C4_IMPORT\|[^\n]+\nok\n\n'
+        r'test result: [^\n]+\n\n?', text), 'Protocol')
+    summaries = re.findall(r'^test result: (.+)$', text, re.M)
+    require(len(summaries) == 1 and re.fullmatch(
+        r'ok\. 1 passed; 0 failed; 0 ignored; 0 measured; [0-9]+ filtered out; '
+        r'finished in [0-9]+\.[0-9]+s', summaries[0]), 'Protocol')
+    require(text.count('KW_C4_IMPORT|') == 1, 'Protocol')
+    raw = text.split('KW_C4_IMPORT|', 1)[1].split('\n', 1)[0]
+    def unique_pairs(pairs):
+        value = {}
+        for key, item in pairs:
+            require(key not in value, 'Protocol')
+            value[key] = item
+        return value
+    try:
+        record = json.loads(raw, object_pairs_hook=unique_pairs,
+            parse_constant=lambda value: require(False, 'Protocol'))
+    except (ValueError, RecursionError):
+        raise ImportRejected('Protocol') from None
+    required = {'schema', 'case', 'failure', 'checkpoints', 'commit_attempted',
+                'rollback_verified', 'retry_allowed', 'dump_sha256', 'toc_sha256',
+                'raw_sql_sha256', 'transformed_sql_sha256', 'content_sha256'}
+    require(type(record) is dict and set(record) == required, 'Protocol')
+    require(type(record['schema']) is int and record['schema'] == 1 and
+            record['case'] == case and record['failure'] == failure, 'Protocol')
+    required_points = {*IMPORT_COMMON_CHECKPOINTS, *checkpoints}
+    points = record['checkpoints']
+    require(type(points) is list and all(type(point) is str for point in points) and
+            len(points) == len(required_points) and set(points) == required_points,
+            'Protocol')
+    require(record['commit_attempted'] is (case in ('success', 'commit-unknown')) and
+            record['retry_allowed'] is False, 'Protocol')
+    require(record['rollback_verified'] is (case in
+        ('ready-eof', 'precommit-eof', 'precommit-cancel')), 'Protocol')
+    for key in ('dump_sha256', 'toc_sha256', 'raw_sql_sha256', 'transformed_sql_sha256'):
+        require(type(record[key]) is str and HEX_ID.fullmatch(record[key]), 'Protocol')
+    require(record['content_sha256'] == (digest(b'1|alpha\n2|beta\n') if case == 'success' else None), 'Protocol')
+    return record
+
+
+def _validate_import_isolation(result):
+    require(type(result) is dict and result.get('case') in IMPORT_CASES, 'Protocol')
+    isolation = result.get('isolation', {})
+    require(type(isolation) is dict and isolation.get('source_stopped') is True and
+            isolation.get('target_stopped') is True and
+            isolation.get('volumes_retained') is True, 'UnconfirmedIsolation')
+    if result['case'] == 'wrong-endpoint':
+        require(isolation.get('clone_stopped') is True, 'UnconfirmedIsolation')
+
+
+def _validate_import_final(result):
+    _validate_import_isolation(result)
+    require(result.get('source_unchanged') is True, 'Identity')
+    require(result.get('pending_absent') is True, 'Journal')
 
 
 class BoundedCommands:
@@ -188,13 +313,16 @@ def _archive_contract(args):
     fixture_path = installed.parent / Path(FIXTURE).name
     _checked_installed(fixture_path, args.fixture_sha256, 0o400)
     helper = _load(helper_path, 'p0c4_import_archive_helper_private')
-    helper.ENTRY, helper.REQUIRED, helper.__file__ = ENTRY, REQUIRED, str(installed)
+    helper.ENTRY, helper.REQUIRED, helper.__file__ = ENTRY, REQUIRED | (
+        {CLONE_HELPER} if getattr(args, 'phase', None) == 'import' else set()), str(installed)
     manifest, content = helper.verify_archive(args.archive, args.archive_sha256,
                                               args.manifest_sha256, args.commit)
     files = {item['path']: item['sha256'] for item in manifest['files']}
     require(files[ENTRY] == args.runner_sha256 and
             files[ARCHIVE_HELPER] == args.archive_helper_sha256 and
             files[FIXTURE] == args.fixture_sha256, 'Identity')
+    if getattr(args, 'phase', None) == 'import':
+        require(files[CLONE_HELPER] == args.clone_helper_sha256, 'Identity')
     fixture = _load(fixture_path, 'p0c4_import_fixture_sealed')
     return helper, manifest, content
 
@@ -410,13 +538,324 @@ class ContractBackend:
         self.lock.__exit__(None, None, None)
 
 
+class ImportBackend(ContractBackend):
+    """New phase only; the privately loaded legacy helpers retain their modes."""
+    def __init__(self, args, helper, manifest, content):
+        super().__init__(args, helper, manifest, content)
+        try:
+            self.delegate = _load(self.source / CLONE_HELPER, 'p0c4_import_clone_helpers_private')
+            self.clone_record = None
+            self.build_evidence = {}
+        except BaseException:
+            self.release()
+            raise
+
+    def _budget(self):
+        super()._budget()
+        free = os.statvfs(self.batch)
+        available = free.f_bavail * free.f_frsize
+        memory = re.search(r'^MemAvailable:\s+([0-9]+) kB$',
+                           Path('/proc/meminfo').read_text(encoding='ascii'), re.M)
+        pg_count = 3 if self.args.case == 'wrong-endpoint' else 2
+        disk_budget = (32 + 2 * pg_count + 2) * 1024**3
+        memory_budget = (8 + 4 * pg_count + 1) * 1024**3
+        require(available >= disk_budget and memory and int(memory[1]) * 1024 >= memory_budget,
+                'InputLimit')
+        self.capacity = {'available_disk_bytes': available,
+            'available_memory_bytes': int(memory[1]) * 1024,
+            'declared_build_disk_bytes_each': 16 * 1024**3, 'build_directories': 2,
+            'declared_build_memory_bytes': 8 * 1024**3, 'builder_cpus': 4,
+            'required_disk_bytes': disk_budget, 'required_memory_bytes': memory_budget,
+            'disk_budget_is_estimated_reserve_not_quota': True,
+            'declared_pg_disk_bytes_each': 2 * 1024**3,
+            'declared_pg_instances': pg_count,
+            'builder_image_id': BUILDER_ID, 'postgres_image': POSTGRES_IMAGE}
+
+    def _compile_import_binary(self, source_pin, target_pin, *, placeholder):
+        require(all(type(pin) is str and HEX_ID.fullmatch(pin) for pin in (source_pin, target_pin)), 'Identity')
+        require((source_pin == target_pin == '0' * 64) if placeholder else
+                source_pin != target_pin and '0' * 64 not in (source_pin, target_pin), 'Identity')
+        original = self.delegate._run_bounded
+        original_cleanup = self.delegate._cleanup_builder
+        injected = []
+        observed = {}
+        def compile_command(command, **kwargs):
+            if command[:2] == ['/usr/bin/docker', 'run']:
+                target = 'KNOWWEAVE_C4_TARGET_BIRTH_SHA256=' + target_pin
+                require(command.count(target) == 1 and command.count('--entrypoint') == 1 and
+                        command.count(BUILDER_ID) == 1 and '--network' in command and
+                        command[command.index('--network') + 1] == 'none', 'Identity')
+                require(not any('KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256=' in word for word in command), 'Identity')
+                require(not any(word.split('=', 1)[0] in ('--cpus', '--memory', '--memory-swap') for word in command), 'Identity')
+                command = list(command)
+                index = command.index('--entrypoint')
+                command[index:index] = ['--cpus=4', '--memory=8g', '--memory-swap=8g',
+                    '--env', 'KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256=' + source_pin]
+                injected.append(True)
+                return self._run_import_builder(command, kwargs, observed)
+            return original(command, **kwargs)
+        def cleanup(batch, stage):
+            if observed:
+                _, label = self.delegate._builder_identity(batch, stage)
+                ids = self.delegate._builder_container_ids(label)
+                require(ids in ([], [observed['container_id']]), 'Identity')
+            original_cleanup(batch, stage)
+            if observed:
+                observed['cleanup_confirmed'] = True
+        # Scoped adaptation of this separately loaded verified module instance;
+        # no legacy file, global process environment, or old runner mode changes.
+        self.delegate._run_bounded = compile_command
+        self.delegate._cleanup_builder = cleanup
+        try:
+            binary, sha = self.delegate._compile_bound_probe(self.source, self.batch,
+                'probe-preflight-build' if placeholder else 'probe-live-build', target_pin)
+        finally:
+            self.delegate._run_bounded = original
+            self.delegate._cleanup_builder = original_cleanup
+        require(injected == [True] and observed.get('cleanup_confirmed') is True and
+                self.delegate._file_digest(binary) == sha, 'Identity')
+        return binary, {'binary_sha256': sha, 'source_birth_sha256': source_pin,
+                        'target_birth_sha256': target_pin, 'placeholder': placeholder,
+                        'builder_observation': observed,
+                        'builder_image_id': BUILDER_ID, 'source_sha256': self.source_hash}
+
+    def _builder_projection(self, command, row):
+        name = command[command.index('--name') + 1]
+        label = command[command.index('--label') + 1].split('=', 1)
+        cid = row.get('Id')
+        host = row.get('HostConfig', {})
+        config = row.get('Config', {})
+        require(type(cid) is str and HEX_ID.fullmatch(cid) and row.get('Name') == '/' + name and
+            row.get('Image') == BUILDER_ID and config.get('Image') == BUILDER_ID and
+            config.get('Labels', {}).get(label[0]) == label[1] and config.get('User') == '0:0' and
+            row.get('State', {}).get('Running') is True and host.get('NanoCpus') == 4_000_000_000 and
+            host.get('Memory') == 8 * 1024**3 and host.get('MemorySwap') == 8 * 1024**3 and
+            host.get('NetworkMode') == 'none' and host.get('Privileged') is False and
+            host.get('CapDrop') == ['ALL'] and 'no-new-privileges' in host.get('SecurityOpt', []), 'Identity')
+        binds = [mount for mount in row.get('Mounts', []) if mount.get('Type') == 'bind']
+        # Derive exact build mount from the fixed inherited command, then verify
+        # it remains one of this batch's two allowlisted directories.
+        mounts = [command[i+1] for i, word in enumerate(command[:-1]) if word == '--mount']
+        require(len(mounts) == 2, 'Identity')
+        build_mount = next((value for value in mounts if value.endswith(',dst=/target')), None)
+        require(build_mount is not None, 'Identity')
+        build = Path(build_mount.removeprefix('type=bind,src=').removesuffix(',dst=/target'))
+        require(build in (self.batch / 'probe-preflight-build', self.batch / 'probe-live-build') and
+            len(binds) == 2 and all(any(mount.get('Source') == str(source) and
+                mount.get('Destination') == destination and mount.get('RW') is writable
+                for mount in binds) for source, destination, writable in
+                [(self.source, '/reviewed', False), (build, '/target', True)]) and
+            not any(mount.get('Type') == 'volume' for mount in row.get('Mounts', [])), 'Identity')
+        return {'container_id': cid, 'image_id': BUILDER_ID, 'nano_cpus': host['NanoCpus'],
+                'memory_bytes': host['Memory'], 'memory_swap_bytes': host['MemorySwap'],
+                'network_none': True, 'source_readonly': True, 'build_directory': build.name,
+                'cleanup_confirmed': False}
+
+    def _run_import_builder(self, command, kwargs, observed):
+        import subprocess
+        deadline = time.monotonic() + kwargs.get('timeout', 7200)
+        active_deadline = deadline - 5  # reserve settlement inside the same absolute budget
+        startup = min(active_deadline, time.monotonic() + 30)
+        name = command[command.index('--name') + 1]
+        with fixture.OpenClient(command, timeout=7200, deadline=active_deadline,
+            cleanup_deadline=deadline, stdout_limit=16*1024*1024, stderr_limit=16*1024*1024,
+            allow_stderr=True, env=kwargs['env']) as client:
+            while True:
+                require(time.monotonic() < startup and client.process.poll() is None, 'Deadline')
+                try:
+                    raw = self.commands._run('/usr/bin/docker', ('inspect', name), startup)
+                except fixture.ImportRejected as error:
+                    if error.code != 'Exit':
+                        raise
+                    time.sleep(0.05)
+                    continue
+                rows = json.loads(raw)
+                require(type(rows) is list and len(rows) == 1 and type(rows[0]) is dict, 'Identity')
+                observed.update(self._builder_projection(command, rows[0]))
+                break
+            # After discovery every observation and inherited cleanup binding
+            # uses the captured immutable ID. Never accept a replacement name.
+            exact = json.loads(self.commands._run('/usr/bin/docker', ('inspect', observed['container_id']), active_deadline))
+            require(type(exact) is list and len(exact) == 1 and
+                    self._builder_projection(command, exact[0]) == observed, 'Identity')
+            try:
+                output = client.finish()
+            except fixture.ImportRejected as error:
+                if error.code != 'Exit':
+                    raise
+                output = bytes(client.buffers[0])
+            stderr = bytes(client.buffers[1])
+            stage = observed['build_directory']
+            self.helper._private_write(self.batch / 'evidence' / (stage + '-stdout.private.log'), output)
+            self.helper._private_write(self.batch / 'evidence' / (stage + '-stderr.private.log'), stderr)
+            return subprocess.CompletedProcess(command, client.process.returncode, output, stderr)
+
+    def _list_import_tests(self, binary, sha):
+        require(self.delegate._file_digest(binary) == sha, 'Identity')
+        process = self.delegate._run_bounded([str(binary), '--list', '--ignored'],
+            cwd=self.source, timeout=60, env={'PATH': '/usr/bin:/bin', 'HOME': str(self.batch),
+                                            'TMPDIR': str(self.batch / 'tmp')})
+        require(process.returncode == 0 and not process.stderr and
+                self.delegate._file_digest(binary) == sha, 'Protocol')
+        lines = process.stdout.splitlines()
+        expected = [(IMPORT_PREFIX + definition[0] + ': test').encode() for definition in IMPORT_CASES.values()]
+        require(all(lines.count(name) == 1 for name in expected) and
+                sum(line.startswith(IMPORT_PREFIX.encode()) for line in lines) == 11, 'Protocol')
+        return {'exit_code': 0, 'exact_tests_listed': [line.decode().removesuffix(': test') for line in expected],
+                'listing_sha256': digest(process.stdout), 'executed': False}
+
+    def _preflight_import_builder(self):
+        """Separable root-batch compile/list only; never creates PG resources.
+
+        Controller may call after verified archive/backend preparation and
+        read-only _budget(). Placeholder binaries cannot enter execute_import.
+        """
+        binary, build = self._compile_import_binary('0' * 64, '0' * 64, placeholder=True)
+        return {**build, **self._list_import_tests(binary, build['binary_sha256'])}
+
+    def _birth(self, row):
+        target = row['control'] / 'targets' / row['batch_id']
+        candidate, inspection = self.pin.inspect_candidate(row['control'], row['batch_id'], self.initdb)
+        raw = self.helper._private_read(target / 'control' / (row['identity']['database'] + '.birth.json'), limit=4096)
+        require(digest(raw) == candidate['birth_sha256'], 'Identity')
+        row['birth_sha256'] = digest(raw)
+        row['inspection_sha256'] = digest(self.helper._json_bytes(inspection))
+        self.helper._private_write(self.batch / 'evidence' / (row['role'] + '-inspection.json'),
+                                   self.helper._json_bytes(inspection))
+        return target, json.loads(raw)
+
+    def execute_import(self, case):
+        self._budget()
+        self.build_evidence['preflight'] = self._preflight_import_builder()
+        before = self.provisioner.snapshot()
+        specs = [('source', self.args.source_batch_id, self.args.source_subnet),
+                 ('target', self.args.target_batch_id, self.args.target_subnet)]
+        if case == 'wrong-endpoint':
+            specs.append(('clone', self.args.clone_batch_id, self.args.clone_subnet))
+        import ipaddress
+        networks = []
+        for _, batch, subnet in specs:
+            self.provisioner.admit_fresh(self.provisioner.identity_for(batch), subnet, before)
+            network = ipaddress.ip_network(subnet, strict=True)
+            require(not any(network.overlaps(other) for other in networks), 'Identity')
+            networks.append(network)
+        source = self._create('source', self.args.source_batch_id, self.args.source_subnet)
+        target = self._create('target', self.args.target_batch_id, self.args.target_subnet)
+        source_root, _ = self._birth(source)
+        target_root, target_birth = self._birth(target)
+        env = {'PATH': '/usr/bin:/bin', 'HOME': str(self.batch), 'LC_ALL': 'C',
+            'TMPDIR': str(self.batch / 'tmp'), 'TMP': str(self.batch / 'tmp'), 'TEMP': str(self.batch / 'tmp'),
+            'KNOWWEAVE_C4_IMPORT_CASE': case, 'KNOWWEAVE_C4_IMPORT_SOURCE_ROOT': str(source_root),
+            'KNOWWEAVE_C4_IMPORT_TARGET_ROOT': str(target_root),
+            'KNOWWEAVE_C4_IMPORT_ARTIFACT_ROOT': str(self.batch / 'artifacts')}
+        if case == 'wrong-endpoint':
+            identity = self.provisioner.identity_for(self.args.clone_batch_id)
+            row = {'role': 'clone', 'identity': identity, 'control': self.batch / 'clone-control',
+                   'batch_id': self.args.clone_batch_id, 'subnet': self.args.clone_subnet,
+                   'container_id': None, 'before': before}
+            self.clone_record = row
+            self.resources.append(row)
+            cloned = self.delegate._prepare_physical_clone(self.provisioner, self.batch, target_root,
+                target['container_id'], identity, self.args.clone_subnet, before, target_birth,
+                target['identity']['database'])
+            row['container_id'] = cloned['container_id']
+            row['inspection_sha256'] = digest(self.helper._json_bytes(cloned))
+            env.update({'KNOWWEAVE_C4_CLONE_CONTAINER_ID': cloned['container_id'],
+                'KNOWWEAVE_C4_CLONE_NETWORK_ID': cloned['network_id'],
+                'KNOWWEAVE_C4_CLONE_NETWORK_NAME': identity['network'],
+                'KNOWWEAVE_C4_CLONE_PROJECT': identity['project'],
+                'KNOWWEAVE_C4_CLONE_VOLUME_NAME': identity['volume'],
+                'KNOWWEAVE_C4_CLONE_SUBNET': self.args.clone_subnet})
+        # Revalidate both fresh issuer records after clone/setup and immediately
+        # before compilation. Each pair uses its own build directory and pins.
+        self._birth_recheck(source)
+        self._birth_recheck(target)
+        binary, build = self._compile_import_binary(source['birth_sha256'], target['birth_sha256'], placeholder=False)
+        self.build_evidence['live'] = {**build, **self._list_import_tests(binary, build['binary_sha256'])}
+        require(self.verify_source() and self.delegate._file_digest(binary) == build['binary_sha256'], 'Identity')
+        process = self.delegate._run_bounded(_import_test_command(binary, case), cwd=self.source,
+                                            env=env, timeout=360, limit=64 * 1024)
+        self.helper._private_write(self.batch / 'evidence' / 'live-test-stdout.private.log', process.stdout)
+        self.helper._private_write(self.batch / 'evidence' / 'live-test-stderr.private.log', process.stderr)
+        require(self.delegate._file_digest(binary) == build['binary_sha256'] and not process.stderr, 'Identity')
+        observed = _import_observations(process.stdout, case, process.returncode)
+        artifacts = {}
+        for name, key in [('fixture.dump', 'dump'), ('pg_restore-list.txt', 'toc'), ('decoded.sql', 'source_sql')]:
+            raw = self.helper._private_read(self.batch / 'artifacts' / name, limit=64 * 1024)
+            require(0 < len(raw) <= 64 * 1024, 'InputLimit')
+            artifacts[key] = {'sha256': digest(raw), 'bytes': len(raw),
+                              'provenance': 'fresh_root_private_fixed_producer_artifact'}
+            if key != 'source_sql':
+                require(digest(raw) == observed[key + '_sha256'], 'Identity')
+        return {'observation': observed, 'builds': self.build_evidence, 'capacity': self.capacity,
+                'artifacts': artifacts,
+                'exact_test': IMPORT_PREFIX + IMPORT_CASES[case][0], 'test_exit_code': process.returncode,
+                'test_stdout_sha256': digest(process.stdout), 'markers': self._markers(target, observed)}
+
+    def _birth_recheck(self, row):
+        candidate, inspection = self.pin.inspect_candidate(row['control'], row['batch_id'], self.initdb)
+        require(candidate['birth_sha256'] == row['birth_sha256'], 'Identity')
+        require(inspection['live']['container_id'] == row['container_id'], 'Identity')
+
+    def _markers(self, target, observation):
+        root = target['control'] / 'targets' / target['batch_id'] / 'control'
+        db = target['identity']['database']
+        result = {}
+        for stage, suffix in [('attempt', '.restore.attempt'), ('intent', '.restore.commit-attempt')]:
+            path = root / (db + suffix)
+            expected = (observation['case'] not in ('ready-eof', 'ready-restart', 'wrong-endpoint')
+                        if stage == 'attempt' else observation['case'] in
+                        ('success', 'commit-intent-sync-failure', 'commit-unknown'))
+            require(os.path.lexists(path) is expected, 'Journal')
+            if not expected:
+                result[stage] = {'exists': False}
+                continue
+            raw = self.helper._private_read(path, limit=4096)
+            value = json.loads(raw)
+            require(type(value) is dict and value.get('record_type') == 'CONTROLLED_IMPORT_CANDIDATE' and
+                    type(value.get('format_version')) is int and value['format_version'] == 1 and
+                    value.get('phase') == ('ATTEMPT' if stage == 'attempt' else 'COMMIT_ATTEMPTED') and
+                    value.get('database') == db and type(value.get('writer_sha256')) is str and
+                    HEX_ID.fullmatch(value['writer_sha256']), 'Journal')
+            result[stage] = {'exists': True, 'sha256': digest(raw), 'phase': value.get('phase'),
+                             'writer_sha256': value.get('writer_sha256')}
+            if stage == 'attempt':
+                require(value.get('batch_id') == target['batch_id'] and
+                        type(value.get('fixture_version')) is int and value['fixture_version'] == 1 and
+                        type(value.get('inspection_sha256')) is str and HEX_ID.fullmatch(value['inspection_sha256']) and
+                        value.get('dump_sha256') == observation['dump_sha256'] and
+                        value.get('raw_sql_sha256') == observation['raw_sql_sha256'] and
+                        value.get('transformed_sql_sha256') == observation['transformed_sql_sha256'] and
+                        value.get('birth_sha256') == target['birth_sha256'], 'Journal')
+            else:
+                require(value.get('attempt_sha256') == result['attempt'].get('sha256') and
+                        value.get('writer_sha256') == result['attempt'].get('writer_sha256'), 'Journal')
+        return result
+
+    def stop(self):
+        if self.clone_record is not None and self.clone_record['container_id'] is None:
+            self.clone_record['container_id'] = self.delegate._find_owned_clone_pg(
+                self.provisioner, self.clone_record['identity'], self.clone_record['before'])
+        return super().stop()
+
+    def evidence_identity(self):
+        identity = super().evidence_identity()
+        identity['package']['clone_helper_sha256'] = self.args.clone_helper_sha256
+        identity['gate1'] = {'status': PASSED, 'result_sha256': GATE1_SHA256,
+            'provenance': 'controller_reviewed_reference_not_fresh_dump_identity'}
+        for row in self.resources:
+            identity['resources'][row['role']]['birth_sha256'] = row.get('birth_sha256')
+        return identity
+
+
 def _prepare_backend(args):
     require(sys.platform == 'linux' and os.geteuid() == 0, 'Identity')
     batches = [_canonical_batch(getattr(args, name)) for name in
                ('batch_id', 'source_batch_id', 'target_batch_id')]
     require(len(set(batches)) == 3, 'Identity')
     helper, manifest, content = _archive_contract(args)
-    return ContractBackend(args, helper, manifest, content)
+    backend = ImportBackend if getattr(args, 'phase', None) == 'import' else ContractBackend
+    return backend(args, helper, manifest, content)
 
 
 def run_contract(args) -> dict:
@@ -453,21 +892,84 @@ def run_contract(args) -> dict:
             backend.release()
 
 
+def run_import_case(args, case: str) -> dict:
+    require(getattr(args, 'phase', None) == 'import' and case in IMPORT_CASES, 'Protocol')
+    # This is the reviewed gate1 prerequisite, never a fresh-dump capability.
+    # All real source authority is re-established by the private Linux issuer.
+    require(getattr(args, 'gate1_status', None) == PASSED and
+            getattr(args, 'gate1_result_sha256', None) == GATE1_SHA256, 'Identity')
+    require(getattr(args, 'case', None) == case and
+            getattr(args, 'postgres_image', None) == POSTGRES_IMAGE and
+            getattr(args, 'builder_image_id', None) == BUILDER_ID, 'Identity')
+    names = ['batch_id', 'source_batch_id', 'target_batch_id']
+    if case == 'wrong-endpoint':
+        names.append('clone_batch_id')
+        require(type(getattr(args, 'clone_subnet', None)) is str, 'Identity')
+    else:
+        require(getattr(args, 'clone_batch_id', None) is None and
+                getattr(args, 'clone_subnet', None) is None, 'Identity')
+    batches = [_canonical_batch(getattr(args, name, None)) for name in names]
+    require(len(set(batches)) == len(batches), 'Identity')
+    require(all(type(getattr(args, name, None)) is str and HEX_ID.fullmatch(getattr(args, name))
+        for name in ('archive_sha256', 'manifest_sha256', 'runner_sha256',
+                     'archive_helper_sha256', 'fixture_sha256', 'clone_helper_sha256')), 'Identity')
+    require(type(getattr(args, 'commit', None)) is str and re.fullmatch(r'[0-9a-f]{40}', args.commit), 'Identity')
+    backend = _prepare_backend(args)
+    result = {'case': case, 'status': IMPORT_FAILED, 'reason_code': None,
+              'not_full_restore': True, 'retry_allowed': False}
+    try:
+        try:
+            result.update(backend.execute_import(case))
+            result['status'] = IMPORT_PASSED if case == 'success' else IMPORT_NEGATIVE
+        except BaseException as error:
+            known = isinstance(error, ImportRejected) or (fixture is not None and isinstance(error, fixture.ImportRejected))
+            result['reason_code'] = error.code if known and error.code in CODES else 'Io'
+        result['builds'] = backend.build_evidence
+        result['capacity'] = getattr(backend, 'capacity', {})
+        try:
+            result['isolation'] = backend.stop()
+            _validate_import_isolation(result)
+        except BaseException:
+            result['status'], result['reason_code'] = IMPORT_UNCONFIRMED, 'UnconfirmedIsolation'
+        try:
+            require(backend.verify_source(), 'Identity')
+            result['source_unchanged'] = True
+        except BaseException:
+            if result['status'] != IMPORT_UNCONFIRMED:
+                result['status'], result['reason_code'] = IMPORT_FAILED, 'Identity'
+        result['identity'] = backend.evidence_identity()
+        published = backend.publish(result)
+        require(not os.path.lexists(backend.batch / 'evidence' / 'result.pending'), 'Journal')
+        require(digest(backend.helper._private_read(backend.batch / 'evidence' / 'result.json', limit=256*1024)) ==
+                published['result_sha256'], 'Journal')
+        published['pending_absent'] = True
+        if published['status'] in (IMPORT_PASSED, IMPORT_NEGATIVE):
+            _validate_import_final(published)
+        return published
+    finally:
+        backend.release()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--phase', choices=['contract'], required=True)
+    parser.add_argument('--phase', choices=['contract', 'import'], required=True)
     parser.add_argument('--archive', type=Path, required=True)
     for name in ('archive-sha256', 'manifest-sha256', 'commit', 'runner-sha256',
                  'archive-helper-sha256', 'fixture-sha256', 'batch-id',
                  'source-batch-id', 'target-batch-id', 'source-subnet', 'target-subnet'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--case', choices=tuple(IMPORT_CASES))
+    for name in ('gate1-status', 'gate1-result-sha256', 'postgres-image', 'builder-image-id',
+                 'clone-helper-sha256', 'clone-batch-id', 'clone-subnet'):
+        parser.add_argument('--' + name)
     args = parser.parse_args(argv)
     try:
-        result = run_contract(args)
+        result = run_contract(args) if args.phase == 'contract' else run_import_case(args, args.case)
         print(json.dumps(result, separators=(',', ':')), flush=True)
-        return 0 if result['status'] == PASSED else 1
+        return 0 if result['status'] in (PASSED, IMPORT_PASSED, IMPORT_NEGATIVE) else 1
     except BaseException:
-        print('CONTRACT_ADMISSION_OR_EVIDENCE_REJECTED_NOT_IMPORT', flush=True)
+        print('CONTRACT_ADMISSION_OR_EVIDENCE_REJECTED_NOT_IMPORT' if args.phase == 'contract'
+              else 'CONTROLLED_IMPORT_ADMISSION_OR_EVIDENCE_REJECTED_NOT_FULL_RESTORE', flush=True)
         return 1
 
 
