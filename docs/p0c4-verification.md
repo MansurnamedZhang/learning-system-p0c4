@@ -7,7 +7,7 @@
 - 用户确认继续实施；设计与三项计划已确认，沿用逐任务实现及独立审查。
 - 本计划 Task 1 已提交 `39f194844e183e2c54c17c18732c2b9ca3f83870`，独立规格/质量审查通过：旧宿主导入方法与 marker→宿主子进程执行链已移除，加入借用容器 guard 和事务挑战的固定只读命令目标。Rust 库单测 34/34、相邻 Python 108/108、格式和严格 package Clippy 通过。依赖专用 PostgreSQL 测试库的集成测试未运行通过，不称全包通过。
 - 本计划 Task 2 本地实现与独立复审通过：`0ca23b1` 实现同一 SQLx 事务双锁/PID/OID 前后核验、固定 socket 客户端、有界 stdout/stderr/总截止时间、失败停机确认与失效 guard；独立审查发现版本误限定未验证的 Debian `+1` 后缀，修复提交 `ece5742c1714d908141731e93c305134d77e7876` 改为与固定 PG18.6-bookworm 镜像身份配套的有界版本语法，并增加真实进程句柄见证的截止时间/取消回收测试。定向 RED→GREEN 与取消处理 mutation RED 有效；最终49项库单测、格式/严格 Clippy通过，原108项Python相邻回归未改。复审 I1/M1 均已解决，无新重要缺陷。真实镜像版本输出、Linux生命周期、socket认证及Docker停机仍待 Task 3现场证据。
-- 本计划 Task 3 的 opt-in Linux 测试与 Python 隔离驱动正在实现；Linux/PG18 现场验收尚未开始；必须另行封存、逐文件确认源码包/runner，并使用全新项目/子网/卷。恢复写入、资产闭包、独立 CompleteBackup 与完整 C4 验收仍待完成。
+- 本计划 Task 3 的 opt-in Linux 测试与 Python 隔离驱动已实现并通过独立任务审查（48a86f8）：同一 guard 与 SQLx 事务首次证明后，用有界精确 ID 重启并验证旧挑战被拒绝；本地49项Rust库单测、177项Python、格式与严格Clippy通过。Linux编译/PG18现场验收尚未开始；整计划审查与Git字节封存进行中，之后须逐文件确认源码包/runner，并使用全新项目/子网/卷。恢复写入、资产闭包、独立 CompleteBackup 与完整 C4 验收仍待完成。
 
 ## 基线与范围
 
