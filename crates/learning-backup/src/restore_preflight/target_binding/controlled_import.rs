@@ -1,4 +1,5 @@
 //! Private command/receipt models only; no process or restore authority.
+mod candidate_attempt;
 mod commands;
 mod fixture_sql;
 mod protocol;

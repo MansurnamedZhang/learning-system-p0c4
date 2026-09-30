@@ -1,6 +1,7 @@
 use super::super::ChallengeKeys;
 use super::ImportFailure;
 use ring::rand::{SecureRandom, SystemRandom};
+use sha2::{Digest, Sha256};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Nonce([u8; 16]);
@@ -21,6 +22,16 @@ pub(super) struct WriterIdentity {
     backend_pid: i32,
     backend_start_micros: i64,
     transaction_id: u64,
+}
+impl WriterIdentity {
+    pub(super) fn fingerprint_sha256(&self) -> [u8; 32] {
+        let mut digest = Sha256::new();
+        digest.update(b"KW_C4_WRITER_IDENTITY_V1\0");
+        digest.update(self.backend_pid.to_be_bytes());
+        digest.update(self.backend_start_micros.to_be_bytes());
+        digest.update(self.transaction_id.to_be_bytes());
+        digest.finalize().into()
+    }
 }
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum WriterEvent {
