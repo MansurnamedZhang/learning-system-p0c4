@@ -187,7 +187,7 @@ async fn attest_with<'a, G, T, L>(
 }
 
 #[cfg(any(target_os = "linux", test))]
-mod linux_child;
+pub(super) mod linux_child;
 #[cfg(target_os = "linux")]
 pub(in crate::restore_preflight) use linux_child::attest;
 

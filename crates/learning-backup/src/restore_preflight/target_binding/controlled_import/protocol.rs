@@ -24,6 +24,13 @@ pub(super) struct WriterIdentity {
     transaction_id: u64,
 }
 impl WriterIdentity {
+    pub(super) fn parts(&self) -> (i32, i64, u64) {
+        (
+            self.backend_pid,
+            self.backend_start_micros,
+            self.transaction_id,
+        )
+    }
     pub(super) fn fingerprint_sha256(&self) -> [u8; 32] {
         let mut digest = Sha256::new();
         digest.update(b"KW_C4_WRITER_IDENTITY_V1\0");
@@ -48,6 +55,52 @@ pub(super) struct WriterExpected {
     control_pid: i32,
     keys: ChallengeKeys,
     nonce: Nonce,
+}
+impl WriterExpected {
+    pub(super) fn new(
+        database: String,
+        database_oid: u64,
+        system_identifier: &str,
+        control_pid: i32,
+        keys: ChallengeKeys,
+        nonce: Nonce,
+    ) -> Result<Self, ImportFailure> {
+        let suffix = database
+            .strip_prefix("learning_restore_c4_")
+            .ok_or(ImportFailure::Identity)?;
+        let id = uuid::Uuid::parse_str(suffix).map_err(|_| ImportFailure::Identity)?;
+        if id.get_version_num() != 4
+            || id.get_variant() != uuid::Variant::RFC4122
+            || id.to_string() != suffix
+            || database_oid == 0
+            || database_oid > u32::MAX as u64
+            || control_pid <= 0
+            || keys.validate().is_err()
+        {
+            return Err(ImportFailure::Identity);
+        }
+        canonical_positive(system_identifier).map_err(|_| ImportFailure::Identity)?;
+        Ok(Self {
+            database,
+            database_oid,
+            system_identifier: system_identifier
+                .parse()
+                .map_err(|_| ImportFailure::Identity)?,
+            control_pid,
+            keys,
+            nonce,
+        })
+    }
+    pub(super) fn parts(&self) -> (&str, u64, u64, i32, ChallengeKeys, Nonce) {
+        (
+            &self.database,
+            self.database_oid,
+            self.system_identifier,
+            self.control_pid,
+            self.keys,
+            self.nonce,
+        )
+    }
 }
 pub(super) fn parse_writer_line(
     line: &[u8],

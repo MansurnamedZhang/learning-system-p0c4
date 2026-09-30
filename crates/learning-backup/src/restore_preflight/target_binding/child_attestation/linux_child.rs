@@ -170,6 +170,68 @@ async fn quarantine(claim: &DockerClaim) -> Isolation {
     quarantine_with(claim, &mut FixedQuarantine).await
 }
 
+// Test-only candidate adapters retain the original transaction on every error.
+// Clone observations, never guards: Cell-backed guard references are not held
+// across an await, so a detached Send supervisor can own the actual guard.
+#[cfg(all(test, target_os = "linux"))]
+pub(in crate::restore_preflight::target_binding) async fn candidate_recheck(
+    guard: &mut BoundTargetGuard<File, Option<File>>,
+    challenge: &mut LockChallenge<Transaction<'static, Postgres>>,
+    expected_pid: i32,
+    expected_oid: u64,
+    deadline: Instant,
+) -> Result<(), ChildFailure> {
+    let claim = guard.claim.clone();
+    let mut io = LinuxIo {
+        cancellation_claim: None,
+    };
+    let actual = io.session(challenge.lease_mut(), deadline).await?;
+    if actual != (expected_pid, expected_oid) {
+        return Err(ChildFailure::Session);
+    }
+    let before = observe(&claim, deadline).await?;
+    let args = challenge_exec_args(&claim, challenge.keys()).map_err(|_| ChildFailure::Identity)?;
+    let output = docker(&args, deadline).await?;
+    let after = observe(&claim, deadline).await?;
+    guard
+        .verify_sql_session_observed(
+            challenge.keys(),
+            expected_pid,
+            expected_oid,
+            &before,
+            &output,
+            &after,
+        )
+        .map_err(|_| ChildFailure::Session)?;
+    if io.session(challenge.lease_mut(), deadline).await? != (expected_pid, expected_oid) {
+        return Err(ChildFailure::Session);
+    }
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(in crate::restore_preflight::target_binding) async fn candidate_observe(
+    claim: &DockerClaim,
+    deadline: Instant,
+) -> Result<Value, ChildFailure> {
+    observe(claim, deadline).await
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(in crate::restore_preflight::target_binding) async fn candidate_quarantine(
+    claim: &DockerClaim,
+) -> Isolation {
+    quarantine(claim).await
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(in crate::restore_preflight::target_binding) async fn candidate_version(
+    args: &[String],
+    deadline: Instant,
+) -> Result<(), ChildFailure> {
+    version(&docker(args, deadline).await?)
+}
+
 struct LinuxIo {
     cancellation_claim: Option<DockerClaim>,
 }

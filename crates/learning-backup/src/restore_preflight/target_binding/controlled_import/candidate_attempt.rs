@@ -60,7 +60,7 @@ pub(super) struct DurableCommitIntent {
     attempt_sha256: [u8; 32],
 }
 
-trait JournalIo {
+pub(super) trait JournalIo {
     type File: Write;
     type Reader: Read;
     fn identity(&self) -> io::Result<(u64, u64)>;
@@ -138,7 +138,7 @@ pub(super) fn persist_commit_intent(
     persist_commit_intent_with_io(dir, attempt, writer)
 }
 
-fn persist_attempt_with_io(
+pub(super) fn persist_attempt_with_io(
     dir: &impl JournalIo,
     context: &CandidateAttemptContext,
 ) -> Result<DurableAttempt, ImportFailure> {
@@ -170,7 +170,7 @@ fn persist_attempt_with_io(
     })
 }
 
-fn persist_commit_intent_with_io(
+pub(super) fn persist_commit_intent_with_io(
     dir: &impl JournalIo,
     attempt: &DurableAttempt,
     writer: &WriterIdentity,

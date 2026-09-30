@@ -15,10 +15,47 @@ const TEMPLATE_HEADER_END: usize = 623;
 pub(super) struct FrozenDump {
     bytes: Box<[u8]>,
     sha256: [u8; 32],
+    provenance: Option<FixtureProvenance>,
+}
+
+// T5-PROVENANCE-01: there is intentionally no issuing constructor in Task 5.
+// Task 6's reviewed fixed producer/no-follow/TOC adapter must supply the sole
+// issuer, after observing a fresh isolated source and these exact frozen bytes.
+// The uninhabited seal prevents a boolean/caller-digest shortcut in this slice.
+enum ValidatedFreshProducer {}
+#[allow(dead_code)]
+struct FixtureProvenance {
+    batch: uuid::Uuid,
+    source_database: String,
+    source_container: String,
+    producer_image: String,
+    producer_client: String,
+    toc_sha256: [u8; 32],
+    snapshot_len: usize,
+    snapshot_sha256: [u8; 32],
+    _validated: ValidatedFreshProducer,
 }
 
 #[allow(dead_code)]
 impl FrozenDump {
+    pub(super) fn require_provenance(
+        &self,
+        batch: uuid::Uuid,
+        target_database: &str,
+    ) -> Result<(), ImportFailure> {
+        let proof = self.provenance.as_ref().ok_or(ImportFailure::Fixture)?;
+        if proof.batch != batch
+            || proof.source_database == target_database
+            || !super::super::exact_id(&proof.source_container)
+            || proof.producer_image != super::super::PINNED_IMAGE
+            || proof.producer_client != "/usr/lib/postgresql/18/bin/pg_dump"
+            || proof.snapshot_len != self.bytes.len()
+            || proof.snapshot_sha256 != self.sha256
+        {
+            return Err(ImportFailure::Fixture);
+        }
+        Ok(())
+    }
     pub(super) fn bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -88,6 +125,7 @@ pub(super) fn freeze_dump(
     Ok(FrozenDump {
         bytes: bytes.into_boxed_slice(),
         sha256: expected_sha256,
+        provenance: None,
     })
 }
 
@@ -178,6 +216,19 @@ mod tests {
     use std::io::{Cursor, Error, Seek, SeekFrom, Write};
 
     const CAPTURE_KEY: &[u8] = b"XUiXOMjlMScOdk9ZzeQOcY8XFfEhfRYfmX6zxd5b98iPfVsmzTgJE32K1SuOOui";
+
+    #[test]
+    fn byte_checked_dump_has_no_fresh_producer_authority() {
+        let bytes = b"PGDMParbitrary-caller-bytes";
+        let dump = freeze_dump(Cursor::new(bytes), bytes.len() as u64, digest(bytes)).unwrap();
+        assert_eq!(
+            dump.require_provenance(
+                uuid::Uuid::new_v4(),
+                "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3"
+            ),
+            Err(ImportFailure::Fixture)
+        );
+    }
 
     fn digest(bytes: &[u8]) -> [u8; 32] {
         Sha256::digest(bytes).into()
