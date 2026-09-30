@@ -6,6 +6,8 @@ use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::Value;
 use std::net::Ipv4Addr;
 
+pub(super) mod child_attestation;
+
 const PINNED_IMAGE: &str = "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d";
 const PG_ID_SQL: &str = "SELECT d.oid::bigint::text || '|' || pcs.system_identifier::text FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs WHERE d.datname=pg_catalog.current_database()";
 
@@ -125,6 +127,9 @@ impl<'a, G, T, L> ExactRestoreChildTarget<'a, G, T, L> {
         guard: &'a BoundTargetGuard<G, T>,
         challenge: &'a LockChallenge<L>,
     ) -> Result<Self, BackupError> {
+        if !guard.child_usable.get() {
+            return Err(BackupError::Invalid("restore child target unusable"));
+        }
         let claim = &guard.claim;
         let suffix = claim
             .project
@@ -187,8 +192,11 @@ impl<'a, G, T, L> ExactRestoreChildTarget<'a, G, T, L> {
             "--port=5432".into(),
             "--username=learning_admin".into(),
             format!("--dbname={}", self.database()),
+            "-q".into(),
+            "-v".into(),
+            "ON_ERROR_STOP=1".into(),
             "-c".into(),
-            "SELECT current_database()".into(),
+            child_attestation::socket_sql(self._challenge.keys),
         ]);
         args
     }
@@ -722,6 +730,7 @@ pub(super) struct BoundTargetGuard<G, T> {
     _global_lock: G,
     claim: DockerClaim,
     observation: Value,
+    child_usable: std::cell::Cell<bool>,
 }
 
 fn acquire_bound_guard<G, T>(
@@ -737,10 +746,37 @@ fn acquire_bound_guard<G, T>(
         _global_lock: global_lock,
         claim,
         observation,
+        child_usable: std::cell::Cell::new(true),
     })
 }
 
 impl<G, T> BoundTargetGuard<G, T> {
+    fn ensure_child_usable(&self) -> Result<(), BackupError> {
+        if !self.child_usable.get() {
+            return Err(BackupError::Invalid("restore child target unusable"));
+        }
+        Ok(())
+    }
+
+    fn verify_sql_session_observed(
+        &self,
+        keys: ChallengeKeys,
+        expected_pid: i32,
+        expected_database_oid: u64,
+        before: &Value,
+        output: &str,
+        after: &Value,
+    ) -> Result<(), BackupError> {
+        if expected_database_oid != self.claim.database_oid {
+            return Err(BackupError::Invalid(
+                "SQL session challenge database differs",
+            ));
+        }
+        same_observation(&self.observation, before)?;
+        validate_challenge_rows(keys, expected_pid, self.claim.database_oid, output)?;
+        same_observation(&self.observation, after)
+    }
+
     fn verify_sql_session_with<L>(
         &self,
         challenge: LockChallenge<L>,
@@ -749,6 +785,7 @@ impl<G, T> BoundTargetGuard<G, T> {
         mut observe: impl FnMut(&DockerClaim) -> Result<Value, BackupError>,
         query: impl FnOnce(&DockerClaim, &[String]) -> Result<String, BackupError>,
     ) -> Result<LockChallenge<L>, BackupError> {
+        self.ensure_child_usable()?;
         if expected_database_oid != self.claim.database_oid {
             return Err(BackupError::Invalid(
                 "SQL session challenge database differs",
@@ -765,7 +802,14 @@ impl<G, T> BoundTargetGuard<G, T> {
             &output,
         )?;
         let after = observe(&self.claim)?;
-        same_observation(&self.observation, &after)?;
+        self.verify_sql_session_observed(
+            challenge.keys,
+            expected_pid,
+            expected_database_oid,
+            &before,
+            &output,
+            &after,
+        )?;
         Ok(challenge)
     }
 
@@ -774,6 +818,7 @@ impl<G, T> BoundTargetGuard<G, T> {
         mut observe: impl FnMut(&DockerClaim) -> Result<Value, BackupError>,
         query: impl FnOnce(&DockerClaim) -> Result<String, BackupError>,
     ) -> Result<(), BackupError> {
+        self.ensure_child_usable()?;
         let before = observe(&self.claim)?;
         same_observation(&self.observation, &before)?;
         validate_pg_line(&self.claim, &query(&self.claim)?)?;
@@ -824,7 +869,7 @@ mod linux {
         Ok(file)
     }
 
-    pub(super) fn docker(args: &[String]) -> Result<String, BackupError> {
+    pub(super) fn trusted_docker_path() -> Result<(), BackupError> {
         for path in ["/usr", "/usr/bin", "/usr/bin/docker"] {
             let meta = std::fs::symlink_metadata(path)?;
             if meta.uid() != 0
@@ -835,6 +880,11 @@ mod linux {
                 return Err(BackupError::Invalid("Docker executable path untrusted"));
             }
         }
+        Ok(())
+    }
+
+    pub(super) fn docker(args: &[String]) -> Result<String, BackupError> {
+        trusted_docker_path()?;
         let result = Command::new("/usr/bin/docker")
             .args(args)
             .env_clear()
@@ -952,7 +1002,7 @@ mod linux {
         Ok(format!("{:x}", Sha256::digest(&bytes)))
     }
 
-    fn verify_mount_inode(claim: &DockerClaim) -> Result<(), BackupError> {
+    pub(super) fn verify_mount_inode(claim: &DockerClaim) -> Result<(), BackupError> {
         let meta = std::fs::symlink_metadata(&claim.mountpoint)?;
         if !meta.is_dir() || meta.dev() != claim.mount_dev || meta.ino() != claim.mount_ino {
             return Err(BackupError::Invalid("bound PG volume inode differs"));
@@ -1218,6 +1268,7 @@ mod tests {
             _target_lock: (),
             _global_lock: (),
             claim: claim(),
+            child_usable: std::cell::Cell::new(true),
             observation: json!({"restart_count": 0}),
         };
         let keys = ChallengeKeys::for_test(7, 4_294_967_298);
@@ -1257,6 +1308,7 @@ mod tests {
             _target_lock: (),
             _global_lock: (),
             claim: claim(),
+            child_usable: std::cell::Cell::new(true),
             observation: json!({"restart_count": 0}),
         };
         let released = Rc::new(Cell::new(false));
@@ -1381,6 +1433,7 @@ mod tests {
             _target_lock: (),
             _global_lock: (),
             claim: claim(),
+            child_usable: std::cell::Cell::new(true),
             observation: json!({"restart_count": 0}),
         };
         let keys = ChallengeKeys::for_test(7, 4_294_967_298);
@@ -1447,6 +1500,7 @@ mod tests {
             _target_lock: (),
             _global_lock: (),
             claim: claim(),
+            child_usable: std::cell::Cell::new(true),
             observation: json!({"restart_count": 0}),
         };
         for drift_after in [false, true] {
@@ -1579,6 +1633,7 @@ mod tests {
             _target_lock: (),
             _global_lock: (),
             claim: claim(),
+            child_usable: std::cell::Cell::new(true),
             observation: json!({"restart_count": 0}),
         };
         assert!(
@@ -2237,7 +2292,7 @@ mod tests {
     const NET: &str = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
     const IMAGE: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
-    fn claim() -> DockerClaim {
+    pub(super) fn claim() -> DockerClaim {
         DockerClaim {
             container_id: ID.into(),
             network_id: NET.into(),
@@ -2279,6 +2334,7 @@ mod tests {
             _target_lock: (),
             _global_lock: (),
             claim: claim(),
+            child_usable: std::cell::Cell::new(true),
             observation: json!({}),
         };
         let challenge = LockChallenge::new(ChallengeKeys::for_test(7, 9), ());
@@ -2301,9 +2357,10 @@ mod tests {
                 "--version",
             ]
         );
+        let args = target.socket_probe_argv();
         assert_eq!(
-            target.socket_probe_argv(),
-            vec![
+            &args[..10],
+            [
                 "exec",
                 "--interactive",
                 "--user",
@@ -2313,16 +2370,16 @@ mod tests {
                 "-i",
                 "LC_ALL=C",
                 "PGCONNECT_TIMEOUT=10",
-                "/usr/lib/postgresql/18/bin/psql",
-                "-XAt",
-                "--no-password",
-                "--host=/var/run/postgresql",
-                "--port=5432",
-                "--username=learning_admin",
-                "--dbname=learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3",
-                "-c",
-                "SELECT current_database()",
+                "/usr/lib/postgresql/18/bin/psql"
             ]
+        );
+        assert!(args.iter().any(|a| a == "--no-password"));
+        assert!(args.iter().any(|a| a == "--host=/var/run/postgresql"));
+        assert!(args.iter().any(|a| a == "--port=5432"));
+        assert!(args.iter().any(|a| a == "--username=learning_admin"));
+        assert!(
+            args.iter()
+                .any(|a| a == &format!("--dbname={}", claim().database))
         );
     }
 
@@ -2333,6 +2390,7 @@ mod tests {
                 _target_lock: (),
                 _global_lock: (),
                 claim: claim(),
+                child_usable: std::cell::Cell::new(true),
                 observation: json!({}),
             };
             guard.claim.container_id = bad_id;
@@ -2343,6 +2401,7 @@ mod tests {
             _target_lock: (),
             _global_lock: (),
             claim: claim(),
+            child_usable: std::cell::Cell::new(true),
             observation: json!({}),
         };
         guard.claim.database = "learning_restore_c4_aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa".into();

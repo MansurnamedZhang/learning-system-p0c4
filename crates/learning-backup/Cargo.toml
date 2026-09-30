@@ -18,7 +18,7 @@ uuid.workspace = true
 sqlx.workspace = true
 learning-assets = { path = "../learning-assets" }
 learning-db = { path = "../learning-db" }
-tokio.workspace = true
+tokio = { workspace = true, features = ["process", "io-util"] }
 ring = "0.17.14"
 hex = "0.4"
 
