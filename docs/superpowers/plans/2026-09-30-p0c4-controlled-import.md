@@ -10,7 +10,7 @@
 
 **Spec:** [已获批准的首次写入设计](../specs/2026-09-30-p0c4-controlled-import-design.md)。开始编码前执行者必须同时阅读本计划与规格。
 
-**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3开始持久attempt与提交意图，Task4–6按顺序推进；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
+**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3提交 `f815b6e62bc78abe45b0610876ce4926e5346835` 已完成候选attempt/提交意图、两道sync屏障及同目录/writer/初始SHA绑定；定向4/4、包内库70/70、格式及严格Clippy通过，独立规格/质量Approved。Task3真实Linux no-follow/fsync门尚未编译/执行，留给另授权批次。Task4开始流式监督器与取消，Task5–6按顺序推进；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
 
 ## Global Constraints
 
@@ -74,11 +74,11 @@
 
 **Interfaces:** `CandidateAttemptContext { batch_id:Uuid, database:String, birth_sha256:[u8;32], inspection_sha256:[u8;32], dump_sha256:[u8;32], raw_sql_sha256:[u8;32], transformed_sql_sha256:[u8;32], fixture_version:u32, writer:WriterIdentity }`，字段私有且fixture_version固定1；`persist_attempt(dir:&BackupDir,context:&CandidateAttemptContext)->Result<DurableAttempt,ImportFailure>`、`persist_commit_intent(dir:&BackupDir,attempt:&DurableAttempt,writer:&WriterIdentity)->Result<DurableCommitIntent,ImportFailure>`。两个返回类型非Clone、字段私有；构造只在文件和父目录sync成功后返回。初始文件 `<出生库>.restore.attempt`，提交意图 `<出生库>.restore.commit-attempt`，后者绑定前者文件SHA。
 
-- [ ] 写RED：`journal_rejects_existing_regular_symlink_and_partial_entry`、`file_sync_failure_returns_no_durable_permit`、`directory_sync_failure_preserves_entry`、`commit_intent_binds_attempt_and_writer`。断言失败不删除、不覆盖，不出现伪receipt_sha256，首次持久permit前不得发送DDL。
-- [ ] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::candidate_attempt`，记录预期RED。
-- [ ] 实现私有候选版本/type、root私有create_new/no-follow写入、文件及父目录fsync。真实Linux路径沿用BackupDir，不以普通Path重新打开已核验目录；可注入仅测试的sync故障。late完成只产生持久记录，不自行发送payload/COMMIT。
-- [ ] 定向GREEN、格式/严格package Clippy通过；Linux ignored `live_candidate_journal_no_follow_and_fsync` 在后续授权新无网络私有临时目录核对真实权限/同步/保留，不碰已有target。
-- [ ] 提交并独立审查。任意文件创建/同步不确定均保留并阻止目标重用；DurableCommitIntent仅是尝试证据，不代表已提交。
+- [x] 写RED：`journal_rejects_existing_regular_symlink_and_partial_entry`、`file_sync_failure_returns_no_durable_permit`、`directory_sync_failure_preserves_entry`、`commit_intent_binds_attempt_and_writer`。断言失败不删除、不覆盖，不出现伪receipt_sha256，首次持久permit前不得发送DDL。
+- [x] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::candidate_attempt`，记录预期RED。
+- [x] 实现私有候选版本/type、root私有create_new/no-follow写入、文件及父目录fsync。真实Linux路径沿用BackupDir，不以普通Path重新打开已核验目录；可注入仅测试的sync故障。late完成只产生持久记录，不自行发送payload/COMMIT。
+- [x] 定向GREEN、格式/严格package Clippy通过；Linux ignored `live_candidate_journal_no_follow_and_fsync` 已添加，Windows未编译/未运行；真实权限/同步/保留仍待后续另授权新无网络私有临时目录，不碰已有target。本勾选仅表示本地实现与检查完成。
+- [x] 提交并独立审查。任意文件创建/同步不确定均保留并阻止目标重用；DurableCommitIntent仅是尝试证据，不代表已提交。
 
 ## Task 4 — 流式监督器、单一stdin所有权与取消
 

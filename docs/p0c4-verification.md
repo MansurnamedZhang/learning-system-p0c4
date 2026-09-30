@@ -238,3 +238,10 @@
 - 实产SQL1,308字节及两处63字节key形成1,214字节模板，模板SHA `2bc9495461ac7432d725a76868fd2165eeb6e3e32cd3a6d05b34fbeaecdb7c49`；实产转换后1,363字节/SHA `d52fadf2e5d841b57166cd9d6f281034b3b16264b66a677b55aeaab8fcbce138`。capture-contract保存镜像、来源批次、dump/TOC/原SQL/模板摘要、动态边界和唯一预期header空行。精确LF属性规则保留`.sql.in`字节；实产末尾空行保留，默认diff whitespace的EOF空行提示属于已核验数据例外。
 - 留存RED退出101：七项中五项预期失败、两项拒绝测试通过；最终定向7/7、package库66/66、格式和严格package all-targets Clippy退出0。控制器核对留存日志，独立子代理核验实际捕获SQL/dump/TOC、模板重建、key边界和转换摘要，规格符合/质量Approved，无Critical/Important问题。初次GREEN借用检查和首次格式失败记录仍保留，未掩盖为首次全绿。
 - **T2-LIMIT-01：** freeze_dump的期望摘要由内部调用者传入，本模块只接收解码SQL；后续整合必须把实际输入绑定到已审查dump/TOC、Linux no-follow打开及固定PG18解码客户端，不能仅凭本模块通过放行任意dump。这些Windows结果不证明Linux编译、真实writer/导入、服务端超时或隔离。既有M3 Python计时失败未修改/重跑；整支与C4全关尚未验收。Task2本地实现/审查完成，Task3开始持久attempt及提交意图。
+
+### 受控小型 dump Task3：候选attempt与提交意图本地完成（2026-10-01）
+
+- 实现提交 `f815b6e62bc78abe45b0610876ce4926e5346835`，仅三份Rust文件。候选类型/版本独立于production receipt，绑定batch、birth/inspection、dump/SQL摘要、fixture版本和writer身份摘要。沿用BackupDir持有目录句柄的create_new/no-follow、文件同步及父目录同步；任一步失败不返回持久permit，已创建或部分条目保留，禁止复用。
+- 非Clone的DurableAttempt与DurableCommitIntent字段私有；提交意图核对同目录device/inode、同writer，并从目录句柄打开初始文件、限定4096字节重算SHA，绑定初始证据。没有SQL发送器，也不证明数据库已提交。Windows故障模型与真实BackupDir适配器共用同一持久化算法。
+- 初次RED为三失败/一通过；自查加强既存条目用例后，失效实现mutation RED四项全部失败；最终定向4/4、package库70/70、严格Clippy通过。格式原工具回执为EXIT=0、空输出，Tee-Object未创建报告最初引用的空日志；报告已如实更正，未补造日志或重跑。独立规格审查符合、质量Approved，无Critical/Important/Minor。
+- **T3-LIMIT-01：** Linux ignored no-follow/root模式/fsync测试已添加，但当前Windows未编译/执行，实际持久化须在另授权全新私有目录验证。**T3-LIMIT-02/T2-LIMIT-01：** 信任上下文摘要不构成任意输入准入；Task5/6还要绑定实产dump/TOC及固定客户端、单一监督和真正写入顺序。M3仍待最终整支审查，整支/C4/恢复/生产未验收。Task3本地实现与独立审查完成，Task4继续管道与取消状态机。
