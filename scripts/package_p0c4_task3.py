@@ -31,7 +31,8 @@ def package(repository, destination):
         "files": [{"path": path, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
                   for path, data in sorted(entries.items())],
     }
-    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, sort_keys=True,
+                                separators=(",", ":")).encode("utf-8")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_STORED) as archive:
         for path, data in sorted(entries.items()):
