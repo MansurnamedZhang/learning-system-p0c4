@@ -245,3 +245,11 @@
 - 非Clone的DurableAttempt与DurableCommitIntent字段私有；提交意图核对同目录device/inode、同writer，并从目录句柄打开初始文件、限定4096字节重算SHA，绑定初始证据。没有SQL发送器，也不证明数据库已提交。Windows故障模型与真实BackupDir适配器共用同一持久化算法。
 - 初次RED为三失败/一通过；自查加强既存条目用例后，失效实现mutation RED四项全部失败；最终定向4/4、package库70/70、严格Clippy通过。格式原工具回执为EXIT=0、空输出，Tee-Object未创建报告最初引用的空日志；报告已如实更正，未补造日志或重跑。独立规格审查符合、质量Approved，无Critical/Important/Minor。
 - **T3-LIMIT-01：** Linux ignored no-follow/root模式/fsync测试已添加，但当前Windows未编译/执行，实际持久化须在另授权全新私有目录验证。**T3-LIMIT-02/T2-LIMIT-01：** 信任上下文摘要不构成任意输入准入；Task5/6还要绑定实产dump/TOC及固定客户端、单一监督和真正写入顺序。M3仍待最终整支审查，整支/C4/恢复/生产未验收。Task3本地实现与独立审查完成，Task4继续管道与取消状态机。
+
+
+### 受控小型 dump Task4：管道与取消状态机本地完成（2026-10-01）
+
+- 实现提交 `1e4dbdaf6b36b2056b60b934a3218b3f5bcee7d2`，修复提交 `986137b5dce435da6bfebabe827c17a9ab73204f`；只涉及私有stream/state及模块声明，原只读bounded_process语义未改。StreamOwner独占stdin/Child，两个reader只持有输出；固定总/阶段截止、读取中预算和真实背压。状态机在首次COMMIT尝试之前要求attempt/intent及最终复验，取消先接受后不可被迟到同步复活，发送失败保守归CommitUnknown。
+- 首轮独立审查发现两项Important：已就绪成功分支可能绕过过期finish截止，继承管道可在宿主回收后无限阻塞reader清理。聚焦RED分别0/1及0/2；修复保留同一绝对截止、定时分支优先和最终截止核对，未排空reader显式abort并逐一join。自进程夹具证明持有管道的进程仍存活、两侧reader均阻塞；单侧reader失败也核对另一侧结束。新增中间JoinHandle重复poll及Clippy失败日志保留，未掩盖。
+- 最终修复源管道15/15、相邻监督器5/5，格式及严格package all-targets Clippy退出0；状态机3/3运行于未改动的状态源码。修复前完整package库83/83；仅stream.rs修订后的全包未重复运行，不能把旧83/83当最终全包证据。独立规格审查的两项缺陷均经复审ADDRESSED，无新增Critical/Important，控制器核对完整报告和留存日志。
+- **T4-LIMIT-01：** Windows真实自进程管道/OS句柄证据只证明宿主回收与reader结束，不能证明Linux Docker客户端、PG事务/提交、真实journal同步或目标容器停机。仍需Task5组合和Task6另授权现场门；现有M3计时失败留给最终整支审查。Task4本地实现/审查完成，Task5开始；目标导入、CompleteBackup、整支/C4/生产尚未验收。

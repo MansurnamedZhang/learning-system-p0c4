@@ -10,7 +10,7 @@
 
 **Spec:** [已获批准的首次写入设计](../specs/2026-09-30-p0c4-controlled-import-design.md)。开始编码前执行者必须同时阅读本计划与规格。
 
-**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3提交 `f815b6e62bc78abe45b0610876ce4926e5346835` 已完成候选attempt/提交意图、两道sync屏障及同目录/writer/初始SHA绑定；定向4/4、包内库70/70、格式及严格Clippy通过，独立规格/质量Approved。Task3真实Linux no-follow/fsync门尚未编译/执行，留给另授权批次。Task4开始流式监督器与取消，Task5–6按顺序推进；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
+**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3提交 `f815b6e62bc78abe45b0610876ce4926e5346835` 已完成候选attempt/提交意图、两道sync屏障及同目录/writer/初始SHA绑定；定向4/4、包内库70/70、格式及严格Clippy通过，独立规格/质量Approved。Task3真实Linux no-follow/fsync门尚未编译/执行，留给另授权批次。Task4实现 `1e4dbda`、修复 `986137b` 已完成本地管道/取消状态机及独立审查：最终管道15/15、状态机3/3、相邻监督器5/5、格式/严格Clippy通过；修复前包内库83/83，修复后未重复全包。独立审查发现的过期finish竞态和继承管道清理阻塞两项Important已修复并复审全部ADDRESSED，未发现新增阻断。Task5开始Linux组合层，Task6随后推进；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
 
 ## Global Constraints
 
@@ -88,7 +88,9 @@
 
 StreamBudget在本任务定义为固定的deadline/stdout_cap/stderr_cap；decoder与writer按Global Constraints构造，不能传入宽松用户预算。上述send/close/kill返回 `Result<(),ImportFailure>`，next_line返回 `Result<Option<Vec<u8>>,ImportFailure>`。spawn_stream仅创建宿主进程和返回受控所有者，不能启动另一个可独立发送stdin的后台任务；任务5监督任务是唯一发送者。下一阶段回执不提前通过，未知空行只允许任务2golden注明的header位置/次数。
 
-- [ ] 写RED：`ready_arrives_while_input_is_open`、`stdout_and_stderr_limits_apply_while_running`、`blocked_stdin_obeys_total_deadline`；用受控自测试进程验证真实IO。模型断言：
+本节勾选表示Windows本地实现/验证与独立审查完成；Linux Docker/PG、真实提交和容器隔离仍属于Task5/6现场门。为兑现成功退出/排空要求，StreamOwner增加窄私有`finish`，沿用同一Child、截止和stdin所有权。
+
+- [x] 写RED：`ready_arrives_while_input_is_open`、`stdout_and_stderr_limits_apply_while_running`、`blocked_stdin_obeys_total_deadline`；用受控自测试进程验证真实IO。模型断言：
 
 ```rust
 // cancel被接受后，迟到的sync成功事件不能放行任何输入。
@@ -97,10 +99,10 @@ assert_eq!(cancelled.accept(ImportEvent::AttemptSynced), Err(ImportFailure::Canc
 assert!(precommit.accept(ImportEvent::CommitPermitRequested).is_err());
 ```
 
-- [ ] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::stream` 和同目录 `controlled_import::state`，记录预期RED。
-- [ ] 实现读取中预算、背压/分阶段截止、严格增量协议；事件类型定义AttemptSynced、CommitIntentSynced、CommitPermitRequested、Cancelled及其必要身份/回执事件。单owner串行裁决取消/提交，任何COMMIT字节发送前必须处于持久意图后的状态；发送部分失败转CommitUnknown，不能解释成零提交。保证kill/wait后才释放宿主句柄，Drop只是请求取消，外层监督任务持续拥有StreamOwner。
-- [ ] GREEN须覆盖取消先赢/提交先赢、缺LF/CRLF/伪nonce/额外行、未知空行、stderr非空、部分COMMIT、deadline与宿主进程已回收。定向通过后跑原bounded_process回归、格式/严格package Clippy。
-- [ ] 提交并独立审查真实背压、输出限制及没有隐藏第二个stdin发送任务；测试只使用自进程，不建立产品DB连接。
+- [x] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::stream` 和同目录 `controlled_import::state`，记录预期RED。
+- [x] 实现读取中预算、背压/分阶段截止、严格增量协议；事件类型定义AttemptSynced、CommitIntentSynced、CommitPermitRequested、Cancelled及其必要身份/回执事件。单owner串行裁决取消/提交，任何COMMIT字节发送前必须处于持久意图后的状态；发送部分失败转CommitUnknown，不能解释成零提交。保证kill/wait后才释放宿主句柄，Drop只是请求取消，外层监督任务持续拥有StreamOwner。
+- [x] GREEN须覆盖取消先赢/提交先赢、缺LF/CRLF/伪nonce/额外行、未知空行、stderr非空、部分COMMIT、deadline与宿主进程已回收。定向通过后跑原bounded_process回归、格式/严格package Clippy。
+- [x] 提交并独立审查真实背压、输出限制及没有隐藏第二个stdin发送任务；测试只使用自进程，不建立产品DB连接。
 
 ## Task 5 — 同writer准入、显式导入和失败隔离整合
 
