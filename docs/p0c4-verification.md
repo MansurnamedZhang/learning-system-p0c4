@@ -155,3 +155,18 @@
 - 子代理提交 `db468ec9af0863887d6bff5c7c279a719b13df16`，仅改 runner、相邻 Python 测试及 Rust opt-in 测试模块。新增 `child_diagnostics` 固定白名单数据：编译/枚举/执行/解析阶段、固定原因码、有界退出状态、饱和标记计数及重启前后检查点。任意异常消息、原始输出与凭据不进入持久结果；未知项保持 UNKNOWN。诊断不赋予通过或写入权限，原验收谓词不放宽。
 - 实现报告：16项新增Python诊断有实际RED→GREEN；61项聚焦Python、193项相邻C4、50项Rust库单测、格式与严格package Clippy通过。控制器独立复核 `python -m unittest test_p0c4_restore_pin_acceptance -k child_diagnostics`：16项通过、退出0；`git diff --check`退出0。Windows不验证新增Linux-only检查点的编译或现场行为。
 - 独立复审核对 `a7a8b1d`→`db468ec` 修订：原诊断缺口已解决，规格与质量均通过，无新增Critical/Important/Minor。既有临时文件输出上限为进程结束后检查，本轮未改执行器策略，不宣称其提供运行中的字节上限。拟用全新UUID `124c3938-f820-4e88-9de7-0fbc37dbdd71` 与 `10.251.235.0/24`；只读预检未发现名称、Docker子网或路由重叠，尚未上传、未创建资源。复审及Git字节封存后仍需用户逐文件确认，执行前重查占用；旧af49失败批次不重跑。
+
+### 第二轮固定诊断：首次证明通过，重启命令输出不匹配（2026-09-30）
+
+- 用户逐文件授权后运行 `e0e65c7` 的 ZIP `5f34a1d6ed9c5fe25c61f0fd453dcd3601d46aa565635315e65580ff67aafa5d`、Git原样runner `8ddabb85535ce8a0bf2176f5824ebae40ab4800cde3d1fd17fc122820b62f85e`，新批次 `124c3938-f820-4e88-9de7-0fbc37dbdd71`、`10.251.235.0/24`。终态仍为 `CHILD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN`，命令退出1。上方尚未上传条目是此前准备状态。
+- 人工root终端返回完整JSON、结果SHA-256 `61de0edd78bcb041fc48a2622f09e8a685f9b3a1859cbf2d0fba701c7e5b29b4` 和 `PENDING_ABSENT`；控制器独立规范序列化后SHA相同。本地副本注明人工终端来源，控制器未自行读取远端root私有文件。源码前后哈希一致；`stop.confirmed=true`、留卷、不许复用。另由只读Docker核对精确ID `745d78f10c52b2aaaef7c0f87942881ce9bd2b07bc95a23e7dfe1a607aeeb602` 已停止，卷仍存在。
+- 新增诊断确认 preflight编译/枚举、现场编译均退出0。现场只读首次证明标记1次；`RESTART_BEGIN=1`、`RESTART_COMPLETED=0`、所有重启后拒绝/最终检查点0；`child_failure_phase=RESTART`、`child_reason=Identity`、现场libtest退出101。失败在测试重启helper的身份校验，尚未进入重启后拒绝检查，不能记为完整只读子进程门通过。
+- 源码追踪确认底层执行器保留原始stdout；helper要求输出仅为64位完整容器ID加LF，但使用 `--time`。服务器只读帮助命令确认 Docker29.8.0：`restart --time 5 --help` 产生固定弃用提示于stdout（1次、stderr0）；`--timeout 5 --help` 无提示。该诊断未重启或创建任何资源。[Docker CLI源码](https://github.com/docker/cli/blob/master/cli/command/container/restart.go) 将time标记弃用，[pflag源码](https://github.com/spf13/pflag/blob/master/flag.go) 会把弃用提示写入参数输出流。结合执行路径，原因定位为测试命令的弃用提示与严格stdout协议冲突。
+- 交原Task3修订流程的子代理改用受支持的 `--timeout`，用定向RED→GREEN保护严格完整ID/LF响应；不忽略提示、不trim任意输出、不修改生产身份/锁/隔离策略。旧两批均停机留证，禁止重跑；修复后仍需独立复审、精确封包、新UUID/子网授权及现场验收。实际恢复、CompleteBackup与C4整关未通过。
+
+### 重启测试helper修复：本地完成、独立复审通过，待新批次Linux门
+
+- 修复提交 `a3e322e3c1b2149765a44d67991bec31ea5e0953`，仅一个Rust文件的 `cfg(test)` 路径：实际重启helper调用经过测试的 `--timeout 5` 参数构造和严格响应验证函数，保留精确64位小写ID、仅ID+LF输出、原15秒截止时间/有界执行器与错误传播。生产/quarantine及runner验收谓词未改。
+- 实现者实际RED为参数测试中 `--time` 与 `--timeout` 断言差异（两项中一失败、一通过），GREEN定向2/2、库测试52/52、格式与严格package Clippy均退出0。控制器独立重跑 `cargo test --offline --locked -p learning-backup --lib restart_test_`：2通过、0失败、退出0。测试拒绝弃用提示、错误/短ID/名称、前缀/额外行、CRLF、缺LF或大写ID；未放宽输出协议。
+- 独立限定复审核对 `e0e65c7`→`a3e322e`，原finding已解决、规格与质量均PASS、无新增阻断。Windows不替代Linux-only实际重启与后续拒绝/停机验收；此修订尚无新的现场通过证据。
+- 计划全新UUID `aa3feac4-45ab-4b48-a117-098d2e42b2fd`、`10.251.236.0/24`；只读预检无Docker名称或网络/路由重叠，尚未创建资源。Python runner未变，拟复用之前已授权root安装且运行前再核验 `8ddabb85535ce8a0bf2176f5824ebae40ab4800cde3d1fd17fc122820b62f85e` 的原样字节。新ZIP封存核验后，上传和新批次执行仍须用户单独确认；旧两批不重跑。实际恢复、CompleteBackup、C4整关与生产未验收。
