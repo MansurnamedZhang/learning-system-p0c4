@@ -1,6 +1,6 @@
 # P0-C4 固定 fixture 导入：静态实现与后续验收
 
-**当前已完成整计划首次代码审查及其本地修复，修复独立复审仍待完成；Linux 尚未编译，现场导入用例仍为 0/11。没有本轮导入成功证据。** 默认/发布构建没有新写入口，`CompleteBackup`、生产恢复、资产/任务恢复、构建 pin、runtime/Worker 放行及 C4 整关均未验收。
+**当前已完成本地静态实现、整计划首次代码审查及一次修复独立复审；三项 Important 和一项输出待办全部 ADDRESSED，未发现修复引入的新问题。Linux 尚未编译，现场导入用例仍为 0/11。没有本轮导入成功证据。** 修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。默认/发布构建没有新写入口，`CompleteBackup`、生产恢复、资产/任务恢复、构建 pin、runtime/Worker 放行及 C4 整关均未验收。
 
 2026-10-01 本地修复验证：共享 stop/close 修复后，P0-C4 Python 一次完整回归 258/258，候选 journal Windows 模型 4/4，格式检查退出0。其后补齐诊断输出管道失败与 builder 清理截止传播，仅作定向验证：32/32，最后加入成功清理合同覆盖后26/26；未重复全量回归，不能称最终所有源码全套通过。修正 Linux ignored journal 测试的构造函数同名变量，不将 Windows 模型当作 Linux 编译证据。历史 M3 的 37/38 失败及清理资源警告保留；确定性测试证明原关闭分支会跳过 reader 清理，新实现保留未完成的精确子进程、reader 和管道所有权。一次原计时测试诊断未重现历史 PID39808 的调度，不宣称已重建其原因。
 
@@ -60,6 +60,6 @@ builder 固定 `--cpus=4 --memory=8g --memory-swap=8g`，无新增 swap 配额�
 
 根批次保留源码/build SHA、列举/实际测试摘要、编译前资源观察、marker、合成 dump/TOC/源解码工件；编译/测试原始 stdout/stderr 只存 `*.private.log`。结果只序列化固定非敏感码与审核过的摘要/身份。最终 JSON 通过私有 pending、fsync、不可替换发布、父目录 fsync 和删除 pending 完成；返回摘要再核对最终字节并实际检查 `pending_absent`。持久文件成功字段单独不代表验收，必须有该外部发布事实。
 
-控制者还需用户 root 回传完整脱敏 JSON、result/inspection 摘要、`PENDING_ABSENT`，并独立只读核对 Docker 精确 ID 停机/留卷。成功唯一正例标记为 `CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE`；固定负例用独立 expected-rejection 状态。提交未知永不报告 rollback，未确认停机永不报告通过。新 Linux 全部门、最终整计划独立复审与既有 M1/M2/M3 待办未关闭之前，不能关闭本施工单。
+控制者还需用户 root 回传完整脱敏 JSON、result/inspection 摘要、`PENDING_ABSENT`，并独立只读核对 Docker 精确 ID 停机/留卷。成功唯一正例标记为 `CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE`；固定负例用独立 expected-rejection 状态。提交未知永不报告 rollback，未确认停机永不报告通过。本地审查与 M1/M2/M3 修复审查已关闭；新 Linux 全部门和逐 case 现场证据仍未关闭，本施工单不能据静态审查完成。
 
-Task3 的 `restore_preflight::target_binding::controlled_import::candidate_attempt::tests::live_candidate_journal_no_follow_and_fsync` 另需全新 root 私有 `KNOWWEAVE_C4_JOURNAL_TEST_PARENT` 与单独授权；Windows 模型不能替代该门。本地旧 M3 计时断言仍需按保留失败证据交最终整分支审查，不通过重跑变绿消除待办。
+Task3 的 `restore_preflight::target_binding::controlled_import::candidate_attempt::tests::live_candidate_journal_no_follow_and_fsync` 另需全新 root 私有 `KNOWWEAVE_C4_JOURNAL_TEST_PARENT` 与单独授权；Windows 模型不能替代该门。本地旧 M3 已以确定性关闭分支、真实待取消子进程及命令行持有测试完成修复和独立复审；原失败证据保留，PID39808 的历史调度仍未知，实际 Linux 行为继续单独验证。

@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-**Task6 静态实现补记（2026-10-01）：** 十一项 ignored 源码、固定可信源签发与 phase-import runner 已进入本地验证；独立任务与整计划审查待完成。Linux no-run/严格检查/测试列举及实际 PG18 门均未运行，本施工单复选项不因静态源码而关闭。后续授权、资源预算及逐 case 证据规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
+**Task6 当前状态（2026-10-01）：** 十一项 ignored 源码、固定可信源签发与 phase-import runner 的本地实现及独立任务审查完成；整计划首次审查所提三项 Important 与一项输出问题由单次修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd` 解决，独立修复复审全部 ADDRESSED、无新增问题。Python 一次共享修改后完整回归258/258，随后窄修正以最终26/26定向覆盖；Windows journal4/4和格式检查通过。Linux no-run/严格检查/测试列举及实际 PG18 门均未运行，实际用例0/11，本施工单复选项不因静态源码而关闭。早期状态段中的 M3 待办和计数属于历史记录，当前关闭边界以本段为准，失败证据保留。后续授权、资源预算及逐 case 证据规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
 
 - 工作目录：`D:/codex/DeepLearning/.worktrees/knowweave-p0c4`；保留现有分支，不新建外部项目，不往C盘安装/生成依赖或测试数据。
 - 本地执行者在任务1设置 `CARGO_TARGET_DIR` 为该工作树的 `target/`，`TMP`/`TEMP` 为新建的 `.runtime/p0c4-controlled-import-tests/`；验证后恢复原环境。只读取已有工具/依赖缓存，不安装新运行时。Linux临时文件放本批root私有tmp目录。
