@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** 2026-09-30 三项本地实现与独立审查通过；两轮授权Linux门失败并精确停机留卷。第二轮诊断确认首次只读证明通过，重启helper因弃用--time提示与严格stdout协议冲突返回Identity。窄修复a3e322e通过RED→GREEN、52项库测试及独立复审；待新精确ZIP/同字节runner/UUID授权Linux重验，实际恢复未开始。
+**Status:** 2026-09-30 本施工单三任务已完成：实现、任务/整计划审查与窄修复复审通过；授权新批次aa3feac4的Linux/PG18只读门通过。完整root结果909cef1f独立复算一致，源码未变、pending缺失、精确停机留卷；状态CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE。实际恢复及C4整关未开始/未通过，旧批次不可复用。
 
 **Goal:** 在恢复首次写入前，用精确容器 ID、本地 Unix socket 和固定客户端命令建立独立的只读子进程端点准入证明。
 
@@ -53,10 +53,14 @@
 
 **Files:** opt-in ignored Linux test、Python runner 与测试、`docs/p0c4-verification.md`。
 
-- [ ] 对 Task 2 的 exact-container 双锁/PID/OID 成功、容器重启拒绝做聚焦 live 测试；postmaster 在容器未重启时变化先用依赖注入单测验证，只有额外审定的监督进程夹具才允许现场复现。如纳入同 ID/OID 物理克隆错端点，必须使用同批独立新项目。错误数据库和要求密码的 socket 先在依赖注入单测验证；只有另行准备出生前即固定认证策略的新项目才能作为 live 负例，不能改造已签发/已 Pin 的目标。证明没有 attempt 标记、导入、资产写入或服务放行。
+- [x] 对 Task 2 的 exact-container 双锁/PID/OID 成功、容器重启拒绝做聚焦 live 测试；postmaster 在容器未重启时变化先用依赖注入单测验证，只有额外审定的监督进程夹具才允许现场复现。如纳入同 ID/OID 物理克隆错端点，必须使用同批独立新项目。错误数据库和要求密码的 socket 先在依赖注入单测验证；只有另行准备出生前即固定认证策略的新项目才能作为 live 负例，不能改造已签发/已 Pin 的目标。证明没有 attempt 标记、导入、资产写入或服务放行。
 - [x] 子代理实现并独立审查；本地 RED→GREEN、格式/严格 Clippy/相关回归通过，整计划审查无阻断。
-- [ ] 只用 Git 跟踪字节制包并独立核对 ZIP/manifest/runner SHA-256（由controller封存候选后另记精确元数据）。
-- [ ] 按用户逐文件确认后，仅在新 UUIDv4 Compose 项目、未占用子网和新 PG18 卷执行。核对结果/证据哈希、精确 ID 停机、留卷隔离及 pending 缺失；失败批次不重跑，按结果更新 C4 验证记录。
+- [x] 只用 Git 跟踪字节制包并独立核对 ZIP/manifest/runner SHA-256（由controller封存候选后另记精确元数据）。
+- [x] 按用户逐文件确认后，仅在新 UUIDv4 Compose 项目、未占用子网和新 PG18 卷执行。核对结果/证据哈希、精确 ID 停机、留卷隔离及 pending 缺失；失败批次不重跑，按结果更新 C4 验证记录。
+
+## 验收证据索引
+
+现场源码 `273f106`、授权ZIP `f9812162`、manifest `7de8e410`、同字节runner `8ddabb85`；新批次 `aa3feac4-45ab-4b48-a117-098d2e42b2fd`，结果SHA-256 `909cef1f72485398751a8b3065605d7c95ba2eccd55f35f9b237081ee08791c0`。完整来源、检查点、范围与停机/留卷见 [C4验证记录](../../p0c4-verification.md)。
 
 ## 后续边界
 
