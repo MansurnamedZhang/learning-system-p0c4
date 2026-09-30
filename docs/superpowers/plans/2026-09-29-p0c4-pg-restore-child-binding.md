@@ -45,9 +45,9 @@
 
 **Interfaces:** 在已持有 `BoundTargetGuard` 和 `LockChallenge<Transaction<'static, Postgres>>` 的内部状态下执行；探针返回不包含凭据的 `ChildReadOnlyAttestation`，只在两者仍存活的作用域中有效，不能转为写权限。
 
-- [ ] 写依赖注入 RED：固定 PG18 `pg_restore --version`、`psql --no-password` socket 查询必须看到原 SQLx 事务的两把随机锁、同一 backend PID/数据库 OID；错误版本/角色/库、socket 指向同 ID/OID 克隆、容器不重启但 postmaster 重启、密码请求、Docker 身份漂移、客户端退出失败、格式外输出、超时/超量输出、超时后容器内进程可能残留及原始错误信息均拒绝。
-- [ ] 探针前后在相同事务上重新执行现有严格 `verify_sql_session`，并由与未来 child 相同的固定 socket 命令独立观察锁行；再核对精确 Docker/PG 身份。新增有界、带截止时间的 Docker 子进程执行器：在读取时分别限制 stdout/stderr，固定只读 SQL 设置 `statement_timeout`；超时/超限杀死并 wait 回收宿主 CLI，随后按已核验精确容器 ID 停机隔离，停机不可确认则留 `UNCONFIRMED_UNUSABLE`。宿主和容器内环境均清空；探针只读，不接触 dump、资产或 marker。
-- [ ] 运行 focused Rust tests、格式、严格 Clippy 与旧只读门回归；独立审查并提交。成功只称 `CHILD_READ_ONLY_ATTESTED_NOT_RESTORE`。
+- [x] 写依赖注入 RED：固定 PG18 `pg_restore --version`、`psql --no-password` socket 查询必须看到原 SQLx 事务的两把随机锁、同一 backend PID/数据库 OID；错误版本/角色/库、socket 指向同 ID/OID 克隆、容器不重启但 postmaster 重启、密码请求、Docker 身份漂移、客户端退出失败、格式外输出、超时/超量输出、超时后容器内进程可能残留及原始错误信息均拒绝。
+- [x] 探针前后在相同事务上重新执行现有严格 `verify_sql_session`，并由与未来 child 相同的固定 socket 命令独立观察锁行；再核对精确 Docker/PG 身份。新增有界、带截止时间的 Docker 子进程执行器：在读取时分别限制 stdout/stderr，固定只读 SQL 设置 `statement_timeout`；超时/超限杀死并 wait 回收宿主 CLI，随后按已核验精确容器 ID 停机隔离，停机不可确认则留 `UNCONFIRMED_UNUSABLE`。宿主和容器内环境均清空；探针只读，不接触 dump、资产或 marker。
+- [x] 运行 focused Rust tests、格式、严格 Clippy 与旧只读门回归；独立审查并提交。成功只称 `CHILD_READ_ONLY_ATTESTED_NOT_RESTORE`。
 
 ## Task 3 — 新隔离 Linux/PG18 验收
 
