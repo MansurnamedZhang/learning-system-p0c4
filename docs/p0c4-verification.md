@@ -187,4 +187,4 @@
 
 - 基线 `e2435e4` 上完成只读源码梳理和独立契约审计，整理 [受控小型 dump 首次写入设计](superpowers/specs/2026-09-30-p0c4-controlled-import-design.md)。取消/提交串行边界、停机前取证和disabled passfile修订后，独立全文复审无剩余阻断或重要矛盾。目前为待用户审阅的设计草案，不是实现完成或现场通过记录。
 - 推荐固定 `pg_restore` 离线解码与单一 `psql` writer 的显式事务：writer自己先核对目标及原SQLx双锁，持久attempt后才写DDL/COPY，提交意图先持久化再单独发送COMMIT。输入只接受完整审查过的小型fixture/golden，默认/发布构建无候选写入口；不伪造CompleteBackup。
-- 本轮未运行数据库测试、未上传新包、未创建服务器批次、未导入或改动旧隔离目标。用户审阅后编写逐任务计划；具体新包、runner及现场批次仍逐文件单独确认。
+- 用户在设计呈现后以“推进”批准设计，已整理 [六任务施工计划](superpowers/plans/2026-09-30-p0c4-controlled-import.md)，目前施工计划待审阅，任务均未开始。未运行数据库测试、未上传新包、未创建服务器批次、未导入或改动旧隔离目标；具体新包、runner及现场批次仍逐文件单独确认。
