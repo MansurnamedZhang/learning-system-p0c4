@@ -33,6 +33,13 @@ pub(super) struct OwnedCandidateAdmission {
     inspection_sha256: [u8; 32],
 }
 
+impl AdmissionQuarantine for OwnedCandidateAdmission {
+    async fn quarantine(&mut self) {
+        self.guard.child_usable.set(false);
+        let _ = linux_child::candidate_quarantine(&self.guard.claim).await;
+    }
+}
+
 // The existing root guard/birth/catalog checks remain the authority. A candidate
 // never creates a CompleteBackup or substitutes a weaker clean-target check.
 pub(super) async fn admit_candidate_target(
@@ -42,16 +49,12 @@ pub(super) async fn admit_candidate_target(
     let (send, receive) = tokio::sync::oneshot::channel();
     tokio::spawn(async move {
         let result = admit_owned(config, admin).await;
-        if let Err(Ok(admission)) = send.send(result) {
-            // Dropping the awaiting admission future cannot abandon guards
-            // returned by a still-running blocking acquisition or SQL check.
-            admission.guard.child_usable.set(false);
-            let _ = linux_child::candidate_quarantine(&admission.guard.claim).await;
-        }
+        let _ = handoff_admission(send, result);
     });
     receive
         .await
         .map_err(|_| ImportFailure::UnconfirmedIsolation)?
+        .map(AdmissionHandoff::take)
 }
 
 async fn admit_owned(
@@ -453,7 +456,13 @@ impl LinuxCandidate {
                 .bind(writer_pid).bind(writer_start).fetch_one(&mut connection).await.map_err(|_|ImportFailure::Session)?;
             let value=if live { None } else {
                 let sql=if committed { format!("SELECT ({})",writer_sql::content_predicate()) } else { "SELECT pg_catalog.to_regclass('public.c4_import_probe') IS NULL".into() };
-                Some(sqlx::query_scalar::<_,bool>(&sql).fetch_one(&mut connection).await.map_err(|_|ImportFailure::Fixture)?)
+                let content=sqlx::query_scalar::<_,bool>(&sql).fetch_one(&mut connection).await.map_err(|_|ImportFailure::Fixture)?;
+                let constraints=if committed && content {
+                    let rows=sqlx::query_as::<_,writer_sql::ConstraintRow>("SELECT c.contype::text,c.conname::text,c.conkey,c.convalidated FROM pg_catalog.pg_constraint c WHERE c.conrelid='public.c4_import_probe'::pg_catalog.regclass")
+                        .fetch_all(&mut connection).await.map_err(|_|ImportFailure::Fixture)?;
+                    writer_sql::constraints_match(&rows)
+                } else { true };
+                Some(content && constraints)
             };
             sqlx::query("ROLLBACK").execute(&mut connection).await.map_err(|_|ImportFailure::Session)?;
             connection.close().await.map_err(|_|ImportFailure::Session)?;

@@ -62,6 +62,44 @@ impl Drop for CandidateImportHandle {
     }
 }
 
+trait AdmissionQuarantine: Send + 'static {
+    fn quarantine(&mut self) -> impl Future<Output = ()> + Send;
+}
+
+struct AdmissionHandoff<T: AdmissionQuarantine> {
+    admission: Option<T>,
+}
+impl<T: AdmissionQuarantine> AdmissionHandoff<T> {
+    fn take(mut self) -> T {
+        self.admission.take().unwrap()
+    }
+}
+impl<T: AdmissionQuarantine> Drop for AdmissionHandoff<T> {
+    fn drop(&mut self) {
+        if let Some(mut admission) = self.admission.take()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        {
+            // The envelope owns authority even after send succeeds. A queued
+            // value's destruction transfers it to exactly one cleanup owner.
+            // Runtime shutdown cannot promise isolation and yields no receipt.
+            runtime.spawn(async move {
+                admission.quarantine().await;
+            });
+        }
+    }
+}
+
+fn handoff_admission<T: AdmissionQuarantine>(
+    sender: tokio::sync::oneshot::Sender<Result<AdmissionHandoff<T>, ImportFailure>>,
+    result: Result<T, ImportFailure>,
+) -> bool {
+    sender
+        .send(result.map(|admission| AdmissionHandoff {
+            admission: Some(admission),
+        }))
+        .is_ok()
+}
+
 // The adapter owns all authority and the sole StreamOwner. External effects are
 // injected below the ordering algorithm; opaque journal permits stay concrete.
 trait CandidateIo: Send {
@@ -125,6 +163,38 @@ async fn step<T>(
         _ = tokio::time::sleep_until(deadline.into()) => Err(ImportFailure::Deadline),
         result = future => { gate(cancel, deadline)?; result }
     }
+}
+
+async fn send_commit(
+    cancel: &mut watch::Receiver<bool>,
+    deadline: std::time::Instant,
+    machine: &mut state::ImportMachine,
+    attempted: &mut bool,
+    diagnostic: &AtomicBool,
+    send: impl Future<Output = Result<(), ImportFailure>>,
+) -> Result<(), ImportFailure> {
+    step(cancel, deadline, async {
+        // This body is polled only after step's rejection gates. The send is
+        // polled immediately after the monotone boundary in this same poll.
+        machine.accept(state::ImportEvent::CommitPermitRequested)?;
+        *attempted = true;
+        diagnostic.store(true, Ordering::Release);
+        send.await
+    })
+    .await
+}
+
+async fn settle_finish(
+    cancel: &mut watch::Receiver<bool>,
+    deadline: std::time::Instant,
+    finish: impl Future<Output = Result<(), ImportFailure>>,
+) -> Result<(), ImportFailure> {
+    // StreamOwner owns the fixed absolute deadline. Once finish is polled it
+    // must settle its child/readers; external rejection is latched, not used
+    // to drop the future that owns their JoinHandles.
+    let result = finish.await;
+    gate(cancel, deadline)?;
+    result
 }
 
 async fn supervise(
@@ -195,12 +265,15 @@ async fn supervise(
         step(&mut cancel, deadline, io.recheck()).await?;
         gate(&cancel, deadline)?;
         machine.accept(E::FinalReviewPassed)?;
-        machine.accept(E::CommitPermitRequested)?;
-        // Mark before polling the first write: any partial send can commit.
-        commit_attempted = true;
-        // Read-only failure diagnostic; this shared flag grants no send permit.
-        commit_started.store(true, Ordering::Release);
-        step(&mut cancel, deadline, io.send(b"COMMIT;\n")).await?;
+        send_commit(
+            &mut cancel,
+            deadline,
+            &mut machine,
+            &mut commit_attempted,
+            &commit_started,
+            io.send(b"COMMIT;\n"),
+        )
+        .await?;
         let confirmation = writer_sql::commit_confirmation(&nonce);
         step(&mut cancel, deadline, io.send(&confirmation)).await?;
         let line = step(&mut cancel, deadline, io.line()).await?;
@@ -208,7 +281,7 @@ async fn supervise(
             return Err(ImportFailure::Protocol);
         }
         machine.accept(E::Committed)?;
-        step(&mut cancel, deadline, io.finish()).await?;
+        settle_finish(&mut cancel, deadline, io.finish()).await?;
         Ok(())
     }
     .await;
@@ -692,5 +765,202 @@ mod integration_tests {
         assert_eq!(report.failure, Some(ImportFailure::UnconfirmedIsolation));
         assert!(report.commit_attempted);
         assert!(!report.stop_confirmed);
+    }
+}
+
+#[cfg(test)]
+mod fix1_boundary_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+    fn final_reviewed() -> state::ImportMachine {
+        use state::ImportEvent as E;
+        let nonce = protocol::Nonce::random().unwrap();
+        let protocol::WriterEvent::Ready(id) = protocol::parse_writer_line(
+            format!("KW_C4|{}|READY|42|1234567|99\n", nonce.hex()).as_bytes(),
+            &nonce,
+        )
+        .unwrap() else {
+            panic!("ready")
+        };
+        let mut machine = state::ImportMachine::new();
+        for event in [
+            E::SqlVerified,
+            E::HeaderBlank,
+            E::Ready(id),
+            E::AttemptSynced,
+            E::PayloadSent,
+            E::Precommit(id),
+            E::CommitIntentSynced,
+            E::FinalReviewPassed,
+        ] {
+            machine.accept(event).unwrap();
+        }
+        machine
+    }
+    pub(super) async fn assert_unpolled_commit_is_not_attempted(cancelled: bool) {
+        {
+            let (_tx, mut rx) = watch::channel(cancelled);
+            let deadline = if cancelled {
+                Instant::now() + Duration::from_secs(1)
+            } else {
+                Instant::now() - Duration::from_millis(1)
+            };
+            let mut machine = final_reviewed();
+            let mut attempted = false;
+            let diagnostic = AtomicBool::new(false);
+            let polled = AtomicBool::new(false);
+            let result = send_commit(
+                &mut rx,
+                deadline,
+                &mut machine,
+                &mut attempted,
+                &diagnostic,
+                async {
+                    polled.store(true, Ordering::Release);
+                    Ok(())
+                },
+            )
+            .await;
+            assert_eq!(
+                result,
+                Err(if cancelled {
+                    ImportFailure::Cancelled
+                } else {
+                    ImportFailure::Deadline
+                })
+            );
+            assert!(!polled.load(Ordering::Acquire));
+            assert!(
+                !attempted && !diagnostic.load(Ordering::Acquire),
+                "unpolled send crossed commit boundary"
+            );
+            assert_eq!(machine.phase(), ImportPhase::PrecommitVerified);
+        }
+    }
+    #[tokio::test]
+    async fn first_send_poll_marks_attempt_even_when_partial_write_fails() {
+        let (_tx, mut rx) = watch::channel(false);
+        let mut machine = final_reviewed();
+        let mut attempted = false;
+        let diagnostic = AtomicBool::new(false);
+        let result = send_commit(
+            &mut rx,
+            Instant::now() + Duration::from_secs(1),
+            &mut machine,
+            &mut attempted,
+            &diagnostic,
+            async {
+                assert!(diagnostic.load(Ordering::Acquire));
+                Err(ImportFailure::Io)
+            },
+        )
+        .await;
+        assert_eq!(result, Err(ImportFailure::Io));
+        assert!(attempted && diagnostic.load(Ordering::Acquire));
+        assert_eq!(machine.phase(), ImportPhase::CommitAttempted);
+    }
+}
+
+#[cfg(test)]
+mod fix1_unpolled_tests {
+    #[tokio::test]
+    async fn cancelled_commit_with_no_send_poll_is_not_attempted() {
+        super::fix1_boundary_tests::assert_unpolled_commit_is_not_attempted(true).await;
+    }
+    #[tokio::test]
+    async fn expired_commit_with_no_send_poll_is_not_attempted() {
+        super::fix1_boundary_tests::assert_unpolled_commit_is_not_attempted(false).await;
+    }
+}
+
+#[cfg(test)]
+mod fix1_admission_tests {
+    use super::*;
+    use std::{sync::Mutex, time::Duration};
+    use tokio::sync::{Notify, oneshot};
+    struct Admission {
+        events: Arc<Mutex<Vec<&'static str>>>,
+        entered: Arc<Notify>,
+        release: Arc<Notify>,
+        dropped: Arc<Notify>,
+    }
+    impl AdmissionQuarantine for Admission {
+        async fn quarantine(&mut self) {
+            self.events.lock().unwrap().push("quarantine_started");
+            self.entered.notify_one();
+            self.release.notified().await;
+            self.events.lock().unwrap().push("quarantine_settled");
+        }
+    }
+    impl Drop for Admission {
+        fn drop(&mut self) {
+            self.events.lock().unwrap().push("guards_drop");
+            self.dropped.notify_one();
+        }
+    }
+    fn admission() -> Admission {
+        Admission {
+            events: Arc::default(),
+            entered: Arc::default(),
+            release: Arc::default(),
+            dropped: Arc::default(),
+        }
+    }
+    async fn abandoned_receiver(queued: bool) {
+        let admission = admission();
+        let events = admission.events.clone();
+        let entered = admission.entered.clone();
+        let release = admission.release.clone();
+        let dropped = admission.dropped.clone();
+        let (tx, rx) = oneshot::channel();
+        if queued {
+            assert!(handoff_admission(tx, Ok(admission)));
+            drop(rx);
+        } else {
+            drop(rx);
+            assert!(!handoff_admission(tx, Ok(admission)));
+        }
+        tokio::time::timeout(Duration::from_millis(250), entered.notified())
+            .await
+            .expect("abandoned admission never reached quarantine owner");
+        assert_eq!(*events.lock().unwrap(), vec!["quarantine_started"]);
+        release.notify_one();
+        tokio::time::timeout(Duration::from_secs(1), dropped.notified())
+            .await
+            .unwrap();
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec!["quarantine_started", "quarantine_settled", "guards_drop"]
+        );
+    }
+    #[tokio::test]
+    async fn queued_admission_abandonment_retains_guards_through_quarantine() {
+        abandoned_receiver(true).await;
+    }
+    #[tokio::test]
+    async fn undelivered_admission_retains_guards_through_quarantine() {
+        abandoned_receiver(false).await;
+    }
+    #[tokio::test]
+    async fn successful_admission_transfer_has_one_owner_and_no_early_cleanup() {
+        let admission = admission();
+        let events = admission.events.clone();
+        let (tx, rx) = oneshot::channel();
+        assert!(handoff_admission(tx, Ok(admission)));
+        let envelope = rx.await.unwrap().unwrap();
+        assert!(events.lock().unwrap().is_empty());
+        let mut owner = envelope.take();
+        tokio::task::yield_now().await;
+        assert!(
+            events.lock().unwrap().is_empty(),
+            "handoff cleaned a transferred owner"
+        );
+        owner.release.notify_one();
+        owner.quarantine().await;
+        drop(owner);
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec!["quarantine_started", "quarantine_settled", "guards_drop"]
+        );
     }
 }

@@ -26,7 +26,7 @@ pub(super) fn postcheck(expected: &WriterExpected, writer: &WriterIdentity) -> V
         "{}{}{}{}",
         assertion(&same_writer, "IDENTITY"),
         assertion(&timeout_predicate(), "SESSION"),
-        assertion(content_predicate(), "FIXTURE"),
+        assertion(&content_predicate(), "FIXTURE"),
         receipt(expected, "PRECOMMIT")
     )
     .into_bytes()
@@ -65,8 +65,63 @@ fn timeout_predicate() -> String {
     .join(" AND ")
 }
 
-pub(super) fn content_predicate() -> &'static str {
-    "(SELECT pg_catalog.count(*) = 2 AND pg_catalog.bool_and((id=1 AND label='alpha') OR (id=2 AND label='beta')) AND pg_catalog.count(DISTINCT id)=2 FROM public.c4_import_probe) AND (SELECT pg_catalog.count(*)=2 AND pg_catalog.bool_and((a.attnum=1 AND a.attname='id' AND a.atttypid='pg_catalog.int4'::pg_catalog.regtype AND a.attnotnull) OR (a.attnum=2 AND a.attname='label' AND a.atttypid='pg_catalog.text'::pg_catalog.regtype AND a.attnotnull)) FROM pg_catalog.pg_attribute a WHERE a.attrelid='public.c4_import_probe'::pg_catalog.regclass AND a.attnum>0 AND NOT a.attisdropped) AND (SELECT pg_catalog.count(*)=1 AND pg_catalog.bool_and(c.contype='p' AND c.conname='c4_import_probe_pkey' AND c.conkey=ARRAY[1]::smallint[] AND c.convalidated) FROM pg_catalog.pg_constraint c WHERE c.conrelid='public.c4_import_probe'::pg_catalog.regclass)"
+pub(super) fn content_predicate() -> String {
+    format!(
+        "(SELECT pg_catalog.count(*) = 2 AND pg_catalog.bool_and((id=1 AND label='alpha') OR (id=2 AND label='beta')) AND pg_catalog.count(DISTINCT id)=2 FROM public.c4_import_probe) AND (SELECT pg_catalog.count(*)=2 AND pg_catalog.bool_and((a.attnum=1 AND a.attname='id' AND a.atttypid='pg_catalog.int4'::pg_catalog.regtype AND a.attnotnull) OR (a.attnum=2 AND a.attname='label' AND a.atttypid='pg_catalog.text'::pg_catalog.regtype AND a.attnotnull)) FROM pg_catalog.pg_attribute a WHERE a.attrelid='public.c4_import_probe'::pg_catalog.regclass AND a.attnum>0 AND NOT a.attisdropped) AND ({})",
+        constraint_predicate()
+    )
+}
+
+struct ConstraintShape {
+    kind: &'static str,
+    name: Option<&'static str>,
+    column: i16,
+}
+const CONSTRAINTS: &[ConstraintShape] = &[
+    ConstraintShape {
+        kind: "p",
+        name: Some("c4_import_probe_pkey"),
+        column: 1,
+    },
+    ConstraintShape {
+        kind: "n",
+        name: None,
+        column: 1,
+    },
+    ConstraintShape {
+        kind: "n",
+        name: None,
+        column: 2,
+    },
+];
+pub(super) type ConstraintRow = (String, String, Vec<i16>, bool);
+
+// Independent readback uses the same closed catalog contract as the SQL
+// renderer. Names of implicit NOT NULL constraints are not authority.
+pub(super) fn constraints_match(rows: &[ConstraintRow]) -> bool {
+    rows.len() == CONSTRAINTS.len()
+        && CONSTRAINTS.iter().all(|shape| {
+            rows.iter()
+                .filter(|(kind, name, keys, validated)| {
+                    kind == shape.kind
+                        && shape.name.is_none_or(|expected| name == expected)
+                        && keys.as_slice() == [shape.column]
+                        && *validated
+                })
+                .count()
+                == 1
+        })
+}
+
+fn constraint_predicate() -> String {
+    let matches = CONSTRAINTS.iter().map(|shape| {
+        let name=shape.name.map(|name|format!(" AND c.conname='{name}'")).unwrap_or_default();
+        format!("pg_catalog.count(*) FILTER (WHERE c.contype='{}'{name} AND c.conkey=ARRAY[{}]::smallint[] AND c.convalidated)=1",shape.kind,shape.column)
+    }).collect::<Vec<_>>().join(" AND ");
+    format!(
+        "SELECT pg_catalog.count(*)={} AND {matches} FROM pg_catalog.pg_constraint c WHERE c.conrelid='public.c4_import_probe'::pg_catalog.regclass",
+        CONSTRAINTS.len()
+    )
 }
 
 fn receipt(expected: &WriterExpected, stage: &str) -> String {
@@ -85,6 +140,54 @@ mod tests {
     };
     use super::*;
     const DB: &str = "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3";
+    fn pg18_constraints() -> Vec<ConstraintRow> {
+        vec![
+            (
+                "n".into(),
+                "c4_import_probe_id_not_null".into(),
+                vec![1],
+                true,
+            ),
+            (
+                "n".into(),
+                "c4_import_probe_label_not_null".into(),
+                vec![2],
+                true,
+            ),
+            ("p".into(), "c4_import_probe_pkey".into(), vec![1], true),
+        ]
+    }
+    #[test]
+    fn pg18_constraint_contract_accepts_two_not_null_rows_and_primary_key() {
+        assert!(constraints_match(&pg18_constraints()));
+    }
+    #[test]
+    fn pg18_constraint_contract_rejects_missing_duplicate_extra_and_wrong_rows() {
+        let valid = pg18_constraints();
+        for index in 0..3 {
+            let mut rows = valid.clone();
+            rows.remove(index);
+            assert!(!constraints_match(&rows));
+        }
+        let mut duplicate = valid.clone();
+        duplicate[1] = duplicate[0].clone();
+        assert!(!constraints_match(&duplicate));
+        let mut extra = valid.clone();
+        extra.push(("c".into(), "unexpected_check".into(), vec![1], true));
+        assert!(!constraints_match(&extra));
+        let mut wrong = valid.clone();
+        wrong[2].1 = "wrong_pkey".into();
+        assert!(!constraints_match(&wrong));
+        let mut wrong = valid.clone();
+        wrong[2].2 = vec![2];
+        assert!(!constraints_match(&wrong));
+        let mut wrong = valid.clone();
+        wrong[0].3 = false;
+        assert!(!constraints_match(&wrong));
+        let mut wrong = valid;
+        wrong[0].0 = "c".into();
+        assert!(!constraints_match(&wrong));
+    }
     pub(in super::super) fn sql() -> VerifiedFixtureSql {
         let bytes =
             include_str!("../../../../tests/fixtures/c4-controlled-import/pg18-fixture.sql.in")

@@ -229,13 +229,14 @@ impl StreamOwner {
 
     pub(super) async fn kill_and_wait(&mut self) -> Result<(), ImportFailure> {
         drop(self.stdin.take());
-        let child = self.child.as_mut().ok_or(ImportFailure::Io)?;
-        if child.start_kill().is_err() && !matches!(child.try_wait(), Ok(Some(_))) {
-            // Keep the still-owned Child for Drop's emergency reaper.
-            return Err(ImportFailure::Io);
+        if let Some(child) = self.child.as_mut() {
+            if child.start_kill().is_err() && !matches!(child.try_wait(), Ok(Some(_))) {
+                // Keep the still-owned Child for Drop's emergency reaper.
+                return Err(ImportFailure::Io);
+            }
+            child.wait().await.map_err(|_| ImportFailure::Io)?;
+            self.child.take();
         }
-        child.wait().await.map_err(|_| ImportFailure::Io)?;
-        self.child.take();
         let _ = self.join_readers().await?;
         Ok(())
     }
@@ -243,10 +244,12 @@ impl StreamOwner {
     // Both handles are always awaited or aborted and awaited. A completed
     // child alone does not prove pipe EOF: a descendant may retain the writers.
     async fn join_readers(&mut self) -> Result<Result<bool, ImportFailure>, ImportFailure> {
-        let mut stdout_task = Some(self.stdout_task.take().ok_or(ImportFailure::Io)?);
-        let mut stderr_task = Some(self.stderr_task.take().ok_or(ImportFailure::Io)?);
-        let mut stdout_result = None;
-        let mut stderr_result = None;
+        // Keep handles in the owner through every await. If an enclosing
+        // decoder operation is cancelled, cleanup can resume settlement.
+        let stdout_task = &mut self.stdout_task;
+        let stderr_task = &mut self.stderr_task;
+        let mut stdout_result = stdout_task.is_none().then_some(Ok(()));
+        let mut stderr_result = stderr_task.is_none().then_some(Ok(Ok(false)));
         while stdout_task.is_some() || stderr_task.is_some() {
             if Instant::now() >= self.deadline {
                 break;
@@ -279,11 +282,13 @@ impl StreamOwner {
             task.abort();
             aborted = true;
         }
-        if let Some(task) = stdout_task.take() {
+        if let Some(task) = stdout_task.as_mut() {
             stdout_result = Some(task.await);
+            stdout_task.take();
         }
-        if let Some(task) = stderr_task.take() {
+        if let Some(task) = stderr_task.as_mut() {
             stderr_result = Some(task.await);
+            stderr_task.take();
         }
         if aborted {
             return Err(ImportFailure::Deadline);
@@ -747,5 +752,206 @@ mod tests {
     #[tokio::test]
     async fn failed_stderr_reader_does_not_detach_blocked_stdout_reader() {
         assert_bounded_pipe_holder_cleanup("spawn_pipe_holder", false, false, true).await;
+    }
+
+    async fn assert_finish_settles_reaped_child_readers(
+        cancel: bool,
+        cleanup_only: bool,
+        recover_cancelled_finish: bool,
+        completed_stdout: Option<bool>,
+    ) {
+        use std::{future::Future, task::Poll};
+        struct AuthorityAtDrop {
+            stdout: tokio::task::AbortHandle,
+            stderr: tokio::task::AbortHandle,
+            settled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        }
+        impl Drop for AuthorityAtDrop {
+            fn drop(&mut self) {
+                self.settled.store(
+                    self.stdout.is_finished() && self.stderr.is_finished(),
+                    std::sync::atomic::Ordering::Release,
+                );
+            }
+        }
+        let release =
+            std::env::temp_dir().join(format!("c4-task5-finish-{}", uuid::Uuid::new_v4()));
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "restore_preflight::target_binding::controlled_import::stream::tests::process_fixture", "--nocapture"])
+            .env_clear().env("C4_STREAM_FIXTURE","spawn_pipe_holder").env("C4_STREAM_HOLDER_RELEASE",&release);
+        let mut owner = spawn_stream(
+            command,
+            StreamBudget::test(Duration::from_secs(2), 4096, 4096),
+        )
+        .unwrap();
+        assert_eq!(
+            fixture_line(&mut owner).await,
+            Ok(Some(b"HOLDER_READY\n".to_vec()))
+        );
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !release.with_extension("started").exists() {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .unwrap();
+        owner.child.as_mut().unwrap().start_kill().unwrap();
+        owner.child.as_mut().unwrap().wait().await.unwrap();
+        // Exact host is reaped; only the separate real pipe holder remains.
+        if let Some(stdout) = completed_stdout {
+            // A completed reader JoinHandle (with cancellation error) must be
+            // consumed once even while the other real pipe reader is blocked.
+            if stdout {
+                owner.stdout_task.as_ref().unwrap().abort();
+            } else {
+                owner.stderr_task.as_ref().unwrap().abort();
+            }
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while !if stdout {
+                    owner.stdout_task.as_ref().unwrap().is_finished()
+                } else {
+                    owner.stderr_task.as_ref().unwrap().is_finished()
+                } {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .unwrap();
+        }
+        assert_eq!(
+            owner.stdout_task.as_ref().unwrap().is_finished(),
+            completed_stdout == Some(true)
+        );
+        assert_eq!(
+            owner.stderr_task.as_ref().unwrap().is_finished(),
+            completed_stdout == Some(false)
+        );
+        let stdout = owner.stdout_task.as_ref().unwrap().abort_handle();
+        let stderr = owner.stderr_task.as_ref().unwrap().abort_handle();
+        let settled_at_authority_drop =
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let authority = AuthorityAtDrop {
+            stdout: stdout.clone(),
+            stderr: stderr.clone(),
+            settled: settled_at_authority_drop.clone(),
+        };
+        owner.deadline = Instant::now() + Duration::from_millis(250);
+        let (tx, mut rx) = watch::channel(false);
+        let deadline = Instant::now()
+            + if cancel {
+                Duration::from_secs(1)
+            } else {
+                Duration::from_millis(30)
+            };
+        let result = if cleanup_only {
+            owner.child.take();
+            tokio::time::timeout(Duration::from_secs(1), owner.kill_and_wait())
+                .await
+                .unwrap()
+        } else {
+            let finish = async {
+                if recover_cancelled_finish {
+                    super::super::step(&mut rx, deadline, owner.finish()).await
+                } else {
+                    super::super::settle_finish(&mut rx, deadline, owner.finish()).await
+                }
+            };
+            tokio::pin!(finish);
+            // Poll into join_readers before triggering the external rejection.
+            std::future::poll_fn(|cx| {
+                assert!(finish.as_mut().poll(cx).is_pending());
+                Poll::Ready(())
+            })
+            .await;
+            if cancel {
+                tx.send_replace(true);
+            } else {
+                tokio::time::sleep(Duration::from_millis(40)).await;
+            }
+            tokio::time::timeout(Duration::from_secs(1), finish)
+                .await
+                .unwrap()
+        };
+        if let Some(stdout) = completed_stdout {
+            assert!(
+                if stdout {
+                    owner.stdout_task.is_none()
+                } else {
+                    owner.stderr_task.is_none()
+                },
+                "completed reader was not consumed before cancellation"
+            );
+        }
+        let settled_before_cleanup = stdout.is_finished() && stderr.is_finished();
+        let child_reaped = owner.child.is_none();
+        // Mirror the Linux supervisor: cleanup precedes releasing authority.
+        let _ = owner.kill_and_wait().await;
+        drop(owner);
+        drop(authority);
+        // Explicit failing-RED hygiene: terminate detached readers if present,
+        // then release only this test's holder and remove its own marker files.
+        stdout.abort();
+        stderr.abort();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !stdout.is_finished() || !stderr.is_finished() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        std::fs::write(&release, b"").unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !release.with_extension("done").exists() {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .unwrap();
+        for path in [
+            &release,
+            &release.with_extension("started"),
+            &release.with_extension("done"),
+        ] {
+            std::fs::remove_file(path).unwrap();
+        }
+        assert_eq!(
+            result,
+            Err(if cancel {
+                ImportFailure::Cancelled
+            } else {
+                ImportFailure::Deadline
+            })
+        );
+        assert!(child_reaped);
+        assert!(
+            (settled_before_cleanup || recover_cancelled_finish)
+                && settled_at_authority_drop.load(std::sync::atomic::Ordering::Acquire),
+            "reader tasks detached before authority release"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancellation_during_finish_settles_reaped_child_readers() {
+        assert_finish_settles_reaped_child_readers(true, false, false, None).await;
+    }
+    #[tokio::test]
+    async fn external_deadline_during_finish_settles_reaped_child_readers() {
+        assert_finish_settles_reaped_child_readers(false, false, false, None).await;
+    }
+    #[tokio::test]
+    async fn cleanup_after_child_removed_settles_remaining_readers() {
+        assert_finish_settles_reaped_child_readers(false, true, false, None).await;
+    }
+    #[tokio::test]
+    async fn abandoned_finish_keeps_reader_handles_for_cleanup() {
+        assert_finish_settles_reaped_child_readers(true, false, true, None).await;
+    }
+    #[tokio::test]
+    async fn cancelled_finish_with_completed_stdout_recovers_stderr_once() {
+        assert_finish_settles_reaped_child_readers(true, false, true, Some(true)).await;
+    }
+    #[tokio::test]
+    async fn cancelled_finish_with_completed_stderr_recovers_stdout_once() {
+        assert_finish_settles_reaped_child_readers(true, false, true, Some(false)).await;
     }
 }
