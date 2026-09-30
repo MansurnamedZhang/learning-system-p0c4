@@ -480,8 +480,8 @@ mod tests {
         let root_meta = std::fs::symlink_metadata(&child_path).unwrap();
         assert_eq!(root_meta.uid(), 0);
         assert_eq!(root_meta.mode() & 0o777, 0o700);
-        let context = context();
-        let attempt = persist_attempt(&dir, &context).expect("file and directory synced");
+        let initial_context = context();
+        let attempt = persist_attempt(&dir, &initial_context).expect("file and directory synced");
         let meta = dir.open_file(&attempt_name()).unwrap().metadata().unwrap();
         assert_eq!(meta.uid(), 0);
         assert_eq!(meta.mode() & 0o777, 0o600);
@@ -492,7 +492,7 @@ mod tests {
             .read_to_end(&mut bytes)
             .unwrap();
         assert_eq!(Sha256::digest(&bytes).as_slice(), attempt.file_sha256);
-        persist_commit_intent(&dir, &attempt, &context.writer).expect("intent synced");
+        persist_commit_intent(&dir, &attempt, &initial_context.writer).expect("intent synced");
         let intent_meta = dir.open_file(&intent_name()).unwrap().metadata().unwrap();
         assert_eq!(intent_meta.uid(), 0);
         assert_eq!(intent_meta.mode() & 0o777, 0o600);

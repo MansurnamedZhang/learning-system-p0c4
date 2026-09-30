@@ -82,8 +82,11 @@ class ArchiveGates(unittest.TestCase):
 
     def test_duplicate_traversal_symlink_and_unlisted_member_rejected(self):
         entries = source_entries()
+        with self.assertWarnsRegex(UserWarning, "Duplicate name: 'README.md'") as duplicate_warning:
+            duplicate = package(entries, extra=[("README.md", b"duplicate")])
+        self.assertEqual(len(duplicate_warning.warnings), 1, 'unexpected warnings must fail this test')
         cases = [
-            package(entries, extra=[("README.md", b"duplicate")]),
+            duplicate,
             package(entries, extra=[("../escape", b"escape")]),
             package(entries, override={runner.INITDB: stat.S_IFLNK | 0o777}),
             package(entries, extra=[("unlisted.txt", b"unlisted")]),

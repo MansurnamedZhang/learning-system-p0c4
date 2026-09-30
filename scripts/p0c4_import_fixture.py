@@ -11,6 +11,10 @@ NONCE = re.compile(r"[0-9a-f]{32}\Z")
 MAX_INPUT = 65536
 MAX_WRITER = 8192
 
+# Strong ownership survives a caught/redacted exception. No background cleanup
+# may issue commands; only explicit close() can observe the exact owner again.
+_UNSETTLED_CLIENTS = set()
+
 
 class ImportRejected(RuntimeError):
     def __init__(self, code):
@@ -93,6 +97,8 @@ class OpenClient:
         self.eof = [False, False]
         self.failure = None
         self.threads = []
+        require(not _UNSETTLED_CLIENTS, 'UnconfirmedIsolation')
+        require(time.monotonic() < self.deadline, 'Deadline')
         try:
             self.process = subprocess.Popen(command, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0,
@@ -185,18 +191,44 @@ class OpenClient:
         require(self.process.returncode == 0, "Exit")
         return bytes(self.buffers[0])
 
-    def close(self):
-        if self.process.poll() is None:
-            self.process.kill()
+    def close(self, *, observe_only=False):
+        _UNSETTLED_CLIENTS.add(self)
+        if self.cleanup_deadline is None:
+            self.cleanup_deadline = time.monotonic() + 5
+        failed = False
         try:
-            self.process.wait(timeout=self._cleanup_remaining(5))
-        except subprocess.TimeoutExpired:
-            raise ImportRejected("UnconfirmedIsolation") from None
+            if (not observe_only and self.process.poll() is None and
+                    not getattr(self, '_kill_requested', False)):
+                self._kill_requested = True
+                self.process.kill()
+        except OSError:
+            failed = True
+        try:
+            self.process.wait(timeout=0 if observe_only else self._cleanup_remaining(5))
+        except (subprocess.TimeoutExpired, OSError):
+            failed = True
         for thread in self.threads:
-            thread.join(timeout=self._cleanup_remaining(1))
-        for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
-            stream.close()
-        require(not any(thread.is_alive() for thread in self.threads), "UnconfirmedIsolation")
+            thread.join(timeout=0 if observe_only else self._cleanup_remaining(1))
+        readers_settled = not any(thread.is_alive() for thread in self.threads)
+        streams = (self.process.stdin, self.process.stdout, self.process.stderr)
+        # Never contend on a pipe lock while a reader/writer still owns it.
+        if readers_settled:
+            for stream in streams:
+                try:
+                    stream.close()
+                except OSError:
+                    failed = True
+        try:
+            reaped = self.process.poll() is not None
+        except OSError:
+            reaped = False
+        settled = reaped and readers_settled and all(stream.closed for stream in streams)
+        if settled:
+            _UNSETTLED_CLIENTS.discard(self)
+        if failed or not settled:
+            error = ImportRejected("UnconfirmedIsolation")
+            error.cleanup_owner = self
+            raise error
 
     def _cleanup_remaining(self, maximum):
         return maximum if self.cleanup_deadline is None else min(maximum,

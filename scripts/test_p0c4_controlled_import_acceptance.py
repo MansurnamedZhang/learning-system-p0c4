@@ -10,12 +10,303 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
 import zipfile
 import p0c4_controlled_import_acceptance as runner
 import p0c4_import_fixture as fixture
+from test_p0c4_import_fixture import PendingClient
+
+
+class FinalStopTests(unittest.TestCase):
+    def test_settled_builder_expiry_cannot_start_inherited_cleanup(self):
+        self._builder_cleanup_deadline(expire_before=True)
+
+    def test_builder_cleanup_command_keeps_original_deadline(self):
+        self._builder_cleanup_deadline(expire_before=False)
+
+    def test_builder_cleanup_before_deadline_keeps_legacy_receipt_contract(self):
+        self._builder_cleanup_deadline(expire_before=None)
+
+    def _builder_cleanup_deadline(self, *, expire_before):
+        clock = [100.0]
+        backend = runner.ImportBackend.__new__(runner.ImportBackend)
+        backend.commands = runner.BoundedCommands()
+        backend.source, backend.batch, backend.source_hash = (Path('/private/source'),
+            Path('/private/2b8a1252-54d5-48aa-b176-a9586a86bea3'), 'c' * 64)
+        delegate = runner._load(Path(__file__).with_name('p0c4_restore_pin_acceptance.py'),
+                                'final_fix_builder_deadline')
+        backend.delegate = delegate
+        launched, deadlines, environments = [], [], []
+        observed_record = []
+        original_env = {'PATH': '/usr/bin:/bin', 'HOME': '/root',
+                        'DOCKER_HOST': 'unix:///var/run/docker.sock'}
+        def legacy_command(command, **kwargs):
+            launched.append(command)
+            return subprocess.CompletedProcess(command, 0, b'', b'')
+        def builder(command, kwargs, observed, **options):
+            observed.update(container_id='a' * 64, cleanup_confirmed=False)
+            observed_record.append(observed)
+            clock[0] = 111 if expire_before else 108
+            return subprocess.CompletedProcess(command, 0, b'', b'')
+        def compile_probe(*args):
+            try:
+                delegate._run_bounded(['/usr/bin/docker', 'run', '--network', 'none', '--env',
+                    'KNOWWEAVE_C4_TARGET_BIRTH_SHA256=' + '0' * 64,
+                    '--entrypoint', '/bin/sh', runner.BUILDER_ID], timeout=10, env=original_env)
+            finally:
+                delegate._cleanup_builder(backend.batch, 'preflight')
+            return backend.batch / 'binary', 'b' * 64
+        class Client:
+            def __init__(self, command, **kwargs):
+                launched.append(command)
+                deadlines.append(kwargs['cleanup_deadline'])
+                environments.append(kwargs['env'])
+                self.deadline = kwargs['deadline']
+                self.process = SimpleNamespace(returncode=0)
+                self.buffers = [bytearray(), bytearray()]
+                if kwargs['stdout_limit'] != 16*1024*1024 or kwargs['stderr_limit'] != 16*1024*1024:
+                    raise AssertionError('legacy cleanup caps changed')
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def finish(self):
+                clock[0] = clock[0] + 0.1 if expire_before is None else 111
+                fixture.require(clock[0] < self.deadline, 'Deadline')
+                return b''
+        with patch.object(runner, 'fixture', fixture), \
+             patch.object(runner.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(fixture, 'OpenClient', Client), \
+             patch.object(backend, '_run_import_builder', side_effect=builder), \
+             patch.object(delegate, '_run_bounded', side_effect=legacy_command), \
+             patch.object(delegate, '_compile_bound_probe', side_effect=compile_probe), \
+             patch.object(delegate, '_file_digest', return_value='b' * 64):
+            failure = None
+            try:
+                backend._compile_import_binary('0' * 64, '0' * 64, placeholder=True)
+            except (runner.ImportRejected, fixture.ImportRejected) as error:
+                failure = error
+            self.assertEqual(len(launched), 2 if expire_before is None else 0 if expire_before else 1,
+                             'no later Docker action')
+            if expire_before is None:
+                self.assertIsNone(failure)
+                self.assertFalse(backend.commands.unusable)
+                self.assertTrue(observed_record[0]['cleanup_confirmed'])
+            else:
+                self.assertIsNotNone(failure)
+                self.assertEqual(failure.code, 'UnconfirmedIsolation')
+                self.assertTrue(backend.commands.unusable)
+                self.assertFalse(observed_record[0]['cleanup_confirmed'])
+            if not expire_before:
+                self.assertEqual(deadlines, [110] * len(launched))
+                self.assertEqual(environments, [original_env] * len(launched))
+
+    def test_main_keeps_unusable_owner_and_lock_until_exact_settlement(self):
+        self._main_retains_owner()
+
+    def test_main_broken_output_cannot_drop_unusable_owner(self):
+        self._main_retains_owner(broken_output=True)
+
+    def _main_retains_owner(self, broken_output=False):
+        peer = PendingClient()
+        peer.client.cleanup_deadline = 100
+        peer.client.condition = threading.Condition()
+        backend = runner.ContractBackend.__new__(runner.ContractBackend)
+        backend.commands = runner.BoundedCommands()
+        backend.old_temp = {}
+        released, waiting = [], []
+        backend.lock = SimpleNamespace(__exit__=lambda *args: released.append(True))
+        backend.execute = lambda: {'not_golden': True}
+        backend.verify_source = lambda: True
+        backend.evidence_identity = lambda: {}
+        backend.stop = lambda: backend.commands('/usr/bin/docker', 'observe')
+        class BrokenOutput(io.StringIO):
+            def write(self, value):
+                super().write(value)
+                raise BrokenPipeError('closed diagnostic output')
+        stdout = BrokenOutput() if broken_output else io.StringIO()
+        def wait_for_settlement(timeout):
+            waiting.append(True)
+            self.assertEqual(released, [])
+            self.assertIn(backend, runner._UNSETTLED_BACKENDS)
+            self.assertIn(peer.client, fixture._UNSETTLED_CLIENTS)
+            self.assertIn('UNCONFIRMED_UNUSABLE_OWNING_CLEANUP', stdout.getvalue())
+            self.assertEqual(peer.client.cleanup_deadline, 100)
+            with self.assertRaisesRegex(fixture.ImportRejected, 'UnconfirmedIsolation'):
+                backend.commands('/usr/bin/docker', 'stop', 'a' * 64)
+            peer.exited = True
+        argv = ['--phase', 'contract', '--archive', '/unused/archive']
+        for name in ('archive-sha256', 'manifest-sha256', 'commit', 'runner-sha256',
+                     'archive-helper-sha256', 'fixture-sha256', 'source-subnet', 'target-subnet'):
+            argv += ['--' + name, 'unused']
+        for name, suffix in [('batch-id', '1'), ('source-batch-id', '2'), ('target-batch-id', '3')]:
+            argv += ['--' + name, '2b8a1252-54d5-48aa-b176-a9586a86bea' + suffix]
+        try:
+            with patch.object(runner, 'fixture', fixture), \
+                 patch.object(fixture.time, 'monotonic', return_value=11), \
+                 patch.object(fixture, 'OpenClient', return_value=peer.client), \
+                 patch.object(peer.client, 'finish', side_effect=fixture.ImportRejected('Deadline')), \
+                 patch.object(peer.client.condition, 'wait', side_effect=wait_for_settlement), \
+                 patch.object(runner, '_prepare_backend', return_value=backend), \
+                 patch.object(fixture.subprocess, 'Popen', side_effect=AssertionError('no later child')), \
+                 contextlib.redirect_stdout(stdout):
+                self.assertEqual(runner.main(argv), 1)
+                self.assertEqual(waiting, [True], 'main must retain ownership before returning')
+                self.assertEqual(released, [True])
+                self.assertNotIn(peer.client, fixture._UNSETTLED_CLIENTS)
+                self.assertNotIn(backend, runner._UNSETTLED_BACKENDS)
+                self.assertEqual(peer.waited, [5, 0, 0])
+                self.assertEqual(peer.joined, [1, 1, 0, 0, 0, 0])
+                self.assertEqual(stdout.getvalue().count('UNCONFIRMED_UNUSABLE_OWNING_CLEANUP'), 1)
+        finally:
+            peer.settle()
+            if backend in getattr(runner, '_UNSETTLED_BACKENDS', set()):
+                with patch.object(runner, 'fixture', fixture):
+                    backend.release()
+
+    def test_pending_owner_cannot_be_discarded_by_loading_another_fixture(self):
+        peer = PendingClient()
+        try:
+            with patch.object(fixture.time, 'monotonic', return_value=11), \
+                 patch.object(runner, 'fixture', fixture):
+                with self.assertRaises(fixture.ImportRejected):
+                    peer.client.close()
+                with self.assertRaisesRegex(runner.ImportRejected, 'UnconfirmedIsolation'):
+                    runner._archive_contract(SimpleNamespace())
+        finally:
+            peer.settle()
+
+    def test_builder_unsettled_owner_blocks_inherited_cleanup(self):
+        peer = PendingClient()
+        backend = runner.ImportBackend.__new__(runner.ImportBackend)
+        backend.commands = runner.BoundedCommands()
+        backend.source, backend.batch = Path('/private/source'), Path('/private/batch')
+        cleanup = []
+        def compile_probe(*args):
+            try:
+                backend.delegate._run_bounded(['/usr/bin/docker', 'run', '--name', 'owned-builder',
+                    '--network', 'none', '--env', 'KNOWWEAVE_C4_TARGET_BIRTH_SHA256=' + '0' * 64,
+                    '--entrypoint', '/bin/sh', runner.BUILDER_ID], env={})
+            finally:
+                backend.delegate._cleanup_builder(backend.batch, 'preflight')
+        backend.delegate = SimpleNamespace(_run_bounded=lambda *args, **kwargs: None,
+            _cleanup_builder=lambda *args, **kwargs: cleanup.append(True),
+            _compile_bound_probe=compile_probe)
+        try:
+            with patch.object(runner, 'fixture', fixture), \
+                 patch.object(fixture.time, 'monotonic', return_value=11), \
+                 patch.object(fixture, 'OpenClient', return_value=peer.client), \
+                 patch.object(backend.commands, '_run', side_effect=fixture.ImportRejected('Deadline')):
+                with self.assertRaisesRegex(fixture.ImportRejected, 'UnconfirmedIsolation'):
+                    backend._compile_import_binary('0' * 64, '0' * 64, placeholder=True)
+                self.assertEqual(cleanup, [])
+                self.assertTrue(backend.commands.unusable)
+                self.assertIn(peer.client, fixture._UNSETTLED_CLIENTS)
+        finally:
+            peer.settle()
+
+    def test_unsettled_cli_blocks_commands_publication_and_lock_release(self):
+        peer = PendingClient()
+        commands = runner.BoundedCommands()
+        backend = runner.ContractBackend.__new__(runner.ContractBackend)
+        backend.commands = commands
+        backend.old_temp = {}
+        released = []
+        backend.lock = SimpleNamespace(__exit__=lambda *args: released.append(True))
+        try:
+            with patch.object(runner, 'fixture', fixture), \
+                 patch.object(fixture.time, 'monotonic', return_value=11), \
+                 patch.object(fixture, 'OpenClient', return_value=peer.client), \
+                 patch.object(peer.client, 'finish', side_effect=fixture.ImportRejected('Deadline')):
+                with self.assertRaisesRegex(fixture.ImportRejected, 'UnconfirmedIsolation'):
+                    commands('/usr/bin/docker', 'observe')
+                self.assertTrue(getattr(commands, 'unusable', False))
+                with self.assertRaisesRegex(fixture.ImportRejected, 'UnconfirmedIsolation'):
+                    commands('/usr/bin/docker', 'stop', 'a' * 64)
+                with self.assertRaisesRegex(runner.ImportRejected, 'UnconfirmedIsolation'):
+                    backend.publish({'status': runner.PASSED})
+                with self.assertRaisesRegex(runner.ImportRejected, 'UnconfirmedIsolation'):
+                    backend.release()
+                self.assertFalse(released)
+                self.assertIn(backend, runner._UNSETTLED_BACKENDS)
+                peer.settle()
+                backend.release()
+                self.assertEqual(released, [True])
+                self.assertNotIn(backend, runner._UNSETTLED_BACKENDS)
+                with self.assertRaisesRegex(fixture.ImportRejected, 'UnconfirmedIsolation'):
+                    commands('/usr/bin/docker', 'observe')
+        finally:
+            peer.settle()
+            if backend in getattr(runner, '_UNSETTLED_BACKENDS', set()):
+                with patch.object(runner, 'fixture', fixture):
+                    backend.release()
+
+    def _clone_failure(self, *, expire):
+        clock = [100.0]
+        commands = runner.BoundedCommands()
+        backend = runner.ImportBackend.__new__(runner.ImportBackend)
+        backend.commands = commands
+        backend.delegate = runner._load(Path(runner.__file__).parent / runner.CLONE_HELPER.split('/')[-1],
+                                        'final_fix_clone_helper')
+        clone = {'container_id': None, 'role': 'clone',
+                 'identity': {'project': 'clone', 'image': 'fixed', 'volume': 'clone-vol'},
+                 'before': {'containers': []}}
+        backend.clone_record = clone
+        backend.resources = [{'container_id': 'a' * 64, 'role': 'source', 'identity': {}},
+                             {'container_id': 'b' * 64, 'role': 'target', 'identity': {}}, clone]
+        launched, deadlines, stopped = [], [], []
+        class Client:
+            def __init__(self, command, **kwargs):
+                launched.append(command)
+                deadlines.append(commands.isolation_deadline)
+                self.deadline = kwargs['deadline']
+                self.command = command
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def finish(self):
+                clock[0] += 16 if expire is True and self.command[1] == 'discover' else 1
+                if expire == 'early-timeout' and self.command[1] == 'discover':
+                    raise fixture.ImportRejected('Deadline')
+                fixture.require(clock[0] < self.deadline, 'Deadline')
+                return b''
+        def snapshot():
+            commands('/usr/bin/docker', 'discover')
+            # Same project, wrong image: never trust this clone ID.
+            return {'containers': [{'Id': 'c' * 64, 'Config': {'Labels': {
+                'com.docker.compose.project': 'clone', 'com.docker.compose.service': 'pg'},
+                'Image': 'replacement'}, 'Mounts': []}]}
+        def stop(provisioner, identity, cid):
+            commands('/usr/bin/docker', 'stop', cid)
+            stopped.append(cid)
+            return {'confirmed': True}
+        backend.provisioner = SimpleNamespace(snapshot=snapshot)
+        backend.helper = SimpleNamespace(stop_verified_pg=stop)
+        with patch.object(runner, 'fixture', fixture), \
+             patch.object(runner.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(fixture, 'OpenClient', Client):
+            with self.assertRaises((runner.ImportRejected, fixture.ImportRejected, ValueError)) as failure:
+                backend.stop()
+            self.assertEqual(commands.isolation_deadline, 115)
+            self.assertTrue(all(deadline == 115 for deadline in deadlines))
+            self.assertEqual(stopped, [] if expire is True else ['a' * 64, 'b' * 64])
+            self.assertEqual(getattr(failure.exception, 'code', None), 'UnconfirmedIsolation')
+            self.assertIsNone(clone['container_id'])
+            self.assertFalse(any('c' * 64 in command for command in launched))
+            before = len(launched)
+            clock[0] = 116
+            with self.assertRaisesRegex(fixture.ImportRejected, 'UnconfirmedIsolation'):
+                commands('/usr/bin/docker', 'observe')
+            self.assertEqual(len(launched), before)
+
+    def test_clone_discovery_timeout_does_not_reset_deadline(self):
+        self._clone_failure(expire=True)
+
+    def test_clone_attribution_rejection_still_stops_known_exact_ids(self):
+        self._clone_failure(expire=False)
+
+    def test_clone_discovery_early_timeout_still_stops_known_exact_ids(self):
+        self._clone_failure(expire='early-timeout')
 
 
 class Backend:
@@ -65,6 +356,9 @@ class LocalFiles:
 
 
 class ContractTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.object(runner, 'fixture', fixture))
+
     def _inspection_peer(self, container_ids, payload_size=65000, delay=0,
                          inspect_reply=None):
         """A real child emits Docker-shaped output for the private provisioner."""
@@ -313,41 +607,94 @@ sys.stdout.flush()
             return process
         return peer, launched, processes
 
-    def test_reused_stalled_observation_is_reaped_and_cannot_publish_success(self):
+    def _reap_probes(self, processes):
+        # Test owns its probes even if an assertion or the production owner
+        # fails. This hygiene budget is not a production isolation extension.
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+        for owner in list(fixture._UNSETTLED_CLIENTS):
+            if owner.process in processes:
+                for thread in owner.threads:
+                    thread.join(timeout=5)
+                owner.close()
+        for process in processes:
+            for stream in (process.stdin, process.stdout, process.stderr):
+                stream.close()
+
+    def test_reused_stalled_observation_retains_ownership_and_cannot_publish_success(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
             backend = self._isolated_backend(directory)
             peer, launched, processes = self._stop_peer(backend, 0.45)
             started = time.monotonic()
-            with patch.object(runner, 'ISOLATION_SECONDS', 0.2, create=True), \
-                 patch.object(fixture.subprocess, 'Popen', side_effect=peer), \
-                 patch.object(runner, '_prepare_backend', return_value=backend):
-                result = runner.run_contract(SimpleNamespace(phase='contract'))
-            elapsed = time.monotonic() - started
-            self.assertEqual(result['status'], runner.UNCONFIRMED)
-            self.assertEqual(result['reason_code'], 'UnconfirmedIsolation')
-            self.assertLess(elapsed, 0.5)
-            self.assertTrue(all(process.poll() is not None for process in processes))
-            self.assertFalse(any(command[1] == 'stop' for command in launched))
-            actions = launched.copy()
-            time.sleep(0.05)
-            self.assertEqual(launched, actions, 'late action after isolation returned')
-            persisted = json.loads((backend.batch / 'evidence' / 'result.json').read_bytes())
-            self.assertEqual(persisted['status'], runner.UNCONFIRMED)
+            try:
+                with patch.object(runner, 'ISOLATION_SECONDS', 0.2), \
+                     patch.object(fixture.subprocess, 'Popen', side_effect=peer), \
+                     patch.object(runner, '_prepare_backend', return_value=backend):
+                    try:
+                        result = runner.run_contract(SimpleNamespace(phase='contract'))
+                    except runner.ImportRejected as error:
+                        self.assertEqual(error.code, 'UnconfirmedIsolation')
+                        self.assertTrue(backend.commands.unusable)
+                        if fixture._UNSETTLED_CLIENTS:
+                            self.assertTrue(all(owner.process in processes
+                                for owner in fixture._UNSETTLED_CLIENTS))
+                            self.assertIn(backend, runner._UNSETTLED_BACKENDS)
+                        else:
+                            self.assertTrue(all(process.poll() is not None for process in processes))
+                            self.assertTrue(all(stream.closed for process in processes
+                                for stream in (process.stdin, process.stdout, process.stderr)))
+                        self.assertFalse((backend.batch / 'evidence' / 'result.json').exists())
+                    else:
+                        self.assertEqual(result['status'], runner.UNCONFIRMED)
+                        self.assertEqual(result['reason_code'], 'UnconfirmedIsolation')
+                        self.assertTrue(all(process.poll() is not None for process in processes))
+                        self.assertTrue(all(stream.closed for process in processes
+                            for stream in (process.stdin, process.stdout, process.stderr)))
+                        persisted = json.loads((backend.batch / 'evidence' / 'result.json').read_bytes())
+                        self.assertEqual(persisted['status'], runner.UNCONFIRMED)
+                self.assertLess(time.monotonic() - started, 0.5)
+                self.assertFalse(any(command[1] == 'stop' for command in launched))
+                actions = launched.copy()
+                time.sleep(0.05)
+                self.assertEqual(launched, actions, 'late action after isolation returned')
+            finally:
+                self._reap_probes(processes)
+                if backend in runner._UNSETTLED_BACKENDS:
+                    backend.release()
 
     def test_both_owned_resources_share_one_absolute_isolation_budget(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
             backend = self._isolated_backend(directory)
-            peer, launched, processes = self._stop_peer(backend, 0.12)
+            peer, launched, processes = self._stop_peer(backend, 30)
+            self.addCleanup(self._reap_probes, processes)
+            deadlines = []
+            def stop(provisioner, identity, cid):
+                deadlines.append(backend.commands.isolation_deadline)
+                if cid == 'a' * 64:
+                    return {'confirmed': True}
+                self.assertEqual(cid, 'b' * 64)
+                # Deliberately pending until killed; short sleep chains can
+                # finish normally before the next admission check on a slow host.
+                provisioner._command('/usr/bin/docker', 'observe')
+                return {'confirmed': True}
             started = time.monotonic()
-            with patch.object(runner, 'ISOLATION_SECONDS', 0.5, create=True), \
+            with patch.object(runner, 'ISOLATION_SECONDS', 1.0), \
+                 patch.object(backend.helper, 'stop_verified_pg', side_effect=stop), \
                  patch.object(fixture.subprocess, 'Popen', side_effect=peer), \
                  patch.object(runner, '_prepare_backend', return_value=backend):
                 result = runner.run_contract(SimpleNamespace(phase='contract'))
             self.assertEqual(result['status'], runner.UNCONFIRMED)
-            self.assertLess(time.monotonic() - started, 0.8)
+            self.assertLess(time.monotonic() - started, 1.3)
+            self.assertEqual(len(deadlines), 2)
+            self.assertEqual(deadlines[0], deadlines[1])
+            self.assertEqual(len(processes), 1)
             self.assertTrue(all(process.poll() is not None for process in processes))
             self.assertTrue(any(process.returncode != 0 for process in processes),
                 'deadline must interrupt a CLI, not reject after unbounded completion')
+            self.assertTrue(all(stream.closed for process in processes
+                for stream in (process.stdin, process.stdout, process.stderr)))
 
     def test_observation_command_output_is_bounded_before_exit(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
@@ -560,6 +907,7 @@ print('CONTROL_HELPERS_LOADED')
     def test_real_publication_refuses_existing_final_and_removes_pending(self):
         with tempfile.TemporaryDirectory() as directory:
             backend = runner.ContractBackend.__new__(runner.ContractBackend)
+            backend.commands = runner.BoundedCommands()
             backend.batch = Path(directory)
             backend.helper = LocalFiles()
             evidence = backend.batch / 'evidence'
@@ -576,6 +924,7 @@ print('CONTROL_HELPERS_LOADED')
     def test_final_file_persists_verified_package_and_exact_resource_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             backend = runner.ContractBackend.__new__(runner.ContractBackend)
+            backend.commands = runner.BoundedCommands()
             backend.batch = Path(directory)
             (backend.batch / 'evidence').mkdir()
             backend.helper = LocalFiles()
@@ -677,6 +1026,9 @@ print('CONTROL_HELPERS_LOADED')
 class ImportPhaseTests(unittest.TestCase):
     """Local runner decisions only; no Docker, PostgreSQL, or live evidence."""
 
+    def setUp(self):
+        self.enterContext(patch.object(runner, 'fixture', fixture))
+
     def entry(self, name):
         function = getattr(runner, name, None)
         self.assertTrue(callable(function), f"missing closed import predicate: {name}")
@@ -754,6 +1106,7 @@ class ImportPhaseTests(unittest.TestCase):
 
     def test_compile_only_placeholder_injects_separate_source_pin_and_lists_all_eleven(self):
         backend = object.__new__(runner.ImportBackend)
+        backend.commands = runner.BoundedCommands()
         backend.source = Path('/private/source')
         backend.batch = Path('/private/batch')
         backend.source_hash = 'c' * 64
@@ -777,7 +1130,7 @@ class ImportPhaseTests(unittest.TestCase):
                                           _builder_identity=lambda *args: ('builder', 'label=value'),
                                           _builder_container_ids=lambda *args: [],
                                           _file_digest=lambda path: 'b' * 64)
-        def inspected(command, kwargs, observed):
+        def inspected(command, kwargs, observed, **options):
             observed.update(container_id='e' * 64, cleanup_confirmed=False)
             return bounded(command, **kwargs)
         backend._run_import_builder = inspected
@@ -809,10 +1162,11 @@ class ImportPhaseTests(unittest.TestCase):
         captured, replacement = 'a' * 64, 'b' * 64
         for first_inventory in ([captured], []):
             backend = object.__new__(runner.ImportBackend)
+            backend.commands = runner.BoundedCommands()
             backend.source, backend.batch, backend.source_hash = Path('/private/source'), batch, 'c' * 64
             backend.delegate = delegate
             observed_reference = []
-            def inspected(command, kwargs, observed):
+            def inspected(command, kwargs, observed, **options):
                 observed.update(container_id=captured, cleanup_confirmed=False)
                 observed_reference.append(observed)
                 return SimpleNamespace(returncode=0)

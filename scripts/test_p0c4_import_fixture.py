@@ -1,3 +1,5 @@
+import io
+import subprocess
 import sys
 import unittest
 from unittest.mock import patch
@@ -8,7 +10,81 @@ DB = "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3"
 NONCE = "abababababababababababababababab"
 
 
+class PendingClient:
+    """Deterministic OS/reader boundary for the actual OpenClient.close()."""
+    def __init__(self):
+        self.exited = False
+        self.joined = []
+        self.waited = []
+        self.killed = False
+        self.returncode = None
+        self.stdin, self.stdout, self.stderr = io.BytesIO(), io.BytesIO(), io.BytesIO()
+        self.client = fixture.OpenClient.__new__(fixture.OpenClient)
+        self.client.process = self
+        self.client.cleanup_deadline = 10
+        self.client.threads = [self, self]
+
+    def poll(self):
+        return 1 if self.exited else None
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout):
+        self.waited.append(timeout)
+        if not self.exited:
+            raise subprocess.TimeoutExpired('owned-test-child', timeout)
+        self.returncode = 1
+        return 1
+
+    def join(self, timeout):
+        self.joined.append(timeout)
+
+    def is_alive(self):
+        return not self.exited
+
+    def settle(self):
+        self.exited = True
+        with patch.object(fixture.time, 'monotonic', return_value=11):
+            self.client.close()
+
+
 class FixtureTests(unittest.TestCase):
+    def test_expired_close_retains_owner_and_can_observe_later_settlement(self):
+        peer = PendingClient()
+        try:
+            with patch.object(fixture.time, 'monotonic', return_value=11):
+                with self.assertRaisesRegex(fixture.ImportRejected, 'UnconfirmedIsolation') as error:
+                    peer.client.close()
+            self.assertEqual(peer.waited, [0])
+            self.assertEqual(peer.joined, [0, 0], 'wait failure must not abandon reader settlement')
+            self.assertIs(getattr(error.exception, 'cleanup_owner', None), peer.client)
+            self.assertIn(peer.client, fixture._UNSETTLED_CLIENTS)
+            self.assertFalse(any(stream.closed for stream in (peer.stdin, peer.stdout, peer.stderr)),
+                             'do not block closing pipes while readers are active')
+            peer.settle()
+            self.assertNotIn(peer.client, fixture._UNSETTLED_CLIENTS)
+            self.assertTrue(all(stream.closed for stream in (peer.stdin, peer.stdout, peer.stderr)))
+            self.assertEqual(peer.client.cleanup_deadline, 10)
+            self.assertTrue(all(timeout == 0 for timeout in peer.waited + peer.joined))
+        finally:
+            peer.settle()
+
+    def test_wait_error_still_joins_and_closes_settled_pipes(self):
+        peer = PendingClient()
+        peer.exited = True
+        try:
+            with patch.object(fixture.time, 'monotonic', return_value=11), \
+                 patch.object(peer, 'wait', side_effect=OSError('redacted')):
+                with self.assertRaises((fixture.ImportRejected, OSError)) as failure:
+                    peer.client.close()
+            self.assertEqual(peer.joined, [0, 0])
+            self.assertEqual(getattr(failure.exception, 'code', None), 'UnconfirmedIsolation')
+            self.assertTrue(all(stream.closed for stream in (peer.stdin, peer.stdout, peer.stderr)))
+            self.assertNotIn(peer.client, fixture._UNSETTLED_CLIENTS)
+        finally:
+            peer.settle()
+
     def test_rejects_alias_conninfo_and_noncanonical_database(self):
         for cid, db in [("pg", DB), ("A" * 64, DB), (ID, "host=remote"),
                         (ID, DB.upper()), (ID, DB.replace("48aa", "18aa")),

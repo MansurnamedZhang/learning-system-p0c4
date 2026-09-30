@@ -194,11 +194,18 @@ class BoundedCommands:
     """
     def __init__(self):
         self.isolation_deadline = None
+        self.unusable = False
+
+    def require_usable(self):
+        if self.unusable or fixture._UNSETTLED_CLIENTS:
+            self.unusable = True
+            raise fixture.ImportRejected('UnconfirmedIsolation')
 
     def __call__(self, binary, *args):
         return self._run(binary, args)
 
     def _run(self, binary, args, operation_deadline=None):
+        self.require_usable()
         require(binary in ('/usr/bin/docker', '/usr/sbin/ip'), 'Identity')
         now = time.monotonic()
         deadline = now + 30
@@ -217,7 +224,9 @@ class BoundedCommands:
                          'DOCKER_HOST': 'unix:///var/run/docker.sock'}) as client:
                 output = client.finish()
             return output.decode('utf-8')
-        except fixture.ImportRejected:
+        except fixture.ImportRejected as error:
+            if getattr(error, 'cleanup_owner', None) is not None:
+                self.unusable = True
             if self.isolation_deadline is not None:
                 raise fixture.ImportRejected('UnconfirmedIsolation') from None
             raise
@@ -306,6 +315,7 @@ def _archive_contract(args):
     This does not mutate any existing runner module or its entrypoint.
     """
     global fixture
+    require(fixture is None or not fixture._UNSETTLED_CLIENTS, 'UnconfirmedIsolation')
     installed = Path(__file__).resolve(strict=True)
     _checked_installed(installed, args.runner_sha256, 0o500)
     helper_path = installed.parent / Path(ARCHIVE_HELPER).name
@@ -325,6 +335,9 @@ def _archive_contract(args):
         require(files[CLONE_HELPER] == args.clone_helper_sha256, 'Identity')
     fixture = _load(fixture_path, 'p0c4_import_fixture_sealed')
     return helper, manifest, content
+
+
+_UNSETTLED_BACKENDS = set()
 
 
 class ContractBackend:
@@ -471,25 +484,32 @@ class ContractBackend:
         return {'clients': clients, 'fixture': captured, 'artifacts': artifacts,
                 'target_baseline_unchanged': True, 'not_golden': True}
 
+    def _isolation_deadline(self):
+        if self.commands.isolation_deadline is None:
+            self.commands.isolation_deadline = time.monotonic() + ISOLATION_SECONDS
+        return self.commands.isolation_deadline
+
     def stop(self):
         stopped = {}
         failure = False
-        deadline = time.monotonic() + ISOLATION_SECONDS
-        self.commands.isolation_deadline = deadline
+        deadline = self._isolation_deadline()
         for row in self.resources:
             require(time.monotonic() < deadline, 'UnconfirmedIsolation')
             try:
+                self.commands.require_usable()
                 if row['container_id'] is not None:
                     fact = self.helper.stop_verified_pg(self.provisioner, row['identity'], row['container_id'])
-                else:
+                elif row['role'] != 'clone':
                     fact = self.helper.stop_early_owned_pg(self.provisioner, row['identity'],
                         row['control'] / 'targets' / row['batch_id'], row['subnet'], row['before'], self.initdb)
+                else:
+                    raise ImportRejected('UnconfirmedIsolation')
                 stopped[row['role'] + '_stopped'] = fact.get('confirmed') is True
                 require(stopped[row['role'] + '_stopped'], 'UnconfirmedIsolation')
             except BaseException as error:
                 failure = True
-                if isinstance(error, fixture.ImportRejected) and error.code == 'UnconfirmedIsolation':
-                    break  # Current CLI is reaped; never resume a timed-out action stack.
+                if self.commands.unusable or time.monotonic() >= deadline:
+                    break  # Never resume an unsettled or expired action stack.
         require(not failure and time.monotonic() < deadline, 'UnconfirmedIsolation')
         return {**stopped, 'volumes_retained': True}
 
@@ -514,6 +534,7 @@ class ContractBackend:
         return {'package': package, 'batches': batches, 'resources': resources}
 
     def publish(self, result):
+        require(not fixture._UNSETTLED_CLIENTS and not self.commands.unusable, 'UnconfirmedIsolation')
         evidence = self.batch / 'evidence'
         pending = evidence / 'result.pending'
         final = evidence / 'result.json'
@@ -530,6 +551,10 @@ class ContractBackend:
         return {**result, 'result_sha256': digest(payload), 'evidence': str(final)}
 
     def release(self):
+        if fixture is not None and fixture._UNSETTLED_CLIENTS:
+            _UNSETTLED_BACKENDS.add(self)
+            raise ImportRejected('UnconfirmedIsolation')
+        _UNSETTLED_BACKENDS.discard(self)
         for name, old in self.old_temp.items():
             if old is None:
                 os.environ.pop(name, None)
@@ -572,6 +597,7 @@ class ImportBackend(ContractBackend):
             'builder_image_id': BUILDER_ID, 'postgres_image': POSTGRES_IMAGE}
 
     def _compile_import_binary(self, source_pin, target_pin, *, placeholder):
+        import subprocess
         require(all(type(pin) is str and HEX_ID.fullmatch(pin) for pin in (source_pin, target_pin)), 'Identity')
         require((source_pin == target_pin == '0' * 64) if placeholder else
                 source_pin != target_pin and '0' * 64 not in (source_pin, target_pin), 'Identity')
@@ -579,7 +605,36 @@ class ImportBackend(ContractBackend):
         original_cleanup = self.delegate._cleanup_builder
         injected = []
         observed = {}
+        builder_deadline = None
+        cleaning = False
         def compile_command(command, **kwargs):
+            nonlocal builder_deadline
+            if cleaning:
+                self.commands.require_usable()
+                require(command[0] == '/usr/bin/docker', 'Identity')
+                now = time.monotonic()
+                if builder_deadline is None or now >= builder_deadline:
+                    self.commands.unusable = True
+                    raise fixture.ImportRejected('UnconfirmedIsolation')
+                reserve = min(0.25, (builder_deadline - now) / 4)
+                try:
+                    with fixture.OpenClient(command, timeout=kwargs.get('timeout', 60),
+                            deadline=builder_deadline - reserve, cleanup_deadline=builder_deadline,
+                            stdout_limit=kwargs.get('limit', 16*1024*1024),
+                            stderr_limit=kwargs.get('limit', 16*1024*1024),
+                            allow_stderr=True, env=kwargs.get('env')) as client:
+                        try:
+                            output = client.finish()
+                        except fixture.ImportRejected as error:
+                            if error.code != 'Exit':
+                                raise
+                            output = bytes(client.buffers[0])
+                        result = subprocess.CompletedProcess(command, client.process.returncode,
+                            output, bytes(client.buffers[1]))
+                    return result
+                except fixture.ImportRejected:
+                    self.commands.unusable = True
+                    raise fixture.ImportRejected('UnconfirmedIsolation') from None
             if command[:2] == ['/usr/bin/docker', 'run']:
                 target = 'KNOWWEAVE_C4_TARGET_BIRTH_SHA256=' + target_pin
                 require(command.count(target) == 1 and command.count('--entrypoint') == 1 and
@@ -591,17 +646,32 @@ class ImportBackend(ContractBackend):
                 index = command.index('--entrypoint')
                 command[index:index] = ['--cpus=4', '--memory=8g', '--memory-swap=8g',
                     '--env', 'KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256=' + source_pin]
+                require(builder_deadline is None, 'Protocol')
+                builder_deadline = time.monotonic() + kwargs.get('timeout', 7200)
                 injected.append(True)
-                return self._run_import_builder(command, kwargs, observed)
+                return self._run_import_builder(command, kwargs, observed, deadline=builder_deadline)
             return original(command, **kwargs)
         def cleanup(batch, stage):
-            if observed:
-                _, label = self.delegate._builder_identity(batch, stage)
-                ids = self.delegate._builder_container_ids(label)
-                require(ids in ([], [observed['container_id']]), 'Identity')
-            original_cleanup(batch, stage, expected_id=observed.get('container_id'))
-            if observed:
-                observed['cleanup_confirmed'] = True
+            nonlocal cleaning
+            self.commands.require_usable()
+            if builder_deadline is None or time.monotonic() >= builder_deadline:
+                self.commands.unusable = True
+                raise fixture.ImportRejected('UnconfirmedIsolation')
+            cleaning = True
+            try:
+                if observed:
+                    _, label = self.delegate._builder_identity(batch, stage)
+                    ids = self.delegate._builder_container_ids(label)
+                    require(ids in ([], [observed['container_id']]), 'Identity')
+                original_cleanup(batch, stage, expected_id=observed.get('container_id'))
+                require(time.monotonic() < builder_deadline, 'UnconfirmedIsolation')
+                if observed:
+                    observed['cleanup_confirmed'] = True
+            except BaseException:
+                self.commands.unusable = True
+                raise
+            finally:
+                cleaning = False
         # Scoped adaptation of this separately loaded verified module instance;
         # no global process environment or old runner mode changes.
         self.delegate._run_bounded = compile_command
@@ -651,9 +721,10 @@ class ImportBackend(ContractBackend):
                 'network_none': True, 'source_readonly': True, 'build_directory': build.name,
                 'cleanup_confirmed': False}
 
-    def _run_import_builder(self, command, kwargs, observed):
+    def _run_import_builder(self, command, kwargs, observed, *, deadline=None):
         import subprocess
-        deadline = time.monotonic() + kwargs.get('timeout', 7200)
+        if deadline is None:
+            deadline = time.monotonic() + kwargs.get('timeout', 7200)
         active_deadline = deadline - 5  # reserve settlement inside the same absolute budget
         startup = min(active_deadline, time.monotonic() + 30)
         name = command[command.index('--name') + 1]
@@ -833,10 +904,19 @@ class ImportBackend(ContractBackend):
         return result
 
     def stop(self):
+        self._isolation_deadline()
+        discovery_failed = False
         if self.clone_record is not None and self.clone_record['container_id'] is None:
-            self.clone_record['container_id'] = self.delegate._find_owned_clone_pg(
-                self.provisioner, self.clone_record['identity'], self.clone_record['before'])
-        return super().stop()
+            try:
+                self.commands.require_usable()
+                self.clone_record['container_id'] = self.delegate._find_owned_clone_pg(
+                    self.provisioner, self.clone_record['identity'], self.clone_record['before'])
+                require(self.clone_record['container_id'] is not None, 'UnconfirmedIsolation')
+            except BaseException:
+                discovery_failed = True
+        result = super().stop()
+        require(not discovery_failed, 'UnconfirmedIsolation')
+        return result
 
     def evidence_identity(self):
         identity = super().evidence_identity()
@@ -950,6 +1030,25 @@ def run_import_case(args, case: str) -> dict:
         backend.release()
 
 
+def _hold_unusable_owners():
+    """Failed CLI lifetime, not a renewed isolation deadline or success path.
+
+    An unserviceable kernel may leave this owner/lock here until external host
+    teardown. Normal CLI exit must not abandon the exact child or its pipes.
+    """
+    while fixture._UNSETTLED_CLIENTS:
+        for owner in tuple(fixture._UNSETTLED_CLIENTS):
+            try:
+                owner.close(observe_only=True)  # No new kill/wait budget, even before original expiry.
+            except fixture.ImportRejected:
+                pass
+            if owner in fixture._UNSETTLED_CLIENTS:
+                with owner.condition:
+                    owner.condition.wait(0.05)
+    for backend in tuple(_UNSETTLED_BACKENDS):
+        backend.release()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase', choices=['contract', 'import'], required=True)
@@ -968,6 +1067,14 @@ def main(argv=None):
         print(json.dumps(result, separators=(',', ':')), flush=True)
         return 0 if result['status'] in (PASSED, IMPORT_PASSED, IMPORT_NEGATIVE) else 1
     except BaseException:
+        if fixture is not None and fixture._UNSETTLED_CLIENTS:
+            try:
+                print('CONTROLLED_IMPORT_UNCONFIRMED_UNUSABLE_OWNING_CLEANUP', flush=True)
+            except OSError:
+                pass  # Closed diagnostic output cannot relinquish cleanup ownership.
+            finally:
+                _hold_unusable_owners()
+            return 1
         print('CONTRACT_ADMISSION_OR_EVIDENCE_REJECTED_NOT_IMPORT' if args.phase == 'contract'
               else 'CONTROLLED_IMPORT_ADMISSION_OR_EVIDENCE_REJECTED_NOT_FULL_RESTORE', flush=True)
         return 1

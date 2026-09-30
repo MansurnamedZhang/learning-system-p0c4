@@ -1304,7 +1304,11 @@ class CommandLine(unittest.TestCase):
             self.assertEqual(runner.main(argv), 0)
             self.assertTrue(admitted.call_args.args[0].bound_guard)
             admitted.reset_mock()
-            self.assertEqual(runner.main(argv + ["--bound-probe"]), 1)
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                self.assertEqual(runner.main(argv + ["--bound-probe"]), 1)
+            self.assertIn('ADMISSION_REJECTED', stdout.getvalue())
+            self.assertIn('not allowed with argument --bound-guard', stderr.getvalue())
             admitted.assert_not_called()
 
     def test_documented_runner_sha_is_passed_to_admission(self):
