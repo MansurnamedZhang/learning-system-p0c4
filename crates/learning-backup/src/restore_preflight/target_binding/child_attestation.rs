@@ -191,26 +191,33 @@ mod linux_child;
 #[cfg(target_os = "linux")]
 pub(in crate::restore_preflight) use linux_child::attest;
 
-#[cfg(all(test, target_os = "linux"))]
-pub(super) async fn restart_for_test(container_id: &str) -> Result<(), ChildFailure> {
+#[cfg(test)]
+fn restart_argv_for_test(container_id: &str) -> Result<Vec<String>, ChildFailure> {
     if !exact_id(container_id) {
         return Err(ChildFailure::Identity);
     }
-    let output = linux_child::docker(
-        &[
-            "container".into(),
-            "restart".into(),
-            "--time".into(),
-            "5".into(),
-            container_id.into(),
-        ],
-        Instant::now() + Duration::from_secs(15),
-    )
-    .await?;
-    if output != format!("{container_id}\n") {
+    Ok(vec![
+        "container".into(),
+        "restart".into(),
+        "--timeout".into(),
+        "5".into(),
+        container_id.into(),
+    ])
+}
+
+#[cfg(test)]
+fn restart_response_for_test(container_id: &str, output: &str) -> Result<(), ChildFailure> {
+    if !exact_id(container_id) || output != format!("{container_id}\n") {
         return Err(ChildFailure::Identity);
     }
     Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(super) async fn restart_for_test(container_id: &str) -> Result<(), ChildFailure> {
+    let args = restart_argv_for_test(container_id)?;
+    let output = linux_child::docker(&args, Instant::now() + Duration::from_secs(15)).await?;
+    restart_response_for_test(container_id, &output)
 }
 
 #[cfg(test)]
@@ -218,6 +225,50 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::collections::VecDeque;
+
+    #[test]
+    fn restart_test_command_uses_supported_timeout_and_exact_id() {
+        let id = "a".repeat(64);
+        assert_eq!(
+            restart_argv_for_test(&id).unwrap(),
+            ["container", "restart", "--timeout", "5", &id]
+        );
+        for bad in [
+            "a".repeat(12),
+            "A".repeat(64),
+            "g".repeat(64),
+            "name".into(),
+            format!("{id}\n"),
+        ] {
+            assert_eq!(restart_argv_for_test(&bad), Err(ChildFailure::Identity));
+        }
+    }
+
+    #[test]
+    fn restart_test_response_requires_only_exact_lowercase_id_and_lf() {
+        let id = "a".repeat(64);
+        assert_eq!(restart_response_for_test(&id, &format!("{id}\n")), Ok(()));
+        for bad in [
+            format!("prefix{id}\n"),
+            format!("{}\n", "b".repeat(64)),
+            "aaaaaaaaaaaa\n".into(),
+            "name\n".into(),
+            format!("{id}\nextra\n"),
+            format!("Flag --time has been deprecated, use --timeout instead\n{id}\n"),
+            format!("{id}\r\n"),
+            id.clone(),
+        ] {
+            assert_eq!(
+                restart_response_for_test(&id, &bad),
+                Err(ChildFailure::Identity)
+            );
+        }
+        let upper = "A".repeat(64);
+        assert_eq!(
+            restart_response_for_test(&upper, &format!("{upper}\n")),
+            Err(ChildFailure::Identity)
+        );
+    }
 
     const ROWS: &str = "42|16385|0|7|1|ExclusiveLock|t\n42|16385|0|9|1|ExclusiveLock|t\n";
     fn socket() -> String {
