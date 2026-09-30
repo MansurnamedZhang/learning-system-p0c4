@@ -35,9 +35,9 @@
 
 **Interfaces:** `BoundTargetGuard` 与 `LockChallenge<Transaction<'static, Postgres>>` 的内部组合生成 `ExactRestoreChildTarget`，其字段私有、生命周期不超过两者；它只暴露固定的只读客户端 argv 构造和容器/数据库身份读取，不接受调用方 host、port、可执行文件或 PostgreSQL 参数。旧 `PgRestoreSpec` 可暂保留数据校验兼容，但移除宿主执行方法及 `RestorePreflight` 中可达的导入方法；不应存在 marker→旧宿主子进程的代码路径。
 
-- [ ] 写 RED：容器名、非小写 64hex ID、错误数据库、TCP host、额外 `PG*` 环境和任意客户端路径不得生成命令；正常目标的 argv 精确包含 `docker exec -i --user 999:999 <ID> /usr/bin/env -i`、固定绝对客户端路径及本地 socket。
-- [ ] 运行定向测试并记录预期 RED；实现不透明目标和固定 argv。移除旧宿主导入调用链，保持其他预检/锁/3a/3b 行为不变。
-- [ ] 运行 `cargo test -p learning-backup --lib`、`cargo fmt --all -- --check`、严格 Clippy 和相邻 Python 回归；提交后独立审查。本地无专用 PG 环境时不得称 workspace 全部通过。
+- [x] 写 RED：容器名、非小写 64hex ID、错误数据库、TCP host、额外 `PG*` 环境和任意客户端路径不得生成命令；正常目标的 argv 精确包含 `docker exec -i --user 999:999 <ID> /usr/bin/env -i`、固定绝对客户端路径及本地 socket。
+- [x] 运行定向测试并记录预期 RED；实现不透明目标和固定 argv。移除旧宿主导入调用链，保持其他预检/锁/3a/3b 行为不变。
+- [x] 运行 `cargo test -p learning-backup --lib`、`cargo fmt --all -- --check`、严格 Clippy 和相邻 Python 回归；提交后独立审查。本地无专用 PG 环境时不得称 workspace 全部通过。
 
 ## Task 2 — 精确容器内的只读客户端能力探针
 
