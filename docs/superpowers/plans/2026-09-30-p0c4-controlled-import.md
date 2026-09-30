@@ -10,7 +10,7 @@
 
 **Spec:** [已获批准的首次写入设计](../specs/2026-09-30-p0c4-controlled-import-design.md)。开始编码前执行者必须同时阅读本计划与规格。
 
-**Status:** 用户于2026-09-30以“开始”批准本施工单；任务1本地实现及独立复审已通过（代码 `43cd2df`、修复 `4fad8e6`）。中文路径封装修复 `305a54f` 已独立复审；随后授权运行的 canonical 包 `a300908` 已通过源码准入，但控制批次 `55571d76` 在创建资源前返回 `StdoutLimit`。同字节适配器只读复现764个既有容器完整 inspect 为9,387,498字节，超过单次4 MiB。完整元数据有界分批修复 `77c24ba` 已独立限定复审，无新增修复范围问题；六项新增测试通过，唯一提交后完整Python回归为231/232，既有计时断言失败仍保留且原因未证实，未称全套通过。新 ZIP/new runner/新批次另行封存与授权，旧失败批次不重跑。真实PG18合同/工件门未通过，任务2–6未开始。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`；设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`。沿用逐任务子代理实现及独立审查，每份服务器文件和新资源另行授权，任务1现场门及工件复审通过前不关闭任务。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)。
+**Status:** 用户于2026-09-30以“开始”批准本施工单；任务1本地实现及独立复审已通过（代码 `43cd2df`、修复 `4fad8e6`）。中文路径封装修复 `305a54f`、完整元数据分批修复 `77c24ba` 均已独立限定复审；首轮/第二轮失败证据保留。新包 `5bc482d`、新runner及新控制/源/目标已授权执行，2026-10-01返回 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`、退出0，结果/源码摘要复算及双容器精确停机/留卷已核对。工件已受控导出、下载、实际hash核验，并通过独立TOC/完整SQL审查，Task1完成，Task2进入冻结与完整golden实现，Task3–6待顺序推进；未执行目标导入。最新本地完整Python回归231/232，既有计时断言失败保留且原因未证实，未称全套通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`；设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`。沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权，旧失败批次不重跑，Task2以本轮已核验、已独立审查的实产字节为唯一golden来源。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)。
 
 ## Global Constraints
 
@@ -50,11 +50,11 @@
 
 **Interfaces:** `FixedImportCommand::decoder(container_id:&str) -> Result<Self,ImportFailure>`、`::writer(container_id:&str,database:&str) -> Result<Self,ImportFailure>`，`argv(&self)->&[String]`；这些只是不可执行的参数模型。`parse_writer_line(line:&[u8],expected_nonce:&Nonce)->Result<WriterEvent,ImportFailure>`，WriterEvent定义为 Ready(WriterIdentity)/Precommit(WriterIdentity)/Committed/RolledBack；COMMIT后不要求旧事务ID继续存在。`run_contract(args)->dict`、`capture_fixture(source_id:str,database:str)->dict` 为root runner内部函数，拒绝未验证ID/库名。
 
-- [ ] 写RED：`commands_reject_alias_and_conninfo`、`commands_fix_environment_and_clients`；断言decoder无连接/-1选项，writer无-1、含pager=off和固定passfile。Python `test_contract_does_not_close_stdin_to_obtain_ready`、`test_contract_rejects_replayed_names`、`test_contract_redacts_failures_and_publishes_after_stop` 覆盖严格握手与资源/证据边界。
-- [ ] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::commands` 和 `python -m unittest discover -s scripts -p 'test_p0c4_*import*.py'`，确认预期RED；命令不存在不是行为RED，记录编译缺接口与行为失败的区别。
-- [ ] 实现参数/回执模型和contract runner：固定decoder选项照规格，writer精确argv；严格nonce/PID/事务/阶段行。增量并行有界读取管道，不使用无界`.output()`/communicate后才限长。复用既有provisioner/出生/inspection及archive核验的窄helper，不扩展旧大型runner全部模式。
-- [ ] 本地上述GREEN、格式、Python邻近回归通过，提交并独立审查；再封存Git同字节包与runner，单独申请新源/目标项目授权。contract阶段在新源生成fixture及dump/SQL，目标只做BEGIN READ ONLY、双握手、ROLLBACK与无DDL EOF；源另在显式事务内插入第三行后真EOF，独立读回仍只有两行，用于证明客户端EOF回滚能力，不把目标只读空库当DDL回滚证据。
-- [ ] 新PG18实测/dev/null字符设备、禁用passfile路径无stderr与local HBA事实；每个握手保持stdin开放且子进程存活。源和目标按精确ID停机留卷。捕获物仅本轮已知合成fixture，原始dump/SQL保存在单列工件目录，不混入诊断日志；授权范围明确其受控导出。controller核对工件hash后独立审查，不自动将输出认作golden。成功只标 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`，记完整证据后关闭任务1。
+- [x] 写RED：`commands_reject_alias_and_conninfo`、`commands_fix_environment_and_clients`；断言decoder无连接/-1选项，writer无-1、含pager=off和固定passfile。Python `test_contract_does_not_close_stdin_to_obtain_ready`、`test_contract_rejects_replayed_names`、`test_contract_redacts_failures_and_publishes_after_stop` 覆盖严格握手与资源/证据边界。
+- [x] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::commands` 和 `python -m unittest discover -s scripts -p 'test_p0c4_*import*.py'`，确认预期RED；命令不存在不是行为RED，记录编译缺接口与行为失败的区别。
+- [x] 实现参数/回执模型和contract runner：固定decoder选项照规格，writer精确argv；严格nonce/PID/事务/阶段行。增量并行有界读取管道，不使用无界`.output()`/communicate后才限长。复用既有provisioner/出生/inspection及archive核验的窄helper，不扩展旧大型runner全部模式。
+- [x] 本地上述GREEN、格式、Python邻近回归通过，提交并独立审查；再封存Git同字节包与runner，单独申请新源/目标项目授权。contract阶段在新源生成fixture及dump/SQL，目标只做BEGIN READ ONLY、双握手、ROLLBACK与无DDL EOF；源另在显式事务内插入第三行后真EOF，独立读回仍只有两行，用于证明客户端EOF回滚能力，不把目标只读空库当DDL回滚证据。
+- [x] 新PG18实测/dev/null字符设备、禁用passfile路径无stderr与local HBA事实；每个握手保持stdin开放且子进程存活。源和目标按精确ID停机留卷。捕获物仅本轮已知合成fixture，原始dump/SQL保存在单列工件目录，不混入诊断日志；授权范围明确其受控导出。controller核对工件hash后独立审查，不自动将输出认作golden。成功只标 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`，记完整证据后关闭任务1。
 
 ## Task 2 — 冻结dump、完整golden与header/payload边界
 
