@@ -183,8 +183,18 @@
 - root结果确认精确容器ID `b01995579648d5816bb7e9c8f354bb8ecd99bb6443bd1e7763ce48037af3b607` 已停止且留卷。控制器再次独立只读Docker核对：本项目唯一容器正是该ID、项目标签匹配、Running=false、退出0，卷 `learning-system-p0c4-restore-aa3feac4-45ab-4b48-a117-098d2e42b2fd_pg` 存在。目标状态 `CHILD_RESTART_STOPPED_QUARANTINED_NOT_RESTORE`、`target_reuse_permitted=false`；本批与旧af49/124c失败批次全部保留隔离，不重跑、不复用。
 - 关闭本施工单的三任务，只认定精确子进程**只读**准入和同guard重启拒绝的既定验收范围。postmaster独立重启、错误库/认证及其他漂移由已审查依赖注入测试覆盖，不冒充本轮全部现场复现。本结果不是 `CompleteBackup`、真实 `pg_restore` 首次写入、资产恢复闭包、C4整关或生产验收。下一步单独设计固定导入子进程/凭据契约及全新目标上的受控小型dump写入验收，再衔接完整恢复。
 
-### 下一切片：受控小型 dump 写入设计草案（2026-09-30）
+### 下一切片：受控小型 dump 导入设计与施工单已批准（2026-09-30）
 
-- 基线 `e2435e4` 上完成只读源码梳理和独立契约审计，整理 [受控小型 dump 首次写入设计](superpowers/specs/2026-09-30-p0c4-controlled-import-design.md)。取消/提交串行边界、停机前取证和disabled passfile修订后，独立全文复审无剩余阻断或重要矛盾。目前为待用户审阅的设计草案，不是实现完成或现场通过记录。
+- 基线 `e2435e4` 上完成只读源码梳理和独立契约审计，整理 [受控小型 dump 首次写入设计](superpowers/specs/2026-09-30-p0c4-controlled-import-design.md)。取消/提交串行边界、停机前取证和disabled passfile修订后，独立全文复审无剩余阻断或重要矛盾。设计已获用户批准；该结论不是实现完成或现场通过记录。
 - 推荐固定 `pg_restore` 离线解码与单一 `psql` writer 的显式事务：writer自己先核对目标及原SQLx双锁，持久attempt后才写DDL/COPY，提交意图先持久化再单独发送COMMIT。输入只接受完整审查过的小型fixture/golden，默认/发布构建无候选写入口；不伪造CompleteBackup。
-- 用户在设计呈现后以“推进”批准设计，已整理 [六任务施工计划](superpowers/plans/2026-09-30-p0c4-controlled-import.md)，目前施工计划待审阅，任务均未开始。未运行数据库测试、未上传新包、未创建服务器批次、未导入或改动旧隔离目标；具体新包、runner及现场批次仍逐文件单独确认。
+- 用户在设计呈现后以“推进”批准设计，并在施工单呈现后以“开始”批准 [六任务施工计划](superpowers/plans/2026-09-30-p0c4-controlled-import.md)。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`，任务1开始本地RED、实现与独立规格/质量审查；任务2–6未开始。固定PG18的开放stdin协议、认证路径与实际dump/SQL采集仍需新批次现场门；现场门及工件复审通过前，不猜测封存golden或启动实际导入。
+- 仅做新轮资源预算的只读检查：Linux根文件系统可用约363 GiB、可用内存约27 GiB；拟用 `10.251.237.0/24` 与 `10.251.238.0/24`，检查108个Docker网络及全部路由未见重叠。这是准备时快照，不是资源预留，执行前必须再次核对。未上传新包、未创建服务器批次、未导入或改动旧隔离目标；具体新包、runner和现场新资源仍逐文件单独确认。
+
+### 受控小型 dump：Task 1 本地实现与独立复审通过，现场门待授权（2026-09-30）
+
+- 子代理在 `43cd2df8b10d3eb98385d7c5ddd785152d474e5f` 提交固定 Rust 参数/回执模型、仅 `--phase contract` 的新驱动、固定合成源与开放 stdin 客户端，以及实际进程/文件测试。首轮原始 RED 输出未回收，记录为前执行者报告，不冒充独立观察。后续实际 RED→GREEN 覆盖未封存模块提前执行、隔离安装依赖装载、最终证据身份缺失。
+- 独立审查发现继承的 Docker 调用不受 15 秒隔离截止约束、Rust 接口对子模块之外不可见；同文件 UUID 变体检查不一致。修复提交 `4fad8e681060c8bd4575b033f860e97054cccc2e` 用真实子进程复现并修正停机/有界输出，增加同父模块内 `pub(super)` 合同和 sibling 编译使用测试，统一 RFC UUIDv4 校验。独立定向复审逐项判定 ADDRESSED，无新的 Critical/Important/Minor 代码问题；既有负例回归输出噪声保留为后续所属测试范围的非阻塞记录。
+- 修复执行者的 Rust 专项 7/7、Python 专项 30/30、格式和严格 workspace/all-targets Clippy 通过。控制器另对提交的 Git 原字节运行 Python 专项 30/30，并实际运行 `cargo test --offline --locked --workspace --lib`，5+59+36=100 项全部通过。复审指出报告列出的 `fix1-fmt-final.txt` 不存在；控制器重新执行格式检查并保存 `controller-fix1-fmt.txt` 与退出码0，补齐当前格式证据，不虚构原日志。
+- 修复前全 Python 218/218、全 Rust 库 98/98 是历史版本验证；当前修复只再跑覆盖修改的专项及上述全库检查。未重复缺库的完整 Cargo 集成测试，仍不能声称全 workspace 或 Linux/PG18 现场通过。
+- 三个相邻脚本与源码 ZIP 将从 Git 原字节封存，逐文件核对单独哈希及 manifest 成员；旧 runner/helper 行为保持不变。新源仅创建已知两行 fixture、第三行未提交 EOF 回滚探针和 dump；新目标仅只读握手、ROLLBACK、无 DDL EOF 与独立空库观察，捕获 SQL 不送入目标。工件分列保存，必须实际核验并独立审查后才能封存 golden、启动任务2。
+- 最新只读资源复查：固定 PG18/builder 镜像一致；两个拟用项目/卷/网络均未占用，108 个 Docker 网络及 IPv4 路由与新子网无冲突；可用磁盘 `389344874496` 字节、MemAvailable `28946575360` 字节、24 个逻辑 CPU。两个 PG 上限合计 4 CPU / 8 GiB，不是预留。没有新服务器上传、容器、卷、网络或导入。完整边界和资源清单见[客户端合同与合成工件采集验收](p0c4-controlled-import-contract-acceptance.md)。
