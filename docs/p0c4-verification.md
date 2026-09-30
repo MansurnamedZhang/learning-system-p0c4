@@ -7,7 +7,7 @@
 - 用户确认继续实施；设计与三项计划已确认，沿用逐任务实现及独立审查。
 - 本计划 Task 1 已提交 `39f194844e183e2c54c17c18732c2b9ca3f83870`，独立规格/质量审查通过：旧宿主导入方法与 marker→宿主子进程执行链已移除，加入借用容器 guard 和事务挑战的固定只读命令目标。Rust 库单测 34/34、相邻 Python 108/108、格式和严格 package Clippy 通过。依赖专用 PostgreSQL 测试库的集成测试未运行通过，不称全包通过。
 - 本计划 Task 2 本地实现与独立复审通过：`0ca23b1` 实现同一 SQLx 事务双锁/PID/OID 前后核验、固定 socket 客户端、有界 stdout/stderr/总截止时间、失败停机确认与失效 guard；独立审查发现版本误限定未验证的 Debian `+1` 后缀，修复提交 `ece5742c1714d908141731e93c305134d77e7876` 改为与固定 PG18.6-bookworm 镜像身份配套的有界版本语法，并增加真实进程句柄见证的截止时间/取消回收测试。定向 RED→GREEN 与取消处理 mutation RED 有效；最终49项库单测、格式/严格 Clippy通过，原108项Python相邻回归未改。复审 I1/M1 均已解决，无新重要缺陷。真实镜像版本输出、Linux生命周期、socket认证及Docker停机仍待 Task 3现场证据。
-- 本计划 Task 3 的 opt-in Linux 测试与 Python 隔离驱动已实现并通过独立任务审查（48a86f8）：同一 guard 与 SQLx 事务首次证明后，用有界精确 ID 重启并验证旧挑战被拒绝；本地49项Rust库单测、177项Python、格式与严格Clippy通过。Linux编译/PG18现场验收尚未开始；整计划独立审查通过、无阻断问题；根任务的Windows全工作区离线锁定编译（--no-run）通过，未执行数据库集成测试。Git字节封存完成后须逐文件确认源码包/runner，并使用全新项目/子网/卷。恢复写入、资产闭包、独立 CompleteBackup 与完整 C4 验收仍待完成。
+- 本计划 Task 3 的 opt-in Linux 测试与 Python 隔离驱动已实现并通过独立任务审查（48a86f8）：同一 guard 与 SQLx 事务首次证明后，用有界精确 ID 重启并验证旧挑战被拒绝；本地49项Rust库单测、177项Python、格式与严格Clippy通过。首轮Linux隔离门已执行但失败，尚无通过验收；本地整计划独立审查通过后发现现场诊断缺口，正在补固定诊断码；根任务的Windows全工作区离线锁定编译（--no-run）通过，未执行数据库集成测试。Git字节封存完成后须逐文件确认源码包/runner，并使用全新项目/子网/卷。恢复写入、资产闭包、独立 CompleteBackup 与完整 C4 验收仍待完成。
 
 ## 基线与范围
 
@@ -141,3 +141,17 @@
 - 先前延期的 compile-fail API 参数排除测试保留为非阻断回归增强；现有闭合签名和固定 argv 测试符合当前只读范围，不为测试添加 host/env/client 输入入口。
 - 根任务补充 `cargo test --offline --locked --workspace --no-run`，2026-09-30 退出0。它只证明当前Windows目标下工作区测试可编译，Linux路径及真实PostgreSQL未运行。
 - 拟用新批次 `af49afb1-2065-483f-94e2-43f8f363aa63`、项目 `learning-system-p0c4-restore-af49afb1-2065-483f-94e2-43f8f363aa63`、子网 `10.251.234.0/24`；只读预检未发现同批容器/卷/网络或Docker/路由子网冲突，运行前仍须再次检查。源码包和runner尚未上传，需用户逐文件确认。旧失败批次及证据不复用。
+
+## 子进程首轮 Linux 隔离 RED 与只读诊断（2026-09-30）
+
+- 用户授权精确 Git 字节 ZIP `2b46ca239215c404ed5dbc6145c88000e6827902d01fede02d910ef44b468ee2` 和 runner `c723617667ed23425906f9eadf4d849d7c04005aad37125e6e5297c6407a6536`，源码提交 `a7a8b1d75f54a6eb4349a16f418fef47f5e6d804`。仅运行全新批次 `af49afb1-2065-483f-94e2-43f8f363aa63`，子网 `10.251.234.0/24`；此前“待授权/未上传”条目保留为历史准备记录。
+- 人工 root 终端返回 `CHILD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN`、退出码 1，失败阶段 `read-only-child-restart`、类型 `ValueError`。结果文件报告 SHA-256 `1d8fb2b03c814c28da6dce1515ec2c02edb5ee05f27769ee3bc4ef798391543a` 与最初摘要一致；控制器按驱动的规范JSON序列化独立复算人工返回的完整JSON，SHA-256亦逐字节一致（本机保存注明来源的副本，并非自行读取远端root私有文件）；源码前后摘要一致；`stop.confirmed=true`、留卷、`PENDING_ABSENT`、禁止目标复用。控制器另行通过精确 Docker ID 只读核对容器已停止。
+- Linux 离线编译/测试枚举前置门通过。人工 root 只读元数据确认现场测试二进制 `learning_backup-b09ce7eacfe3f175` 存在（108811696 字节）；出生证据摘要与 pin-inspection 相符。出生时 StartedAt 为 `2026-09-30T14:28:58.090902251Z`，现为 `2026-09-30T14:29:24.136471843Z`，后者亦经控制器只读 Docker 核对。证明生成过现场二进制并发生了出生后的容器重启，不能替代完整子测试成功标记。
+- 驱动当前将编译/子测试输出保存在临时文件，遇到验证失败后未持久化固定细分诊断；结果仅有粗阶段与异常类型。具体失败仍不能区分重启命令返回、重启后拒绝、隔离/断言与输出解析；启动时间变化不等于重启命令成功退出。按同一测试的执行顺序缩小调查范围，但不猜测或放宽运行时策略。
+- 已交子代理按 RED→GREEN 补充固定白名单的阶段/原因/退出状态/标记观察，并独立复审；不保存原始 stderr、任意异常消息、密码、DSN 或随机锁值。旧失败批次不重跑，不修改其证据；下一次现场运行须封存新字节并单独取得新包/runner/UUID/子网授权。C4、实际恢复与生产仍未验收。
+
+### 固定诊断补充：本地完成并独立复审通过，Linux门仍未通过
+
+- 子代理提交 `db468ec9af0863887d6bff5c7c279a719b13df16`，仅改 runner、相邻 Python 测试及 Rust opt-in 测试模块。新增 `child_diagnostics` 固定白名单数据：编译/枚举/执行/解析阶段、固定原因码、有界退出状态、饱和标记计数及重启前后检查点。任意异常消息、原始输出与凭据不进入持久结果；未知项保持 UNKNOWN。诊断不赋予通过或写入权限，原验收谓词不放宽。
+- 实现报告：16项新增Python诊断有实际RED→GREEN；61项聚焦Python、193项相邻C4、50项Rust库单测、格式与严格package Clippy通过。控制器独立复核 `python -m unittest test_p0c4_restore_pin_acceptance -k child_diagnostics`：16项通过、退出0；`git diff --check`退出0。Windows不验证新增Linux-only检查点的编译或现场行为。
+- 独立复审核对 `a7a8b1d`→`db468ec` 修订：原诊断缺口已解决，规格与质量均通过，无新增Critical/Important/Minor。既有临时文件输出上限为进程结束后检查，本轮未改执行器策略，不宣称其提供运行中的字节上限。拟用全新UUID `124c3938-f820-4e88-9de7-0fbc37dbdd71` 与 `10.251.235.0/24`；只读预检未发现名称、Docker子网或路由重叠，尚未上传、未创建资源。复审及Git字节封存后仍需用户逐文件确认，执行前重查占用；旧af49失败批次不重跑。

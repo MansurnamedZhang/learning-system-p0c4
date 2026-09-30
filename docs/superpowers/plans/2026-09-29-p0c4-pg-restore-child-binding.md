@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** 2026-09-30 用户确认继续实施；三项本地实现与任务/整计划独立审查通过；Git字节封存准备，现场验收待精确包授权。
+**Status:** 2026-09-30 三项本地实现与独立审查通过；授权首轮 Linux 只读子进程门失败，精确停机留卷且禁止复用。固定白名单阶段诊断修订 `db468ec` 已通过本地回归与独立复审；待新精确包/runner/批次逐文件授权，实际恢复未开始。
 
 **Goal:** 在恢复首次写入前，用精确容器 ID、本地 Unix socket 和固定客户端命令建立独立的只读子进程端点准入证明。
 
