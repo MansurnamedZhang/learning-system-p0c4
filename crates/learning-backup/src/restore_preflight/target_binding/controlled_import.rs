@@ -1,5 +1,6 @@
 //! Private command/receipt models only; no process or restore authority.
 mod commands;
+mod fixture_sql;
 mod protocol;
 
 #[allow(dead_code)] // Shared failure vocabulary for the subsequent private tasks.

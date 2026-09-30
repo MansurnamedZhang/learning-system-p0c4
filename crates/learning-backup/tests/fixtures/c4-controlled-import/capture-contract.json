@@ -1,0 +1,61 @@
+{
+  "contract_version": 1,
+  "status": "audited_synthetic_fixture_only_not_import",
+  "source": {
+    "batch": "14b45cf0-e9f3-4beb-a250-ceb6f49d5a14",
+    "package_commit": "5bc482d7117549050e26f37510e695c8dbcd8dd6",
+    "package_archive_sha256": "08979f05e5b05c4b83dbbbbf065d6a0c451addbe6044b8d53d90dcf6db24a07a",
+    "postgres_image": "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d",
+    "postgres_client_version": "18.6 (Debian 18.6-1.pgdg12+2)",
+    "dump_command": "pg_dump --format=custom --no-owner --no-acl --table=public.c4_import_probe",
+    "decode_command": "pg_restore --file=- --no-owner --no-acl --exit-on-error"
+  },
+  "captured": {
+    "dump": {
+      "bytes": 1980,
+      "sha256": "56b12180a18e84b998ead3f1c7d552b922c68c765de2b5725d93112e5dbb5136",
+      "magic_hex": "5047444d50"
+    },
+    "toc": {
+      "bytes": 625,
+      "sha256": "edcd6b7eb8b23a1b91113b0fde92da041c08a01235706bb481d1f23dd0d161fb",
+      "format": "CUSTOM",
+      "dump_version": "1.16-0",
+      "compression": "gzip",
+      "total_entries": 7,
+      "selected_objects": [
+        "TABLE public c4_import_probe",
+        "TABLE DATA public c4_import_probe",
+        "CONSTRAINT public c4_import_probe c4_import_probe_pkey"
+      ]
+    },
+    "decoded_sql": {
+      "bytes": 1308,
+      "sha256": "e2c252bfa5d44c5ed9133dcdb7fd8344e0a2471489d0ee410edb6c09baabd44a",
+      "line_endings": "LF only",
+      "lf_count": 59,
+      "restrict_key_bytes": 63,
+      "restrict_key_charset": "ASCII A-Z a-z 0-9",
+      "restrict_key_occurrences": 2,
+      "restrict_key_ranges_zero_based_half_open": [[45, 108], [1243, 1306]],
+      "header_range_zero_based_half_open": [0, 670],
+      "payload_range_zero_based_half_open": [670, 1308],
+      "first_object_ddl_byte": 741,
+      "unrestrict_range_zero_based_half_open": [1231, 1307],
+      "final_lf_range_zero_based_half_open": [1307, 1308],
+      "raw_timeout_statement_ranges_zero_based_half_open": [[232, 259], [259, 281], [281, 326], [326, 355]],
+      "set_config_empty_output_lines": 1
+    }
+  },
+  "checked_in_template": {
+    "file": "pg18-fixture.sql.in",
+    "bytes": 1214,
+    "sha256": "2bc9495461ac7432d725a76868fd2165eeb6e3e32cd3a6d05b34fbeaecdb7c49",
+    "placeholder": "{{RESTRICT_KEY}}",
+    "placeholder_occurrences": 2,
+    "template_header_end_byte": 623,
+    "only_allowed_variation": "same ASCII alphanumeric key of length 1..128 at both placeholder positions",
+    "transformed_captured_sql_bytes": 1363,
+    "transformed_captured_sql_sha256": "d52fadf2e5d841b57166cd9d6f281034b3b16264b66a677b55aeaab8fcbce138"
+  }
+}
