@@ -82,8 +82,11 @@ class OpenClient:
     Cumulative counters include consumed receipts. No raw stderr escapes.
     """
     def __init__(self, command, *, timeout=45, stdout_limit=MAX_WRITER,
-                 stderr_limit=MAX_WRITER):
-        self.deadline = time.monotonic() + timeout
+                 stderr_limit=MAX_WRITER, deadline=None, cleanup_deadline=None,
+                 env=None, allow_stderr=False):
+        self.deadline = min(time.monotonic() + timeout, deadline) if deadline is not None else time.monotonic() + timeout
+        self.cleanup_deadline = cleanup_deadline
+        self.allow_stderr = allow_stderr
         self.condition = threading.Condition()
         self.buffers = [bytearray(), bytearray()]
         self.totals = [0, 0]
@@ -93,7 +96,7 @@ class OpenClient:
         try:
             self.process = subprocess.Popen(command, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0,
-                env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+                env=env if env is not None else {"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
         except OSError:
             raise ImportRejected("Io") from None
         for index, stream, limit in [(0, self.process.stdout, stdout_limit),
@@ -178,7 +181,7 @@ class OpenClient:
             with self.condition:
                 self.condition.wait(0.01)
         self._check(self.deadline)
-        require(not self.buffers[1], "Stderr")
+        require(self.allow_stderr or not self.buffers[1], "Stderr")
         require(self.process.returncode == 0, "Exit")
         return bytes(self.buffers[0])
 
@@ -186,13 +189,18 @@ class OpenClient:
         if self.process.poll() is None:
             self.process.kill()
         try:
-            self.process.wait(timeout=5)
+            self.process.wait(timeout=self._cleanup_remaining(5))
         except subprocess.TimeoutExpired:
             raise ImportRejected("UnconfirmedIsolation") from None
         for thread in self.threads:
-            thread.join(timeout=1)
+            thread.join(timeout=self._cleanup_remaining(1))
         for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
             stream.close()
+        require(not any(thread.is_alive() for thread in self.threads), "UnconfirmedIsolation")
+
+    def _cleanup_remaining(self, maximum):
+        return maximum if self.cleanup_deadline is None else min(maximum,
+            max(0, self.cleanup_deadline - time.monotonic()))
 
     def __enter__(self):
         return self

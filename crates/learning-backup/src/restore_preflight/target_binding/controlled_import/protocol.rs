@@ -3,34 +3,34 @@ use super::ImportFailure;
 use ring::rand::{SecureRandom, SystemRandom};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Nonce([u8; 16]);
+pub(super) struct Nonce([u8; 16]);
 impl Nonce {
-    fn random() -> Result<Self, ImportFailure> {
+    pub(super) fn random() -> Result<Self, ImportFailure> {
         let mut bytes = [0; 16];
         SystemRandom::new()
             .fill(&mut bytes)
             .map_err(|_| ImportFailure::Io)?;
         Ok(Self(bytes))
     }
-    fn hex(&self) -> String {
+    pub(super) fn hex(&self) -> String {
         hex::encode(self.0)
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct WriterIdentity {
+pub(super) struct WriterIdentity {
     backend_pid: i32,
     backend_start_micros: i64,
     transaction_id: u64,
 }
 #[derive(Debug, PartialEq, Eq)]
-enum WriterEvent {
+pub(super) enum WriterEvent {
     Ready(WriterIdentity),
     Precommit(WriterIdentity),
     Committed,
     RolledBack,
 }
 #[allow(dead_code)] // The subsequent writer task constructs this from its bound guard.
-struct WriterExpected {
+pub(super) struct WriterExpected {
     database: String,
     database_oid: u64,
     system_identifier: u64,
@@ -38,7 +38,10 @@ struct WriterExpected {
     keys: ChallengeKeys,
     nonce: Nonce,
 }
-fn parse_writer_line(line: &[u8], expected_nonce: &Nonce) -> Result<WriterEvent, ImportFailure> {
+pub(super) fn parse_writer_line(
+    line: &[u8],
+    expected_nonce: &Nonce,
+) -> Result<WriterEvent, ImportFailure> {
     if line.len() > 256 || !line.is_ascii() {
         return Err(ImportFailure::Protocol);
     }

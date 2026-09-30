@@ -1,9 +1,9 @@
 use super::ImportFailure;
 
 #[derive(Debug)]
-struct FixedImportCommand(Vec<String>);
+pub(super) struct FixedImportCommand(Vec<String>);
 impl FixedImportCommand {
-    fn decoder(container_id: &str) -> Result<Self, ImportFailure> {
+    pub(super) fn decoder(container_id: &str) -> Result<Self, ImportFailure> {
         let mut args = Self::prefix(container_id)?;
         args.extend(
             [
@@ -17,12 +17,15 @@ impl FixedImportCommand {
         );
         Ok(Self(args))
     }
-    fn writer(container_id: &str, database: &str) -> Result<Self, ImportFailure> {
+    pub(super) fn writer(container_id: &str, database: &str) -> Result<Self, ImportFailure> {
         let suffix = database
             .strip_prefix("learning_restore_c4_")
             .ok_or(ImportFailure::Identity)?;
         let parsed = uuid::Uuid::parse_str(suffix).map_err(|_| ImportFailure::Identity)?;
-        if parsed.get_version_num() != 4 || parsed.to_string() != suffix {
+        if parsed.get_version_num() != 4
+            || parsed.get_variant() != uuid::Variant::RFC4122
+            || parsed.to_string() != suffix
+        {
             return Err(ImportFailure::Identity);
         }
         let mut args = Self::prefix(container_id)?;
@@ -64,7 +67,7 @@ impl FixedImportCommand {
         .map(String::from)
         .to_vec())
     }
-    fn argv(&self) -> &[String] {
+    pub(super) fn argv(&self) -> &[String] {
         &self.0
     }
 }
@@ -74,6 +77,21 @@ mod tests {
     use super::*;
     const ID: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const DB: &str = "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3";
+
+    #[test]
+    fn commands_reject_non_rfc_uuid_variant_with_v4_nibble() {
+        for db in [
+            "learning_restore_c4_2b8a1252-54d5-48aa-0176-a9586a86bea3",
+            "learning_restore_c4_2b8a1252-54d5-48aa-c176-a9586a86bea3",
+            "learning_restore_c4_2b8a1252-54d5-48aa-e176-a9586a86bea3",
+        ] {
+            assert_eq!(
+                FixedImportCommand::writer(ID, db).unwrap_err(),
+                ImportFailure::Identity
+            );
+        }
+        assert!(FixedImportCommand::writer(ID, DB).is_ok());
+    }
 
     #[test]
     fn commands_reject_alias_and_conninfo() {

@@ -11,7 +11,9 @@ NONCE = "abababababababababababababababab"
 class FixtureTests(unittest.TestCase):
     def test_rejects_alias_conninfo_and_noncanonical_database(self):
         for cid, db in [("pg", DB), ("A" * 64, DB), (ID, "host=remote"),
-                        (ID, DB.upper()), (ID, DB.replace("48aa", "18aa"))]:
+                        (ID, DB.upper()), (ID, DB.replace("48aa", "18aa")),
+                        (ID, DB.replace('b176', '0176')), (ID, DB.replace('b176', 'c176')),
+                        (ID, DB.replace('b176', 'e176'))]:
             with self.subTest(cid=cid, db=db):
                 with self.assertRaises(fixture.ImportRejected):
                     fixture.validate_identity(cid, db)

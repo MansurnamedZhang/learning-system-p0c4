@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 import hashlib
+import contextlib
+import copy
 import importlib.util
 import io
 import json
@@ -8,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -62,6 +65,155 @@ class LocalFiles:
 
 
 class ContractTests(unittest.TestCase):
+    def _isolated_backend(self, directory):
+        root = Path(directory)
+        base = root / 'base'
+        base.mkdir()
+        repository = Path(runner.__file__).parent.parent
+        helper = runner._load(repository / runner.ARCHIVE_HELPER, 'test_private_archive_helper')
+        helper._private_dir = lambda path: path.mkdir()
+        helper._require_private_dir = lambda path: None
+        helper._acceptance_lock = lambda path: contextlib.nullcontext()
+        def extract(content, manifest, destination):
+            destination.mkdir()
+            for name in runner.REQUIRED:
+                path = destination / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((repository / name).read_bytes())
+            return '1' * 64
+        helper.extract_verified = extract
+        helper._private_write = LocalFiles()._private_write
+        helper._sync_dir = lambda path: None
+        args = SimpleNamespace(batch_id='2b8a1252-54d5-48aa-b176-a9586a86bea1',
+            source_batch_id='2b8a1252-54d5-48aa-b176-a9586a86bea2',
+            target_batch_id='2b8a1252-54d5-48aa-b176-a9586a86bea3',
+            archive_sha256='a' * 64, manifest_sha256='b' * 64, commit='c' * 40,
+            runner_sha256='d' * 64, archive_helper_sha256='e' * 64, fixture_sha256='f' * 64)
+        with patch.object(runner, 'BASE', base):
+            backend = runner.ContractBackend(args, helper, None, None)
+        for role, batch, cid in [('source', args.source_batch_id, 'a' * 64),
+                                 ('target', args.target_batch_id, 'b' * 64)]:
+            backend.resources.append({'role': role, 'batch_id': batch,
+                'container_id': cid, 'inspection_sha256': '2' * 64,
+                'identity': backend.provisioner.identity_for(batch), 'subnet': '172.30.240.0/28'})
+        backend.execute = lambda: {'not_golden': True}
+        backend.verify_source = lambda: True
+        return backend
+
+    def _stop_peer(self, backend, delay):
+        live = {'containers': [], 'volumes': []}
+        for row in backend.resources:
+            identity = row['identity']
+            labels = {'com.docker.compose.project': identity['project'], 'com.docker.compose.service': 'pg'}
+            live['containers'].append({'Id': row['container_id'], 'Config': {'Labels': labels,
+                'Image': identity['image']}, 'Mounts': [{'Name': identity['volume'],
+                'Destination': '/var/lib/postgresql', 'Type': 'volume'}], 'State': {'Running': True}})
+            live['volumes'].append({'Name': identity['volume'], 'Labels': labels})
+        def snapshot():
+            backend.provisioner._command('/usr/bin/docker', 'observe')
+            return copy.deepcopy(live)
+        backend.provisioner.snapshot = snapshot
+        launched, processes = [], []
+        actual = fixture.subprocess.Popen
+        def peer(command, **kwargs):
+            launched.append(command)
+            if command[1] == 'stop':
+                for container in live['containers']:
+                    if container['Id'] == command[-1]:
+                        container['State']['Running'] = False
+            process = actual([sys.executable, '-u', '-c',
+                f'import time; time.sleep({delay if command[1] == "observe" else 0})'], **kwargs)
+            processes.append(process)
+            return process
+        return peer, launched, processes
+
+    def test_reused_stalled_observation_is_reaped_and_cannot_publish_success(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            peer, launched, processes = self._stop_peer(backend, 0.45)
+            started = time.monotonic()
+            with patch.object(runner, 'ISOLATION_SECONDS', 0.2, create=True), \
+                 patch.object(fixture.subprocess, 'Popen', side_effect=peer), \
+                 patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_contract(SimpleNamespace(phase='contract'))
+            elapsed = time.monotonic() - started
+            self.assertEqual(result['status'], runner.UNCONFIRMED)
+            self.assertEqual(result['reason_code'], 'UnconfirmedIsolation')
+            self.assertLess(elapsed, 0.5)
+            self.assertTrue(all(process.poll() is not None for process in processes))
+            self.assertFalse(any(command[1] == 'stop' for command in launched))
+            actions = launched.copy()
+            time.sleep(0.05)
+            self.assertEqual(launched, actions, 'late action after isolation returned')
+            persisted = json.loads((backend.batch / 'evidence' / 'result.json').read_bytes())
+            self.assertEqual(persisted['status'], runner.UNCONFIRMED)
+
+    def test_both_owned_resources_share_one_absolute_isolation_budget(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            peer, launched, processes = self._stop_peer(backend, 0.12)
+            started = time.monotonic()
+            with patch.object(runner, 'ISOLATION_SECONDS', 0.5, create=True), \
+                 patch.object(fixture.subprocess, 'Popen', side_effect=peer), \
+                 patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_contract(SimpleNamespace(phase='contract'))
+            self.assertEqual(result['status'], runner.UNCONFIRMED)
+            self.assertLess(time.monotonic() - started, 0.8)
+            self.assertTrue(all(process.poll() is not None for process in processes))
+            self.assertTrue(any(process.returncode != 0 for process in processes),
+                'deadline must interrupt a CLI, not reject after unbounded completion')
+
+    def test_observation_command_output_is_bounded_before_exit(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            actual = fixture.subprocess.Popen
+            def peer(command, **kwargs):
+                return actual([sys.executable, '-u', '-c',
+                    "import sys; sys.stdout.buffer.write(b'x'*(4*1024*1024+1)); sys.stdout.flush()"], **kwargs)
+            try:
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    with self.assertRaisesRegex(fixture.ImportRejected, 'StdoutLimit'):
+                        backend.provisioner._command('/usr/bin/docker', 'observe')
+            finally:
+                backend.release()
+
+    def test_observation_caps_and_clean_environment_preserve_docker_progress(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            actual = fixture.subprocess.Popen
+            program = """import json, os, sys
+sys.stderr.buffer.write(b'p'*16384); sys.stderr.flush()
+print(json.dumps({key: os.environ.get(key) for key in ['LC_ALL','DOCKER_HOST','PGHOST','HOME']})+'|'+('x'*12000))
+"""
+            def peer(command, **kwargs):
+                return actual([sys.executable, '-u', '-c', program], **kwargs)
+            try:
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer), \
+                     patch.dict(runner.os.environ,
+                        {'PGHOST': 'untrusted', 'HOME': 'untrusted'}):
+                    output = backend.provisioner._command('/usr/bin/docker', 'observe')
+                environment, payload = output.split('|', 1)
+                self.assertEqual(json.loads(environment), {'LC_ALL': 'C',
+                    'DOCKER_HOST': 'unix:///var/run/docker.sock', 'PGHOST': None, 'HOME': None})
+                self.assertEqual(payload.rstrip('\r\n'), 'x' * 12000)
+            finally:
+                backend.release()
+
+    def test_observation_stderr_cap_does_not_expose_raw_progress(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, 'fixture', fixture):
+            backend = self._isolated_backend(directory)
+            actual = fixture.subprocess.Popen
+            def peer(command, **kwargs):
+                return actual([sys.executable, '-u', '-c',
+                    "import sys; sys.stderr.buffer.write(b'private' * 10000); sys.stderr.flush()"], **kwargs)
+            try:
+                with patch.object(fixture.subprocess, 'Popen', side_effect=peer):
+                    with self.assertRaises(fixture.ImportRejected) as failure:
+                        backend.provisioner._command('/usr/bin/docker', 'observe')
+                self.assertEqual(str(failure.exception), 'StderrLimit')
+            finally:
+                backend.release()
+
     def test_bootstrap_does_not_execute_unverified_adjacent_fixture(self):
         # Removing deferred loading would execute this unapproved file even
         # before argument parsing/admission, observable through its marker.

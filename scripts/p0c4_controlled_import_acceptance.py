@@ -14,6 +14,7 @@ import re
 import secrets
 import stat
 import sys
+import time
 import uuid
 
 # Do not execute an adjacent helper until its individual seal and archive
@@ -49,6 +50,43 @@ UNCONFIRMED = 'CONTRACT_FAILED_UNCONFIRMED_ISOLATION_NOT_IMPORT'
 CODES = {'Identity', 'Session', 'Version', 'Protocol', 'Fixture', 'InputLimit',
          'Deadline', 'StdoutLimit', 'StderrLimit', 'Stderr', 'Exit', 'Io', 'Journal',
          'Cancelled', 'CommitUnknown', 'UnconfirmedIsolation'}
+ISOLATION_SECONDS = 15
+OBSERVATION_STDOUT_LIMIT = 4 * 1024 * 1024
+OBSERVATION_STDERR_LIMIT = 64 * 1024
+
+
+class BoundedCommands:
+    """Synchronous adapter for the privately loaded provisioner's commands.
+
+    Only pipe reads run in threads. A timed-out helper stack cannot continue
+    issuing Docker actions. Isolation consumes one deadline, never a new
+    timeout per resource or snapshot; reserve time to kill/reap the current CLI.
+    Docker progress stderr is bounded and discarded, as in the old provisioner.
+    """
+    def __init__(self):
+        self.isolation_deadline = None
+
+    def __call__(self, binary, *args):
+        require(binary in ('/usr/bin/docker', '/usr/sbin/ip'), 'Identity')
+        now = time.monotonic()
+        deadline = self.isolation_deadline if self.isolation_deadline is not None else now + 30
+        if now >= deadline:
+            raise fixture.ImportRejected('UnconfirmedIsolation' if self.isolation_deadline is not None else 'Deadline')
+        reserve = min(0.25, (deadline - now) / 4)
+        try:
+            with fixture.OpenClient([binary, *args], timeout=30, deadline=deadline - reserve,
+                    cleanup_deadline=deadline, stdout_limit=OBSERVATION_STDOUT_LIMIT,
+                    stderr_limit=OBSERVATION_STDERR_LIMIT, allow_stderr=True,
+                    env={'PATH': '/usr/sbin:/usr/bin:/bin', 'LC_ALL': 'C',
+                         'DOCKER_HOST': 'unix:///var/run/docker.sock'}) as client:
+                output = client.finish()
+            return output.decode('utf-8')
+        except fixture.ImportRejected:
+            if self.isolation_deadline is not None:
+                raise fixture.ImportRejected('UnconfirmedIsolation') from None
+            raise
+        except UnicodeError:
+            raise fixture.ImportRejected('Protocol') from None
 
 
 def digest(data):
@@ -140,6 +178,8 @@ class ContractBackend:
             self.source = self.batch / 'source'
             self.source_hash = helper.extract_verified(content, manifest, self.source)
             self.provisioner, self.issuer = helper._load_reviewed(self.source)
+            self.commands = BoundedCommands()
+            self.provisioner._command = self.commands
             names = ('p0c4_restore_target', 'p0c4_restore_target_birth',
                      'p0c4_restore_birth_acceptance', 'p0c4_restore_target_pin')
             previous = {name: sys.modules.get(name) for name in names}
@@ -262,7 +302,10 @@ class ContractBackend:
     def stop(self):
         stopped = {}
         failure = False
+        deadline = time.monotonic() + ISOLATION_SECONDS
+        self.commands.isolation_deadline = deadline
         for row in self.resources:
+            require(time.monotonic() < deadline, 'UnconfirmedIsolation')
             try:
                 if row['container_id'] is not None:
                     fact = self.helper.stop_verified_pg(self.provisioner, row['identity'], row['container_id'])
@@ -271,9 +314,11 @@ class ContractBackend:
                         row['control'] / 'targets' / row['batch_id'], row['subnet'], row['before'], self.initdb)
                 stopped[row['role'] + '_stopped'] = fact.get('confirmed') is True
                 require(stopped[row['role'] + '_stopped'], 'UnconfirmedIsolation')
-            except BaseException:
+            except BaseException as error:
                 failure = True
-        require(not failure, 'UnconfirmedIsolation')
+                if isinstance(error, fixture.ImportRejected) and error.code == 'UnconfirmedIsolation':
+                    break  # Current CLI is reaped; never resume a timed-out action stack.
+        require(not failure and time.monotonic() < deadline, 'UnconfirmedIsolation')
         return {**stopped, 'volumes_retained': True}
 
     def verify_source(self):
