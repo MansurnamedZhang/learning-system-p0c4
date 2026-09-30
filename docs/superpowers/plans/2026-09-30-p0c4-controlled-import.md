@@ -10,7 +10,7 @@
 
 **Spec:** [已获批准的首次写入设计](../specs/2026-09-30-p0c4-controlled-import-design.md)。开始编码前执行者必须同时阅读本计划与规格。
 
-**Status:** 用户于2026-09-30以“开始”批准本施工单；任务1本地实现及独立复审已通过（代码 `43cd2df`、修复 `4fad8e6`）。中文路径封装修复 `305a54f`、完整元数据分批修复 `77c24ba` 均已独立限定复审；首轮/第二轮失败证据保留。新包 `5bc482d`、新runner及新控制/源/目标已授权执行，2026-10-01返回 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`、退出0，结果/源码摘要复算及双容器精确停机/留卷已核对。工件已受控导出、下载、实际hash核验，并通过独立TOC/完整SQL审查，Task1完成，Task2进入冻结与完整golden实现，Task3–6待顺序推进；未执行目标导入。最新本地完整Python回归231/232，既有计时断言失败保留且原因未证实，未称全套通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`；设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`。沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权，旧失败批次不重跑，Task2以本轮已核验、已独立审查的实产字节为唯一golden来源。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)。
+**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3开始持久attempt与提交意图，Task4–6按顺序推进；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
 
 ## Global Constraints
 
@@ -62,11 +62,11 @@
 
 **Interfaces:** `freeze_dump(reader:impl Read,expected_len:u64,expected_sha256:[u8;32])->Result<FrozenDump,ImportFailure>`；FrozenDump私有不可变字节/摘要，无路径重开，`bytes(&self)->&[u8]`、`sha256(&self)->[u8;32]`供内部解码和journal使用。`verify_fixture_sql(decoded:&[u8])->Result<VerifiedFixtureSql,ImportFailure>`；返回私有header/payload、原始及转换后SQL摘要，唯一构造器完成整份匹配后按固定偏移分段。`header(&self)->&[u8]`、`payload(&self)->&[u8]`、`raw_sha256(&self)->[u8;32]`、`transformed_sha256(&self)->[u8;32]` 供任务3/5消费。
 
-- [ ] 写RED：`snapshot_stays_fixed_after_same_inode_rewrite`（读后改源不影响快照）、`fixture_budget_accepts_65536_rejects_65537`、`golden_rejects_transaction_reconnect_lo_and_early_unrestrict`、`header_is_ddl_free_and_timeouts_are_local`。断言任何非key字节变化、key不匹配/多次、CRLF或注释变化均拒绝，payload含固定DDL/COPY且无COMMIT。
-- [ ] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::fixture_sql`，记录预期RED。
-- [ ] 实现magic/长度/SHA/读取中预算和不可变快照。完整模板仅匹配一对1..128位ASCII字母数字restrict key，实产key长度也记入capture合同；只在已审定完整header语句固定替换四种SET LOCAL超时。拒绝未知TOC/输出，不靠关键词黑名单放行任意SQL。
-- [ ] 重跑定向GREEN与 `cargo fmt --all -- --check`、`cargo clippy --offline --locked -p learning-backup --all-targets -- -D warnings`。Windows只证明纯模型；Linux-only编译另由授权builder核验。
-- [ ] 提交fixture来源/镜像/捕获与模板SHA，独立审查字节边界和变体拒绝；不可变工件不含密码、业务数据或真实服务配置。
+- [x] 写RED：`snapshot_stays_fixed_after_same_inode_rewrite`（读后改源不影响快照）、`fixture_budget_accepts_65536_rejects_65537`、`golden_rejects_transaction_reconnect_lo_and_early_unrestrict`、`header_is_ddl_free_and_timeouts_are_local`。断言任何非key字节变化、key不匹配/多次、CRLF或注释变化均拒绝，payload含固定DDL/COPY且无COMMIT。
+- [x] 运行 `cargo test --offline --locked -p learning-backup --lib controlled_import::fixture_sql`，记录预期RED。
+- [x] 实现magic/长度/SHA/读取中预算和不可变快照。完整模板仅匹配一对1..128位ASCII字母数字restrict key，实产key长度也记入capture合同；只在已审定完整header语句固定替换四种SET LOCAL超时。拒绝未知TOC/输出，不靠关键词黑名单放行任意SQL。
+- [x] 重跑定向GREEN与 `cargo fmt --all -- --check`、`cargo clippy --offline --locked -p learning-backup --all-targets -- -D warnings`。Windows只证明纯模型；Linux-only编译另由授权builder核验。
+- [x] 提交fixture来源/镜像/捕获与模板SHA，独立审查字节边界和变体拒绝；不可变工件不含密码、业务数据或真实服务配置。T2-LIMIT-01：运行时调用者对dump/TOC来源及真实解码的绑定仍由后续整合/现场门验证。
 
 ## Task 3 — 单次attempt与提交意图持久屏障
 

@@ -231,3 +231,10 @@
 - 工件摘要：dump1,980字节/SHA `56b12180a18e84b998ead3f1c7d552b922c68c765de2b5725d93112e5dbb5136`；SQL1,308字节/SHA `e2c252bfa5d44c5ed9133dcdb7fd8344e0a2471489d0ee410edb6c09baabd44a`。两文件已受控导出并下载，控制器独立核对大小/实际字节哈希。离线TOC625字节/SHA `edcd6b7eb8b23a1b91113b0fde92da041c08a01235706bb481d1f23dd0d161fb`，helper无网络/凭据/新磁盘卷，身份核验后只列目录，退出0/空stderr，按精确ID清理。独立子代理实产审查的规格/产物质量均通过，无阻断；Task1完成，Task2从实产字节开始。旧失败批次/证据不改，M3全套计时失败仍待，C4/恢复/生产未验收。
 
 - 用户导出命令另核对root结果hash及 `result.pending` 消失；原始root文件仍未由控制器直接读取。实产header边界670、63位匹配key及LF规则已定位，Task2须从该实产封存完整模板并核对变长key偏移及固定四timeout转换。
+
+### 受控小型 dump Task2：冻结与完整SQL模板完成（2026-10-01）
+
+- 实现提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b`，仅五个允许路径；所有代码位于私有cfg(test)模块。FrozenDump在读取期间执行64KiB预算，核对magic/长度/SHA后返回不可变字节，不重开路径。VerifiedFixtureSql完整匹配实产模板，只允许一对相同的1..128位ASCII字母数字restrict key，完整核验后分段并替换四句固定SET LOCAL超时。
+- 实产SQL1,308字节及两处63字节key形成1,214字节模板，模板SHA `2bc9495461ac7432d725a76868fd2165eeb6e3e32cd3a6d05b34fbeaecdb7c49`；实产转换后1,363字节/SHA `d52fadf2e5d841b57166cd9d6f281034b3b16264b66a677b55aeaab8fcbce138`。capture-contract保存镜像、来源批次、dump/TOC/原SQL/模板摘要、动态边界和唯一预期header空行。精确LF属性规则保留`.sql.in`字节；实产末尾空行保留，默认diff whitespace的EOF空行提示属于已核验数据例外。
+- 留存RED退出101：七项中五项预期失败、两项拒绝测试通过；最终定向7/7、package库66/66、格式和严格package all-targets Clippy退出0。控制器核对留存日志，独立子代理核验实际捕获SQL/dump/TOC、模板重建、key边界和转换摘要，规格符合/质量Approved，无Critical/Important问题。初次GREEN借用检查和首次格式失败记录仍保留，未掩盖为首次全绿。
+- **T2-LIMIT-01：** freeze_dump的期望摘要由内部调用者传入，本模块只接收解码SQL；后续整合必须把实际输入绑定到已审查dump/TOC、Linux no-follow打开及固定PG18解码客户端，不能仅凭本模块通过放行任意dump。这些Windows结果不证明Linux编译、真实writer/导入、服务端超时或隔离。既有M3 Python计时失败未修改/重跑；整支与C4全关尚未验收。Task2本地实现/审查完成，Task3开始持久attempt及提交意图。
