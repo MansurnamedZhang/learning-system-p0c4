@@ -68,6 +68,7 @@ trait AdmissionQuarantine: Send + 'static {
 
 struct AdmissionHandoff<T: AdmissionQuarantine> {
     admission: Option<T>,
+    runtime: tokio::runtime::Handle,
 }
 impl<T: AdmissionQuarantine> AdmissionHandoff<T> {
     fn take(mut self) -> T {
@@ -76,13 +77,12 @@ impl<T: AdmissionQuarantine> AdmissionHandoff<T> {
 }
 impl<T: AdmissionQuarantine> Drop for AdmissionHandoff<T> {
     fn drop(&mut self) {
-        if let Some(mut admission) = self.admission.take()
-            && let Ok(runtime) = tokio::runtime::Handle::try_current()
-        {
+        if let Some(mut admission) = self.admission.take() {
             // The envelope owns authority even after send succeeds. A queued
             // value's destruction transfers it to exactly one cleanup owner.
-            // Runtime shutdown cannot promise isolation and yields no receipt.
-            runtime.spawn(async move {
+            // Use the originating runtime even outside an entered context.
+            // Actual runtime shutdown cannot promise isolation or a receipt.
+            self.runtime.spawn(async move {
                 admission.quarantine().await;
             });
         }
@@ -96,6 +96,7 @@ fn handoff_admission<T: AdmissionQuarantine>(
     sender
         .send(result.map(|admission| AdmissionHandoff {
             admission: Some(admission),
+            runtime: tokio::runtime::Handle::current(),
         }))
         .is_ok()
 }
@@ -940,6 +941,42 @@ mod fix1_admission_tests {
     #[tokio::test]
     async fn undelivered_admission_retains_guards_through_quarantine() {
         abandoned_receiver(false).await;
+    }
+    #[test]
+    fn queued_admission_dropped_outside_runtime_retains_origin_cleanup_owner() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let admission = admission();
+        let events = admission.events.clone();
+        let entered = admission.entered.clone();
+        let release = admission.release.clone();
+        let dropped = admission.dropped.clone();
+        let (sender, receiver) = oneshot::channel();
+        runtime.block_on(async {
+            assert!(handoff_admission(sender, Ok(admission)));
+        });
+        assert!(tokio::runtime::Handle::try_current().is_err());
+        drop(receiver);
+        assert!(
+            events.lock().unwrap().is_empty(),
+            "authority dropped before origin runtime could settle quarantine"
+        );
+        runtime.block_on(async {
+            tokio::time::timeout(Duration::from_secs(1), entered.notified())
+                .await
+                .expect("origin runtime did not receive abandoned admission cleanup");
+            assert_eq!(*events.lock().unwrap(), vec!["quarantine_started"]);
+            release.notify_one();
+            tokio::time::timeout(Duration::from_secs(1), dropped.notified())
+                .await
+                .unwrap();
+        });
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec!["quarantine_started", "quarantine_settled", "guards_drop"]
+        );
     }
     #[tokio::test]
     async fn successful_admission_transfer_has_one_owner_and_no_early_cleanup() {
