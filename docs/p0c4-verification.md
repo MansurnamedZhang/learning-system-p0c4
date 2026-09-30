@@ -198,3 +198,12 @@
 - 修复前全 Python 218/218、全 Rust 库 98/98 是历史版本验证；当前修复只再跑覆盖修改的专项及上述全库检查。未重复缺库的完整 Cargo 集成测试，仍不能声称全 workspace 或 Linux/PG18 现场通过。
 - 三个相邻脚本与源码 ZIP 将从 Git 原字节封存，逐文件核对单独哈希及 manifest 成员；旧 runner/helper 行为保持不变。新源仅创建已知两行 fixture、第三行未提交 EOF 回滚探针和 dump；新目标仅只读握手、ROLLBACK、无 DDL EOF 与独立空库观察，捕获 SQL 不送入目标。工件分列保存，必须实际核验并独立审查后才能封存 golden、启动任务2。
 - 最新只读资源复查：固定 PG18/builder 镜像一致；两个拟用项目/卷/网络均未占用，108 个 Docker 网络及 IPv4 路由与新子网无冲突；可用磁盘 `389344874496` 字节、MemAvailable `28946575360` 字节、24 个逻辑 CPU。两个 PG 上限合计 4 CPU / 8 GiB，不是预留。没有新服务器上传、容器、卷、网络或导入。完整边界和资源清单见[客户端合同与合成工件采集验收](p0c4-controlled-import-contract-acceptance.md)。
+
+### 受控小型 dump：首轮封装准入失败，封装修复已独立复审（2026-09-30）
+
+- 用户逐文件授权源码ZIP及三个原样脚本。代码/文档提交 `045544fd6b464fc08b385141949ade5f05f6f91f` 已同步既有GitHub分支。ZIP SHA-256 `8ece9bcdf9d351145912017352058731fbe87b794245ee806bd5de91ecef0925`，443个Git跟踪文件，4,764,019字节；清单SHA-256 `966e8206b2bf99a2efccd1d347120211368eb017a096e900a1f010809f534ae4`。四文件上传核验通过；用户root终端报告四项上传和四项安装后SHA-256均为OK。
+- 首轮控制UUID `afa97a4e-bd2f-4cf3-a08c-afb5f71116f1`；源/目标UUID `4193631e-f86e-4148-8d9b-000529e820ae`、`c3c4e57c-1c37-4099-92d4-341c393418dc`，子网237/238。驱动只输出 `CONTRACT_ADMISSION_OR_EVIDENCE_REJECTED_NOT_IMPORT`，`CONTRACT_RUN_EXIT=1`；不算合同或工件验收通过。控制器随后只读Docker核对，两个项目均没有容器、卷或网络；root私有批次/结果是否存在仍待只读回传。
+- 对同一授权ZIP本地只读复现：清单含两个中文路径 `docs/architecture/KnowWeave架构设计.html` 及相邻 `.qa.json`，实际63,985字节采用默认ASCII转义，接收端未改变的UTF-8原文规范要求63,961字节，首个差异在49,241。文件摘要匹配不能替代接收端规范校验。前次封存检查中的“canonical”断言使用了不一致的序列化规则，这是封装验证遗漏，不是已取得的PG18协议/SQL错误。
+- Task1修复轮2提交 `305a54f580ba5efc6a42f32fd80dc1b5b00d6707`，仅修改共享封装器的 UTF-8 清单生成并新增 `test_package_p0c4_task3.py`。三项回归使用实际 HEAD 的 Git 字节和未改动的 `verify_archive`，验证中文路径可准入、重算哈希后的旧转义清单仍拒绝、纯 ASCII 包可准入且字节稳定。只模拟 Windows 不适用的 root 权限/no-follow 元数据与本轮所需入口配置，不模拟清单、inventory 或成员哈希规则。实际 RED 为两失败/三项，GREEN 为三项通过；独立限定复审判定 I3 ADDRESSED、无新增 Critical/Important。
+- 完整 Python 在提交后首轮为 225/226，既有 `test_both_owned_resources_share_one_absolute_isolation_budget` 的进程非零退出状态断言失败。该失败日志保留；随后同一测试单独运行通过，下一次全套 226/226 通过。原因尚未证实，作为既有计时问题交最终整分支审查，不声称套件稳定。此次无 Rust 改动，未重复无关检查；此前 Rust 全库100/100及格式/严格Clippy证据的版本边界保持不变。
+- 旧信任规则、客户端、三个已安装脚本、旧包和历史证据保持原样。准备新 ZIP 与全新控制/源/目标 UUID `55571d76-02f8-4c47-aeb8-4d54fe29ad46`、`2cde52c8-fbbc-4b9c-ae4b-dce60c21acf1`、`ff1fde0c-506f-4ee8-8aec-f5f98803b2e2`，子网 `10.251.239.0/24`、`10.251.240.0/24`；资源未创建、执行前重查占用。三份同字节脚本拟复用首轮 root 安装目录并再次核验；新包及新 UUID/子网/卷仍逐项单独授权，旧失败批次不重跑。原始控制批次和服务器异常栈尚未独立读取，不能伪造具体现场原因码或提前关闭任务1。
