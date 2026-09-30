@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** 2026-09-30 用户确认继续实施；本地实现与独立审查进行中，现场验收待精确包授权。
+
 **Goal:** 在恢复首次写入前，用精确容器 ID、本地 Unix socket 和固定客户端命令建立独立的只读子进程端点准入证明。
 
 **Architecture:** `BoundTargetGuard` 保留出生/Pin 的 Docker 身份，且必须与仍存活的 SQLx 双锁事务一起生成短生命周期的子进程目标。固定 Docker CLI 在精确容器内运行清空环境的 PostgreSQL 18 只读客户端，前后以同一 socket 再核对两把随机锁、backend PID/OID 和容器；旧宿主 `pg_restore` 写路径保持不可达。实际 dump 导入需要另一计划和新隔离写入验收。
