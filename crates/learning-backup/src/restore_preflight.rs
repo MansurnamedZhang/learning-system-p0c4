@@ -1,6 +1,6 @@
 //! Clean-target preflight and its locked read-only boundary. An opaque
 //! `CompleteBackup` is mandatory; a path or `SealedBackup` cannot bypass it.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 use crate::FileRecord;
 #[cfg(target_os = "linux")]
 use crate::{AssetRow, open_complete_backup, validate_role_recipe};
@@ -21,7 +21,9 @@ use sqlx::PgPool;
 #[cfg(any(target_os = "linux", test))]
 use sqlx::{PgConnection, Postgres, Row, Transaction};
 #[cfg(any(target_os = "linux", test))]
-use std::io::{Read, Seek, SeekFrom};
+use std::io::Read;
+#[cfg(test)]
+use std::io::{Seek, SeekFrom};
 #[cfg(any(target_os = "linux", test))]
 use std::path::Path;
 #[cfg(target_os = "linux")]
@@ -456,7 +458,7 @@ impl RestorePreflight {
     }
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 #[derive(Serialize)]
 struct RestoreAttemptMarker<'a> {
     format_version: u32,
@@ -481,7 +483,7 @@ fn restore_attempt_name(database: &str) -> Result<String, BackupError> {
     Ok(format!("{database}.restore.attempt"))
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 fn restore_attempt_bytes(
     database: &str,
     backup_id: uuid::Uuid,
@@ -512,7 +514,7 @@ fn reject_existing_attempt(entry: io::Result<BackupEntryKind>) -> Result<(), Bac
 /// Stream from the handle that will become pg_restore's stdin. This catches a
 /// changed name/byte sequence after preflight without copying the archive to
 /// an untrusted path or treating a caller-supplied path as authority.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 fn verify_dump_reader<R: Read + Seek>(
     reader: &mut R,
     record: &FileRecord,

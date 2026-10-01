@@ -923,7 +923,7 @@ mod linux {
         if names != ["admin_password", "postgres_password"] {
             return Err(BackupError::Invalid("bound test secret directory differs"));
         }
-        let mut admin = secrets.open_file("admin_password")?;
+        let admin = secrets.open_file("admin_password")?;
         let postgres = secrets.open_file("postgres_password")?;
         let meta = admin.metadata()?;
         let peer = postgres.metadata()?;

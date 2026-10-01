@@ -561,17 +561,16 @@ impl CandidateIo for LinuxCandidate {
             .as_ref()
             .and_then(|live| live.clone.as_ref())
             .map(|clone| clone.claim.clone());
-        if let Some(claim) = clone {
-            if !linux_child::candidate_locks_absent(
+        if let Some(claim) = clone
+            && !linux_child::candidate_locks_absent(
                 &claim,
                 self.admission.challenge.keys(),
                 self.deadline,
             )
             .await
             .map_err(failure)?
-            {
-                return Err(ImportFailure::Identity);
-            }
+        {
+            return Err(ImportFailure::Identity);
         }
         let budget = if self.is_case(Case::WrongEndpoint) {
             StreamBudget::identity_diagnostic()
@@ -1037,12 +1036,12 @@ impl LinuxCandidate {
                         .fetch_all(&mut connection).await.map_err(|_|ImportFailure::Fixture)?;
                     writer_sql::constraints_match(&rows)
                 } else { true };
-                let exact_rows=if committed && content && constraints && live_evidence.is_some() {
+                let exact_rows=if committed && content && constraints && let Some(evidence) = live_evidence.as_ref() {
                     let rows=sqlx::query_as::<_,(i32,String)>("SELECT id,label FROM public.c4_import_probe ORDER BY id")
                         .fetch_all(&mut connection).await.map_err(|_|ImportFailure::Fixture)?;
                     if rows != vec![(1,"alpha".into()),(2,"beta".into())] {false} else {
                         let canonical=rows.iter().map(|(id,label)|format!("{id}|{label}\n")).collect::<String>();
-                        live_evidence.as_ref().unwrap().lock().unwrap().content_sha256=Some(hex::encode(Sha256::digest(canonical.as_bytes())));
+                        evidence.lock().unwrap().content_sha256=Some(hex::encode(Sha256::digest(canonical.as_bytes())));
                         true
                     }
                 } else {true};
