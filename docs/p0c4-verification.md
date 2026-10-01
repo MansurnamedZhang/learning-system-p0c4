@@ -2,7 +2,9 @@
 
 **状态：实施中；未验收；非生产。**
 
-**2026-10-01 静态更新：受控导入整计划首次审查、一次修复及独立修复复审完成；三项 Important 和一项输出待办均 ADDRESSED，无新增修复问题。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。一次完整 P0-C4 Python 回归258/258、Windows候选 journal模型4/4、格式检查退出0；Linux仍未编译或执行，现场用例0/11。** 修复涉及Linux ignored测试同名变量、CLI超时后的精确资源所有权与命令行失败持有状态，以及克隆发现前建立并复用原15秒隔离截止。旧37/38失败日志保留；原PID39808具体调度仍未重建，不以本地通过冒充现场证明。具体失败持有语义及门槛见 [受控导入说明](p0c4-controlled-import-acceptance.md)。下文任务1的“当前切片”属于历史记录，不能作为本轮现场状态；C4、CompleteBackup 和生产仍未验收。
+**2026-10-01 最新现场进度：Linux 编译及全部 11 项 ignored 名称列举通过，实际导入用例 0/11。** 新控制批次 `a3f5719a-afe4-43e2-a78b-1ab1d9fc049c` 的用户终端摘要为 `LINUX_COMPILE_AND_ELEVEN_TESTS_LISTED_NOT_EXECUTED_NOT_IMPORT`、退出0，结果 SHA-256 `c1ccabb430aa2e4ec64d1a9538933f66102459cd412eb7a4690bd38312f4fa49`，路径 `/var/lib/knowweave-c4/controlled-import/batches/a3f5719a-afe4-43e2-a78b-1ab1d9fc049c/evidence/result.json`。摘要记录 `tests_executed=false`、pending 消失与 builder 清理；控制者通过独立 SSH 只读检查确认精确 builder 名称与标签均无残留，尚未直接读取 root 私有完整 JSON。下一轮全新 `b2af0b1a` 前置门先核验该文件实际字节与限定事实，再做 Linux 格式、严格 Clippy、默认库测试及 journal no-follow/fsync；该轮脚本本地22/22模型、语法及独立规格/质量审查通过，SHA-256 `7125ea43fe829427e651c35151f1d088c6a8be0934938e7bce3513ade8525257`，27,156字节。已上传到新hans私有0700目录并核验两次哈希、0400权限和LF字节；当前SSH非交互sudo不可用，等待用户Linux终端认证，现场门尚未执行。
+
+**2026-10-01 静态更新：受控导入整计划首次审查、一次修复及独立修复复审完成；三项 Important 和一项输出待办均 ADDRESSED，无新增修复问题。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。一次完整 P0-C4 Python 回归258/258、Windows候选 journal模型4/4、格式检查退出0。** 修复涉及Linux ignored测试同名变量、CLI超时后的精确资源所有权与命令行失败持有状态，以及克隆发现前建立并复用原15秒隔离截止。旧37/38失败日志保留；原PID39808具体调度仍未重建，不以本地通过冒充现场证明。具体失败持有语义及门槛见 [受控导入说明](p0c4-controlled-import-acceptance.md)。下文任务1的“当前切片”属于历史记录，不能作为本轮现场状态；C4、CompleteBackup 和生产仍未验收。
 
 上述258/258先于最后的诊断输出失败保护和builder原截止传播修正；后续定向32/32及最终26/26覆盖实际适配器、继承精确ID清理、CLI持有和成功/超时清理合同，未再跑全套。该顺序不构成最终全分支或Linux验收通过。
 
@@ -22,7 +24,7 @@
 - C3 已验证基线：`4507f3f55f860a6d3afed2cefe2bce27f7ff6b7c`。
 - C4 工作分支：`feat/p0c4-backup-recovery`；工作树：`D:\codex\DeepLearning\.worktrees\knowweave-p0c4`。
 - 目标是完整 PostgreSQL 权威数据、所有 ready 原件、角色/模式重建信息和干净实例恢复；C3 融合快照不是整库备份。
-- Linux 服务器仍须每份精确源码包单独确认后，在新隔离 Compose 项目验证。没有通过证据前不写 `P0_C4_VERIFIED`。
+- 2026-10-01 用户已取消逐项人工确认；批准范围内自主封存和核验精确源码/runner、新批次及资源，再在全新隔离项目验证。sudo 凭据仍只在用户 Linux 终端输入。没有通过证据前不写 `P0_C4_VERIFIED`。
 
 ## 当前门槛
 

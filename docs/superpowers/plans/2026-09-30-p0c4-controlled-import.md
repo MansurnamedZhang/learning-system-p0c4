@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-**Task6 当前状态（2026-10-01）：** 十一项 ignored 源码、固定可信源签发与 phase-import runner 的本地实现及独立任务审查完成；整计划首次审查所提三项 Important 与一项输出问题由单次修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd` 解决，独立修复复审全部 ADDRESSED、无新增问题。Python 一次共享修改后完整回归258/258，随后窄修正以最终26/26定向覆盖；Windows journal4/4和格式检查通过。Linux no-run/严格检查/测试列举及实际 PG18 门均未运行，实际用例0/11，本施工单复选项不因静态源码而关闭。早期状态段中的 M3 待办和计数属于历史记录，当前关闭边界以本段为准，失败证据保留。后续授权、资源预算及逐 case 证据规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
+**Task6 当前状态（2026-10-01）：** 十一项 ignored 源码、固定可信源签发与 phase-import runner 的本地实现及独立任务审查完成；整计划首次审查所提三项 Important 与一项输出问题由单次修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd` 解决，独立修复复审全部 ADDRESSED、无新增问题。Python 一次共享修改后完整回归258/258，随后窄修正以最终26/26定向覆盖；Windows journal4/4和格式检查通过。Linux no-run 与 11 项 ignored 名称列举已在新批次 `a3f5719a` 通过，用户终端退出0；独立核对 builder 名称及标签无残留，root 私有完整结果哈希核验列入下一轮前置门。Linux 严格 Clippy、默认库测试、journal no-follow/fsync 与实际 PG18 用例仍待执行，实际用例0/11，本施工单复选项不因编译或静态源码而关闭。下一轮全新 `b2af0b1a` 无 PG 前置门脚本已通过22/22本地模型、语法与独立审查，上传和哈希核验完成；待用户Linux终端sudo认证启动。早期状态段中的 M3 待办和计数属于历史记录，当前关闭边界以本段为准，失败证据保留。后续自主执行范围、资源预算及逐 case 证据规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
 
 - 工作目录：`D:/codex/DeepLearning/.worktrees/knowweave-p0c4`；保留现有分支，不新建外部项目，不往C盘安装/生成依赖或测试数据。
 - 本地执行者在任务1设置 `CARGO_TARGET_DIR` 为该工作树的 `target/`，`TMP`/`TEMP` 为新建的 `.runtime/p0c4-controlled-import-tests/`；验证后恢复原环境。只读取已有工具/依赖缓存，不安装新运行时。Linux临时文件放本批root私有tmp目录。
@@ -25,7 +25,7 @@
 - dump快照和解码SQL各最多64 KiB；writer stdout/stderr各8 KiB，读取期间执行上限。解码15秒、writer45秒、READY/PRECOMMIT各10秒且不延长总截止；backend消失观察5秒，隔离确认另15秒。
 - SQL固定 `SET LOCAL`：statement_timeout=10秒、lock_timeout=5秒、idle_in_transaction_session_timeout=30秒、transaction_timeout=60秒；不改变控制事务/角色/库设置。
 - fixture仅 `public.c4_import_probe(id integer NOT NULL,label text NOT NULL)`、固定主键、两行 `(1,'alpha')`/`(2,'beta')`。完整golden核验；只有匹配的随机restrict key占位允许变化，不支持通用SQL清洗。
-- 运行前核对资源未占用；每个服务器源码包/原样runner及每个新UUID/子网/卷批次逐文件另行授权。sudo只在用户Linux终端输入；旧批次、卷、证据与生产不碰，失败批次不重跑。
+- 用户于2026-10-01明确要求“无需要我逐项确认，自己去做”，替代此前逐包/逐新资源人工确认要求。批准范围内由执行者自主封存、核验并记录每个源码包/原样runner的哈希和每个新UUID/子网/卷；运行前核对资源未占用，仍使用全新隔离批次。sudo凭据只在用户Linux终端输入；旧批次、卷、证据与生产不碰，失败批次不重跑。
 - 每任务RED→GREEN→定向验证→提交→独立规格/质量审查，审查问题解决后才开始下一任务。任务1的现场协议/golden门未过，任务2不得猜测封存golden，任务5不得启动写入。
 
 ## Review Focus
@@ -122,7 +122,7 @@ assert!(precommit.accept(ImportEvent::CommitPermitRequested).is_err());
 - [x] 实现独立读回/失败状态：observer用新的已绑定只读连接验证原双锁，避免长事务统计缓存；只在writer消失且目标可信仍运行时停机前读回。未知COPY不能发ROLLBACK；COMMIT确认不可靠归CommitUnknown，最终停机不可靠归UnconfirmedIsolation。已取消状态不能被late IO重新放行；旧guard无二次消费。
 - [x] GREEN、旧只读/3a/3b模型、格式/严格package Clippy；用 `cargo check --offline --locked -p learning-backup --lib` 及同命令加 `--all-features` 检查正常库构建，确认没有候选公开方法/feature。提交并独立规格/质量审查；整合通过仍不运行实际导入，需任务6授权现场门。
 
-**本地关闭边界（2026-10-01）：** Task5本地实现与独立审查完成，不能据此称Linux编译或实际导入通过。真实可信来源、no-follow/TOC签发、PG18谓词求值、原目录sync与每个写入/负例现场门由Task6另行逐文件/逐新资源授权验证。前述61/61、后续2/2及4/4分别对应各次修订覆盖，不是最终全包或工作区验收。
+**本地关闭边界（2026-10-01）：** Task5本地实现与独立审查完成，不能据此称Linux编译或实际导入通过。真实可信来源、no-follow/TOC签发、PG18谓词求值、原目录sync与每个写入/负例现场门由Task6在已批准范围内自主封存并使用全新隔离资源验证。前述61/61、后续2/2及4/4分别对应各次修订覆盖，不是最终全包或工作区验收。
 
 ## Task 6 — 新项目真实写入、错误端点与证据关闭
 
@@ -133,7 +133,7 @@ assert!(precommit.accept(ImportEvent::CommitPermitRequested).is_err());
 ignored测试的完整前缀固定为 `restore_preflight::target_binding::controlled_import::live_tests::`，runner只接受case对应一项exact测试、实际一项passed/零ignored/退出0及全部检查点。先做磁盘/内存只读预检，申报新源/目标/克隆卷与编译预算；同一封存源码/builder生成的测试二进制可只读共享并逐次复核SHA，PG资源和数据不共享。不同源码/二进制不得混用旧编译结果。
 
 - [ ] 写RED：runner `test_missing_gate1_attestation_prevents_creation`、`test_selects_one_exact_live_test`、`test_negative_is_not_success_without_expected_evidence`、`test_final_result_requires_stop_and_no_pending`、`test_commit_unknown_is_never_reported_as_rollback`。所有正常/负例必须新目标，不接受已有资源；先编译/列举所有Linux ignored测试，不把未运行记通过。
-- [ ] 新增以下真实ignored门；每一场景单独授权新批次，不能用一次泛授权复用目标：
+- [ ] 新增以下真实ignored门；每一场景使用独立新批次，取消逐项人工确认也不得复用目标：
 
 | case / 测试名 | 必须观察的结果 |
 |---|---|
@@ -149,7 +149,7 @@ ignored测试的完整前缀固定为 `restore_preflight::target_binding::contro
 | `commit-unknown` / `live_controlled_import_commit_confirmation_lost` | intent先持久，确认丢失或部分发送判未知，不能宣称回滚/允许重试 |
 | `wrong-endpoint` / `live_controlled_import_same_id_wrong_endpoint` | 新主/物理克隆同ID/OID，但实际writer双锁断言拒绝；无对象/attempt，双容器精确停机留卷 |
 
-- [ ] 每个case先跑本地runner断言与真实编译检查，再单独封存Git字节ZIP/manifest/runner并独立核对；用户逐文件授权后只运行固定case和资源。门失败即保留，不在原项目重跑；修订从新包/新UUID开始。
+- [ ] 每个case先跑本地runner断言与真实编译检查，再单独封存Git字节ZIP/manifest/runner并独立核对；由执行者按当前自主授权记录封存哈希，仅运行固定case和新隔离资源。门失败即保留，不在原项目重跑；修订从新包/新UUID开始。
 - [ ] controller核对用户root回传完整脱敏JSON、result/inspection摘要和PENDING_ABSENT，并独立只读核对Docker精确ID停机/留卷。合成fixture可公开的工件与root私有日志分别标记来源，不能称已独立读取无法访问的root文件。
 - [ ] 整计划独立复审无阻断，定向回归与必要工作区编译/格式/严格Clippy通过；新Linux各必过门证据完整才关闭计划。成功只标 `CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE`；更新路标但C4整关、CompleteBackup与生产仍未验收。提交文档与代码并正常同步既有GitHub分支，不强推/main/合并。
 
@@ -157,4 +157,4 @@ ignored测试的完整前缀固定为 `restore_preflight::target_binding::contro
 
 规格覆盖：输入/认证与客户端→任务1/2；marker→任务3；IO/取消所有权→任务4；原事务/实际writer/提交→任务5；真实成功/EOF/重启/克隆/未知与证据→任务6。Review Focus五项均有指定任务测试；接口名字和消费方向逐一对照。
 
-本施工单审阅后，按已选定的子代理方法从任务1本地RED开始。任务1服务器合同采集仍需具体包/runner/新项目单独授权；其门通过并封存实际golden前，不能跳到任务5/6。任务状态以实际代码、审查、测试与证据分别登记，不把“计划批准”记成实现或现场成功。
+本施工单审阅后，按已选定的子代理方法从任务1本地RED开始。任务1服务器合同采集最初按具体包/runner/新项目单独授权；2026-10-01起在批准范围内自主推进；其门通过并封存实际golden前，不能跳到任务5/6。任务状态以实际代码、审查、测试与证据分别登记，不把“计划批准”记成实现或现场成功。

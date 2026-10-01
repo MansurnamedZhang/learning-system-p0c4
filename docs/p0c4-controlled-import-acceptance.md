@@ -1,6 +1,6 @@
 # P0-C4 固定 fixture 导入：静态实现与后续验收
 
-**当前已完成本地静态实现、整计划首次代码审查及一次修复独立复审；三项 Important 和一项输出待办全部 ADDRESSED，未发现修复引入的新问题。Linux 尚未编译，现场导入用例仍为 0/11。没有本轮导入成功证据。** 修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。默认/发布构建没有新写入口，`CompleteBackup`、生产恢复、资产/任务恢复、构建 pin、runtime/Worker 放行及 C4 整关均未验收。
+**当前已完成本地静态实现、整计划首次代码审查及一次修复独立复审；三项 Important 和一项输出待办全部 ADDRESSED，未发现修复引入的新问题。Linux 编译与 11 项 ignored 测试名称列举已通过，实际导入用例仍为 0/11。Linux 严格 Clippy、库测试与 journal 文件专项待执行。** 编译证据来自用户终端摘要，控制者另已独立核对 builder 名称与批次标签均无残留；root 私有完整结果的字节哈希及合同事实留给下一轮前置门核验。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。默认/发布构建没有新写入口，`CompleteBackup`、生产恢复、资产/任务恢复、构建 pin、runtime/Worker 放行及 C4 整关均未验收。
 
 2026-10-01 本地修复验证：共享 stop/close 修复后，P0-C4 Python 一次完整回归 258/258，候选 journal Windows 模型 4/4，格式检查退出0。其后补齐诊断输出管道失败与 builder 清理截止传播，仅作定向验证：32/32，最后加入成功清理合同覆盖后26/26；未重复全量回归，不能称最终所有源码全套通过。修正 Linux ignored journal 测试的构造函数同名变量，不将 Windows 模型当作 Linux 编译证据。历史 M3 的 37/38 失败及清理资源警告保留；确定性测试证明原关闭分支会跳过 reader 清理，新实现保留未完成的精确子进程、reader 和管道所有权。一次原计时测试诊断未重现历史 PID39808 的调度，不宣称已重建其原因。
 
@@ -8,9 +8,9 @@
 
 builder 从实际 run 起另保存该编译操作的原绝对截止；继承的精确 ID 清理配方中每个 Docker 命令均使用此截止、原 argv/env/输出上限。即使宿主 builder CLI 已回收，超过截止也不得发起新的容器发现/移除，cleanup 保持未确认、适配器不可用且不发布成功。此时容器可能仍在，保留批次证据并报告失败；没有未完成宿主句柄不等于容器清理已确认。
 
-## 必须先具备的授权与来源
+## 已批准的范围与来源
 
-每个 case 独立批准 Git 同字节 ZIP/manifest、原样 root runner/helper 的具体摘要，以及新的控制/源/目标 UUID、项目、子网和卷；`wrong-endpoint` 另需全新物理克隆 UUID/子网/卷。尚未批准的资源不能从本文推定获准。失败批次不重跑、不清理、不复用；root/sudo 凭据只由用户在 Linux 终端输入。控制者负责封存、上传、完整可见命令、回传结果及独立 Docker 核验。
+2026-10-01 用户明确要求“无需要我逐项确认，自己去做”，撤销此前逐文件/逐批次人工确认要求。已批准的 C4 固定合成 fixture、单机隔离验收范围内，控制者自主准备并记录每个 case 的 Git 同字节 ZIP/manifest、原样 root runner/helper 摘要及新控制/源/目标 UUID、项目、子网和卷；`wrong-endpoint` 仍需全新物理克隆 UUID/子网/卷。该变更仅减少人工确认，不放宽验证合同、审查、资源隔离或生产边界。失败批次不重跑、不清理、不复用；root/sudo 凭据只由用户在 Linux 终端输入。控制者负责封存、上传、完整可见命令、回传结果及独立 Docker 核验。
 
 前置门1为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`，控制批次 `14b45cf0-e9f3-4beb-a250-ceb6f49d5a14`，结果摘要 `505ab6179e3be1f1c8afb441fa694db8d5033f27e77a0940908de208bad96508`。这是已审查历史合同引用，不是每个新 dump 的预期摘要或导入能力。历史 root 原结果、用户终端摘要、可公开合成工件及独立下载/实查证据必须分别注明来源，不能把未读到的 root 私有文件称为已独立读取。
 
@@ -18,7 +18,9 @@ builder 从实际 run 起另保存该编译操作的原绝对截止；继承的�
 
 ## 编译与资源预检
 
-经封存验证创建新的 root 私有批次后，`ImportBackend._budget()` 仅作容量与镜像预检，`ImportBackend._preflight_import_builder()` 是可分离的编译/列举入口：内部使用源和目标均为 64 个 `0` 的无权占位出生 pin，离线 `cargo test --locked --offline -p learning-backup --lib --no-run --message-format=json`，随后宿主执行测试二进制 `--list --ignored`，核对下表 11 项全部且各一次。它不创建 PG、网络、卷，不读取 DB 凭据，不运行 ignored 测试。控制者可在另授权的新 root 批次只调用此方法；不增加宽泛 CLI phase。此方法本身不会代替另需的 Linux 严格 Clippy、库检查和 Task3 no-follow/fsync 门。
+经封存验证创建新的 root 私有批次后，`ImportBackend._budget()` 仅作容量与镜像预检，`ImportBackend._preflight_import_builder()` 是可分离的编译/列举入口：内部使用源和目标均为 64 个 `0` 的无权占位出生 pin，离线 `cargo test --locked --offline -p learning-backup --lib --no-run --message-format=json`，随后宿主执行测试二进制 `--list --ignored`，核对下表 11 项全部且各一次。它不创建 PG、网络、卷，不读取 DB 凭据，不运行 ignored 测试。控制者可在批准范围内创建的新 root 隔离批次只调用此方法；不增加宽泛 CLI phase。此方法本身不会代替另需的 Linux 严格 Clippy、库检查和 Task3 no-follow/fsync 门。
+
+2026-10-01 编译专用新批次 `a3f5719a-afe4-43e2-a78b-1ab1d9fc049c` 返回 `LINUX_COMPILE_AND_ELEVEN_TESTS_LISTED_NOT_EXECUTED_NOT_IMPORT`，`LINUX_COMPILE_EXIT=0`。用户摘要记录 11 项名称、未执行测试、pending 消失和 builder 清理确认；结果 SHA-256 为 `c1ccabb430aa2e4ec64d1a9538933f66102459cd412eb7a4690bd38312f4fa49`。下一轮使用全新 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 批次，先对该 root 文件做精确哈希及白名单事实核验，再运行格式、严格 package Clippy、默认 Linux 库测试和单项 ignored journal no-follow/fsync；复用封存 `631a45f` 源码，不执行 11 项 PG 导入用例。该轮脚本本地22/22模型及Python/Bash语法检查通过，独立规格/质量审查通过；已上传并两次核验SHA-256、0400权限和私有祖先。SSH非交互sudo不可用，待用户Linux终端认证启动，不能记为现场通过。
 
 实际 case 在全新源/目标出生证明签发后另编译 `probe-live-build`，分别嵌入 `KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256` 和原 `KNOWWEAVE_C4_TARGET_BIRTH_SHA256`。源出生使用同一完整验证器（state/issuance-success/无 failure、目录 dev/ino、PG 身份/cast/ACL），不构造第二个目标导入 admission，也不接受环境中的期望 hash 充当能力。源 guard 与原 SQLx challenge 持有到生产和签发完成。预检二进制不能执行实际 case；不同源码或编译 pin 不复用二进制。每次列举/执行前后复核只读二进制 SHA，记录两份 pin、源码 SHA、builder ID、列举摘要和 exact 名称。
 
@@ -62,4 +64,4 @@ builder 固定 `--cpus=4 --memory=8g --memory-swap=8g`，无新增 swap 配额�
 
 控制者还需用户 root 回传完整脱敏 JSON、result/inspection 摘要、`PENDING_ABSENT`，并独立只读核对 Docker 精确 ID 停机/留卷。成功唯一正例标记为 `CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE`；固定负例用独立 expected-rejection 状态。提交未知永不报告 rollback，未确认停机永不报告通过。本地审查与 M1/M2/M3 修复审查已关闭；新 Linux 全部门和逐 case 现场证据仍未关闭，本施工单不能据静态审查完成。
 
-Task3 的 `restore_preflight::target_binding::controlled_import::candidate_attempt::tests::live_candidate_journal_no_follow_and_fsync` 另需全新 root 私有 `KNOWWEAVE_C4_JOURNAL_TEST_PARENT` 与单独授权；Windows 模型不能替代该门。本地旧 M3 已以确定性关闭分支、真实待取消子进程及命令行持有测试完成修复和独立复审；原失败证据保留，PID39808 的历史调度仍未知，实际 Linux 行为继续单独验证。
+Task3 的 `restore_preflight::target_binding::controlled_import::candidate_attempt::tests::live_candidate_journal_no_follow_and_fsync` 仍需全新 root 私有 `KNOWWEAVE_C4_JOURNAL_TEST_PARENT` 与独立隔离验证；Windows 模型不能替代该门。本地旧 M3 已以确定性关闭分支、真实待取消子进程及命令行持有测试完成修复和独立复审；原失败证据保留，PID39808 的历史调度仍未知，实际 Linux 行为继续单独验证。
