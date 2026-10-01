@@ -2,11 +2,13 @@
 
 **状态：实施中；未验收；非生产。**
 
-**2026-10-01 最新现场进度：Linux 编译及全部 11 项 ignored 名称列举通过；随后格式／严格 Clippy／编译组合门失败，实际导入用例 0/11。** 编译批次 `a3f5719a-afe4-43e2-a78b-1ab1d9fc049c` 的用户终端摘要为 `LINUX_COMPILE_AND_ELEVEN_TESTS_LISTED_NOT_EXECUTED_NOT_IMPORT`、退出0，结果 SHA-256 `c1ccabb430aa2e4ec64d1a9538933f66102459cd412eb7a4690bd38312f4fa49`，路径 `/var/lib/knowweave-c4/controlled-import/batches/a3f5719a-afe4-43e2-a78b-1ab1d9fc049c/evidence/result.json`。摘要记录 `tests_executed=false`、pending 消失与 builder 清理；控制者独立 SSH 检查精确 builder 名称与标签均无残留，尚未直接读取 root 私有完整 JSON。
+**2026-10-01 最新现场进度：旧源码 Linux 编译及11项 ignored名称列举通过；后续格式门通过、严格Clippy失败。窄修复及独立审查完成，新源码待全新 Linux 前置门，实际导入0/11。** 编译批次 `a3f5719a-afe4-43e2-a78b-1ab1d9fc049c` 的用户终端摘要为 `LINUX_COMPILE_AND_ELEVEN_TESTS_LISTED_NOT_EXECUTED_NOT_IMPORT`、退出0，结果 SHA-256 `c1ccabb430aa2e4ec64d1a9538933f66102459cd412eb7a4690bd38312f4fa49`，路径 `/var/lib/knowweave-c4/controlled-import/batches/a3f5719a-afe4-43e2-a78b-1ab1d9fc049c/evidence/result.json`。摘要记录 `tests_executed=false`、pending 消失与 builder 清理；控制者独立 SSH 检查精确 builder 名称与标签均无残留，尚未直接读取 root 私有完整 JSON。
 
-后续 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 用户终端摘要为 `LINUX_PREREQUISITES_FAILED_NOT_IMPORT`、退出1，阶段 `STRICT_LINUX_FORMAT_CLIPPY_COMPILE`、通用原因码 `Io`、实际用例0且无自动重放。默认库测试和 journal no-follow/fsync尚未运行；具体失败步骤及根因未知。独立只读 SSH 已确认本批 builder 精确名称与标签均无残留。该轮原脚本的22/22本地模型及审查结果保留，不能代替这次Linux失败结果。
+后续 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 用户终端摘要为 `LINUX_PREREQUISITES_FAILED_NOT_IMPORT`、退出1，阶段 `STRICT_LINUX_FORMAT_CLIPPY_COMPILE`、通用原因码 `Io`、实际用例0且无自动重放。用户返回的只读诊断有效标记前缀明确为 FORMAT_BEGIN、FORMAT_PASS、CLIPPY_BEGIN；格式门通过，严格Clippy未通过，no-run、默认库测试与 journal no-follow/fsync尚未开始。7处源码位置已核对，诊断的静态白名单仅确认 `clippy::collapsible_if`，其余 lint 名称来自源码推断，完整根因未由原错误文字穷举。独立只读 SSH 已确认本批 builder 精确名称与标签均无残留。该轮原脚本的22/22本地模型及审查结果保留，不能代替这次Linux失败结果。
 
-只读诊断经过16项解析检查与独立修复复审，已上传并双次核验 SHA-256 `35af222830a64199c1cf8d07cbfd984e0db518792afe5cf78105caec583f8f19`、12228字节、0400权限、私有0700目录及LF字节。它仅读取本批已有三份固定日志，不重跑测试；SSH非交互sudo不可用，等待用户终端认证读取。封存源码、原操作脚本和旧失败证据保持原样，C4与实际导入仍未验收。
+只读诊断经过16项解析检查与独立修复复审，已上传并双次核验 SHA-256 `35af222830a64199c1cf8d07cbfd984e0db518792afe5cf78105caec583f8f19`、12228字节、0400权限、私有0700目录及LF字节。用户已在终端执行它，返回的原 stderr 为8282字节、SHA-256 `3ec07ec898e37015a2046d6b1a6aa0ef1829d2fc9b58aa800855fcc2f1488b91`。控制者未直接读取原私有日志。封存源码、原操作脚本和旧失败证据保持原样，不重跑旧批次。
+
+窄修复 `d70e6eb3ec7febb197e85bce5e0246abf30311fc` 的完整4文件差异经独立规格/质量审查 PASS；仅调整测试辅助 cfg/import、一个可变绑定与两处条件写法，保留 Linux `Read`/`Serialize` 依赖和原行为。Windows包内库119/119、格式退出0、严格package all-targets Clippy退出0；格式没有保留的输出日志，退出码文件已核对。上述本地结果不证明 Linux cfg通过；须用新源码、新UUID重跑 Linux格式/严格Clippy/no-run/默认库/journal。C4与实际导入仍未验收。
 
 **2026-10-01 静态更新：受控导入整计划首次审查、一次修复及独立修复复审完成；三项 Important 和一项输出待办均 ADDRESSED，无新增修复问题。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。一次完整 P0-C4 Python 回归258/258、Windows候选 journal模型4/4、格式检查退出0。** 修复涉及Linux ignored测试同名变量、CLI超时后的精确资源所有权与命令行失败持有状态，以及克隆发现前建立并复用原15秒隔离截止。旧37/38失败日志保留；原PID39808具体调度仍未重建，不以本地通过冒充现场证明。具体失败持有语义及门槛见 [受控导入说明](p0c4-controlled-import-acceptance.md)。下文任务1的“当前切片”属于历史记录，不能作为本轮现场状态；C4、CompleteBackup 和生产仍未验收。
 

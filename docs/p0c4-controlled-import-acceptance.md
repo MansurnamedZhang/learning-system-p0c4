@@ -24,7 +24,9 @@ builder 从实际 run 起另保存该编译操作的原绝对截止；继承的�
 
 随后前置批次 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 的用户终端返回 `LINUX_PREREQUISITES_FAILED_NOT_IMPORT`、`LINUX_PREREQUISITES_EXIT=1`，阶段 `STRICT_LINUX_FORMAT_CLIPPY_COMPILE`，原因码 `Io`，实际用例0、无自动重放。`Io` 是通用异常映射，不能据此判断磁盘故障或哪项命令失败；默认库测试和 journal 专项尚未运行。独立 SSH 核对本批 builder 精确名称与标签均无残留，旧批次和封存源码保留。
 
-只读诊断脚本的16项解析检查、独立修复复审均通过；已上传到本批既有 hans 私有0700暂存目录，文件0400、12228字节、SHA-256 `35af222830a64199c1cf8d07cbfd984e0db518792afe5cf78105caec583f8f19`，服务器两次读取哈希一致。它只读取该失败批次的三份固定私有日志，输出阶段标记、错误码和仓库相对位置，不运行测试。SSH非交互sudo不可用，尚待用户Linux终端认证读取；不得将诊断的本地通过或上传核验作为前置门通过。
+用户已在 Linux 终端执行经过审查的只读诊断。有效标记序列为 FORMAT_BEGIN、FORMAT_PASS、CLIPPY_BEGIN，故格式门通过，失败停在严格 Clippy；no-run、默认库测试和 journal 专项尚未开始。诊断列出7处 Rust 源码位置，静态白名单仅确认 `clippy::collapsible_if`，未穷举其余 lint，也未读取完整错误文字；不能把通用 `Io` 或 broad tool-error 标志当成磁盘/依赖故障证据。诊断脚本 SHA-256 `35af222830a64199c1cf8d07cbfd984e0db518792afe5cf78105caec583f8f19`，原 stderr SHA-256 `3ec07ec898e37015a2046d6b1a6aa0ef1829d2fc9b58aa800855fcc2f1488b91`。
+
+修复提交 `d70e6eb3ec7febb197e85bce5e0246abf30311fc` 仅调整4个 Rust 文件中的测试辅助代码编译范围、一个可变绑定及两处条件写法；独立规格/代码质量审查均 PASS，未改变导入权限、固定夹具、哈希、截止时间或清理语义。Windows 包内库119/119、格式退出0、严格 package all-targets Clippy退出0；格式仅有退出码文件和报告称空输出，没有保留的输出日志。Linux普通库及测试构建尚待全新隔离前置门，实际导入仍0/11；旧失败批次不重跑。
 
 实际 case 在全新源/目标出生证明签发后另编译 `probe-live-build`，分别嵌入 `KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256` 和原 `KNOWWEAVE_C4_TARGET_BIRTH_SHA256`。源出生使用同一完整验证器（state/issuance-success/无 failure、目录 dev/ino、PG 身份/cast/ACL），不构造第二个目标导入 admission，也不接受环境中的期望 hash 充当能力。源 guard 与原 SQLx challenge 持有到生产和签发完成。预检二进制不能执行实际 case；不同源码或编译 pin 不复用二进制。每次列举/执行前后复核只读二进制 SHA，记录两份 pin、源码 SHA、builder ID、列举摘要和 exact 名称。
 
