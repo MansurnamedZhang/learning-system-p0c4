@@ -1,6 +1,6 @@
 # P0-C4 固定 fixture 导入：静态实现与后续验收
 
-**当前已完成本地静态实现、整计划首次代码审查及一次修复独立复审；三项 Important 和一项输出待办全部 ADDRESSED，未发现修复引入的新问题。Linux 编译与 11 项 ignored 测试名称列举已通过，实际导入用例仍为 0/11。Linux 严格 Clippy、库测试与 journal 文件专项待执行。** 编译证据来自用户终端摘要，控制者另已独立核对 builder 名称与批次标签均无残留；root 私有完整结果的字节哈希及合同事实留给下一轮前置门核验。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。默认/发布构建没有新写入口，`CompleteBackup`、生产恢复、资产/任务恢复、构建 pin、runtime/Worker 放行及 C4 整关均未验收。
+**当前已完成本地静态实现、整计划首次代码审查及一次修复独立复审；三项 Important 和一项输出待办全部 ADDRESSED，未发现修复引入的新问题。Linux 编译与 11 项 ignored 测试名称列举已通过；后续格式／严格 Clippy／编译组合门失败，库测试与 journal 文件专项尚未开始，实际导入用例仍为 0/11。** 编译证据来自用户终端摘要，控制者另已独立核对两个批次的精确 builder 名称与标签均无残留；root 私有完整记录尚未直接读取。组合门的具体失败步骤和根因待只读日志诊断。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。默认/发布构建没有新写入口，`CompleteBackup`、生产恢复、资产/任务恢复、构建 pin、runtime/Worker 放行及 C4 整关均未验收。
 
 2026-10-01 本地修复验证：共享 stop/close 修复后，P0-C4 Python 一次完整回归 258/258，候选 journal Windows 模型 4/4，格式检查退出0。其后补齐诊断输出管道失败与 builder 清理截止传播，仅作定向验证：32/32，最后加入成功清理合同覆盖后26/26；未重复全量回归，不能称最终所有源码全套通过。修正 Linux ignored journal 测试的构造函数同名变量，不将 Windows 模型当作 Linux 编译证据。历史 M3 的 37/38 失败及清理资源警告保留；确定性测试证明原关闭分支会跳过 reader 清理，新实现保留未完成的精确子进程、reader 和管道所有权。一次原计时测试诊断未重现历史 PID39808 的调度，不宣称已重建其原因。
 
@@ -20,7 +20,11 @@ builder 从实际 run 起另保存该编译操作的原绝对截止；继承的�
 
 经封存验证创建新的 root 私有批次后，`ImportBackend._budget()` 仅作容量与镜像预检，`ImportBackend._preflight_import_builder()` 是可分离的编译/列举入口：内部使用源和目标均为 64 个 `0` 的无权占位出生 pin，离线 `cargo test --locked --offline -p learning-backup --lib --no-run --message-format=json`，随后宿主执行测试二进制 `--list --ignored`，核对下表 11 项全部且各一次。它不创建 PG、网络、卷，不读取 DB 凭据，不运行 ignored 测试。控制者可在批准范围内创建的新 root 隔离批次只调用此方法；不增加宽泛 CLI phase。此方法本身不会代替另需的 Linux 严格 Clippy、库检查和 Task3 no-follow/fsync 门。
 
-2026-10-01 编译专用新批次 `a3f5719a-afe4-43e2-a78b-1ab1d9fc049c` 返回 `LINUX_COMPILE_AND_ELEVEN_TESTS_LISTED_NOT_EXECUTED_NOT_IMPORT`，`LINUX_COMPILE_EXIT=0`。用户摘要记录 11 项名称、未执行测试、pending 消失和 builder 清理确认；结果 SHA-256 为 `c1ccabb430aa2e4ec64d1a9538933f66102459cd412eb7a4690bd38312f4fa49`。下一轮使用全新 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 批次，先对该 root 文件做精确哈希及白名单事实核验，再运行格式、严格 package Clippy、默认 Linux 库测试和单项 ignored journal no-follow/fsync；复用封存 `631a45f` 源码，不执行 11 项 PG 导入用例。该轮脚本本地22/22模型及Python/Bash语法检查通过，独立规格/质量审查通过；已上传并两次核验SHA-256、0400权限和私有祖先。SSH非交互sudo不可用，待用户Linux终端认证启动，不能记为现场通过。
+2026-10-01 编译专用批次 `a3f5719a-afe4-43e2-a78b-1ab1d9fc049c` 返回 `LINUX_COMPILE_AND_ELEVEN_TESTS_LISTED_NOT_EXECUTED_NOT_IMPORT`，`LINUX_COMPILE_EXIT=0`。用户摘要记录 11 项名称、未执行测试、pending 消失和 builder 清理确认；结果 SHA-256 为 `c1ccabb430aa2e4ec64d1a9538933f66102459cd412eb7a4690bd38312f4fa49`。
+
+随后前置批次 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 的用户终端返回 `LINUX_PREREQUISITES_FAILED_NOT_IMPORT`、`LINUX_PREREQUISITES_EXIT=1`，阶段 `STRICT_LINUX_FORMAT_CLIPPY_COMPILE`，原因码 `Io`，实际用例0、无自动重放。`Io` 是通用异常映射，不能据此判断磁盘故障或哪项命令失败；默认库测试和 journal 专项尚未运行。独立 SSH 核对本批 builder 精确名称与标签均无残留，旧批次和封存源码保留。
+
+只读诊断脚本的16项解析检查、独立修复复审均通过；已上传到本批既有 hans 私有0700暂存目录，文件0400、12228字节、SHA-256 `35af222830a64199c1cf8d07cbfd984e0db518792afe5cf78105caec583f8f19`，服务器两次读取哈希一致。它只读取该失败批次的三份固定私有日志，输出阶段标记、错误码和仓库相对位置，不运行测试。SSH非交互sudo不可用，尚待用户Linux终端认证读取；不得将诊断的本地通过或上传核验作为前置门通过。
 
 实际 case 在全新源/目标出生证明签发后另编译 `probe-live-build`，分别嵌入 `KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256` 和原 `KNOWWEAVE_C4_TARGET_BIRTH_SHA256`。源出生使用同一完整验证器（state/issuance-success/无 failure、目录 dev/ino、PG 身份/cast/ACL），不构造第二个目标导入 admission，也不接受环境中的期望 hash 充当能力。源 guard 与原 SQLx challenge 持有到生产和签发完成。预检二进制不能执行实际 case；不同源码或编译 pin 不复用二进制。每次列举/执行前后复核只读二进制 SHA，记录两份 pin、源码 SHA、builder ID、列举摘要和 exact 名称。
 

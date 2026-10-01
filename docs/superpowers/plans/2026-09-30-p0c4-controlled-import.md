@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-**Task6 当前状态（2026-10-01）：** 十一项 ignored 源码、固定可信源签发与 phase-import runner 的本地实现及独立任务审查完成；整计划首次审查所提三项 Important 与一项输出问题由单次修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd` 解决，独立修复复审全部 ADDRESSED、无新增问题。Python 一次共享修改后完整回归258/258，随后窄修正以最终26/26定向覆盖；Windows journal4/4和格式检查通过。Linux no-run 与 11 项 ignored 名称列举已在新批次 `a3f5719a` 通过，用户终端退出0；独立核对 builder 名称及标签无残留，root 私有完整结果哈希核验列入下一轮前置门。Linux 严格 Clippy、默认库测试、journal no-follow/fsync 与实际 PG18 用例仍待执行，实际用例0/11，本施工单复选项不因编译或静态源码而关闭。下一轮全新 `b2af0b1a` 无 PG 前置门脚本已通过22/22本地模型、语法与独立审查，上传和哈希核验完成；待用户Linux终端sudo认证启动。早期状态段中的 M3 待办和计数属于历史记录，当前关闭边界以本段为准，失败证据保留。后续自主执行范围、资源预算及逐 case 证据规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
+**Task6 当前状态（2026-10-01）：** 十一项 ignored 源码、固定可信源签发与 phase-import runner 的本地实现及独立任务审查完成；整计划首次审查所提三项 Important 与一项输出问题由单次修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd` 解决，独立修复复审全部 ADDRESSED、无新增问题。Python 一次共享修改后完整回归258/258，随后窄修正以最终26/26定向覆盖；Windows journal4/4和格式检查通过。Linux no-run 与 11 项 ignored 名称列举已在批次 `a3f5719a` 通过，用户终端退出0。随后无PG前置批次 `b2af0b1a` 已执行并在格式／严格Clippy／编译组合阶段失败，退出1、通用原因码Io，具体步骤及根因待只读日志诊断；默认库测试、journal no-follow/fsync与实际PG18用例尚未运行，实际用例0/11。独立SSH核对两批builder名称及标签无残留；root私有完整记录尚未直接读取。只读诊断的16项解析检查及独立修复复审通过，上传及双次哈希核验完成，等待用户Linux终端sudo认证读取旧日志。原22/22前置脚本模型、封存源码和失败证据保留，不重跑旧批次；本施工单复选项不因编译或静态源码而关闭。早期状态段中的M3待办和计数属于历史记录，当前关闭边界以本段为准。后续自主执行范围、资源预算及逐case证据规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
 
 - 工作目录：`D:/codex/DeepLearning/.worktrees/knowweave-p0c4`；保留现有分支，不新建外部项目，不往C盘安装/生成依赖或测试数据。
 - 本地执行者在任务1设置 `CARGO_TARGET_DIR` 为该工作树的 `target/`，`TMP`/`TEMP` 为新建的 `.runtime/p0c4-controlled-import-tests/`；验证后恢复原环境。只读取已有工具/依赖缓存，不安装新运行时。Linux临时文件放本批root私有tmp目录。
