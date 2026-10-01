@@ -586,6 +586,21 @@ mod tests {
                     std::path::PathBuf::from(std::env::var_os("C4_STREAM_HOLDER_RELEASE").unwrap());
                 std::fs::write(release.with_extension("started"), b"").unwrap();
                 let limit = Instant::now() + Duration::from_secs(10);
+                if std::env::var_os("C4_STREAM_HOLDER_DELAY_ACK").is_some() {
+                    std::fs::write(release.with_extension("ack-waiting"), b"").unwrap();
+                    while !release.with_extension("ack-allow").exists() && Instant::now() < limit {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    std::fs::write(
+                        release.with_extension("release-seen"),
+                        if release.exists() {
+                            b"present".as_slice()
+                        } else {
+                            b"absent".as_slice()
+                        },
+                    )
+                    .unwrap();
+                }
                 while !release.exists() && Instant::now() < limit {
                     std::thread::sleep(Duration::from_millis(10));
                 }
@@ -598,6 +613,9 @@ mod tests {
                     .env_clear().env("C4_STREAM_FIXTURE", "pipe_holder")
                     .env("C4_STREAM_HOLDER_RELEASE", release)
                     .stdin(Stdio::null()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+                if std::env::var_os("C4_STREAM_HOLDER_DELAY_ACK").is_some() {
+                    holder.env("C4_STREAM_HOLDER_DELAY_ACK", "1");
+                }
                 let mut holder_child = holder.spawn().unwrap();
                 std::io::stdout().write_all(b"HOLDER_READY\n").unwrap();
                 std::io::stdout().flush().unwrap();
@@ -664,14 +682,379 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "linux")]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum BlockedStdinFault {
+        None,
+        Readiness,
+        Cleanup,
+        DelayedAck,
+    }
+
+    #[cfg(target_os = "linux")]
+    #[derive(Debug, PartialEq, Eq)]
+    enum BlockedStdinCleanup {
+        Skipped,
+        Completed(Result<(), ImportFailure>),
+        TimedOut,
+        Interrupted,
+    }
+
+    #[cfg(target_os = "linux")]
+    #[derive(Debug)]
+    struct BlockedStdinObservations {
+        readiness: Result<Option<Vec<u8>>, ImportFailure>,
+        started: bool,
+        send: Option<Result<(), ImportFailure>>,
+        cleanup: BlockedStdinCleanup,
+        settled_by_cleanup: bool,
+        exact_host: Option<(libc::pid_t, libc::pid_t, Option<i32>)>,
+        owner_empty: bool,
+        readers_finished: bool,
+        first_holder_ack: bool,
+        release_during_recovery: Option<bool>,
+        delayed_release_seen: Option<bool>,
+        holder_done: bool,
+        markers_removed: bool,
+        settlement_errors: Vec<String>,
+    }
+
+    #[cfg(target_os = "linux")]
+    impl BlockedStdinObservations {
+        fn rejected(&self) -> bool {
+            self.readiness != Ok(Some(b"HOLDER_READY\n".to_vec()))
+                || !self.started
+                || self.send != Some(Err(ImportFailure::Deadline))
+                || self.cleanup != BlockedStdinCleanup::Completed(Err(ImportFailure::Deadline))
+                || !self.first_holder_ack
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn observe_blocked_stdin_cleanup(
+        fault: BlockedStdinFault,
+    ) -> Result<BlockedStdinObservations, ImportFailure> {
+        use std::{future::Future, task::Poll};
+        let release =
+            std::env::temp_dir().join(format!("c4-stream-cleanup-fix1-{}", uuid::Uuid::new_v4()));
+        let mut markers = vec![
+            release.clone(),
+            release.with_extension("started"),
+            release.with_extension("done"),
+        ];
+        if fault == BlockedStdinFault::DelayedAck {
+            markers.extend([
+                release.with_extension("ack-waiting"),
+                release.with_extension("ack-allow"),
+                release.with_extension("release-seen"),
+            ]);
+        }
+        let mut command = Command::new(std::env::current_exe().map_err(|_| ImportFailure::Io)?);
+        command.args(["--exact", "restore_preflight::target_binding::controlled_import::stream::tests::process_fixture", "--nocapture"])
+            .env_clear().env("C4_STREAM_FIXTURE", "spawn_pipe_holder_block")
+            .env("C4_STREAM_HOLDER_RELEASE", &release);
+        if fault == BlockedStdinFault::DelayedAck {
+            command.env("C4_STREAM_HOLDER_DELAY_ACK", "1");
+        }
+        let mut owner = spawn_stream(
+            command,
+            StreamBudget::test(Duration::from_secs(3), 1024, 1024),
+        )?;
+        let pid = owner
+            .child
+            .as_ref()
+            .and_then(Child::id)
+            .map(|id| id as libc::pid_t);
+        let stdout = owner.stdout_task.as_ref().map(JoinHandle::abort_handle);
+        let stderr = owner.stderr_task.as_ref().map(JoinHandle::abort_handle);
+        let actual_readiness = fixture_line(&mut owner).await;
+        let started = tokio::time::timeout(Duration::from_secs(1), async {
+            while !markers[1].exists() {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .is_ok();
+        let readiness = if fault == BlockedStdinFault::Readiness
+            && actual_readiness == Ok(Some(b"HOLDER_READY\n".to_vec()))
+        {
+            Err(ImportFailure::Protocol)
+        } else {
+            actual_readiness
+        };
+        let mut send = None;
+        let mut cleanup = BlockedStdinCleanup::Skipped;
+        if readiness == Ok(Some(b"HOLDER_READY\n".to_vec())) && started {
+            if fault == BlockedStdinFault::Cleanup {
+                // Poll real cleanup, then cancel the borrowed future with its
+                // still-owned process/readers intact for common settlement.
+                let operation = owner.kill_and_wait();
+                tokio::pin!(operation);
+                cleanup = std::future::poll_fn(|cx| {
+                    Poll::Ready(match operation.as_mut().poll(cx) {
+                        Poll::Pending => BlockedStdinCleanup::Interrupted,
+                        Poll::Ready(result) => BlockedStdinCleanup::Completed(result),
+                    })
+                })
+                .await;
+            } else {
+                owner.deadline = Instant::now() + Duration::from_millis(250);
+                send = Some(owner.send(&vec![b'x'; 8 * 1024 * 1024]).await);
+                if send == Some(Err(ImportFailure::Deadline)) {
+                    cleanup =
+                        match tokio::time::timeout(Duration::from_secs(1), owner.kill_and_wait())
+                            .await
+                        {
+                            Ok(result) => BlockedStdinCleanup::Completed(result),
+                            Err(_) => BlockedStdinCleanup::TimedOut,
+                        };
+                }
+            }
+        }
+        let settled_by_cleanup =
+            owner.child.is_none() && owner.stdout_task.is_none() && owner.stderr_task.is_none();
+        // Every observation, including rejection/timeout, reaches this path
+        // before any assertion. Release only this UUID's holder and explicitly
+        // settle any handles left by a cancelled or unsuccessful cleanup.
+        let mut settlement_errors = Vec::new();
+        if let Err(error) = std::fs::write(&release, b"") {
+            settlement_errors.push(format!("release: {error}"));
+        }
+        drop(owner.stdin.take());
+        if let Some(child) = owner.child.as_mut() {
+            let kill = child.start_kill();
+            match child.wait().await {
+                Ok(_) => {
+                    owner.child.take();
+                }
+                Err(error) => {
+                    settlement_errors.push(format!("child wait: {error}; kill: {kill:?}"));
+                }
+            }
+        }
+        if let Some(task) = owner.stdout_task.as_ref() {
+            task.abort();
+        }
+        if let Some(task) = owner.stderr_task.as_ref() {
+            task.abort();
+        }
+        if let Some(task) = owner.stdout_task.take()
+            && let Err(error) = task.await
+            && !error.is_cancelled()
+        {
+            settlement_errors.push(format!("stdout join: {error}"));
+        }
+        if let Some(task) = owner.stderr_task.take() {
+            match task.await {
+                Ok(Ok(_)) => {}
+                Err(error) if error.is_cancelled() => {}
+                result => settlement_errors.push(format!("stderr join: {result:?}")),
+            }
+        }
+        let first_holder_ack = tokio::time::timeout(Duration::from_secs(2), async {
+            while !markers[2].exists() {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .is_ok();
+        let mut holder_done = first_holder_ack;
+        let mut release_during_recovery = None;
+        if !first_holder_ack {
+            settlement_errors.push("first holder acknowledgement timed out".to_owned());
+            // Keep release asserted throughout bounded recovery. Its first
+            // timeout remains rejection even when acknowledgement recovers.
+            release_during_recovery = Some(release.exists());
+            if fault == BlockedStdinFault::DelayedAck
+                && let Err(error) = std::fs::write(release.with_extension("ack-allow"), b"")
+            {
+                settlement_errors.push(format!("allow delayed acknowledgement: {error}"));
+            }
+            holder_done = tokio::time::timeout(Duration::from_secs(2), async {
+                while !markers[2].exists() {
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            })
+            .await
+            .is_ok();
+            if !holder_done {
+                settlement_errors.push("holder acknowledgement recovery timed out".to_owned());
+            }
+        }
+        let delayed_release_seen = if fault == BlockedStdinFault::DelayedAck && holder_done {
+            match std::fs::read(release.with_extension("release-seen")) {
+                Ok(bytes) => Some(bytes == b"present"),
+                Err(error) => {
+                    settlement_errors.push(format!("delayed release witness: {error}"));
+                    Some(false)
+                }
+            }
+        } else {
+            None
+        };
+        // An unconfirmed holder keeps custody of its release request and
+        // markers; absence is never claimed before acknowledgement.
+        if holder_done {
+            for marker in &markers {
+                if let Err(error) = std::fs::remove_file(marker)
+                    && error.kind() != std::io::ErrorKind::NotFound
+                {
+                    settlement_errors.push(format!("remove own marker: {error}"));
+                }
+            }
+        }
+        let exact_host = pid.map(|pid| {
+            // SAFETY: WNOHANG queries only this test's exact child PID.
+            let result = unsafe { libc::waitpid(pid, std::ptr::null_mut(), libc::WNOHANG) };
+            (pid, result, std::io::Error::last_os_error().raw_os_error())
+        });
+        Ok(BlockedStdinObservations {
+            readiness,
+            started,
+            send,
+            cleanup,
+            settled_by_cleanup,
+            exact_host,
+            owner_empty: owner.child.is_none()
+                && owner.stdin.is_none()
+                && owner.stdout_task.is_none()
+                && owner.stderr_task.is_none(),
+            readers_finished: stdout.is_some_and(|task| task.is_finished())
+                && stderr.is_some_and(|task| task.is_finished()),
+            first_holder_ack,
+            release_during_recovery,
+            delayed_release_seen,
+            holder_done,
+            markers_removed: markers.iter().all(|marker| !marker.exists()),
+            settlement_errors,
+        })
+    }
+
+    #[cfg(target_os = "linux")]
+    fn assert_blocked_stdin_fixture_settled(observed: &BlockedStdinObservations) {
+        assert!(
+            observed.owner_empty && observed.readers_finished,
+            "{observed:?}"
+        );
+        assert!(
+            observed.holder_done && observed.markers_removed,
+            "{observed:?}"
+        );
+        let (_, wait, errno) = observed.exact_host.expect("exact host PID witness missing");
+        assert_eq!(wait, -1);
+        assert_eq!(errno, Some(libc::ECHILD));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn blocked_stdin_deadline_settles_inherited_pipe_readers() {
+        let observed = observe_blocked_stdin_cleanup(BlockedStdinFault::None)
+            .await
+            .unwrap();
+        assert_blocked_stdin_fixture_settled(&observed);
+        assert!(observed.settlement_errors.is_empty(), "{observed:?}");
+        assert_eq!(observed.readiness, Ok(Some(b"HOLDER_READY\n".to_vec())));
+        assert!(observed.started);
+        assert_eq!(observed.send, Some(Err(ImportFailure::Deadline)));
+        assert_eq!(
+            observed.cleanup,
+            BlockedStdinCleanup::Completed(Err(ImportFailure::Deadline))
+        );
+        assert!(
+            observed.settled_by_cleanup,
+            "production cleanup did not settle its handles"
+        );
+        assert!(!observed.rejected());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn blocked_stdin_failure_observations_settle_before_rejection() {
+        for fault in [BlockedStdinFault::Readiness, BlockedStdinFault::Cleanup] {
+            let observed = observe_blocked_stdin_cleanup(fault).await.unwrap();
+            assert_blocked_stdin_fixture_settled(&observed);
+            assert!(observed.settlement_errors.is_empty(), "{observed:?}");
+            assert!(
+                observed.rejected(),
+                "injected rejection was accepted as success"
+            );
+            match fault {
+                BlockedStdinFault::Readiness => {
+                    assert_eq!(observed.readiness, Err(ImportFailure::Protocol));
+                    assert_eq!(observed.cleanup, BlockedStdinCleanup::Skipped);
+                }
+                BlockedStdinFault::Cleanup => {
+                    assert_eq!(observed.cleanup, BlockedStdinCleanup::Interrupted);
+                }
+                BlockedStdinFault::None | BlockedStdinFault::DelayedAck => unreachable!(),
+            }
+            eprintln!(
+                "C4_FIX1_GREEN fault={fault:?} rejection_preserved=true observed={observed:?}"
+            );
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn blocked_stdin_late_holder_ack_retains_release_and_rejection() {
+        let observed = observe_blocked_stdin_cleanup(BlockedStdinFault::DelayedAck)
+            .await
+            .unwrap();
+        assert_blocked_stdin_fixture_settled(&observed);
+        assert_eq!(observed.readiness, Ok(Some(b"HOLDER_READY\n".to_vec())));
+        assert!(observed.started);
+        assert_eq!(observed.send, Some(Err(ImportFailure::Deadline)));
+        assert_eq!(
+            observed.cleanup,
+            BlockedStdinCleanup::Completed(Err(ImportFailure::Deadline))
+        );
+        assert!(observed.settled_by_cleanup);
+        assert!(!observed.first_holder_ack);
+        assert_eq!(observed.release_during_recovery, Some(true));
+        assert_eq!(observed.delayed_release_seen, Some(true));
+        assert_eq!(
+            observed.settlement_errors,
+            ["first holder acknowledgement timed out"]
+        );
+        assert!(
+            observed.rejected(),
+            "recovered first acknowledgement timeout became success"
+        );
+        eprintln!("C4_FIX2_GREEN rejection_preserved=true observed={observed:?}");
+    }
+
     #[tokio::test]
     async fn blocked_stdin_obeys_total_deadline() {
         let mut owner = fixture("blocked", Duration::from_millis(250), 1024, 1024);
+        #[cfg(target_os = "linux")]
+        let pid = owner.child.as_ref().unwrap().id().unwrap() as libc::pid_t;
+        let stdout = owner.stdout_task.as_ref().unwrap().abort_handle();
+        let stderr = owner.stderr_task.as_ref().unwrap().abort_handle();
         assert_eq!(
             owner.send(&vec![b'x'; 8 * 1024 * 1024]).await,
             Err(ImportFailure::Deadline)
         );
-        owner.kill_and_wait().await.unwrap();
+        // At the expired total deadline, readers may have observed EOF already
+        // or may require abort-and-await. Both outcomes must fully settle.
+        assert!(matches!(
+            owner.kill_and_wait().await,
+            Ok(()) | Err(ImportFailure::Deadline)
+        ));
+        assert!(owner.child.is_none() && owner.stdin.is_none());
+        assert!(owner.stdout_task.is_none() && owner.stderr_task.is_none());
+        assert!(stdout.is_finished() && stderr.is_finished());
+        #[cfg(target_os = "linux")]
+        {
+            // SAFETY: WNOHANG only queries this test's exact child PID.
+            assert_eq!(
+                unsafe { libc::waitpid(pid, std::ptr::null_mut(), libc::WNOHANG) },
+                -1
+            );
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(libc::ECHILD)
+            );
+        }
     }
 
     #[tokio::test]

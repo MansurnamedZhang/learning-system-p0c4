@@ -2,7 +2,7 @@
 
 **状态：实施中；未验收；非生产。**
 
-**2026-10-01 最新现场进度：旧源码 Linux 编译及11项 ignored名称列举通过；后续格式门通过、严格Clippy失败。窄修复及独立审查完成，新源码待全新 Linux 前置门，实际导入0/11。** 编译批次 `a3f5719a-afe4-43e2-a78b-1ab1d9fc049c` 的用户终端摘要为 `LINUX_COMPILE_AND_ELEVEN_TESTS_LISTED_NOT_EXECUTED_NOT_IMPORT`、退出0，结果 SHA-256 `c1ccabb430aa2e4ec64d1a9538933f66102459cd412eb7a4690bd38312f4fa49`，路径 `/var/lib/knowweave-c4/controlled-import/batches/a3f5719a-afe4-43e2-a78b-1ab1d9fc049c/evidence/result.json`。摘要记录 `tests_executed=false`、pending 消失与 builder 清理；控制者独立 SSH 检查精确 builder 名称与标签均无残留，尚未直接读取 root 私有完整 JSON。
+**2026-10-01 最新现场进度：批次9583c1ba的格式／严格Clippy／no-run全部通过，普通库125通过／1失败／19忽略；journal与11项实际导入尚未开始。** 用户回传的只读诊断将唯一失败定位到阻塞stdin测试的清理返回值断言，历史错误值与实际测试退出码仍未知。测试合同窄修补及失败路径收束已完成独立规格／质量复审PASS；最终普通用户Linux隔离验证为格式0、严格Clippy0、管道26通过、库129通过／19忽略。源码LF SHA-256 `5712042c3de003e994cf7551be799dd5475f77516b11f0aa787f237d47d4b478`；I1/I2均ADDRESSED，生产算法与导入门槛未改。下一步封存此源码并运行全新root前置批次，不能据普通用户验证关闭canonical、journal、实际导入0/11或C4整关。下面b2af等为保留的历史失败记录。
 
 后续 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 用户终端摘要为 `LINUX_PREREQUISITES_FAILED_NOT_IMPORT`、退出1，阶段 `STRICT_LINUX_FORMAT_CLIPPY_COMPILE`、通用原因码 `Io`、实际用例0且无自动重放。用户返回的只读诊断有效标记前缀明确为 FORMAT_BEGIN、FORMAT_PASS、CLIPPY_BEGIN；格式门通过，严格Clippy未通过，no-run、默认库测试与 journal no-follow/fsync尚未开始。7处源码位置已核对，诊断的静态白名单仅确认 `clippy::collapsible_if`，其余 lint 名称来自源码推断，完整根因未由原错误文字穷举。独立只读 SSH 已确认本批 builder 精确名称与标签均无残留。该轮原脚本的22/22本地模型及审查结果保留，不能代替这次Linux失败结果。
 

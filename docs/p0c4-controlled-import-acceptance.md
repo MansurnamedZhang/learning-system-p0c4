@@ -1,6 +1,6 @@
 # P0-C4 固定 fixture 导入：静态实现与后续验收
 
-**当前已完成本地静态实现、整计划首次代码审查及一次修复独立复审；三项 Important 和一项输出待办全部 ADDRESSED，未发现修复引入的新问题。Linux 编译与 11 项 ignored 测试名称列举已通过；后续格式／严格 Clippy／编译组合门失败，库测试与 journal 文件专项尚未开始，实际导入用例仍为 0/11。** 编译证据来自用户终端摘要，控制者另已独立核对两个批次的精确 builder 名称与标签均无残留；root 私有完整记录尚未直接读取。组合门的具体失败步骤和根因待只读日志诊断。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。默认/发布构建没有新写入口，`CompleteBackup`、生产恢复、资产/任务恢复、构建 pin、runtime/Worker 放行及 C4 整关均未验收。
+**当前已完成固定 fixture 导入的本地实现与代码审查；Linux 新源码的格式、严格 Clippy 和 no-run 已通过。批次 `9583c1ba` 的普通库测试为125通过／1失败／19忽略，journal尚未运行，实际导入仍为0/11。** 失败定位到 `blocked_stdin_obeys_total_deadline` 的清理返回值断言；历史具体错误值、调度触发和测试退出码未被脱敏诊断记录。后续普通用户 Linux 隔离验证证明清理返回 Deadline 可同时完成精确子进程与 reader 回收，据此修正测试合同并补齐失败路径；最终格式与严格 Clippy退出0、管道26通过、库129通过／19忽略，独立规格与质量复审PASS，I1/I2均ADDRESSED。新源码仍须在全新root批次通过普通库和journal前置门；不能将普通用户诊断当作root验收。默认/发布构建没有新写入口，CompleteBackup、生产恢复和C4整关均未验收。
 
 2026-10-01 本地修复验证：共享 stop/close 修复后，P0-C4 Python 一次完整回归 258/258，候选 journal Windows 模型 4/4，格式检查退出0。其后补齐诊断输出管道失败与 builder 清理截止传播，仅作定向验证：32/32，最后加入成功清理合同覆盖后26/26；未重复全量回归，不能称最终所有源码全套通过。修正 Linux ignored journal 测试的构造函数同名变量，不将 Windows 模型当作 Linux 编译证据。历史 M3 的 37/38 失败及清理资源警告保留；确定性测试证明原关闭分支会跳过 reader 清理，新实现保留未完成的精确子进程、reader 和管道所有权。一次原计时测试诊断未重现历史 PID39808 的调度，不宣称已重建其原因。
 
@@ -27,6 +27,12 @@ builder 从实际 run 起另保存该编译操作的原绝对截止；继承的�
 用户已在 Linux 终端执行经过审查的只读诊断。有效标记序列为 FORMAT_BEGIN、FORMAT_PASS、CLIPPY_BEGIN，故格式门通过，失败停在严格 Clippy；no-run、默认库测试和 journal 专项尚未开始。诊断列出7处 Rust 源码位置，静态白名单仅确认 `clippy::collapsible_if`，未穷举其余 lint，也未读取完整错误文字；不能把通用 `Io` 或 broad tool-error 标志当成磁盘/依赖故障证据。诊断脚本 SHA-256 `35af222830a64199c1cf8d07cbfd984e0db518792afe5cf78105caec583f8f19`，原 stderr SHA-256 `3ec07ec898e37015a2046d6b1a6aa0ef1829d2fc9b58aa800855fcc2f1488b91`。
 
 修复提交 `d70e6eb3ec7febb197e85bce5e0246abf30311fc` 仅调整4个 Rust 文件中的测试辅助代码编译范围、一个可变绑定及两处条件写法；独立规格/代码质量审查均 PASS，未改变导入权限、固定夹具、哈希、截止时间或清理语义。Windows 包内库119/119、格式退出0、严格 package all-targets Clippy退出0；格式仅有退出码文件和报告称空输出，没有保留的输出日志。Linux普通库及测试构建尚待全新隔离前置门，实际导入仍0/11；旧失败批次不重跑。
+
+新批次 `9583c1ba-2d08-4d84-b21d-fe8937c09610` 的用户回传只读诊断记录六项FORMAT／CLIPPY／NO_RUN标记按序各出现一次，全部完成；唯一失败测试位于 `stream.rs:674:37` 的 `kill_and_wait().await.unwrap()`。库stdout20448字节，SHA-256 `cf2b34d1873352580262a7cfe21e6dde75986bf3d99e8aac3ad608a177555fea`，stderr为空。诊断仍明确 `test_exit_code=null`、summary不一致标志及 `root_cause_established=false`；控制者未直接读取root私有完整日志，保留这些限制，不把确定性复现当成历史错误值证明。
+
+后续窄修补只在测试模块内调整清理断言及其资源收束用例。阻塞stdin后仍必须返回Deadline；清理只允许Ok或Deadline，并核对精确子进程ECHILD、句柄消耗及reader完成。新增失败路径先保存拒绝结果，收束本用例资源后再断言；辅助进程首次确认超时必须保留失败和退出通知，确认完成前不得删除通知。独立审查所提I1/I2经两轮修复复审全部ADDRESSED，无新增问题。最终源文件LF SHA-256 `5712042c3de003e994cf7551be799dd5475f77516b11f0aa787f237d47d4b478`；最终Linux隔离日志为格式0、严格all-targets/all-features Clippy0、管道26／库129通过、19忽略。延迟确认用例实际观察通知在恢复期间保留、辅助进程见到通知、首次超时仍拒绝以及最终本用例标记清理。此证据不承诺任意进程树生命周期、永久调度/文件系统故障恢复，成功done仍只是辅助进程协议确认。
+
+新canonical前置门保留原截止、资源所有权、持久发布和严格通过条件，只使用全新批次。旧失败批次、源码和日志保留且不重跑；journal和11项实际导入仍未执行。本轮不扩大导入权限、生产算法或恢复范围。
 
 实际 case 在全新源/目标出生证明签发后另编译 `probe-live-build`，分别嵌入 `KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256` 和原 `KNOWWEAVE_C4_TARGET_BIRTH_SHA256`。源出生使用同一完整验证器（state/issuance-success/无 failure、目录 dev/ino、PG 身份/cast/ACL），不构造第二个目标导入 admission，也不接受环境中的期望 hash 充当能力。源 guard 与原 SQLx challenge 持有到生产和签发完成。预检二进制不能执行实际 case；不同源码或编译 pin 不复用二进制。每次列举/执行前后复核只读二进制 SHA，记录两份 pin、源码 SHA、builder ID、列举摘要和 exact 名称。
 
