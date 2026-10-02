@@ -10,11 +10,17 @@
 
 **Spec:** [已获批准的首次写入设计](../specs/2026-09-30-p0c4-controlled-import-design.md)。开始编码前执行者必须同时阅读本计划与规格。
 
-**Status:** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3提交 `f815b6e62bc78abe45b0610876ce4926e5346835` 已完成候选attempt/提交意图、两道sync屏障及同目录/writer/初始SHA绑定；定向4/4、包内库70/70、格式及严格Clippy通过，独立规格/质量Approved。Task3真实Linux no-follow/fsync门尚未编译/执行，留给另授权批次。Task4实现 `1e4dbda`、修复 `986137b` 已完成本地管道/取消状态机及独立审查：最终管道15/15、状态机3/3、相邻监督器5/5、格式/严格Clippy通过；修复前包内库83/83，修复后未重复全包。独立审查发现的过期finish竞态和继承管道清理阻塞两项Important已修复并复审全部ADDRESSED，未发现新增阻断。Task5实现 `fae1e56`、修复 `fbdcd1a`/`cfea8e5` 已完成私有同writer准入、持久屏障、首次提交尝试与清理整合，四项Important经两轮独立复审全部ADDRESSED。本地组合61/61后仅强化两项测试断言，定向2/2；后续交接修复定向4/4及严格Clippy通过，未重复全包。Linux组合尚未编译，真实PG18谓词与可信来源签发T5-PROVENANCE-01仍待Task6。Task6开始静态实现；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
+**历史实施状态（截至初始实现）：** 用户于2026-09-30以“开始”批准本施工单。Task1已完成本地实现/修复复审、真实PG18开放stdin合同、合成工件采集/导出/下载哈希核对和独立实产审查，现场状态为 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`；旧失败批次全部保留。Task2提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b` 已完成dump冻结、来源于实产的完整SQL模板、变长key边界和四种SET LOCAL转换；定向7/7、包内库66/66、格式及严格package Clippy通过，独立规格/质量审查Approved。上述Task2结果仅为Windows纯模型；后续整合必须绑定已审查dump摘要/TOC、实际no-follow输入及固定PG客户端。Task3提交 `f815b6e62bc78abe45b0610876ce4926e5346835` 已完成候选attempt/提交意图、两道sync屏障及同目录/writer/初始SHA绑定；定向4/4、包内库70/70、格式及严格Clippy通过，独立规格/质量Approved。Task3真实Linux no-follow/fsync门尚未编译/执行，留给另授权批次。Task4实现 `1e4dbda`、修复 `986137b` 已完成本地管道/取消状态机及独立审查：最终管道15/15、状态机3/3、相邻监督器5/5、格式/严格Clippy通过；修复前包内库83/83，修复后未重复全包。独立审查发现的过期finish竞态和继承管道清理阻塞两项Important已修复并复审全部ADDRESSED，未发现新增阻断。Task5实现 `fae1e56`、修复 `fbdcd1a`/`cfea8e5` 已完成私有同writer准入、持久屏障、首次提交尝试与清理整合，四项Important经两轮独立复审全部ADDRESSED。本地组合61/61后仅强化两项测试断言，定向2/2；后续交接修复定向4/4及严格Clippy通过，未重复全包。Linux组合尚未编译，真实PG18谓词与可信来源签发T5-PROVENANCE-01仍待Task6。Task6开始静态实现；尚未执行目标导入。既有完整Python回归231/232，M3计时断言原因未证实，保留给最终整分支审查，不能称完整回归通过。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`、设计基线 `cd2dc96046ff4d03fb33cc38c00f138803727bbd`；沿用逐任务子代理实现及独立审查，新服务器文件/资源分别授权。验收边界见[合同与工件采集说明](../../p0c4-controlled-import-contract-acceptance.md)及[验证记录](../../p0c4-verification.md)。
+
+## 当前收口状态（2026-10-03）
+
+Task6 的限定技术验收已接受：累计固定合成导入 11/11，当前 17153d8 实际 7/11，历史四项来源保留且覆盖适用性已审查。必要前置 146/19 + journal1、格式/包级检查，以及 dda83916 的集成 37/2、doc exit0（零用例）、workspace 严格 Clippy exit0 已闭合。回传与精确 Docker 隔离核验均已接受；正常文档提交同步尚待完成。
+
+详见[Task6 验收汇总](../../p0c4-controlled-import-task6-final.md)。本计划仅单机固定合成 fixture，不表示上层 C4、完整恢复、独立备份目标或 CompleteBackup 验收完成。旧记录与失败批次封存，不重跑。
 
 ## Global Constraints
 
-**Task6 当前状态（2026-10-01）：** 十一项ignored源码、固定可信源签发与phase-import runner已完成本地实现及独立任务/整计划审查，既有三项Important和输出问题均ADDRESSED。Linux编译与11项ignored名称列举已通过；随后b2af严格Clippy失败，窄修补完成。全新9583c1ba的六项FORMAT/CLIPPY/NO_RUN标记按序完整通过，但普通库125通过／1失败／19忽略；唯一失败在阻塞stdin测试的清理unwrap，历史具体错误值和实际测试退出码仍未知。后续测试合同与资源收束窄修补，经真实Linux失败用例及独立两轮复审完成，I1/I2全部ADDRESSED，无新增问题；最终普通用户Linux格式与严格all-targets/all-features Clippy退出0、管道26通过、库129通过／19忽略。测试修补不改变生产算法、导入权限、截止或验收条件；只新增opt-in辅助进程延迟确认，用于验证退出通知保留及首次超时仍拒绝。下一步使用封存Git字节和全新root批次重跑前置门；journal尚未执行，实际导入仍0/11，本施工单复选项不因编译、普通用户验证或静态审查而关闭。旧源码/失败批次/原始证据保留且不重跑，root私有完整日志未由控制者直接读取。后续自主执行、预算及逐case规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
+**Task6 历史状态（2026-10-01）：** 十一项ignored源码、固定可信源签发与phase-import runner已完成本地实现及独立任务/整计划审查，既有三项Important和输出问题均ADDRESSED。Linux编译与11项ignored名称列举已通过；随后b2af严格Clippy失败，窄修补完成。全新9583c1ba的六项FORMAT/CLIPPY/NO_RUN标记按序完整通过，但普通库125通过／1失败／19忽略；唯一失败在阻塞stdin测试的清理unwrap，历史具体错误值和实际测试退出码仍未知。后续测试合同与资源收束窄修补，经真实Linux失败用例及独立两轮复审完成，I1/I2全部ADDRESSED，无新增问题；最终普通用户Linux格式与严格all-targets/all-features Clippy退出0、管道26通过、库129通过／19忽略。测试修补不改变生产算法、导入权限、截止或验收条件；只新增opt-in辅助进程延迟确认，用于验证退出通知保留及首次超时仍拒绝。下一步使用封存Git字节和全新root批次重跑前置门；journal尚未执行，实际导入仍0/11，本施工单复选项不因编译、普通用户验证或静态审查而关闭。旧源码/失败批次/原始证据保留且不重跑，root私有完整日志未由控制者直接读取。后续自主执行、预算及逐case规则见 [受控导入验收说明](../../p0c4-controlled-import-acceptance.md)。
 
 - 工作目录：`D:/codex/DeepLearning/.worktrees/knowweave-p0c4`；保留现有分支，不新建外部项目，不往C盘安装/生成依赖或测试数据。
 - 本地执行者在任务1设置 `CARGO_TARGET_DIR` 为该工作树的 `target/`，`TMP`/`TEMP` 为新建的 `.runtime/p0c4-controlled-import-tests/`；验证后恢复原环境。只读取已有工具/依赖缓存，不安装新运行时。Linux临时文件放本批root私有tmp目录。
@@ -132,8 +138,8 @@ assert!(precommit.accept(ImportEvent::CommitPermitRequested).is_err());
 
 ignored测试的完整前缀固定为 `restore_preflight::target_binding::controlled_import::live_tests::`，runner只接受case对应一项exact测试、实际一项passed/零ignored/退出0及全部检查点。先做磁盘/内存只读预检，申报新源/目标/克隆卷与编译预算；同一封存源码/builder生成的测试二进制可只读共享并逐次复核SHA，PG资源和数据不共享。不同源码/二进制不得混用旧编译结果。
 
-- [ ] 写RED：runner `test_missing_gate1_attestation_prevents_creation`、`test_selects_one_exact_live_test`、`test_negative_is_not_success_without_expected_evidence`、`test_final_result_requires_stop_and_no_pending`、`test_commit_unknown_is_never_reported_as_rollback`。所有正常/负例必须新目标，不接受已有资源；先编译/列举所有Linux ignored测试，不把未运行记通过。
-- [ ] 新增以下真实ignored门；每一场景使用独立新批次，取消逐项人工确认也不得复用目标：
+- [x] 写RED：runner `test_missing_gate1_attestation_prevents_creation`、`test_selects_one_exact_live_test`、`test_negative_is_not_success_without_expected_evidence`、`test_final_result_requires_stop_and_no_pending`、`test_commit_unknown_is_never_reported_as_rollback`。所有正常/负例必须新目标，不接受已有资源；先编译/列举所有Linux ignored测试，不把未运行记通过。
+- [x] 新增以下真实ignored门；每一场景使用独立新批次，取消逐项人工确认也不得复用目标：
 
 | case / 测试名 | 必须观察的结果 |
 |---|---|
@@ -149,8 +155,8 @@ ignored测试的完整前缀固定为 `restore_preflight::target_binding::contro
 | `commit-unknown` / `live_controlled_import_commit_confirmation_lost` | intent先持久，确认丢失或部分发送判未知，不能宣称回滚/允许重试 |
 | `wrong-endpoint` / `live_controlled_import_same_id_wrong_endpoint` | 新主/物理克隆同ID/OID，但实际writer双锁断言拒绝；无对象/attempt，双容器精确停机留卷 |
 
-- [ ] 每个case先跑本地runner断言与真实编译检查，再单独封存Git字节ZIP/manifest/runner并独立核对；由执行者按当前自主授权记录封存哈希，仅运行固定case和新隔离资源。门失败即保留，不在原项目重跑；修订从新包/新UUID开始。
-- [ ] controller核对用户root回传完整脱敏JSON、result/inspection摘要和PENDING_ABSENT，并独立只读核对Docker精确ID停机/留卷。合成fixture可公开的工件与root私有日志分别标记来源，不能称已独立读取无法访问的root文件。
+- [x] 每个case先跑本地runner断言与真实编译检查，再单独封存Git字节ZIP/manifest/runner并独立核对；由执行者按当前自主授权记录封存哈希，仅运行固定case和新隔离资源。门失败即保留，不在原项目重跑；修订从新包/新UUID开始。
+- [x] controller核对用户root回传完整脱敏JSON、result/inspection摘要和PENDING_ABSENT，并独立只读核对Docker精确ID停机/留卷。合成fixture可公开的工件与root私有日志分别标记来源，不能称已独立读取无法访问的root文件。
 - [ ] 整计划独立复审无阻断，定向回归与必要工作区编译/格式/严格Clippy通过；新Linux各必过门证据完整才关闭计划。成功只标 `CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE`；更新路标但C4整关、CompleteBackup与生产仍未验收。提交文档与代码并正常同步既有GitHub分支，不强推/main/合并。
 
 ## 计划自检与执行交接
