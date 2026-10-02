@@ -14,7 +14,7 @@
 
 ## 当前收口状态（2026-10-03）
 
-Task6 的限定技术验收已接受：累计固定合成导入 11/11，当前 17153d8 实际 7/11，历史四项来源保留且覆盖适用性已审查。必要前置 146/19 + journal1、格式/包级检查，以及 dda83916 的集成 37/2、doc exit0（零用例）、workspace 严格 Clippy exit0 已闭合。回传与精确 Docker 隔离核验均已接受；正常文档提交同步尚待完成。
+Task6 的限定技术验收已接受：累计固定合成导入 11/11，当前 17153d8 实际 7/11，历史四项来源保留且覆盖适用性已审查。必要前置 146/19 + journal1、格式/包级检查，以及 dda83916 的集成 37/2、doc exit0（零用例）、workspace 严格 Clippy exit0 已闭合。回传与精确 Docker 隔离核验均已接受；源码与验收文档已正常同步至既有 feature 分支（提交 `4b551b9`，远端 SHA/tree 独立核对一致）。本施工单 Task6 的限定范围关闭。
 
 详见[Task6 验收汇总](../../p0c4-controlled-import-task6-final.md)。本计划仅单机固定合成 fixture，不表示上层 C4、完整恢复、独立备份目标或 CompleteBackup 验收完成。旧记录与失败批次封存，不重跑。
 
@@ -157,7 +157,7 @@ ignored测试的完整前缀固定为 `restore_preflight::target_binding::contro
 
 - [x] 每个case先跑本地runner断言与真实编译检查，再单独封存Git字节ZIP/manifest/runner并独立核对；由执行者按当前自主授权记录封存哈希，仅运行固定case和新隔离资源。门失败即保留，不在原项目重跑；修订从新包/新UUID开始。
 - [x] controller核对用户root回传完整脱敏JSON、result/inspection摘要和PENDING_ABSENT，并独立只读核对Docker精确ID停机/留卷。合成fixture可公开的工件与root私有日志分别标记来源，不能称已独立读取无法访问的root文件。
-- [ ] 整计划独立复审无阻断，定向回归与必要工作区编译/格式/严格Clippy通过；新Linux各必过门证据完整才关闭计划。成功只标 `CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE`；更新路标但C4整关、CompleteBackup与生产仍未验收。提交文档与代码并正常同步既有GitHub分支，不强推/main/合并。
+- [x] 整计划独立复审无阻断，定向回归与必要工作区编译/格式/严格Clippy通过；新Linux各必过门证据完整才关闭计划。成功只标 `CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE`；更新路标但C4整关、CompleteBackup与生产仍未验收。提交文档与代码并正常同步既有GitHub分支，不强推/main/合并。
 
 ## 计划自检与执行交接
 

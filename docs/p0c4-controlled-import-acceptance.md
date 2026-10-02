@@ -4,7 +4,7 @@
 
 固定合成 fixture 的累计现场场景 11/11 已接受；当前 17153d8 源码实际 7/11，历史四项保留 5619026 来源并经差异复审携带。新 dda83916 批次集成回归 37 通过 / 2 忽略、文档测试 exit0（0 可执行用例）、工作区严格 Clippy exit0，三门全部接受，not_run=[]。
 
-完整返回、publisher 哈希重建、逐目标名称/源码/二进制摘要和独立精确 Docker 停机/留卷/清理已核对。限定 Task6 技术条件闭合，正常文档提交同步待收尾；完整恢复、P0-C4 整关和 CompleteBackup 未验收。当前状态与证据范围见[Task6 验收汇总](p0c4-controlled-import-task6-final.md)。
+完整返回、publisher 哈希重建、逐目标名称/源码/二进制摘要和独立精确 Docker 停机/留卷/清理已核对。限定 Task6 已完成验收与正常分支同步；完整恢复、P0-C4 整关和 CompleteBackup 未验收。当前状态与证据范围见[Task6 验收汇总](p0c4-controlled-import-task6-final.md)。
 
 以下为历史实施与交接记录；旧交接命令已执行或作废，不再运行，旧失败证据保留。
 
