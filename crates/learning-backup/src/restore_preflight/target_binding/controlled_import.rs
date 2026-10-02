@@ -1,6 +1,8 @@
 //! Private controlled-fixture composition. No product restore authority.
 mod candidate_attempt;
 mod commands;
+#[cfg(test)]
+mod diagnostics;
 mod fixture_sql;
 #[cfg(all(test, target_os = "linux"))]
 mod linux;

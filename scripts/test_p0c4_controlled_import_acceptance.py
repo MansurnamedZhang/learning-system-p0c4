@@ -1306,6 +1306,182 @@ class ImportPhaseTests(unittest.TestCase):
             with self.assertRaises(runner.ImportRejected):
                 backend._markers(target, observation)
 
+
+    def diagnostic(self, **changes):
+        value = {'schema': 1, 'case': 'success', 'phase': 'candidate-report',
+                 'reason': 'Protocol', 'candidate': {'phase': 'Quarantined',
+                 'failure': 'Session', 'stop_confirmed': True,
+                 'content_verified': False, 'commit_attempted': False}}
+        value.update(changes)
+        return b'KW_C4_IMPORT_DIAGNOSTIC|' + json.dumps(value, separators=(',', ':')).encode() + b'\n'
+
+    def failure_backend(self, directory, stderr, code=101, *, completed=True):
+        # Stub only external provisioning/build boundaries. Execute the actual
+        # post-process predicate and original result publication owner lifetime.
+        root = Path(directory)
+        (root / 'evidence').mkdir()
+        args = SimpleNamespace(phase='import', case='success', gate1_status=runner.PASSED,
+            gate1_result_sha256=runner.GATE1_SHA256, postgres_image=runner.POSTGRES_IMAGE,
+            builder_image_id=runner.BUILDER_ID, batch_id='2b8a1252-54d5-48aa-b176-a9586a86bea1',
+            source_batch_id='2b8a1252-54d5-48aa-b176-a9586a86bea2',
+            target_batch_id='2b8a1252-54d5-48aa-b176-a9586a86bea3',
+            source_subnet='172.30.240.0/28', target_subnet='172.30.241.0/28',
+            clone_batch_id=None, clone_subnet=None, archive_sha256='a'*64,
+            manifest_sha256='b'*64, runner_sha256='c'*64, archive_helper_sha256='d'*64,
+            fixture_sha256='e'*64, clone_helper_sha256='f'*64, commit='a'*40)
+        backend = runner.ImportBackend.__new__(runner.ImportBackend)
+        backend.args, backend.batch, backend.source = args, root, root
+        backend.helper = LocalFiles()
+        backend.build_evidence, backend.capacity = {}, {}
+        backend._budget = lambda: None
+        backend._preflight_import_builder = lambda: {}
+        backend.provisioner = SimpleNamespace(snapshot=lambda: {}, admit_fresh=lambda *a: None,
+                                              identity_for=lambda batch: {})
+        backend._create = lambda role, batch, subnet: {'birth_sha256': 'a'*64}
+        backend._birth = lambda row: (root, {})
+        backend._birth_recheck = lambda row: None
+        backend._compile_import_binary = lambda *a, **k: (root/'binary', {'binary_sha256': 'b'*64})
+        backend._list_import_tests = lambda *a: {}
+        exact = runner.IMPORT_PREFIX + runner.IMPORT_CASES['success'][0]
+        stdout = (f'\nrunning 1 test\ntest {exact} ... FAILED\n\n'
+                  'test result: FAILED. 0 passed; 1 failed; 0 ignored; '
+                  '0 measured; 147 filtered out; finished in 0.01s\n').encode()
+        def process(*a, **k):
+            if not completed:
+                raise RuntimeError('password=private unfinished')
+            return subprocess.CompletedProcess(a[0], code, stdout, stderr)
+        backend.delegate = SimpleNamespace(_file_digest=lambda path: 'b'*64, _run_bounded=process)
+        backend.verify_source = lambda: True
+        lifecycle = []
+        def stop():
+            lifecycle.append('stop')
+            return {'source_stopped': True, 'target_stopped': True, 'volumes_retained': True}
+        backend.stop = stop
+        backend.evidence_identity = lambda: {}
+        def publish(result):
+            lifecycle.append('publish')
+            data = backend.helper._json_bytes(result)
+            (root/'evidence'/'result.json').write_bytes(data)
+            return {**result, 'result_sha256': runner.digest(data)}
+        backend.publish = publish
+        backend.release = lambda: lifecycle.append('release')
+        return args, backend, lifecycle
+
+    def test_failed_import_publishes_original_phase_exit_before_stderr_rejection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, backend, lifecycle = self.failure_backend(directory,
+                self.diagnostic() + b'password=private SELECT secret;\n')
+            with patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_import_case(args, 'success')
+            self.assertEqual(result.get('exact_test_exit_code'), 101)
+            self.assertEqual(result.get('exact_test'), runner.IMPORT_PREFIX +
+                             'live_controlled_import_commits_fixture')
+            self.assertEqual(result.get('diagnostic_status'), 'PRESENT')
+            self.assertEqual(result.get('diagnostic', {}).get('candidate', {}).get('failure'), 'Session')
+            self.assertEqual(result['status'], runner.IMPORT_FAILED)
+            self.assertEqual(result['reason_code'], 'Identity')
+            self.assertFalse(result['retry_allowed'])
+            self.assertEqual(lifecycle, ['stop', 'publish', 'release'])
+            self.assertNotIn('private', json.dumps(result))
+            self.assertNotIn('SELECT', json.dumps(result))
+
+    def test_uncompleted_import_publishes_unknown_exit_and_no_diagnostic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, backend, lifecycle = self.failure_backend(directory, b'', completed=False)
+            with patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_import_case(args, 'success')
+            self.assertIn('exact_test_exit_code', result)
+            self.assertIsNone(result['exact_test_exit_code'])
+            self.assertIsNone(result['exact_test'])
+            self.assertEqual(result['diagnostic_status'], 'UNKNOWN')
+            self.assertIsNone(result['diagnostic'])
+            self.assertEqual(result['reason_code'], 'Io')
+            self.assertEqual(lifecycle, ['stop', 'publish', 'release'])
+
+    def test_invalid_diagnostic_is_suppressed_without_changing_failed_owner(self):
+        valid = self.diagnostic()
+        bad = [valid + valid, self.diagnostic(case='ready-eof'),
+               self.diagnostic(phase='private-path'), self.diagnostic(reason='password=private'),
+               self.diagnostic(password='private'), self.diagnostic(schema=True),
+               valid.replace(b'"schema":1', b'"schema":1,"schema":1'),
+               valid.replace(b'"stop_confirmed":true', b'"stop_confirmed":1'),
+               valid.replace(b'"Session"', b'"Unknown"'),
+               valid.replace(b'"Quarantined"', b'"Unknown"'),
+               valid.replace(b'"failure":"Session"', b'"failure":["Session"]'),
+               valid.replace(b'"commit_attempted":false', b'"commit_attempted":null'),
+               valid.replace(b'"content_verified":false', b'"content_verified":"false"'),
+               valid.replace(b'"phase":"Quarantined"', b'"phase":"Quarantined","password":"private"'),
+               valid.replace(b'"failure":"Session"', b'"failure":"Session","failure":"Session"'),
+               self.diagnostic(candidate=[]), self.diagnostic(candidate=True),
+               self.diagnostic(case='unknown'), self.diagnostic(reason=[]),
+               b'private-prefix ' + valid, b'KW_C4_IMPORT_DIAGNOSTIC|{broken}\n',
+               b'KW_C4_IMPORT_DIAGNOSTIC|' + b'x'*1025 + b'\n']
+        for stderr in bad:
+            with self.subTest(stderr_bytes=len(stderr)), tempfile.TemporaryDirectory() as directory:
+                args, backend, lifecycle = self.failure_backend(directory, stderr)
+                with patch.object(runner, '_prepare_backend', return_value=backend):
+                    result = runner.run_import_case(args, 'success')
+                self.assertEqual(result.get('diagnostic_status'), 'REJECTED')
+                self.assertIsNone(result.get('diagnostic'))
+                self.assertEqual(result.get('exact_test_exit_code'), 101)
+                self.assertEqual(result['reason_code'], 'Identity')
+                self.assertEqual(lifecycle, ['stop', 'publish', 'release'])
+                self.assertNotIn('private', json.dumps(result))
+
+    def test_join_diagnostic_stays_distinct_and_never_becomes_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, backend, _ = self.failure_backend(directory,
+                self.diagnostic(phase='harness-join', reason='JoinPanic', candidate=None))
+            with patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_import_case(args, 'success')
+            self.assertEqual(result.get('diagnostic', {}).get('reason'), 'JoinPanic')
+            self.assertNotIn('observation', result)
+            self.assertEqual(result['status'], runner.IMPORT_FAILED)
+
+    def test_original_fixed_panic_without_tag_retains_exit_and_absent_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, backend, lifecycle = self.failure_backend(directory,
+                b'CONTROLLED_IMPORT_CASE_REJECTED\n')
+            with patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_import_case(args, 'success')
+            self.assertEqual(result['diagnostic_status'], 'ABSENT')
+            self.assertIsNone(result['diagnostic'])
+            self.assertEqual(result['exact_test_exit_code'], 101)
+            self.assertEqual(result['reason_code'], 'Identity')
+            self.assertEqual(lifecycle, ['stop', 'publish', 'release'])
+
+    def test_unobserved_test_name_is_unknown_even_when_command_selected_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, backend, _ = self.failure_backend(directory, self.diagnostic())
+            backend.delegate._run_bounded = lambda *a, **k: subprocess.CompletedProcess(
+                a[0], 101, b'private process output', self.diagnostic())
+            with patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_import_case(args, 'success')
+            self.assertIsNone(result['exact_test'])
+            self.assertEqual(result['exact_test_exit_code'], 101)
+            self.assertNotIn('private', json.dumps(result))
+
+    def test_successful_result_payload_keeps_receipt_and_has_no_failure_diagnostic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, backend, lifecycle = self.failure_backend(directory, b'')
+            artifact = Path(directory) / 'artifacts'
+            artifact.mkdir()
+            for name in ('fixture.dump', 'pg_restore-list.txt', 'decoded.sql'):
+                (artifact/name).write_bytes(b'fixed synthetic artifact')
+            record = self.receipt('success')
+            record['dump_sha256'] = record['toc_sha256'] = runner.digest(b'fixed synthetic artifact')
+            backend.delegate._run_bounded = lambda *a, **k: subprocess.CompletedProcess(
+                a[0], 0, self.output('success', record), b'')
+            backend._markers = lambda *a: {'synthetic': True}
+            with patch.object(runner, '_prepare_backend', return_value=backend):
+                result = runner.run_import_case(args, 'success')
+            self.assertEqual(result['status'], runner.IMPORT_PASSED)
+            self.assertEqual(result['observation'], record)
+            self.assertEqual(result['test_exit_code'], 0)
+            for key in ('diagnostic', 'diagnostic_status', 'exact_test_exit_code'):
+                self.assertNotIn(key, result)
+            self.assertEqual(lifecycle, ['stop', 'publish', 'release'])
+
     def test_missing_gate1_attestation_prevents_creation(self):
         run = self.entry('run_import_case')
         with patch.object(runner, '_prepare_backend') as prepare:

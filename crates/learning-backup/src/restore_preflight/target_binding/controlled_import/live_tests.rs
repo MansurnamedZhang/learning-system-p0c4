@@ -10,37 +10,7 @@ use sqlx::{
 };
 use std::{collections::BTreeSet, fs::File, sync::Mutex, time::Duration};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum Case {
-    Success,
-    ReadyEof,
-    PrecommitEof,
-    Cancel,
-    Restart,
-    SqlError,
-    CopyTruncated,
-    AttemptSync,
-    IntentSync,
-    CommitUnknown,
-    WrongEndpoint,
-}
-impl Case {
-    pub(super) fn name(self) -> &'static str {
-        match self {
-            Self::Success => "success",
-            Self::ReadyEof => "ready-eof",
-            Self::PrecommitEof => "precommit-eof",
-            Self::Cancel => "precommit-cancel",
-            Self::Restart => "ready-restart",
-            Self::SqlError => "sql-error",
-            Self::CopyTruncated => "copy-truncated",
-            Self::AttemptSync => "attempt-sync-failure",
-            Self::IntentSync => "commit-intent-sync-failure",
-            Self::CommitUnknown => "commit-unknown",
-            Self::WrongEndpoint => "wrong-endpoint",
-        }
-    }
-}
+use diagnostics::{Case, Failure, Phase};
 
 #[derive(Default, Serialize)]
 pub(super) struct Observation {
@@ -121,23 +91,37 @@ pub(super) fn control_pool(
     })
 }
 
-async fn execute(case: Case) -> Result<Observation, ImportFailure> {
-    if unsafe { libc::geteuid() } != 0 || required("KNOWWEAVE_C4_IMPORT_CASE")? != case.name() {
-        return Err(ImportFailure::Identity);
+async fn execute(case: Case) -> Result<Observation, Failure> {
+    if unsafe { libc::geteuid() } != 0
+        || required("KNOWWEAVE_C4_IMPORT_CASE").map_err(Failure::at(Phase::AuthorityCaseEnv))?
+            != case.name()
+    {
+        return Err(Failure::at(Phase::AuthorityCaseEnv)(
+            ImportFailure::Identity,
+        ));
     }
-    let source = config("SOURCE")?;
-    let target = config("TARGET")?;
+    let source = config("SOURCE").map_err(Failure::at(Phase::SourceConfig))?;
+    let target = config("TARGET").map_err(Failure::at(Phase::TargetConfig))?;
     let dump = fixture_sql::capture_fresh_fixture(
         source,
         target.expected_database.clone(),
         case.name(),
-        required("KNOWWEAVE_C4_IMPORT_ARTIFACT_ROOT")?.into(),
+        required("KNOWWEAVE_C4_IMPORT_ARTIFACT_ROOT")
+            .map_err(Failure::at(Phase::ArtifactRootEnv))?
+            .into(),
     )
-    .await?;
-    let guard = binding::acquire_for_restore(&target).map_err(|_| ImportFailure::Identity)?;
-    let pool = control_pool(&target, &guard)?.await?;
+    .await
+    .map_err(Failure::at(Phase::FreshFixtureCapture))?;
+    let guard = binding::acquire_for_restore(&target)
+        .map_err(|_| Failure::at(Phase::AcquireTargetGuard)(ImportFailure::Identity))?;
+    let pool = control_pool(&target, &guard)
+        .map_err(Failure::at(Phase::TargetControlConnection))?
+        .await
+        .map_err(Failure::at(Phase::TargetControlConnection))?;
     drop(guard);
-    let admission = linux::admit_candidate_target(target, pool).await?;
+    let admission = linux::admit_candidate_target(target, pool)
+        .await
+        .map_err(Failure::at(Phase::CandidateAdmission))?;
     linux::run_live_case(admission, dump, case).await
 }
 
@@ -145,8 +129,12 @@ async fn run(case: Case) {
     // Ownership work is detached from this awaiting harness and settles its
     // guards/processes/quarantine before an expected result is asserted.
     let result = tokio::spawn(execute(case)).await;
-    let Ok(Ok(record)) = result else {
-        panic!("CONTROLLED_IMPORT_CASE_REJECTED");
+    let record = match diagnostics::settled(case, result) {
+        Ok(record) => record,
+        Err(event) => {
+            eprintln!("{event}");
+            panic!("CONTROLLED_IMPORT_CASE_REJECTED");
+        }
     };
     println!(
         "KW_C4_IMPORT|{}",

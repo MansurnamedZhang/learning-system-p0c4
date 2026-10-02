@@ -9,9 +9,10 @@ use binding::{
 };
 use candidate_attempt::{CandidateAttemptContext, persist_attempt, persist_commit_intent};
 use commands::FixedImportCommand;
+use diagnostics::{Case, Failure, Phase};
 use fixture_sql::{FrozenDump, verify_fixture_sql};
 use learning_assets::backup_fs::BackupDir;
-use live_tests::{Case, Evidence, Observation};
+use live_tests::{Evidence, Observation};
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, PgPool, Postgres, Transaction};
 use std::{
@@ -152,12 +153,12 @@ pub(super) async fn run_live_case(
     mut admission: OwnedCandidateAdmission,
     dump: FrozenDump,
     case: Case,
-) -> Result<Observation, ImportFailure> {
+) -> Result<Observation, Failure> {
     let toc_sha256 = match dump.toc_sha256() {
         Ok(hash) => hex::encode(hash),
         Err(error) => {
             admission.quarantine().await;
-            return Err(error);
+            return Err(Failure::at(Phase::LiveToc)(error));
         }
     };
     let clone = if case == Case::WrongEndpoint {
@@ -165,7 +166,7 @@ pub(super) async fn run_live_case(
             Ok(clone) => Some(clone),
             Err(error) => {
                 admission.quarantine().await;
-                return Err(error);
+                return Err(Failure::at(Phase::LiveClone)(error));
             }
         }
     } else {
@@ -225,12 +226,12 @@ pub(super) async fn run_live_case(
             && !report.content_verified)
         || report.commit_attempted != matches!(case, Case::Success | Case::CommitUnknown)
     {
-        return Err(ImportFailure::Protocol);
+        return Err(Failure::report(&report));
     }
     let mut record = Arc::try_unwrap(evidence)
-        .map_err(|_| ImportFailure::Protocol)?
+        .map_err(|_| Failure::evidence_shared(&report))?
         .into_inner()
-        .map_err(|_| ImportFailure::Protocol)?;
+        .map_err(|_| Failure::evidence_poisoned(&report))?;
     record.failure = match case {
         Case::Success => None,
         Case::Restart => Some("Identity"),

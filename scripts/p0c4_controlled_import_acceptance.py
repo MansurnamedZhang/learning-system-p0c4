@@ -116,6 +116,75 @@ def _import_test_command(binary, case):
             '--ignored', '--nocapture', '--test-threads=1']
 
 
+# Diagnostics are evidence about rejection only. Never an Observation or gate.
+IMPORT_DIAGNOSTIC_TAG = b'KW_C4_IMPORT_DIAGNOSTIC|'
+IMPORT_DIAGNOSTIC_PHASES = {'authority-case-env', 'source-config', 'target-config',
+    'artifact-root-env', 'fresh-fixture-capture', 'acquire-target-guard',
+    'target-control-connection', 'candidate-admission',
+    'live-toc', 'live-clone', 'candidate-report', 'evidence-unwrap', 'harness-join'}
+IMPORT_CANDIDATE_PHASES = {'InputFrozen', 'SqlVerified', 'WriterReady', 'AttemptDurable',
+    'PayloadSent', 'PrecommitVerified', 'CommitAttempted', 'ImportObserved',
+    'Quarantined', 'Cancelled', 'CommitUnknown'}
+IMPORT_DIAGNOSTIC_REASONS = CODES | {'JoinPanic', 'JoinCancelled', 'JoinUnknown',
+                                    'EvidenceShared', 'EvidencePoisoned'}
+
+
+def _import_failure_diagnostic(stderr, case):
+    """Closed, bounded projection. Malformed events cannot interrupt cleanup."""
+    absent = {'diagnostic_status': 'ABSENT', 'diagnostic': None}
+    rejected = {'diagnostic_status': 'REJECTED', 'diagnostic': None}
+    if type(stderr) is not bytes or len(stderr) > 64 * 1024 or case not in IMPORT_CASES:
+        return rejected
+    if IMPORT_DIAGNOSTIC_TAG not in stderr:
+        return absent
+    if stderr.count(IMPORT_DIAGNOSTIC_TAG) != 1:
+        return rejected
+    lines = [line for line in stderr.split(b'\n') if IMPORT_DIAGNOSTIC_TAG in line]
+    if len(lines) != 1 or not lines[0].startswith(IMPORT_DIAGNOSTIC_TAG) or len(lines[0]) > 1024:
+        return rejected
+    def unique_pairs(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError('duplicate diagnostic key')
+            value[key] = item
+        return value
+    try:
+        value = json.loads(lines[0][len(IMPORT_DIAGNOSTIC_TAG):].decode('ascii'),
+                           object_pairs_hook=unique_pairs)
+        if (type(value) is not dict or set(value) != {'schema', 'case', 'phase', 'reason', 'candidate'}
+                or type(value['schema']) is not int or value['schema'] != 1
+                or type(value['case']) is not str or value['case'] != case
+                or type(value['phase']) is not str or value['phase'] not in IMPORT_DIAGNOSTIC_PHASES
+                or type(value['reason']) is not str or value['reason'] not in IMPORT_DIAGNOSTIC_REASONS):
+            return rejected
+        candidate = value['candidate']
+        if candidate is not None:
+            if (type(candidate) is not dict or set(candidate) != {'phase', 'failure',
+                    'stop_confirmed', 'content_verified', 'commit_attempted'}
+                    or type(candidate['phase']) is not str or candidate['phase'] not in IMPORT_CANDIDATE_PHASES
+                    or (candidate['failure'] is not None and
+                        (type(candidate['failure']) is not str or candidate['failure'] not in CODES))
+                    or any(type(candidate[key]) is not bool for key in
+                           ('stop_confirmed', 'content_verified', 'commit_attempted'))):
+                return rejected
+        # No raw stderr, unrecognized keys, error text, or private data survives.
+        return {'diagnostic_status': 'PRESENT', 'diagnostic': value}
+    except (ValueError, UnicodeError, RecursionError):
+        return rejected
+
+
+def _import_failure_process(process, case):
+    expected = IMPORT_PREFIX + IMPORT_CASES[case][0]
+    observed = None
+    if (type(process.stdout) is bytes and len(process.stdout) <= 64 * 1024
+            and re.search(rb'(?m)^test ' + re.escape(expected.encode('ascii')) + rb' \.\.\. ', process.stdout)):
+        observed = expected
+    return {'exact_test': observed,
+            'exact_test_exit_code': process.returncode if type(process.returncode) is int else None,
+            **_import_failure_diagnostic(process.stderr, case)}
+
+
 def _import_observations(output, case, exit_code):
     require(type(case) is str and case in IMPORT_CASES, 'Protocol')
     require(type(exit_code) is int and exit_code == 0 and type(output) is bytes and
@@ -846,6 +915,7 @@ class ImportBackend(ContractBackend):
         require(self.verify_source() and self.delegate._file_digest(binary) == build['binary_sha256'], 'Identity')
         process = self.delegate._run_bounded(_import_test_command(binary, case), cwd=self.source,
                                             env=env, timeout=360, limit=64 * 1024)
+        self.import_failure_diagnostic = _import_failure_process(process, case)
         self.helper._private_write(self.batch / 'evidence' / 'live-test-stdout.private.log', process.stdout)
         self.helper._private_write(self.batch / 'evidence' / 'live-test-stderr.private.log', process.stderr)
         require(self.delegate._file_digest(binary) == build['binary_sha256'] and not process.stderr, 'Identity')
@@ -1018,6 +1088,10 @@ def run_import_case(args, case: str) -> dict:
             if result['status'] != IMPORT_UNCONFIRMED:
                 result['status'], result['reason_code'] = IMPORT_FAILED, 'Identity'
         result['identity'] = backend.evidence_identity()
+        if result['status'] not in (IMPORT_PASSED, IMPORT_NEGATIVE):
+            result.update(getattr(backend, 'import_failure_diagnostic', {
+                'exact_test': None, 'exact_test_exit_code': None,
+                'diagnostic_status': 'UNKNOWN', 'diagnostic': None}))
         published = backend.publish(result)
         require(not os.path.lexists(backend.batch / 'evidence' / 'result.pending'), 'Journal')
         require(digest(backend.helper._private_read(backend.batch / 'evidence' / 'result.json', limit=256*1024)) ==
