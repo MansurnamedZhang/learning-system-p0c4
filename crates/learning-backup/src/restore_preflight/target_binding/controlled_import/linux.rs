@@ -232,6 +232,9 @@ pub(super) async fn run_live_case(
         .map_err(|_| Failure::evidence_shared(&report))?
         .into_inner()
         .map_err(|_| Failure::evidence_poisoned(&report))?;
+    if case == Case::Restart {
+        diagnostics::require_restart_transition(&report, &record.checkpoints)?;
+    }
     record.failure = match case {
         Case::Success => None,
         Case::Restart => Some("Identity"),

@@ -272,20 +272,36 @@ pub(in crate::restore_preflight::target_binding) async fn candidate_restart(
     claim: &DockerClaim,
     deadline: Instant,
 ) -> Result<(), ChildFailure> {
-    let output = docker(
-        &[
+    candidate_restart_with(claim, deadline, async |args, deadline| {
+        docker(&args, deadline).await
+    })
+    .await
+}
+
+#[cfg(test)]
+async fn candidate_restart_with(
+    claim: &DockerClaim,
+    deadline: Instant,
+    run: impl AsyncFnOnce(Vec<String>, Instant) -> Result<String, ChildFailure>,
+) -> Result<(), ChildFailure> {
+    if !exact_id(&claim.container_id) {
+        return Err(ChildFailure::Identity);
+    }
+    if Instant::now() >= deadline {
+        return Err(ChildFailure::Deadline);
+    }
+    let output = run(
+        vec![
+            "container".into(),
             "restart".into(),
-            "--time".into(),
+            "--timeout".into(),
             "1".into(),
             claim.container_id.clone(),
         ],
         deadline,
     )
     .await?;
-    if output.trim() != claim.container_id {
-        return Err(ChildFailure::Identity);
-    }
-    Ok(())
+    super::restart_response_for_test(&claim.container_id, &output)
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -381,6 +397,124 @@ pub(in crate::restore_preflight) async fn attest<'a>(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn candidate_restart_uses_supported_one_second_timeout_and_original_deadline() {
+        let claim = super::super::super::tests::claim();
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let result = candidate_restart_with(&claim, deadline, async |args, observed| {
+            assert_eq!(observed, deadline, "restart reset the absolute deadline");
+            // The literal boundary contract prevents a CLI deprecation notice
+            // from turning a completed restart into a premature Identity.
+            assert_eq!(
+                args,
+                [
+                    "container",
+                    "restart",
+                    "--timeout",
+                    "1",
+                    &claim.container_id
+                ]
+            );
+            Ok(format!("{}\n", claim.container_id))
+        })
+        .await;
+        assert_eq!(result, Ok(()));
+    }
+
+    #[tokio::test]
+    async fn candidate_restart_requires_canonical_exact_id_response() {
+        let claim = super::super::super::tests::claim();
+        let id = &claim.container_id;
+        for output in [
+            id.clone(),
+            format!(" {id}\n"),
+            format!("{id}\r\n"),
+            format!("{id}\n\n"),
+            format!("{}\n", "b".repeat(64)),
+            "aaaaaaaaaaaa\n".into(),
+            "name\n".into(),
+            format!("{id}\nextra\n"),
+            format!("Flag --time has been deprecated, use --timeout instead\n{id}\n"),
+        ] {
+            assert_eq!(
+                candidate_restart_with(
+                    &claim,
+                    Instant::now() + Duration::from_secs(1),
+                    async |_, _| Ok(output.clone()),
+                )
+                .await,
+                Err(ChildFailure::Identity),
+                "accepted response: {output:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn candidate_restart_rejects_invalid_identity_or_elapsed_deadline_before_execution() {
+        let mut claim = super::super::super::tests::claim();
+        for bad in [
+            "a".repeat(12),
+            "A".repeat(64),
+            "g".repeat(64),
+            "name".into(),
+        ] {
+            claim.container_id = bad;
+            let mut executed = false;
+            assert_eq!(
+                candidate_restart_with(
+                    &claim,
+                    Instant::now() + Duration::from_secs(1),
+                    async |_, _| {
+                        executed = true;
+                        Ok(format!("{}\n", claim.container_id))
+                    }
+                )
+                .await,
+                Err(ChildFailure::Identity)
+            );
+            assert!(!executed, "invalid identity became a restart target");
+        }
+        let claim = super::super::super::tests::claim();
+        let mut executed = false;
+        assert_eq!(
+            candidate_restart_with(
+                &claim,
+                Instant::now() - Duration::from_secs(1),
+                async |_, _| {
+                    executed = true;
+                    Ok(format!("{}\n", claim.container_id))
+                }
+            )
+            .await,
+            Err(ChildFailure::Deadline)
+        );
+        assert!(!executed, "expired restart was executed");
+    }
+
+    #[tokio::test]
+    async fn candidate_restart_preserves_bounded_executor_failures() {
+        let claim = super::super::super::tests::claim();
+        let deadline = Instant::now() + Duration::from_secs(1);
+        for error in [
+            ChildFailure::Deadline,
+            ChildFailure::StdoutLimit,
+            ChildFailure::StderrLimit,
+            ChildFailure::Stderr,
+            ChildFailure::Exit,
+            ChildFailure::Io,
+            ChildFailure::Protocol,
+        ] {
+            assert_eq!(
+                candidate_restart_with(&claim, deadline, async |_, observed| {
+                    assert_eq!(observed, deadline);
+                    Err(error)
+                })
+                .await,
+                Err(error)
+            );
+        }
+    }
     struct StopFixture {
         wrong_id: bool,
         wrong_daemon: bool,

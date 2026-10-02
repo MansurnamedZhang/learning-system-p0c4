@@ -192,6 +192,31 @@ fn failure_name(error: ImportFailure) -> &'static str {
     }
 }
 
+pub(super) fn require_restart_transition(
+    report: &CandidateImportReport,
+    checkpoints: &std::collections::BTreeSet<&'static str>,
+) -> Result<(), Failure> {
+    // An Identity before restart completes is not the live negative this case
+    // promises. These markers are inserted only by the actual READY/restart/
+    // rejected-old-guard path; this gate cannot fabricate transition evidence.
+    if matches!(
+        report.failure,
+        Some(ImportFailure::Identity | ImportFailure::Session)
+    ) && [
+        "READY",
+        "RESTART_BEFORE_DDL",
+        "OLD_GUARD_REJECTED",
+        "DDL_NOT_SENT",
+    ]
+    .iter()
+    .all(|point| checkpoints.contains(point))
+    {
+        Ok(())
+    } else {
+        Err(Failure::report(report))
+    }
+}
+
 pub(super) fn settled<T>(
     case: Case,
     result: Result<Result<T, Failure>, JoinError>,
@@ -218,6 +243,68 @@ pub(super) fn settled<T>(
 mod tests {
     use super::*;
     use serde_json::json;
+    fn restart_report(error: ImportFailure) -> CandidateImportReport {
+        CandidateImportReport {
+            phase: ImportPhase::Quarantined,
+            failure: Some(error),
+            stop_confirmed: true,
+            content_verified: false,
+            commit_attempted: false,
+        }
+    }
+    #[test]
+    fn restart_missing_transition_evidence_cannot_settle_as_success() {
+        let checkpoints: std::collections::BTreeSet<_> = [
+            "READY",
+            "RESTART_BEFORE_DDL",
+            "OLD_GUARD_REJECTED",
+            "DDL_NOT_SENT",
+        ]
+        .into();
+        for error in [ImportFailure::Identity, ImportFailure::Session] {
+            let report = restart_report(error);
+            for missing in &checkpoints {
+                let mut incomplete = checkpoints.clone();
+                incomplete.remove(missing);
+                let result = require_restart_transition(&report, &incomplete);
+                let event =
+                    settled(Case::Restart, Ok(result)).expect_err("incomplete restart accepted");
+                assert_eq!(decode(event)["reason"], "Protocol");
+            }
+            let early = [
+                "READY",
+                "ATTEMPT_ABSENT",
+                "INTENT_ABSENT",
+                "EXACT_TARGET_STOPPED",
+                "TARGET_UNUSABLE",
+            ]
+            .into();
+            assert!(
+                require_restart_transition(&report, &early).is_err(),
+                "premature Identity/Session serialized success"
+            );
+        }
+    }
+    #[test]
+    fn restart_complete_transition_accepts_only_identity_or_session_rejection() {
+        let checkpoints = [
+            "READY",
+            "RESTART_BEFORE_DDL",
+            "OLD_GUARD_REJECTED",
+            "DDL_NOT_SENT",
+        ]
+        .into();
+        for error in [ImportFailure::Identity, ImportFailure::Session] {
+            assert!(require_restart_transition(&restart_report(error), &checkpoints).is_ok());
+        }
+        for error in [
+            ImportFailure::Protocol,
+            ImportFailure::Deadline,
+            ImportFailure::Exit,
+        ] {
+            assert!(require_restart_transition(&restart_report(error), &checkpoints).is_err());
+        }
+    }
     fn decode(event: String) -> serde_json::Value {
         assert!(
             event.starts_with("KW_C4_IMPORT_DIAGNOSTIC|"),
