@@ -11,6 +11,9 @@ pub(super) mod child_attestation;
 #[cfg(test)]
 mod controlled_import;
 
+#[cfg(test)]
+mod source_pin_tests;
+
 const PINNED_IMAGE: &str = "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d";
 const PG_ID_SQL: &str = "SELECT d.oid::bigint::text || '|' || pcs.system_identifier::text FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs WHERE d.datname=pg_catalog.current_database()";
 
@@ -830,8 +833,124 @@ impl<G, T> BoundTargetGuard<G, T> {
     }
 }
 
+#[derive(Deserialize)]
+struct BirthEvidence {
+    docker_daemon_id: String,
+    container_id: String,
+    network_id: String,
+    image_id: String,
+    volume_name: String,
+    volume_mountpoint: String,
+    birth_sha256: String,
+}
+
+#[derive(Clone, Copy)]
+enum GuardBirthRole {
+    Target,
+    #[cfg(test)]
+    ImportSource,
+}
+
+impl GuardBirthRole {
+    fn pinned(self, pins: GuardBirthPins) -> Result<&'static str, BackupError> {
+        match self {
+            Self::Target => pins.target.ok_or(BackupError::Invalid(
+                "target birth digest is not build-pinned",
+            )),
+            #[cfg(test)]
+            Self::ImportSource => pins.source.ok_or(BackupError::Invalid(
+                "import source birth digest is not build-pinned",
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct GuardBirthPins {
+    target: Option<&'static str>,
+    #[cfg(test)]
+    source: Option<&'static str>,
+}
+
+const COMPILED_GUARD_BIRTH_PINS: GuardBirthPins = GuardBirthPins {
+    target: option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256"),
+    #[cfg(test)]
+    source: option_env!("KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256"),
+};
+
+#[derive(Clone, Copy)]
+enum GuardRecord {
+    Birth,
+    State,
+    Success,
+    Evidence,
+    Precreation,
+}
+
+fn load_guard_identity(
+    config: &RestorePreflightConfig,
+    role: GuardBirthRole,
+    pins: GuardBirthPins,
+    target_path: &Path,
+    mut read: impl FnMut(GuardRecord) -> Result<Vec<u8>, BackupError>,
+    failure_present: impl FnOnce() -> Result<bool, BackupError>,
+) -> Result<(DockerClaim, PinPrecreation), BackupError> {
+    let pinned = role.pinned(pins)?;
+    let birth_bytes = read(GuardRecord::Birth)?;
+    let birth = parse_pinned_birth(&birth_bytes, pinned)?;
+    validate_target_dir_batch(target_path, &birth)?;
+    let failure_present = failure_present()?;
+    let state_bytes = read(GuardRecord::State)?;
+    let success_bytes = read(GuardRecord::Success)?;
+    validate_issuance_bytes(
+        &birth,
+        pinned,
+        &state_bytes,
+        Some(&success_bytes),
+        failure_present,
+    )?;
+    let state: TargetCreationState = serde_json::from_slice(&state_bytes)?;
+    let success: TargetIssuanceSuccess = serde_json::from_slice(&success_bytes)?;
+    let evidence: BirthEvidence = serde_json::from_slice(&read(GuardRecord::Evidence)?)?;
+    let precreation = parse_precreation(&read(GuardRecord::Precreation)?)?;
+    if evidence.birth_sha256 != pinned
+        || evidence.container_id != success.container_id
+        || evidence.network_id != success.network_id
+        || evidence.image_id != success.image_id
+        || evidence.volume_name != success.pg_volume_name
+        || evidence.volume_mountpoint != success.volume_mountpoint
+    {
+        return Err(BackupError::Invalid("bound issuance evidence differs"));
+    }
+    let claim = DockerClaim {
+        container_id: success.container_id,
+        network_id: success.network_id,
+        image_id: success.image_id,
+        volume_name: success.pg_volume_name,
+        mountpoint: success.volume_mountpoint,
+        project: birth.project_name.clone(),
+        network_name: state.network,
+        database: birth.database_name.clone(),
+        daemon_id: evidence.docker_daemon_id,
+        system_identifier: birth.pg_system_identifier,
+        database_oid: birth.database_oid,
+        subnet: state.subnet,
+        target_path: target_path.to_string_lossy().into_owned(),
+        initdb_source: precreation.initdb_path.clone(),
+        mount_dev: success.volume_mount_dev,
+        mount_ino: success.volume_mount_ino,
+    };
+    if claim.database != config.expected_database {
+        return Err(BackupError::Invalid("bound database differs"));
+    }
+    Ok((claim, precreation))
+}
+
 #[cfg(target_os = "linux")]
 pub(super) use linux::acquire_for_restore;
+
+#[cfg(all(test, target_os = "linux"))]
+pub(super) use linux::acquire_for_import_source;
 
 #[cfg(target_os = "linux")]
 mod linux {
@@ -841,17 +960,6 @@ mod linux {
         os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
         process::{Command, Stdio},
     };
-
-    #[derive(Deserialize)]
-    struct BirthEvidence {
-        docker_daemon_id: String,
-        container_id: String,
-        network_id: String,
-        image_id: String,
-        volume_name: String,
-        volume_mountpoint: String,
-        birth_sha256: String,
-    }
 
     fn lock_existing(dir: &BackupDir, name: &str) -> Result<File, BackupError> {
         lock_file(dir.open_file(name)?)
@@ -1093,19 +1201,27 @@ mod linux {
 
     /// Standalone inspection keeps the control directory unchanged.
     pub(super) fn probe_bound_target(config: &RestorePreflightConfig) -> Result<(), BackupError> {
-        let _guard = acquire(config, false)?;
+        let _guard = acquire(config, false, GuardBirthRole::Target)?;
         Ok(())
     }
 
     pub(in crate::restore_preflight) fn acquire_for_restore(
         config: &RestorePreflightConfig,
     ) -> Result<BoundTargetGuard<File, Option<File>>, BackupError> {
-        acquire(config, true)
+        acquire(config, true, GuardBirthRole::Target)
+    }
+
+    #[cfg(test)]
+    pub(in crate::restore_preflight) fn acquire_for_import_source(
+        config: &RestorePreflightConfig,
+    ) -> Result<BoundTargetGuard<File, Option<File>>, BackupError> {
+        acquire(config, true, GuardBirthRole::ImportSource)
     }
 
     fn acquire(
         config: &RestorePreflightConfig,
         create_target_lock: bool,
+        role: GuardBirthRole,
     ) -> Result<BoundTargetGuard<File, Option<File>>, BackupError> {
         if unsafe { libc::geteuid() } != 0 {
             return Err(BackupError::Invalid("root bound target probe required"));
@@ -1155,76 +1271,40 @@ mod linux {
                 }
             },
             || {
-                let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(
-                    BackupError::Invalid("target birth digest is not build-pinned"),
+                let (claim, precreation) = load_guard_identity(
+                    config,
+                    role,
+                    COMPILED_GUARD_BIRTH_PINS,
+                    target_path,
+                    |record| match record {
+                        GuardRecord::Birth => read_private_target_file(
+                            &control,
+                            &format!("{}.birth.json", config.expected_database),
+                            4096,
+                        ),
+                        GuardRecord::State => read_private_target_file(&target, "state.json", 4096),
+                        GuardRecord::Success => {
+                            read_private_target_file(&target, "issuance-success.json", 4096)
+                        }
+                        GuardRecord::Evidence => {
+                            read_private_target_file(&target, "birth-evidence.json", 4096)
+                        }
+                        GuardRecord::Precreation => {
+                            read_private_target_file(&root, "pin-precreation.json", 4096)
+                        }
+                    },
+                    || {
+                        let mut failure_present = false;
+                        for name in ["failure.json", "issuer-diagnostic.json"] {
+                            match target.kind(name) {
+                                Ok(_) => failure_present = true,
+                                Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+                                Err(error) => return Err(error.into()),
+                            }
+                        }
+                        Ok(failure_present)
+                    },
                 )?;
-                let birth_bytes = read_private_target_file(
-                    &control,
-                    &format!("{}.birth.json", config.expected_database),
-                    4096,
-                )?;
-                let birth = parse_pinned_birth(&birth_bytes, pinned)?;
-                validate_target_dir_batch(target_path, &birth)?;
-                let mut failure_present = false;
-                for name in ["failure.json", "issuer-diagnostic.json"] {
-                    match target.kind(name) {
-                        Ok(_) => failure_present = true,
-                        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
-                        Err(error) => return Err(error.into()),
-                    }
-                }
-                let state_bytes = read_private_target_file(&target, "state.json", 4096)?;
-                let success_bytes =
-                    read_private_target_file(&target, "issuance-success.json", 4096)?;
-                validate_issuance_bytes(
-                    &birth,
-                    pinned,
-                    &state_bytes,
-                    Some(&success_bytes),
-                    failure_present,
-                )?;
-                let state: TargetCreationState = serde_json::from_slice(&state_bytes)?;
-                let success: TargetIssuanceSuccess = serde_json::from_slice(&success_bytes)?;
-                let evidence: BirthEvidence = serde_json::from_slice(&read_private_target_file(
-                    &target,
-                    "birth-evidence.json",
-                    4096,
-                )?)?;
-                let precreation = parse_precreation(&read_private_target_file(
-                    &root,
-                    "pin-precreation.json",
-                    4096,
-                )?)?;
-                if evidence.birth_sha256 != pinned
-                    || evidence.container_id != success.container_id
-                    || evidence.network_id != success.network_id
-                    || evidence.image_id != success.image_id
-                    || evidence.volume_name != success.pg_volume_name
-                    || evidence.volume_mountpoint != success.volume_mountpoint
-                {
-                    return Err(BackupError::Invalid("bound issuance evidence differs"));
-                }
-                let claim = DockerClaim {
-                    container_id: success.container_id,
-                    network_id: success.network_id,
-                    image_id: success.image_id,
-                    volume_name: success.pg_volume_name,
-                    mountpoint: success.volume_mountpoint,
-                    project: birth.project_name.clone(),
-                    network_name: state.network,
-                    database: birth.database_name.clone(),
-                    daemon_id: evidence.docker_daemon_id,
-                    system_identifier: birth.pg_system_identifier,
-                    database_oid: birth.database_oid,
-                    subnet: state.subnet,
-                    target_path: target_path.to_string_lossy().into_owned(),
-                    initdb_source: precreation.initdb_path.clone(),
-                    mount_dev: success.volume_mount_dev,
-                    mount_ino: success.volume_mount_ino,
-                };
-                if claim.database != config.expected_database {
-                    return Err(BackupError::Invalid("bound database differs"));
-                }
                 let targets_dir = BackupDir::open_trusted_private_root(targets)?;
                 validate_precreation(
                     &precreation,

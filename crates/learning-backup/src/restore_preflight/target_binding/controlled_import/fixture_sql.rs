@@ -325,7 +325,7 @@ pub(super) async fn capture_fresh_fixture(
         use binding::child_attestation::{Isolation, linux_child};
         use learning_assets::backup_fs::BackupDir;
         use std::{io::Write, os::unix::fs::MetadataExt, time::{Duration, Instant}};
-        let mut guard = binding::acquire_for_restore(&config).map_err(|_| ImportFailure::Identity)?;
+        let mut guard = binding::acquire_for_import_source(&config).map_err(|_| ImportFailure::Identity)?;
         let mut lease = None;
         let result = async {
             if config.expected_database == target_database { return Err(ImportFailure::Identity); }
