@@ -428,3 +428,12 @@ bash /home/hans/knowweave-c4-source-pin-b1a18043-2ae0-4f8b-a8eb-8a9112064a74/rea
 - 格式最终原工具回执 `29cbe0` 退出0，空输出经PowerShell Tee-Object未创建所引用的日志文件；初次回执 `45dd91` 同样如此。报告已改为原回执并明确无日志，控制器和复审代理没有独立读取不存在的文件，没有补造或重跑替代历史证据。中间Clippy/test fixture失败保留并分别标记，最终源码/索引干净。
 - **T5-PROVENANCE-01仍开放：** 普通freeze_dump只检查不可变字节，不能签发导入能力；本地组合在真实可信producer/no-follow/TOC issuer缺失时先拒绝，尚不是可用写入链。Task6负责唯一实产签发与每个独立新case。**Linux/PG18门仍开放：** 当前Windows未编译真实Linux adapter/Send/SQLx查询、未执行生成的PG18 PRECOMMIT/独立读回谓词、未验证现场journal/EOF/COPY/部分COMMIT/停机。运行器关闭或panic不保证隔离完成，保守报告不可冒充成功。
 - Task5本地实现/审查关闭，Task6开始静态实现；现有M3计时失败仍待最终整分支审查。新的文件、UUID、子网、卷和现场场景分别授权，旧失败批次留存不重跑；CompleteBackup、完整C4与生产尚未验收。
+
+
+### 父 Task3 继续：预备事务排空检查（2026-10-03）
+
+受控导入 Task6 的限定关闭保持不变，继续上层维护窗/整库备份工作。真实源端 inspector 新增当前数据库 pg_prepared_xacts 零计数检查，查询/解码失败拒绝，公开 GateInspection 形状不变；不处理未知预备事务。本地行为 RED 为1通过/2失败，GREEN3通过；Windows库139、维护合同4、非Linux日志拒绝1，共144项通过，格式与严格package all-targets Clippy通过。Linux 专用查询与两个新增 PG 用例未在 Windows 编译/执行，不能计为现场门。
+
+新聚焦 runner 准备精确验证当前库非零拒绝、其他库持有事务而当前库为空可检查，以及既有 release-journal 失败补偿/显式重新关闸。使用三个全新隔离 PG18 项目/卷；运行前重新检查容量/子网/输入哈希，sudo 仅用户终端认证。具体界限与待验收项见 [维护闸补充验证](p0c4-maintenance-gates.md)。Task3、完整恢复、CompleteBackup、整个C4及生产仍未验收。
+
+运行器三项静态审查问题分别以行为 RED 复现后修复：全局合法卷名误拒绝、停止后的外来网络附着未拒绝、未知旧凭据进入完整 inspection 日志。修订后定向 Python 17 项通过，库存完整性追加 RED 后再次通过；随后依据 Docker 官方网络命名合同补齐空格/中文网络名，新增行为 RED 后最终 18 项通过。既有隔离纯检查 13 项通过。仅计为本地运行器证据，Linux 编译和真实 PG18 三门仍待执行。封包与上传的私有交付检查另有 14 项通过，不计为数据库用例。

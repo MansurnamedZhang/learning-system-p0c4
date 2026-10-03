@@ -572,6 +572,58 @@ async fn require_admin_owner(pool: &PgPool) -> Result<String, BackupError> {
     Ok(database)
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn require_no_prepared_transactions(count: Result<i64, sqlx::Error>) -> Result<(), BackupError> {
+    // Prepared work survives its originating session; only a successfully
+    // decoded zero can prove it drained. Do not identify or resolve that work.
+    if count? != 0 {
+        return Err(BackupError::Invalid(
+            "source database has unsafe prepared transaction count",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod prepared_count_tests {
+    use super::*;
+
+    #[test]
+    fn empty_prepared_count_allows_inspection() {
+        assert!(require_no_prepared_transactions(Ok(0)).is_ok());
+    }
+
+    #[test]
+    fn nonzero_or_negative_prepared_count_refuses_inspection() {
+        for count in [1, i64::MAX, -1, i64::MIN] {
+            assert!(
+                matches!(
+                    require_no_prepared_transactions(Ok(count)),
+                    Err(BackupError::Invalid(_))
+                ),
+                "unsafe prepared count {count} was accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn unavailable_or_malformed_prepared_count_refuses_inspection() {
+        for error in [
+            sqlx::Error::ColumnNotFound("prepared_transactions".into()),
+            sqlx::Error::Decode(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "not an i64 count",
+            ))),
+            sqlx::Error::PoolClosed,
+        ] {
+            assert!(matches!(
+                require_no_prepared_transactions(Err(error)),
+                Err(BackupError::Database(_))
+            ));
+        }
+    }
+}
+
 #[cfg(target_os = "linux")]
 async fn inspect_gate(pool: &PgPool) -> Result<GateInspection, BackupError> {
     let mut conn = pool.acquire().await?;
@@ -583,9 +635,11 @@ async fn inspect_gate(pool: &PgPool) -> Result<GateInspection, BackupError> {
             EXISTS(SELECT 1 FROM pg_catalog.pg_auth_members am JOIN pg_catalog.pg_roles r ON r.oid=am.member WHERE r.rolname='learning_runtime') AS runtime_inherits_admin, \
             (SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb FROM pg_catalog.pg_roles WHERE rolname='learning_runtime') AS runtime_privileged, \
             (SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()) AS other_sessions, \
+            (SELECT count(*) FROM pg_catalog.pg_prepared_xacts WHERE database=current_database()) AS prepared_transactions, \
             (SELECT count(*) FROM pg_catalog.pg_roles r WHERE r.rolcanlogin AND r.rolname NOT IN ('learning_admin','learning_runtime','postgres') AND has_database_privilege(r.rolname,current_database(),'CONNECT')) AS other_login_writers \
          FROM pg_catalog.pg_database d WHERE d.datname=current_database()",
     ).fetch_one(&mut *conn).await?;
+    require_no_prepared_transactions(row.try_get("prepared_transactions"))?;
     Ok(GateInspection {
         admin_is_database_owner: row.try_get("admin_is_owner")?,
         runtime_can_connect: row.try_get("runtime_connect")?,
@@ -783,8 +837,260 @@ async fn role_recipe(pool: &PgPool) -> Result<Vec<u8>, BackupError> {
 #[cfg(all(test, target_os = "linux"))]
 mod linux_gate_tests {
     use super::*;
-    use sqlx::postgres::PgPoolOptions;
+    use sqlx::{Connection, PgConnection, postgres::PgPoolOptions};
     use std::os::unix::fs::PermissionsExt;
+
+    fn prepared_env_path(name: &str) -> PathBuf {
+        PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} required")))
+    }
+
+    async fn prepared_test_pool(database_env: &str, url_env: &str) -> (PgPool, String) {
+        let database = std::env::var(database_env).unwrap();
+        let suffix = database.strip_prefix("learning_backup_c4_task3_").unwrap();
+        assert_eq!(Uuid::parse_str(suffix).unwrap().to_string(), suffix);
+        let url = std::env::var(url_env).unwrap();
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        assert_eq!(require_admin_owner(&pool).await.unwrap(), database);
+        let version: String = sqlx::query_scalar("SHOW server_version_num")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!((180_000..190_000).contains(&version.parse::<u32>().unwrap()));
+        let enabled: String = sqlx::query_scalar("SHOW max_prepared_transactions")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(enabled.parse::<u32>().unwrap() > 0);
+        (pool, url)
+    }
+
+    /// Every mutation belongs to this exact synthetic UUID. The table is
+    /// created inside the prepared transaction and vanishes on its rollback.
+    async fn prepare_fixture_work(
+        url: &str,
+        id: Uuid,
+    ) -> Result<Result<(), sqlx::Error>, sqlx::Error> {
+        let mut origin = PgConnection::connect(url).await?;
+        sqlx::query("BEGIN").execute(&mut origin).await?;
+        let table = format!("c4_prepared_{}", id.simple());
+        sqlx::query(&format!(
+            "CREATE TABLE public.{table}(id integer PRIMARY KEY)"
+        ))
+        .execute(&mut origin)
+        .await?;
+        sqlx::query(&format!("INSERT INTO public.{table}(id) VALUES(1)"))
+            .execute(&mut origin)
+            .await?;
+        sqlx::query(&format!("PREPARE TRANSACTION '{id}'"))
+            .execute(&mut origin)
+            .await?;
+        // Caller owns the ID before any mutation. Return the close outcome so
+        // a close error cannot bypass cleanup of confirmed prepared work.
+        Ok(origin.close().await)
+    }
+
+    async fn rollback_fixture_work(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query(&format!("ROLLBACK PREPARED '{id}'"))
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn wait_for_no_other_sessions(pool: &PgPool) -> Result<i64, BackupError> {
+        for _ in 0..100 {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
+            ).fetch_one(pool).await?;
+            if count == 0 {
+                return Ok(count);
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        Err(BackupError::Invalid("fixture origin session did not close"))
+    }
+
+    /// Fresh migrated PG18 source, prepared transactions enabled, authentic
+    /// root-driver isolation proof, private empty roots, no runtime sessions.
+    /// No driver CONNECT-denial receipt is needed: refusal must precede REVOKE.
+    #[tokio::test]
+    #[ignore = "requires fresh isolated PG18 prepared source and root-driver proof"]
+    async fn prepared_target_transaction_survives_origin_close_and_blocks_source_preflight() {
+        let id = Uuid::new_v4();
+        let (pool, url) = prepared_test_pool(
+            "TEST_C4_PREPARED_DATABASE_NAME",
+            "TEST_C4_PREPARED_ADMIN_DATABASE_URL",
+        )
+        .await;
+        let initial = inspect_gate(&pool).await.unwrap();
+        assert!(initial.admin_is_database_owner && initial.runtime_can_connect);
+        assert!(!initial.public_can_connect);
+        assert!(!initial.runtime_can_inherit_admin && !initial.runtime_is_privileged);
+        assert_eq!(initial.other_login_writers, 0);
+        assert_eq!(wait_for_no_other_sessions(&pool).await.unwrap(), 0);
+        let control = prepared_env_path("TEST_C4_PREPARED_CONTROL_ROOT");
+        let pin = prepared_env_path("TEST_C4_PREPARED_PIN_ROOT");
+        let asset_root = prepared_env_path("TEST_C4_PREPARED_ASSET_ROOT");
+        let stage_root = prepared_env_path("TEST_C4_PREPARED_ASSET_STAGE_ROOT");
+        for path in [&control, &pin, &asset_root, &stage_root] {
+            assert_eq!(
+                std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+            assert!(std::fs::read_dir(path).unwrap().next().is_none());
+        }
+        let assets = FsAssetStore::new(asset_root, stage_root).unwrap();
+        let config = SourceBackupConfig {
+            backup_id: std::env::var("TEST_C4_PREPARED_BACKUP_ID")
+                .unwrap()
+                .parse()
+                .unwrap(),
+            expected_database: std::env::var("TEST_C4_PREPARED_DATABASE_NAME").unwrap(),
+            expected_compose_project: std::env::var("TEST_C4_PREPARED_COMPOSE_PROJECT").unwrap(),
+            isolation_attestation: prepared_env_path("TEST_C4_PREPARED_ISOLATION_ATTESTATION"),
+            control_root: control.clone(),
+            local_pin_root: pin.clone(),
+            pg_dump_executable: prepared_env_path("TEST_C4_PREPARED_PGDUMP_BIN"),
+            pgpassfile: prepared_env_path("TEST_C4_PREPARED_PGPASSFILE"),
+            pg_host: std::env::var("TEST_C4_PREPARED_PGHOST").unwrap(),
+            pg_port: std::env::var("TEST_C4_PREPARED_PGPORT")
+                .unwrap()
+                .parse()
+                .unwrap(),
+            drain_timeout: Duration::from_secs(5),
+        };
+        // Prove prerequisite checks pass before introducing the sole unsafe
+        // condition, so an unrelated early refusal cannot satisfy the test.
+        verify_isolation_attestation(&config, true).unwrap();
+        assert!(!config.backup_id.is_nil());
+        let options = pool.connect_options();
+        assert_eq!(options.get_host(), config.pg_host);
+        assert_eq!(options.get_port(), config.pg_port);
+        let acl_before: Option<String> = sqlx::query_scalar(
+            "SELECT datacl::text FROM pg_catalog.pg_database WHERE datname=current_database()",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        let origin_closed = prepare_fixture_work(&url, id).await.unwrap_or_else(|_| {
+            // Private gate failure log retains only a fixed reason and our
+            // exact ID if PREPARE confirmation is lost. Do not resolve work
+            // automatically when setup/confirmation has an uncertain outcome.
+            panic!("prepared_fixture_setup_or_prepare_unconfirmed:{id}")
+        });
+        // Collect fallible observations first, then resolve only our UUID
+        // before asserting. Ordinary assertion failures leave no prepared work.
+        let observed: Result<_, BackupError> = async {
+            let sessions = wait_for_no_other_sessions(&pool).await?;
+            let inspection = inspect_gate(&pool).await;
+            let capture = prepare_source_backup(&pool, &assets, &config).await;
+            let acl_after: Option<String> = sqlx::query_scalar(
+                "SELECT datacl::text FROM pg_catalog.pg_database WHERE datname=current_database()",
+            ).fetch_one(&pool).await?;
+            let own_prepared: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM pg_catalog.pg_prepared_xacts WHERE database=current_database() AND gid=$1",
+            ).bind(id.to_string()).fetch_one(&pool).await?;
+            let control_empty = std::fs::read_dir(&control)?.next().is_none();
+            let pin_empty = std::fs::read_dir(&pin)?.next().is_none();
+            Ok((sessions, inspection, capture, acl_after, own_prepared, control_empty, pin_empty))
+        }.await;
+        rollback_fixture_work(&pool, id).await.unwrap();
+        origin_closed.unwrap();
+        let (sessions, inspection, capture, acl_after, own_prepared, control_empty, pin_empty) =
+            observed.unwrap();
+        assert_eq!(sessions, 0, "prepared work has no ordinary session");
+        assert!(matches!(
+            inspection,
+            Err(BackupError::Invalid(
+                "source database has unsafe prepared transaction count"
+            ))
+        ));
+        assert!(matches!(
+            capture,
+            Err(BackupError::Invalid(
+                "source database has unsafe prepared transaction count"
+            ))
+        ));
+        assert_eq!(own_prepared, 1, "capture must not resolve prepared work");
+        assert_eq!(
+            acl_after, acl_before,
+            "preflight must not mutate CONNECT ACL"
+        );
+        assert!(
+            control_empty,
+            "no journal, source directory or dump may be created"
+        );
+        assert!(
+            pin_empty,
+            "no pin, sealed package or complete may be published"
+        );
+        let after_cleanup = inspect_gate(&pool).await.unwrap();
+        assert!(after_cleanup.runtime_can_connect);
+        assert_eq!(after_cleanup.other_sessions, 0);
+        pool.close().await;
+    }
+
+    /// Runner provisions two fresh UUID databases on one isolated PG18 server.
+    /// Only the second owns synthetic prepared work; target must remain usable
+    /// even though max_prepared_transactions is enabled server-wide.
+    #[tokio::test]
+    #[ignore = "requires two fresh isolated PG18 databases with prepared transactions enabled"]
+    async fn prepared_other_database_does_not_block_empty_target() {
+        let id = Uuid::new_v4();
+        let (target, _) = prepared_test_pool(
+            "TEST_C4_PREPARED_DATABASE_NAME",
+            "TEST_C4_PREPARED_ADMIN_DATABASE_URL",
+        )
+        .await;
+        let (other, other_url) = prepared_test_pool(
+            "TEST_C4_PREPARED_OTHER_DATABASE_NAME",
+            "TEST_C4_PREPARED_OTHER_ADMIN_DATABASE_URL",
+        )
+        .await;
+        let target_options = target.connect_options();
+        let other_options = other.connect_options();
+        assert_eq!(target_options.get_host(), other_options.get_host());
+        assert_eq!(target_options.get_port(), other_options.get_port());
+        assert_ne!(target_options.get_database(), other_options.get_database());
+        inspect_gate(&target).await.unwrap();
+        inspect_gate(&other).await.unwrap();
+        let origin_closed = prepare_fixture_work(&other_url, id)
+            .await
+            .unwrap_or_else(|_| panic!("prepared_fixture_setup_or_prepare_unconfirmed:{id}"));
+        let observed: Result<_, BackupError> = async {
+            let other_sessions = wait_for_no_other_sessions(&other).await?;
+            let target_count: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM pg_catalog.pg_prepared_xacts WHERE database=current_database()",
+            ).fetch_one(&target).await?;
+            let other_count: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM pg_catalog.pg_prepared_xacts WHERE database=current_database() AND gid=$1",
+            ).bind(id.to_string()).fetch_one(&other).await?;
+            let target_inspection = inspect_gate(&target).await;
+            let other_inspection = inspect_gate(&other).await;
+            Ok((other_sessions, target_count, other_count, target_inspection, other_inspection))
+        }.await;
+        rollback_fixture_work(&other, id).await.unwrap();
+        origin_closed.unwrap();
+        let (other_sessions, target_count, other_count, target_inspection, other_inspection) =
+            observed.unwrap();
+        assert_eq!(other_sessions, 0);
+        assert_eq!(target_count, 0);
+        assert_eq!(other_count, 1);
+        assert_eq!(target_inspection.unwrap().other_sessions, 0);
+        assert!(matches!(
+            other_inspection,
+            Err(BackupError::Invalid(
+                "source database has unsafe prepared transaction count"
+            ))
+        ));
+        inspect_gate(&other).await.unwrap();
+        target.close().await;
+        other.close().await;
+    }
 
     #[test]
     fn isolation_proof_is_private_fresh_and_bound_to_one_attempt() {
