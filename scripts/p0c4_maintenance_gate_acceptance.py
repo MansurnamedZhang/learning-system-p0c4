@@ -526,7 +526,7 @@ def host_preflight(runner, identities, subnets, builder_name, batch):
     for name in (PG_IMAGE, BUILDER):
         # Baseline image Env is needed in memory for exact container comparison;
         # only IDs/counts are persisted, never the baseline values or stderr.
-        image_format = '{"Id":{{json .Id}},"RepoDigests":{{json .RepoDigests}},"Config":{"Env":{{json .Config.Env}},"Volumes":{{json .Config.Volumes}}}}'
+        image_format = '{"Id":{{json .Id}},"RepoDigests":{{json .RepoDigests}},"Config":{"Env":{{json .Config.Env}},"Volumes":{{json (index .Config "Volumes")}}}}'
         facts = runner.observe("image-inspect", [DOCKER, "image", "inspect", "--format", image_format, name], lambda raw: [json.loads(line, object_pairs_hook=unique_pairs) for line in raw.splitlines()], observation_projection)
         require(len(facts) == 1, "PINNED_IMAGE_COUNT")
         facts = facts[0]
