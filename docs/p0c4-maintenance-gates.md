@@ -2,7 +2,15 @@
 
 更新：2026-10-03。上层施工单仍处于 **Task 3：维护窗、数据库 dump 与资产保护**。受控小型 dump 的 Task6 已在固定合成夹具范围内关闭；它不能关闭整库恢复或整个 C4。
 
-## 最新状态：三个真实 PG18 聚焦门已接受 3/3（2026-10-03）
+## 最新状态：live source admission 本切片实际五门已接受 5/5（2026-10-03）
+
+新批次 `06a0882f-5c7a-4fa5-ab86-252ece7732fa` 在基于 `0adab2e340c0980c120364a1214ebb53277e4405` 的未提交 `working-tree-green` 冻结快照上实际通过五个精确 PG18 用例，各 exit 0、1 通过、0 失败/忽略、stderr 0 字节。规范 result SHA-256 为 `98b0883bef44abe10259006e34b5481e322fac38511421b35c37d56afd74cd98`，控制端已读实际结果/精确日志并核对五个本批 PG 停止、留卷留内部空网、构建器移除及 pending 不存在。独立限定返回审查 Spec/Quality/返回接受均 Approved，Critical/Important/Minor 均为 0；只接受本冻结切片的五门 5/5。
+
+私有 owned `SourceAdmission` 以同一认证连接取得固定 two-i32 数据库域 session lock；busy 在 ACL/日志修改前拒绝，guard 持续覆盖源端 SQL/catalog/journal/dump/seal/pin/release/补偿。五门证明不同 root/attempt 的 live 互斥、单连接 catalog/排空、Drop 关闭旧 backend 及 release/补偿持续持有；没有调用 `pg_dump`，release 前序摘要为 SYNTHETIC。机制、精确测试和输入 pins 见[源端维护准入](p0c4-source-admission.md)，构建计数见[C4 验证记录](p0c4-verification.md)。父 Task3、Task4/5、`CompleteBackup`、C4 和生产继续开放。
+
+下列 c9f 专项属于旧提交 `07eaf416` 的历史接受，不自动转移到本候选；原三门未在本候选重跑，不能与新五门相加为新版本 8/8。
+
+## 历史专项：三个真实 PG18 聚焦门已接受 3/3（2026-10-03）
 
 全新批次 `c9f1cdaf-de98-4f69-96a1-0c6a479fc7cb` 的三个精确 PG18 用例各通过 1 项、失败/忽略为 0，main 退出 0，状态为 `MAINTENANCE_FOCUSED_GATES_PASSED_NOT_FULL_BACKUP_NOT_RESTORE`。这是父 Task3 的维护聚焦验收，不关闭父任务，也不推进 Task4/5。
 
@@ -58,9 +66,9 @@ Linux 验收使用三个全新隔离 Compose 项目、新 PG18 卷、私有目�
 
 ## 后续关闭条件
 
-本补丁没有提供跨尝试的统一维护准入锁、所有中断阶段的完成/放弃恢复，也没有完成真实源端封存产物到独立目标的组合验收。这些仍属于父 Task3 的后续工作。
+当前 live 准入切片已提供同库跨 attempt/root 的存活尝试互斥；会话消失后锁释放，固定 source control-root 的独立持久身份 pin 与跨根崩溃恢复身份仍未完成。所有中断阶段的完成/放弃恢复、真实源端封存产物到独立目标的组合验收继续属于父 Task3 的后续工作。
 
-用户已将独立存储故障域安排延后，当前继续代码和单机隔离范围。父 Task3 还须完成跨尝试统一维护准入锁、广义中断的完成/放弃恢复、真实源端 dump 与资产清单封存到独立目标的组合校验和完成收据；三个任务复选框均保持未勾选。Task4 干净实例整库/原件恢复与 Task5 完整 Attention/授权/租约及故障注入仍待后续验收，独立持钥见证与 `CompleteBackup` 正例也未完成；不签发 C4 已验证或生产状态。
+用户已将独立存储故障域安排延后，当前继续代码和单机隔离范围。父 Task3 还须完成可信固定源根的持久身份 pin、广义中断的完成/放弃恢复、真实源端 dump 与全部 ready assets/index/保留保护到独立目标的组合校验和完成收据；三个任务复选框均保持未勾选。Task4 干净实例整库/原件恢复与 Task5 完整 Attention/授权/租约及故障注入仍待后续验收，独立持钥见证与 `CompleteBackup` 正例也未完成；不签发 C4 已验证或生产状态。
 
 ## 历史：POSIX 原子写入模式修复（2026-10-03，聚焦门执行前）
 

@@ -123,7 +123,7 @@ async fn real_gate_waits_for_old_runtime_session_and_rejects_new_runtime_login()
     let can_connect: bool = sqlx::query_scalar(
         "SELECT has_database_privilege('learning_runtime',current_database(),'CONNECT')",
     )
-    .fetch_one(&admin)
+    .fetch_one(&mut held)
     .await
     .unwrap();
     assert!(!can_connect);

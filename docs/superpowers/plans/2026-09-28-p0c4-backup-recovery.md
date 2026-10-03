@@ -14,7 +14,7 @@
 
 - 基线 `4507f3f55f860a6d3afed2cefe2bce27f7ff6b7c`；不改旧迁移字节、旧版本身份、C1–C3 公开契约。C4 不通过 C3 授权导出接口伪造整库备份。
 - 管理权限和密钥绝不进入 Worker、runtime 或备份包；所有测试使用新库/卷，保留 C3 证据。未取得实际异故障域与完整恢复证据时不写 `VERIFIED`。
-- 每任务先写能定位失败的 RED，再实现、复审、执行适当本地测试；真实 PostgreSQL/Linux 门使用精确源码 ZIP，每份上传逐包确认。
+- 每任务先写能定位失败的 RED，再实现、复审、执行适当本地测试；真实 PostgreSQL/Linux 门使用精确源码 ZIP。依据后续用户直接授权“无需要我逐项确认，自己去做”，批准范围内自主封存/上传/验证，不重复逐包确认；仍核对精确 payload pins，使用全新隔离批次和资源，保留旧失败与证据。范围发生实质变化时再升级确认，sudo 凭据仍只在用户 Linux 终端输入。
 
 ## Task 1：全量备份契约、资产清单与拒绝规则
 
@@ -30,9 +30,13 @@
 
 ## Task 3：维护窗、数据库 dump 与资产保护
 
+2026-10-03 live source admission 切片在新批次 `06a0882f-5c7a-4fa5-ab86-252ece7732fa` 实际通过并限定接受五个精确 PG18 门 5/5，各 exit 0、1 通过、0 失败/忽略、stderr 0 字节。输入为基于 `0adab2e340c0980c120364a1214ebb53277e4405` 的未提交 `working-tree-green` 快照；规范 result SHA-256 `98b0883bef44abe10259006e34b5481e322fac38511421b35c37d56afd74cd98`。同会话 authenticated owner/expected DB 与固定 two-i32 session lock 实现跨 attempt/root 的 live 同库互斥，owned guard 覆盖 SQL/catalog/journal/dump/seal/pin/release/补偿。冻结切片静态 Spec/Quality 与独立限定返回接受均 Approved，Critical/Important/Minor 均为 0；控制端已核对实际五门与精确停止/留卷/空网/构建器移除，只接受本切片 5/5。未执行真实 dump，release 前序摘要为 SYNTHETIC。详见[源端维护准入](../../p0c4-source-admission.md)和[C4 验证记录](../../p0c4-verification.md)。
+
+历史专项，属于不同源码且不自动转移到当前候选：
+
 2026-10-03 全新 `c9f1cdaf-de98-4f69-96a1-0c6a479fc7cb` 批次三个真实 Linux/PG18 聚焦门 **3/3**，各 1 通过、0 失败/忽略，main 退出 0：当前库预备事务在原连接关闭后仍阻止预检且 ACL/日志不变；其他库持有预备事务不误阻塞空的当前库；释放日志失败补偿 REVOKE 与显式重新关闸通过。第三项使用 SYNTHETIC 前序摘要，三项均未执行 `pg_dump`。用户完整 root 回传的规范哈希/输入 pins/源码不变已独立核对；普通用户只读观察确认三个精确容器停止、卷及内部空网络保留、构建器移除，控制器未直接读取 root 私有原始结果。详见 [维护闸补充验证](../../p0c4-maintenance-gates.md) 和 [C4 验证记录](../../p0c4-verification.md)。
 
-独立限定返回审查 Spec/Quality Approved，Critical/Important/Minor 均为 0，仅接受上述聚焦三门 **3/3**。父 Task3 **保持开放**：跨尝试统一维护准入锁、广义中断完成/放弃恢复、真实源端封存到独立目标的组合校验和完成收据仍待验收；以下三个复选框均未勾选。用户已将独立存储故障域安排延后，当前继续代码/单机隔离范围，不推进 Task4/5；聚焦 3/3 不能代表整库 dump、完整备份/恢复、`CompleteBackup`、C4 或生产已通过。旧失败批次及 0/3 历史证据保留，不重放。
+上述历史专项的独立限定返回审查 Spec/Quality Approved，Critical/Important/Minor 均为 0，仅接受 c9f 聚焦三门 **3/3**；原三门未在本候选重跑，借用签名/所有权适配经静态审查未发现需要追加定向回归的实质问题，不能与当前五门相加成新版本 8/8。父 Task3 **保持开放**：live 锁不提供会话消失后的持久身份，可信固定 source control-root 的独立身份 pin、跨根崩溃绑定、广义中断完成/放弃恢复，以及真实 dump/全部 ready assets/index/保留保护到独立目标的组合校验和完成收据仍待验收；以下三个复选框均未勾选。用户已将独立存储故障域安排延后，当前继续代码/单机隔离范围；Task4/5、完整备份/恢复、`CompleteBackup`、C4 与生产继续开放。旧失败批次及 0/3 历史证据保留，不重放。
 
 - [ ] 定义管理进程的写闸/排空协议与可恢复控制记录；隔离门先停 runtime/Worker 进程，拒绝新 runtime 连接，再确认所有既有 runtime 会话和事务排空；其他写角色/无法证明排空则失败关闭。未来 P1 的在线只停写协议另验。旧在途事务结束后生成 dump 和清单，失败自动保持安全状态，显式恢复流程有记录。
 - [ ] `pg_dump -Fc` 使用可信固定参数、管理角色与脱敏日志；收集 PG 主版本、SQLx 迁移状态、应用提交和非敏感角色配方。DB dump、清单、保留保护先持久化，再解除写闸；源端证明和独立目标全量核验都通过后才发 `complete` 收据。

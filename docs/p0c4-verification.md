@@ -1,6 +1,33 @@
 # P0-C4 完整备份与干净恢复验证记录
 
-## 父 Task3 最新状态（2026-10-03）：维护聚焦门已接受 3/3，父任务开放
+## 父 Task3 最新状态（2026-10-03）：live source admission 实际五门已接受 5/5，父任务开放
+
+新批次 `06a0882f-5c7a-4fa5-ab86-252ece7732fa` 实际通过 **5/5** 个精确 PG18 准入门，状态 `FIVE_ADMISSION_GATES_PASSED_NOT_FULL_BACKUP_NOT_RESTORE`。输入是基于 `0adab2e340c0980c120364a1214ebb53277e4405` 的未提交 `working-tree-green` 冻结快照。该次测试运行时尚未产生本修订提交，base 仅表示测试包基线；本次接受绑定 ZIP 和五个 Rust 原始字节 pins。控制端已读真实规范结果、五份精确日志并独立核对本批资源；独立限定返回审查 Spec/Quality/返回接受均 Approved，Critical/Important/Minor 均为 0，只接受本切片五门 5/5，审查报告 SHA-256 为 `a917823c88cb7a265f247da92c3b4146ad314fb7f8b0254e2587f031d531671e`。返回审查从本地证据重建规范 result、核对全 ZIP/manifest/source aggregate，不冒充审查员直接读取远端。机制与冻结 Rust pins 见[源端维护准入](p0c4-source-admission.md)。
+
+| 运行输入或输出 | SHA-256 |
+| --- | --- |
+| ZIP | `90086c9413d2d4d46bba689267ad6ad3a6aa67a5ea5e2c334e18115f656c543f` |
+| manifest | `e7f642b7717e8c1227d639bd0e4d2b48876f0def0522c7a3055a98b5a8c65926` |
+| driver | `86c59ad4f29eb35ce2cbf6af3fec50fabe981a56a27bfbf157279ba389fe2920` |
+| 规范 result | `98b0883bef44abe10259006e34b5481e322fac38511421b35c37d56afd74cd98` |
+| 实际测试二进制 | `7c6cff0b68a3db71acb7e76c302027a424c46952edc43c11c565a4f731e3bed3` |
+| 运行输入源码，前后相同 | `b87289f3be941373ba6626a04f16879debd1766209eb0dcfb697baa5488656cc` |
+
+下列五项均在 `source::admission_tests`，**各 exit 0、1 通过、0 失败、0 忽略、stderr 0 字节**；每项使用一个新隔离 PG18 项目/卷/私有根。
+
+| 精确测试 | 本批实际行为 |
+| --- | --- |
+| `busy_source_recovery_preserves_acl_and_journal` | busy recovery 保留 ACL、日志字节与目录项，无新恢复文件。 |
+| `same_database_attempts_share_admission_and_other_database_is_independent` | 不同 attempt/root 同库互斥，其他库独立；owner close 后可再准入。 |
+| `single_connection_catalog_and_drain_share_admitted_backend` | max=1/min=1 的 catalog/排空同 PID，零自增会话；真实额外事务仍计数并拒绝。 |
+| `dropping_admission_closes_backend_without_reopening_gate` | Drop 使旧 backend 消失，ACL 仍闭闸，未完成日志与固定根拒绝保留。 |
+| `release_and_compensation_keep_admission_until_owner_closes` | release 与补偿都持有准入至 owner close；前序摘要为 SYNTHETIC。 |
+
+Linux 固定离线 builder 已完成格式、严格 `learning-backup --all-targets` Clippy 和 cfg 编译，builder exit 0；库 **149 通过/0 失败/26 忽略**、maintenance_contract **4 通过/0 失败/0 忽略**、maintenance_journal **1 通过/0 失败/0 忽略**。构建/普通测试不增加实际 PG 门数。源码与二进制已按冻结输入核验不变，builder 已移除，五个本批精确 PG ID 全部停止，卷及内部空网保留，pending 不存在。运行身份为普通 hans，使用自己拥有的新私有夹具，不是直接读取宿主 root 私有旧证据；测试根权限不证明生产固定根可信。
+
+五门没有调用 `pg_dump`；public prepare 的完整持有调用链来自静态审查，本轮没有执行 dump/seal/pin 全流程。下列 c9f 3/3 为旧提交 `07eaf416` 的历史专项，旧测试适配经静态审查未发现需要追加定向回归的实质问题，但原三门没有在本候选重跑，不能相加成新版本 8/8。父 Task3 尚缺可信固定 source control-root 持久身份 pin、跨根崩溃后的持久绑定、广义 finish/abandon 恢复，以及真实 dump/全部 ready assets/index/保留保护/独立目标全量校验/完成收据组合验收。独立故障域按用户安排延后；Task3 三项复选框、Task4/5、完整备份/恢复、`CompleteBackup`、C4 与生产均保持开放。
+
+## 历史专项（2026-10-03）：维护聚焦门已接受 3/3，父任务开放
 
 新批次 `c9f1cdaf-de98-4f69-96a1-0c6a479fc7cb` 在提交 `07eaf416af795cbad309bf5436b27c2289e6a06c` 的冻结源码上实际通过三个精确 Linux/PG18 用例：各 1 通过、0 失败、0 忽略，main 退出 0。状态 `MAINTENANCE_FOCUSED_GATES_PASSED_NOT_FULL_BACKUP_NOT_RESTORE` 只接受这三个聚焦门，不关闭父 Task3 或整个 C4。
 

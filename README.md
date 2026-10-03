@@ -13,6 +13,8 @@
 
 C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复目标准入、出生证明、干净目标 pin **候选**，以及精确子进程的只读端点绑定/同一 guard 重启拒绝（新批次结果已核对）。独立备份目标、`CompleteBackup`、构建 pin、真实数据库与资产恢复及整关故障注入仍未验收。候选记录不能当作恢复许可。详见 [C4 验证记录](docs/p0c4-verification.md)。
 
+2026-10-03 源端 live 准入的五个 PG18 门已获本切片限定接受，覆盖同库跨 attempt/root 互斥；跨根崩溃持久身份与真实源端完整捕获仍待父 Task3 验收。
+
 ## 代码与文档导航
 
 - [项目架构设计文档集](docs/architecture/README.md)：总体、领域模型、Rust 分层、事务权限、资产任务、快照恢复、前端学习、部署演进与决策证据；[离线 HTML](docs/architecture/KnowWeave架构设计.html)。
@@ -24,6 +26,7 @@ C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复�
 - `deploy`：隔离测试配置与初始化脚本；不含生产部署配置。
 - `docs/content-boundary.md`：块与内容边界；`docs/p0c3-format.md`：融合快照格式。
 - `docs/p0c4-restore-target-acceptance.md`、`docs/p0c4-restore-birth-acceptance.md`、`docs/p0c4-restore-pin-acceptance.md`：C4 单机目标验收协议。
+- [源端维护准入](docs/p0c4-source-admission.md)：live 同库互斥、实际五门及父 Task3 尚待完成的边界。
 - `docs/superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md` 与 `docs/superpowers/plans/2026-09-28-p0c4-backup-recovery.md`：C4 设计和实施任务。
 
 各阶段的边界、执行取舍和原始证据索引见 `docs/p0*-boundary.md`、`docs/p0*-execution.md`、`docs/p0*-verification.md`。验证记录区分已运行结果、静态审查和未覆盖的门槛；不能把某一阶段通过推断为整体上线。

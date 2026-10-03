@@ -1,13 +1,20 @@
 //! Management-side source capture. The result is a local `sealed` pin, never
 //! an independent fault-domain copy or a restorable `complete` receipt.
 #[cfg(target_os = "linux")]
+mod admission;
+#[cfg(target_os = "linux")]
+use admission::SourceAdmission;
+#[cfg(all(test, target_os = "linux"))]
+mod admission_tests;
+
+#[cfg(target_os = "linux")]
 use crate::maintenance::valid_c4_database;
+use crate::{BackupError, BackupManifestV1, SealedBackup};
 #[cfg(target_os = "linux")]
 use crate::{
-    AdminAssetCatalog, FileRecord, GateInspection, GatePhase, MigrationRecord, PgDumpSpec,
-    SourceGateJournal, SourceIdentity, seal_backup,
+    FileRecord, GateInspection, GatePhase, MigrationRecord, PgDumpSpec, SourceGateJournal,
+    SourceIdentity, seal_backup,
 };
-use crate::{BackupError, BackupManifestV1, SealedBackup};
 use learning_assets::FsAssetStore;
 #[cfg(target_os = "linux")]
 use learning_assets::backup_fs::BackupDir;
@@ -19,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 #[cfg(target_os = "linux")]
-use sqlx::Row;
+use sqlx::{PgConnection, Row};
 #[cfg(target_os = "linux")]
 use std::{
     fs::File,
@@ -113,7 +120,8 @@ pub async fn force_close_release_ready(
     }
     #[cfg(target_os = "linux")]
     {
-        let database = require_admin_owner(admin).await?;
+        let mut admission = SourceAdmission::try_acquire(admin, expected_database).await?;
+        let database = admission.database().to_owned();
         if database != expected_database {
             return Err(BackupError::Invalid("recovery database identity"));
         }
@@ -123,7 +131,7 @@ pub async fn force_close_release_ready(
                 "recovery requires release-ready phase",
             ));
         }
-        compensate_release(admin, &database).await?;
+        compensate_release(&mut admission, &database).await?;
         let root = BackupDir::open_private_root(control_root)?;
         let dir = root.create_dir(&format!("{backup_id}.release-recovery"))?;
         let bytes = serde_json::to_vec(&serde_json::json!({
@@ -134,6 +142,7 @@ pub async fn force_close_release_ready(
         }))?;
         write_bytes(&dir, "closed.json", &bytes)?;
         root.sync()?;
+        admission.close().await?;
         Ok(())
     }
 }
@@ -155,7 +164,8 @@ async fn prepare_linux(
     // Both roots must exist and be owned 0700 before altering DB privileges.
     let control = BackupDir::open_private_root(&config.control_root)?;
     BackupDir::open_private_root(&config.local_pin_root)?;
-    let database = require_admin_owner(admin).await?;
+    let mut admission = SourceAdmission::try_acquire(admin, &config.expected_database).await?;
+    let database = admission.database().to_owned();
     if database != config.expected_database {
         return Err(BackupError::Invalid("source database identity mismatch"));
     }
@@ -171,7 +181,7 @@ async fn prepare_linux(
     }
     let dump_spec = PgDumpSpec::new(&database, &config.pg_host, config.pg_port)?;
     ensure_no_unfinished_journal(&control, &config.control_root)?;
-    let before = inspect_gate(admin).await?;
+    let before = inspect_gate(admission.connection()).await?;
     if !before.admin_is_database_owner
         || !before.runtime_can_connect
         || before.public_can_connect
@@ -184,12 +194,12 @@ async fn prepare_linux(
     let mut journal = SourceGateJournal::start(&config.control_root, config.backup_id)?;
     let source = control.create_dir(&format!("{}.source", config.backup_id))?;
     let revoke = format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
-    sqlx::query(&revoke).execute(admin).await?;
+    sqlx::query(&revoke).execute(admission.connection()).await?;
     journal.advance(GatePhase::Closed, None)?;
     wait_for_runtime_connect_probe(config).await?;
     let deadline = Instant::now() + config.drain_timeout;
     loop {
-        let facts = inspect_gate(admin).await?;
+        let facts = inspect_gate(admission.connection()).await?;
         if !facts.runtime_can_connect && facts.other_sessions == 0 {
             facts.validate()?;
             break;
@@ -202,9 +212,9 @@ async fn prepare_linux(
     }
     journal.advance(GatePhase::Drained, None)?;
 
-    let plan = AdminAssetCatalog::new(admin.clone()).plan_assets().await?;
-    let identity = collect_source_identity(admin).await?;
-    let role_bytes = role_recipe(admin).await?;
+    let plan = crate::catalog::plan_assets_on(admission.connection()).await?;
+    let identity = collect_source_identity(admission.connection()).await?;
+    let role_bytes = role_recipe(admission.connection()).await?;
     let mut roles_write = source.create_file("roles.json")?;
     roles_write.write_all(&role_bytes)?;
     roles_write.sync_all()?;
@@ -231,7 +241,7 @@ async fn prepare_linux(
         BackupManifestV1::from_plan(config.backup_id, identity, &plan, dump_record, role_record)?;
     let manifest_sha256 = manifest.canonical_sha256()?;
     write_bytes(&source, "manifest.json", &manifest.canonical_bytes()?)?;
-    inspect_gate(admin).await?.validate()?;
+    inspect_gate(admission.connection()).await?.validate()?;
     journal.advance(GatePhase::DumpAndIndexDurable, Some(&manifest_sha256))?;
 
     let sealed = seal_backup(
@@ -246,50 +256,58 @@ async fn prepare_linux(
         return Err(BackupError::Invalid("local pin manifest digest"));
     }
     journal.advance(GatePhase::PinsDurable, Some(&manifest_sha256))?;
-    inspect_gate(admin).await?.validate()?;
+    inspect_gate(admission.connection()).await?.validate()?;
     verify_isolation_attestation(config, false)?;
-    release_runtime_connect(admin, &database, &mut journal).await?;
+    release_runtime_connect(&mut admission, &database, &mut journal).await?;
+    admission.close().await?;
     Ok(SourceLocalPin { sealed, manifest })
 }
 
 #[cfg(target_os = "linux")]
 async fn release_runtime_connect(
-    admin: &PgPool,
+    admission: &mut SourceAdmission,
     database: &str,
     journal: &mut SourceGateJournal,
 ) -> Result<(), BackupError> {
     journal.advance(GatePhase::ReleaseReady, None)?;
     let grant = format!("GRANT CONNECT ON DATABASE \"{database}\" TO learning_runtime");
-    let granted = sqlx::query(&grant).execute(admin).await;
+    let granted = sqlx::query(&grant).execute(admission.connection()).await;
     if granted.is_err() {
-        compensate_release(admin, database).await?;
+        compensate_release(admission, database).await?;
         return Err(BackupError::Invalid("runtime CONNECT grant failed"));
     }
-    match inspect_gate(admin).await {
+    match inspect_gate(admission.connection()).await {
         Ok(after) if after.runtime_can_connect && !after.public_can_connect => {}
         _ => {
-            compensate_release(admin, database).await?;
+            compensate_release(admission, database).await?;
             return Err(BackupError::Invalid(
                 "runtime CONNECT release could not be verified",
             ));
         }
     }
     if let Err(error) = journal.advance(GatePhase::Released, None) {
-        compensate_release(admin, database).await?;
+        compensate_release(admission, database).await?;
         return Err(error);
     }
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
-async fn compensate_release(admin: &PgPool, database: &str) -> Result<(), BackupError> {
+async fn compensate_release(
+    admission: &mut SourceAdmission,
+    database: &str,
+) -> Result<(), BackupError> {
     let revoke = format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
-    if sqlx::query(&revoke).execute(admin).await.is_err() {
+    if sqlx::query(&revoke)
+        .execute(admission.connection())
+        .await
+        .is_err()
+    {
         return Err(BackupError::Invalid(
             "source gate outcome ambiguous; manual recovery required",
         ));
     }
-    match inspect_gate(admin).await {
+    match inspect_gate(admission.connection()).await {
         Ok(facts) if facts.validate().is_ok() => Ok(()),
         _ => Err(BackupError::Invalid(
             "source gate outcome ambiguous; manual recovery required",
@@ -552,10 +570,10 @@ fn record_file(path: &str, file: &mut File) -> Result<FileRecord, BackupError> {
 }
 
 #[cfg(target_os = "linux")]
-async fn require_admin_owner(pool: &PgPool) -> Result<String, BackupError> {
+async fn require_admin_owner(connection: &mut PgConnection) -> Result<String, BackupError> {
     let (current, session, authenticated, database, owner): (String, String, Option<String>, String, String) = sqlx::query_as(
         "SELECT current_user::text, session_user::text, system_user, current_database()::text, pg_get_userbyid(d.datdba)::text FROM pg_catalog.pg_database d WHERE d.datname=current_database()",
-    ).fetch_one(pool).await?;
+    ).fetch_one(&mut *connection).await?;
     if current != "learning_admin"
         || session != "learning_admin"
         || owner != "learning_admin"
@@ -625,8 +643,7 @@ mod prepared_count_tests {
 }
 
 #[cfg(target_os = "linux")]
-async fn inspect_gate(pool: &PgPool) -> Result<GateInspection, BackupError> {
-    let mut conn = pool.acquire().await?;
+async fn inspect_gate(connection: &mut PgConnection) -> Result<GateInspection, BackupError> {
     let row = sqlx::query(
         "SELECT \
             (pg_get_userbyid(d.datdba)='learning_admin') AS admin_is_owner, \
@@ -638,7 +655,7 @@ async fn inspect_gate(pool: &PgPool) -> Result<GateInspection, BackupError> {
             (SELECT count(*) FROM pg_catalog.pg_prepared_xacts WHERE database=current_database()) AS prepared_transactions, \
             (SELECT count(*) FROM pg_catalog.pg_roles r WHERE r.rolcanlogin AND r.rolname NOT IN ('learning_admin','learning_runtime','postgres') AND has_database_privilege(r.rolname,current_database(),'CONNECT')) AS other_login_writers \
          FROM pg_catalog.pg_database d WHERE d.datname=current_database()",
-    ).fetch_one(&mut *conn).await?;
+    ).fetch_one(&mut *connection).await?;
     require_no_prepared_transactions(row.try_get("prepared_transactions"))?;
     Ok(GateInspection {
         admin_is_database_owner: row.try_get("admin_is_owner")?,
@@ -652,9 +669,11 @@ async fn inspect_gate(pool: &PgPool) -> Result<GateInspection, BackupError> {
 }
 
 #[cfg(target_os = "linux")]
-async fn collect_source_identity(pool: &PgPool) -> Result<SourceIdentity, BackupError> {
+async fn collect_source_identity(
+    connection: &mut PgConnection,
+) -> Result<SourceIdentity, BackupError> {
     let version: String = sqlx::query_scalar("SHOW server_version_num")
-        .fetch_one(pool)
+        .fetch_one(&mut *connection)
         .await?;
     let version = version
         .parse::<u32>()
@@ -664,7 +683,7 @@ async fn collect_source_identity(pool: &PgPool) -> Result<SourceIdentity, Backup
     }
     let rows: Vec<(i64, String, bool)> = sqlx::query_as(
         "SELECT version,encode(checksum,'hex'),success FROM public._sqlx_migrations ORDER BY version",
-    ).fetch_all(pool).await?;
+    ).fetch_all(&mut *connection).await?;
     let expected = MIGRATOR.iter().collect::<Vec<_>>();
     if rows.len() != expected.len() {
         return Err(BackupError::Invalid(
@@ -766,10 +785,10 @@ struct RoleMembership {
 }
 
 #[cfg(target_os = "linux")]
-async fn role_recipe(pool: &PgPool) -> Result<Vec<u8>, BackupError> {
+async fn role_recipe(connection: &mut PgConnection) -> Result<Vec<u8>, BackupError> {
     let rows = sqlx::query(
         "SELECT rolname::text AS name,rolcanlogin,rolinherit,rolsuper,rolcreatedb,rolcreaterole,rolbypassrls,rolreplication,rolconnlimit FROM pg_catalog.pg_roles WHERE rolname IN ('learning_admin','learning_runtime','learning_auth_lock') ORDER BY rolname",
-    ).fetch_all(pool).await?;
+    ).fetch_all(&mut *connection).await?;
     if rows.len() != 3 {
         return Err(BackupError::Invalid("missing role recipe role"));
     }
@@ -807,7 +826,7 @@ async fn role_recipe(pool: &PgPool) -> Result<Vec<u8>, BackupError> {
     }
     let rows = sqlx::query(
         "SELECT granted.rolname::text AS role,member.rolname::text AS member,am.inherit_option,am.set_option,am.admin_option FROM pg_catalog.pg_auth_members am JOIN pg_catalog.pg_roles granted ON granted.oid=am.roleid JOIN pg_catalog.pg_roles member ON member.oid=am.member WHERE granted.rolname IN ('learning_admin','learning_runtime','learning_auth_lock') OR member.rolname IN ('learning_admin','learning_runtime','learning_auth_lock') ORDER BY granted.rolname,member.rolname",
-    ).fetch_all(pool).await?;
+    ).fetch_all(&mut *connection).await?;
     if rows.len() != 1 {
         return Err(BackupError::Invalid("role membership recipe differs"));
     }
@@ -854,7 +873,12 @@ mod linux_gate_tests {
             .connect(&url)
             .await
             .unwrap();
-        assert_eq!(require_admin_owner(&pool).await.unwrap(), database);
+        assert_eq!(
+            require_admin_owner(&mut pool.acquire().await.unwrap())
+                .await
+                .unwrap(),
+            database
+        );
         let version: String = sqlx::query_scalar("SHOW server_version_num")
             .fetch_one(&pool)
             .await
@@ -925,7 +949,9 @@ mod linux_gate_tests {
             "TEST_C4_PREPARED_ADMIN_DATABASE_URL",
         )
         .await;
-        let initial = inspect_gate(&pool).await.unwrap();
+        let initial = inspect_gate(&mut pool.acquire().await.unwrap())
+            .await
+            .unwrap();
         assert!(initial.admin_is_database_owner && initial.runtime_can_connect);
         assert!(!initial.public_can_connect);
         assert!(!initial.runtime_can_inherit_admin && !initial.runtime_is_privileged);
@@ -986,7 +1012,7 @@ mod linux_gate_tests {
         // before asserting. Ordinary assertion failures leave no prepared work.
         let observed: Result<_, BackupError> = async {
             let sessions = wait_for_no_other_sessions(&pool).await?;
-            let inspection = inspect_gate(&pool).await;
+            let inspection = inspect_gate(&mut pool.acquire().await.unwrap()).await;
             let capture = prepare_source_backup(&pool, &assets, &config).await;
             let acl_after: Option<String> = sqlx::query_scalar(
                 "SELECT datacl::text FROM pg_catalog.pg_database WHERE datname=current_database()",
@@ -1028,7 +1054,9 @@ mod linux_gate_tests {
             pin_empty,
             "no pin, sealed package or complete may be published"
         );
-        let after_cleanup = inspect_gate(&pool).await.unwrap();
+        let after_cleanup = inspect_gate(&mut pool.acquire().await.unwrap())
+            .await
+            .unwrap();
         assert!(after_cleanup.runtime_can_connect);
         assert_eq!(after_cleanup.other_sessions, 0);
         pool.close().await;
@@ -1056,8 +1084,12 @@ mod linux_gate_tests {
         assert_eq!(target_options.get_host(), other_options.get_host());
         assert_eq!(target_options.get_port(), other_options.get_port());
         assert_ne!(target_options.get_database(), other_options.get_database());
-        inspect_gate(&target).await.unwrap();
-        inspect_gate(&other).await.unwrap();
+        inspect_gate(&mut target.acquire().await.unwrap())
+            .await
+            .unwrap();
+        inspect_gate(&mut other.acquire().await.unwrap())
+            .await
+            .unwrap();
         let origin_closed = prepare_fixture_work(&other_url, id)
             .await
             .unwrap_or_else(|_| panic!("prepared_fixture_setup_or_prepare_unconfirmed:{id}"));
@@ -1069,8 +1101,8 @@ mod linux_gate_tests {
             let other_count: i64 = sqlx::query_scalar(
                 "SELECT count(*) FROM pg_catalog.pg_prepared_xacts WHERE database=current_database() AND gid=$1",
             ).bind(id.to_string()).fetch_one(&other).await?;
-            let target_inspection = inspect_gate(&target).await;
-            let other_inspection = inspect_gate(&other).await;
+            let target_inspection = inspect_gate(&mut target.acquire().await.unwrap()).await;
+            let other_inspection = inspect_gate(&mut other.acquire().await.unwrap()).await;
             Ok((other_sessions, target_count, other_count, target_inspection, other_inspection))
         }.await;
         rollback_fixture_work(&other, id).await.unwrap();
@@ -1087,7 +1119,9 @@ mod linux_gate_tests {
                 "source database has unsafe prepared transaction count"
             ))
         ));
-        inspect_gate(&other).await.unwrap();
+        inspect_gate(&mut other.acquire().await.unwrap())
+            .await
+            .unwrap();
         target.close().await;
         other.close().await;
     }
@@ -1183,15 +1217,30 @@ mod linux_gate_tests {
             .connect(&url)
             .await
             .unwrap();
-        assert_eq!(require_admin_owner(&pool).await.unwrap(), database);
+        assert_eq!(
+            require_admin_owner(&mut pool.acquire().await.unwrap())
+                .await
+                .unwrap(),
+            database
+        );
+        let mut admission = SourceAdmission::try_acquire(&pool, &database)
+            .await
+            .unwrap();
         let root = PathBuf::from(std::env::var("TEST_C4_RELEASE_CONTROL_ROOT").unwrap());
         let id = Uuid::new_v4();
         let mut journal = SourceGateJournal::start(&root, id).unwrap();
         let revoke =
             format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
-        sqlx::query(&revoke).execute(&pool).await.unwrap();
+        sqlx::query(&revoke)
+            .execute(admission.connection())
+            .await
+            .unwrap();
         journal.advance(GatePhase::Closed, None).unwrap();
-        inspect_gate(&pool).await.unwrap().validate().unwrap();
+        inspect_gate(admission.connection())
+            .await
+            .unwrap()
+            .validate()
+            .unwrap();
         journal.advance(GatePhase::Drained, None).unwrap();
         journal
             .advance(GatePhase::DumpAndIndexDurable, Some(&"a".repeat(64)))
@@ -1202,13 +1251,19 @@ mod linux_gate_tests {
         let collision = root.join(format!("{id}.control")).join("released.json");
         std::fs::create_dir(&collision).unwrap();
         assert!(
-            release_runtime_connect(&pool, &database, &mut journal)
+            release_runtime_connect(&mut admission, &database, &mut journal)
                 .await
                 .is_err()
         );
         assert_eq!(journal.record().phase(), GatePhase::ReleaseReady);
-        assert!(!inspect_gate(&pool).await.unwrap().runtime_can_connect);
+        assert!(
+            !inspect_gate(admission.connection())
+                .await
+                .unwrap()
+                .runtime_can_connect
+        );
         std::fs::remove_dir(collision).unwrap();
+        admission.close().await.unwrap();
         force_close_release_ready(&pool, &root, id, &database)
             .await
             .unwrap();
