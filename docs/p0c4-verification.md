@@ -1,6 +1,20 @@
 # P0-C4 完整备份与干净恢复验证记录
 
-## Task6 最新状态（2026-10-03）：最终回归 3/3 已接受
+## 父 Task3 最新状态（2026-10-03）：维护聚焦门已接受 3/3，父任务开放
+
+新批次 `c9f1cdaf-de98-4f69-96a1-0c6a479fc7cb` 在提交 `07eaf416af795cbad309bf5436b27c2289e6a06c` 的冻结源码上实际通过三个精确 Linux/PG18 用例：各 1 通过、0 失败、0 忽略，main 退出 0。状态 `MAINTENANCE_FOCUSED_GATES_PASSED_NOT_FULL_BACKUP_NOT_RESTORE` 只接受这三个聚焦门，不关闭父 Task3 或整个 C4。
+
+| 精确聚焦门 | 本批实际结果与边界 |
+| --- | --- |
+| 当前库预备事务 | 原连接关闭后预备事务仍存在；预检在 ACL 和维护日志修改前拒绝，控制根/pin 根不变。 |
+| 其他库预备事务 | 另一库持有预备事务不误阻塞为空的当前库；持有事务的另一库仍拒绝。 |
+| 释放日志失败 | 补偿 REVOKE 与显式重新关闸通过；前序摘要为 SYNTHETIC 合成摘要，不是真实 dump/封存证据。 |
+
+控制器独立规范化用户粘贴的完整 root JSON，SHA-256 `698eebc766e6aa137f7622111c456422f23d451ad8eee48a00f89275e216fc71`，并核对输入 pins、源码提交及运行前后摘要一致；没有直接读取 root 私有原始结果。普通 hans SSH 的另一份独立只读资源观察确认三个精确 PG 容器停止、卷及内部空网络保留、构建器移除，观察 SHA-256 `e9782ac6991a88d6df612ee3b59509b7dc980ed3116b103fc65931ad9af31530`；没有重跑用例或修改资源。
+
+独立限定返回审查为 `PASS_THREE_FOCUSED_PG_GATES_ONLY`，Spec/Quality Approved，Critical/Important/Minor 均为 0；本专项已接受 3/3。本三项只核验容器内 `pg_dump` 路径/版本，**没有执行 pg_dump**。父 Task3 的跨尝试统一维护准入锁、广义中断完成/放弃恢复、真实源端封存到独立目标的组合校验和完成收据仍待验收，计划三项复选框均未勾选。用户已将独立存储故障域延后，继续代码/单机隔离工作；Task4/5 保持待后续验收。完整备份、完整恢复、`CompleteBackup`、C4 与生产均未验收。详见[维护闸补充验证](p0c4-maintenance-gates.md)；下文旧 0/3 是各交接/修复阶段的历史快照，不代表当前本专项。
+
+## 受控导入 Task6 已接受状态（2026-10-03）：最终回归 3/3
 
 固定合成 fixture 的累计现场场景 11/11 已接受；当前 17153d8 源码实际 7/11，历史四项保留 5619026 来源并经差异复审携带。新 dda83916 批次集成回归 37 通过 / 2 忽略、文档测试 exit0（0 可执行用例）、工作区严格 Clippy exit0，三门全部接受，not_run=[]。
 
@@ -10,7 +24,7 @@
 
 ## Task6 最后三道回归入口已交接（待运行）
 
-受控合成导入累计 **11/11**，当前封存提交17153d8实际 **7/11**，四项历史来源经差异审查携带。最后三道回归入口已独立复审并上传，但现场新增通过数仍 **0/3**；Task6保持未关闭。本轮运行指定集成目标、文档测试和工作区严格Clippy，首错停止，结束精确ID停机留证。运行命令与交接回执见[最终回归交接](../.superpowers/sdd/2026-09-30-p0c4-controlled-import/Task6最终回归交接.md)。C4完整恢复、CompleteBackup和生产尚未验收。
+受控合成导入累计 **11/11**，当前封存提交17153d8实际 **7/11**，四项历史来源经差异审查携带。最后三道回归入口已独立复审并上传，但现场新增通过数仍 **0/3**；Task6保持未关闭。本轮运行指定集成目标、文档测试和工作区严格Clippy，首错停止，结束精确ID停机留证。运行命令与交接回执见最终回归交接（本地私有记录，未纳入仓库）。C4完整恢复、CompleteBackup和生产尚未验收。
 
 
 ## 当前状态（2026-10-02）
@@ -29,7 +43,7 @@
 | 下一道门 | Task6 整计划最终独立复审、历史四项对最终源码的覆盖适用性、必要定向及 package/workspace 回归。专项场景累计 11/11 本身不能关闭计划。 |
 | 验收边界 | C4 整关、完整恢复与独立备份目标仍未验收；CompleteBackup 未签发。 |
 
-本轮六项运行单已执行并关闭，禁止重跑其批次或历史失败批次。原封存交接保持创建时的未运行快照；实际执行与接受另存于 [remaining-six-accepted-record.json](../.superpowers/sdd/2026-09-30-p0c4-controlled-import/remaining-six-accepted-record.json)，SHA-256 `4a6ef39da32d49f494efcfb408a533512a4c80a75ff704bff7e9394e9b7c2bd5`。返回审查 seal SHA-256 `ae0098d01e91782955c64dc6e6868c1ddcc454c6e5164aef1521c2b8fd1b7ebb`；控制者只读 Docker 证明 SHA-256 `4ef2d64a259d0ff9d9ea1909a7b422e447081440f75d156a09ffa11f0e44d5c0`。
+本轮六项运行单已执行并关闭，禁止重跑其批次或历史失败批次。原封存交接保持创建时的未运行快照；实际执行与接受另存于 remaining-six-accepted-record.json（本地私有记录，未纳入仓库），SHA-256 `4a6ef39da32d49f494efcfb408a533512a4c80a75ff704bff7e9394e9b7c2bd5`。返回审查 seal SHA-256 `ae0098d01e91782955c64dc6e6868c1ddcc454c6e5164aef1521c2b8fd1b7ebb`；控制者只读 Docker 证明 SHA-256 `4ef2d64a259d0ff9d9ea1909a7b422e447081440f75d156a09ffa11f0e44d5c0`。
 
 控制者核对用户完整返回及普通用户 Docker 元数据，没有直接读取 root 私有原始日志、工件、marker 或 fsync 状态；这些由封存并审查的原操作器及严格 runner 承载。未重跑用例、未放宽现场谓词，旧失败结果及未用预约全部保留。
 
@@ -52,11 +66,11 @@
 
 本轮 `READY_RESTART_RUN_EXIT=0`。原先已执行的重启运行命令和十负例命令均禁止再运行；后续六项必须使用新控制 UUID、新源目标项目、新 PG18 卷与新子网，并按首个失败即停规则执行。
 
-登记文件 [ready-restart-accepted-record.json](../.superpowers/sdd/2026-09-30-p0c4-controlled-import/ready-restart-accepted-record.json)，SHA-256 `e99d518b12430b856fd0f1a438b1cdc72cd4edef1c3731eee120453e14f89e32`；B result SHA-256 `6717beb481f8bec5163e98d0819ffa80887448c96c8e6c24d090052b2a140b7f`；A result SHA-256 `3c07639ce1de10186424657b43ad0574c1fa2ebffc9f481b6bb99d99aeb5ca01`。返回审查 seal SHA-256 `65dc16f585252ac8fc029f09a5570560c21831ad8552b849a1d2f6bf652dced7`；控制者只读 Docker 证明 SHA-256 `53ba58309e7a5f0d03b091ec35d492f8a1b86ad9f5f4aaaeb3f693dc030863db`。
+登记文件 ready-restart-accepted-record.json（本地私有记录，未纳入仓库），SHA-256 `e99d518b12430b856fd0f1a438b1cdc72cd4edef1c3731eee120453e14f89e32`；B result SHA-256 `6717beb481f8bec5163e98d0819ffa80887448c96c8e6c24d090052b2a140b7f`；A result SHA-256 `3c07639ce1de10186424657b43ad0574c1fa2ebffc9f481b6bb99d99aeb5ca01`。返回审查 seal SHA-256 `65dc16f585252ac8fc029f09a5570560c21831ad8552b849a1d2f6bf652dced7`；控制者只读 Docker 证明 SHA-256 `53ba58309e7a5f0d03b091ec35d492f8a1b86ad9f5f4aaaeb3f693dc030863db`。
 
 控制者核对用户完整返回和普通用户 Docker 元数据，没有直接读取 root 私有原始结果、stdout／stderr、marker、工件或文件系统持久化状态。A 原始严格／列举／库／journal 日志与源码、二进制由已审查的 root 操作器在唯一 B 调用前复验；B 原始精确测试及完整严格解析由封存 runner 执行。控制者和返回审查员仅对返回数据作纯验证，没有重跑实际用例。历史 uploader 首行“三文件”注释问题（实际两文件白名单）仍作为既有 M1 保留到最终分支审查；现场谓词未放宽。
 
-剩余六项可使用 [剩余六项运行单](../.superpowers/sdd/2026-09-30-p0c4-controlled-import/剩余六项运行单.md) 的单行入口。交接 SHA-256 `5d42a9fd2f2a6452a0baa4988466f8562350d3ff07aadb25a25a63cca19b27a3`；runtime review seal SHA-256 `3fec70d6a8cd50d61814e1f144ef0b8e0c755462b44430f34498de0b47b9e4be`。上传本身未增加实际通过数，root 现场门仍未执行。
+剩余六项可使用 剩余六项运行单（本地私有记录，未纳入仓库） 的单行入口。交接 SHA-256 `5d42a9fd2f2a6452a0baa4988466f8562350d3ff07aadb25a25a63cca19b27a3`；runtime review seal SHA-256 `3fec70d6a8cd50d61814e1f144ef0b8e0c755462b44430f34498de0b47b9e4be`。上传本身未增加实际通过数，root 现场门仍未执行。
 
 ### 2026-10-02：重启修补交接时的历史状态（当前命令已执行，禁止重跑）
 
@@ -70,7 +84,7 @@
 | 新负例通过 | READY 真 EOF `5ce4c404`、PRECOMMIT 真 EOF `c679e11d`、提交前取消 `b2c7b953`。各精确测试与原 main 均退出 0，12／14／15 项检查点、无提交／零对象／marker 谓词完整。 |
 | DDL 前重启 `7f2ed357` | 正式失败不改写。固定只读诊断确认仅检查点集合不满足：缺少 `RESTART_BEFORE_DDL`、`OLD_GUARD_REJECTED`、`DDL_NOT_SENT`，其余 15 个谓词匹配；诊断退出 1，不增加通过数。 |
 | 停机与证据 | 四份 canonical result SHA 与用户返回一致；独立返回审查新增 C0／I0／M0。控制者普通用户只读核对 8 个精确 PG 容器已停止、固定镜像／项目／卷匹配、8 卷保留、8 个 builder ID 消失。 |
-| 后续 | 新 Git 原样源码包和新运行单已独立审查、上传并逐文件读回核验 2 次。一次本机 sudo 先运行新 Linux 格式／Clippy／编译／库测试／journal，再在全新源目标项目验证 `ready-restart`；旧失败批次不重跑，后续六项仍 NOT_RUN。见 [READY 重启新批次运行单](../.superpowers/sdd/2026-09-30-p0c4-controlled-import/READY重启新批次运行单.md)。 |
+| 后续 | 新 Git 原样源码包和新运行单已独立审查、上传并逐文件读回核验 2 次。一次本机 sudo 先运行新 Linux 格式／Clippy／编译／库测试／journal，再在全新源目标项目验证 `ready-restart`；旧失败批次不重跑，后续六项仍 NOT_RUN。见 READY 重启新批次运行单（本地私有记录，未纳入仓库）。 |
 | 验收边界 | C4 整关、完整恢复及独立备份目标均未验收；CompleteBackup 未签发。 |
 
 顺序操作器按首个失败即停规则结束，`NEGATIVE_SEQUENCE_RUN_EXIT=1`。原四批源库／目标库、卷及证据保留隔离；既有交接与旧失败记录不改写、不重放。此前十项运行命令已经执行，不能再运行同一命令。未运行的六项不能用编译／列举／静态检查代替真实验收。
@@ -430,7 +444,7 @@ bash /home/hans/knowweave-c4-source-pin-b1a18043-2ae0-4f8b-a8eb-8a9112064a74/rea
 - Task5本地实现/审查关闭，Task6开始静态实现；现有M3计时失败仍待最终整分支审查。新的文件、UUID、子网、卷和现场场景分别授权，旧失败批次留存不重跑；CompleteBackup、完整C4与生产尚未验收。
 
 
-### 父 Task3 继续：预备事务排空检查（2026-10-03）
+### 历史：父 Task3 预备事务排空检查准备（2026-10-03）
 
 受控导入 Task6 的限定关闭保持不变，继续上层维护窗/整库备份工作。真实源端 inspector 新增当前数据库 pg_prepared_xacts 零计数检查，查询/解码失败拒绝，公开 GateInspection 形状不变；不处理未知预备事务。本地行为 RED 为1通过/2失败，GREEN3通过；Windows库139、维护合同4、非Linux日志拒绝1，共144项通过，格式与严格package all-targets Clippy通过。Linux 专用查询与两个新增 PG 用例未在 Windows 编译/执行，不能计为现场门。
 
@@ -448,7 +462,7 @@ bash /home/hans/knowweave-c4-source-pin-b1a18043-2ae0-4f8b-a8eb-8a9112064a74/rea
 
 本地 Python scripts discovery 292 项通过、退出 0（28.453 秒）；仅为本地 Python 证据，不计为 Linux/PG 或整项目验收，未重复未改的 Rust 检查。
 
-### 父 Task3：POSIX 原子写入请求模式修复（2026-10-03）
+### 历史：父 Task3 POSIX 原子写入请求模式修复（2026-10-03，聚焦门执行前）
 
 维护批次 `8c440305-7a02-447c-a5aa-3471669836c1` 用户回传止于 `PG_READY_TIMEOUT`，没有到达实际 PG 测试。普通 SSH 精确容器只读观察确认 initdb/临时服务成功及初始化脚本 `Permission denied`，不等于读取 root 私有结果或直接核验旧主机文件模式。操作模板及该批包装脚本使用 `umask 077`；控制器在普通 hans 全新目录执行 AST 提取旧真实 writer 的 Linux RED，退出 1，请求 `0444` 实际为 `0400`，私有 `0600` / `0400` 保持原值。
 
