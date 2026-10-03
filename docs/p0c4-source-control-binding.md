@@ -1,6 +1,8 @@
 # P0-C4 源控制根持久绑定
 
-更新：2026-10-04。新批次 `27bdfd1d-3372-47d7-949b-e6c9a3bce162` 实际通过 **4/4** 个 Linux/PG18 绑定门，另有 **2 个独立 live admission 回归**各通过一次。控制端已读取实际结果、日志与资源证明；独立限定返回审查的 Spec/Quality/Acceptance 均 PASS，P0/P1/P2/P3 均为 0；仅接受本四门与分别标识的回归证据。本轮文档复审与发布仍待控制器完成，父 Task3 未完成。
+更新：2026-10-04。新批次 `27bdfd1d-3372-47d7-949b-e6c9a3bce162` 实际通过 **4/4** 个 Linux/PG18 绑定门，另有 **2 个独立 live admission 回归**各通过一次。控制端已读取实际结果、日志与资源证明；独立限定返回审查的 Spec/Quality/Acceptance 均 PASS，P0/P1/P2/P3 均为 0；仅接受本四门与分别标识的回归证据。独立文档复审及限定修补复审已通过；源码已正常发布至 `feat/p0c4-backup-recovery`，GitHub ref/commit/tree 已独立核验：[源码提交 `e3afb0545463ea8924df30ee340e586d9edf9cc3`](https://github.com/MansurnamedZhang/learning-system-p0c4/commit/e3afb0545463ea8924df30ee340e586d9edf9cc3)，tree `fe3dc0c57b23c65f3fe2d8f0b3c3cc9a1f1d5342`。父 Task3 未完成。
+
+发布收据：上述源码提交的唯一 parent 为 `a56ab16dfd8f8f8c7f1c83b1f3ca40f2506ff934`；实际执行仍是该 base 的 469 文件未提交 working-tree-green ZIP（SHA-256 `95e6c48702dd3557ce7beaa1e3427779e5944315922820ec5071d48ceae8ceae`），不反向写成现场执行 e3 提交。本次后续修改仅作发布回执与复选框的文档记账，不扩充已验收范围，也不改变现场执行身份。
 
 ## 身份预期与信任边界
 

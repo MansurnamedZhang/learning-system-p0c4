@@ -29,7 +29,7 @@
 
 ## 当前执行状态（2026-10-04）
 
-行为 RED 在全新 b2a63c86 实际确认；41f658ea 的 Clippy 基础设施失败保留。冻结修补经独立静态复审，新发现 0；新 27bdfd1d 实际四门 4/4、两项准入回归各 1 通过，Linux 库 158/30 ignored 含四个文件系统测试体。source/binary/binding 三次 audit 一致，PG 四容器停止、留卷/内部空网、helpers 移除、pending 不存在已由控制端核对。独立限定返回审查 Spec/Quality/Acceptance PASS、新发现 0；Task1/2 的本切片核验项已完成，Task3 文档复审/提交推送交付项仍开放。本版实际证据与边界见[绑定记录](../../p0c4-source-control-binding.md)。父 Task3 三项、Task4/5/C4/生产仍开放；无完整 dump/恢复/CompleteBackup，独立存储故障域延后。
+行为 RED 在全新 b2a63c86 实际确认；41f658ea 的 Clippy 基础设施失败保留。冻结修补经独立静态复审，新发现 0；新 27bdfd1d 实际四门 4/4、两项准入回归各 1 通过，Linux 库 158/30 ignored 含四个文件系统测试体。source/binary/binding 三次 audit 一致，PG 四容器停止、留卷/内部空网、helpers 移除、pending 不存在已由控制端核对。独立限定返回审查 Spec/Quality/Acceptance PASS、新发现 0；Task1/2 的本切片核验项和 Task3 独立文档复审/精确源码提交推送交付已完成；源码提交 `e3afb0545463ea8924df30ee340e586d9edf9cc3`、tree `fe3dc0c57b23c65f3fe2d8f0b3c3cc9a1f1d5342`、`refs/heads/feat/p0c4-backup-recovery` 已由 GitHub 独立核验。实际现场仍为 a56ab16-base working-tree-green ZIP；本次仅文档记账，不代表新的现场运行或新增验收。本版实际证据与边界见[绑定记录](../../p0c4-source-control-binding.md)。父 Task3 三项、Task4/5/C4/生产仍开放；无完整 dump/恢复/CompleteBackup，独立存储故障域延后。
 
 ## Task 1：绑定与句柄能力
 
@@ -57,5 +57,5 @@
 **Files:** 更新 `docs/p0c4-source-admission.md`、`docs/p0c4-verification.md`、父计划、README，以及工作区实施路线图。
 
 - [x] 记录本版实际结果和未验收边界，历史版本各自保留，不累计旧门成新版本计数。
-- [ ] 独立代码与证据/文档复审后提交精确文件，正常推送已授权的 `feat/p0c4-backup-recovery`，核对远端 ref/tree。
+- [x] 独立代码与证据/文档复审后提交精确文件，正常推送已授权的 `feat/p0c4-backup-recovery`，核对远端 ref/tree。
 - [x] 父 Task3 仍开放；下一项显式 finish/abandon 与真实 dump/全量资产/保留保护组合链。
