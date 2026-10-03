@@ -1,6 +1,16 @@
 # P0-C4 完整备份与干净恢复验证记录
 
-## 父 Task3 最新状态（2026-10-03）：live source admission 实际五门已接受 5/5，父任务开放
+## 父 Task3 最新状态（2026-10-04）：绑定四门已限定接受，父任务开放
+
+新 `27bdfd1d-3372-47d7-949b-e6c9a3bce162` 的四个精确 Linux/PG18 绑定门实际 **4/4**，各 exit 0、1 通过/0 失败/0 忽略；第二门内的真实 prepared-work 公共捕获拒绝属于该门。另有两项 live admission 回归各通过一次，单独计数。控制端已核对实际结果、root/RW `/target` 文件系统测试体、三次 pin/binary audit、source 不变、四精确 PG 停止/留卷/内部空网、helpers 移除与 pending 不存在；独立限定返回审查 Spec/Quality/Acceptance PASS，新增发现 0；本轮文档复审与发布仍待完成。
+
+输入为 base `a56ab16dfd8f8f8c7f1c83b1f3ca40f2506ff934` 的未提交 working-tree-green，469 个 public source 文件；ZIP SHA-256 `95e6c48702dd3557ce7beaa1e3427779e5944315922820ec5071d48ceae8ceae`，canonical result SHA-256 `28a1f798b49e4dbc80cce9f92e46374653a3b1fe9b45d0ad720083f3b4e4156f`。五个 Rust review pins、四个独立构建 binding/binary pins、实际名称与边界见[源控制根持久绑定](p0c4-source-control-binding.md)。原根路径/dev/inode 与同 admitted 会话的库名/OID/system identifier 绑定在单可信容器命名空间；只有独立 build pin，无 runtime expected pin 或自动 enrollment。物理克隆端点、asset/local-pin 身份与一般 finish/abandon 分别跟踪。
+
+本批 Linux 库 **158 通过/30 忽略**，四个 Linux 文件系统测试体实际执行；维护 contract **4 通过**、journal **1 通过**；格式/严格 Clippy exit 0。Windows whole-workspace `--lib` **185 通过**与免环境集成合同 **28 通过**分开记录；早先 full package 在 `catalog_pg` 缺少专用数据库名环境而失败（exit 1），不得改写成完整 package/DB/升级通过。Python 全 scripts **331 总数/324 通过/7 平台跳过**，进程内精确 worktree Git trust 后 exit 0，不是 PG 证据。
+
+首 `41f658ea` Clippy infra 失败与新 `b2a63c86` 实际 ACL-preservation RED 均保留；后者 exit 101、0 通过/1 失败/0 忽略，旧 backend 消失且 lock free 时 CONNECT true→false，result SHA-256 `6f1557ddc242d52d3011c2f244d43296a666a91668ba56659c937370a92bdd5b`。当前四门 NO_DUMP、前序日志摘要 SYNTHETIC，未运行完整 source capture、full dump 或 restore；legacy full-capture/drain/release drivers 显式延后到独立 issuer/build 更新后。旧五门 5/5 与 c9f 三门 3/3 各属历史源码，不与本候选四门和两项回归累计。父 Task3 三复选框、Task4/5、CompleteBackup、C4/生产均开放，独立存储故障域延后。
+
+## 父 Task3 历史状态（2026-10-03）：live source admission 实际五门已接受 5/5，父任务开放
 
 新批次 `06a0882f-5c7a-4fa5-ab86-252ece7732fa` 实际通过 **5/5** 个精确 PG18 准入门，状态 `FIVE_ADMISSION_GATES_PASSED_NOT_FULL_BACKUP_NOT_RESTORE`。输入是基于 `0adab2e340c0980c120364a1214ebb53277e4405` 的未提交 `working-tree-green` 冻结快照。该次测试运行时尚未产生本修订提交，base 仅表示测试包基线；本次接受绑定 ZIP 和五个 Rust 原始字节 pins。控制端已读真实规范结果、五份精确日志并独立核对本批资源；独立限定返回审查 Spec/Quality/返回接受均 Approved，Critical/Important/Minor 均为 0，只接受本切片五门 5/5，审查报告 SHA-256 为 `a917823c88cb7a265f247da92c3b4146ad314fb7f8b0254e2587f031d531671e`。返回审查从本地证据重建规范 result、核对全 ZIP/manifest/source aggregate，不冒充审查员直接读取远端。机制与冻结 Rust pins 见[源端维护准入](p0c4-source-admission.md)。
 

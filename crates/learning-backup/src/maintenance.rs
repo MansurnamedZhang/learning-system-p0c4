@@ -181,6 +181,13 @@ impl SourceGateJournal {
             return Err(BackupError::Invalid("gate journal backup id"));
         }
         let root = BackupDir::open_private_root(root_path)?;
+        Self::start_in(&root, backup_id)
+    }
+
+    pub(crate) fn start_in(root: &BackupDir, backup_id: Uuid) -> Result<Self, BackupError> {
+        if backup_id.is_nil() {
+            return Err(BackupError::Invalid("gate journal backup id"));
+        }
         let directory = root.create_dir(&format!("{backup_id}.control"))?;
         let record = SourceGateRecord::new(backup_id);
         write_phase(&directory, &record)?;
@@ -192,6 +199,13 @@ impl SourceGateJournal {
             return Err(BackupError::Invalid("gate journal backup id"));
         }
         let root = BackupDir::open_private_root(root_path)?;
+        Self::recover_in(&root, backup_id)
+    }
+
+    pub(crate) fn recover_in(root: &BackupDir, backup_id: Uuid) -> Result<Self, BackupError> {
+        if backup_id.is_nil() {
+            return Err(BackupError::Invalid("gate journal backup id"));
+        }
         let directory = root.open_dir(&format!("{backup_id}.control"))?;
         let found = directory.list()?.into_iter().collect::<BTreeSet<_>>();
         let phases = [

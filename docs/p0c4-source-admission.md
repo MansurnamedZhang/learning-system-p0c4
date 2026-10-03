@@ -1,6 +1,10 @@
 # P0-C4 源端维护准入
 
-更新：2026-10-03。父 Task3 的 live source admission 切片已在全新批次实际通过并限定接受 **5/5** 个 PG18 门。它约束遵守源端协议的并发尝试；父 Task3、完整备份/恢复、`CompleteBackup`、C4 和生产仍未验收。
+更新：2026-10-04。源控制根持久绑定的新四个 Linux/PG18 门实际通过 **4/4**；另有两个 live admission 回归各 1 通过/0 失败/0 忽略。独立限定返回接受 PASS（新增发现 0）；文档复审与发布待完成。当前限定单可信容器命名空间与每部署独立编译 pin，覆盖原会话消失后换根拒绝、原根未完成日志、close-only 重新关闸和另一数据库身份拒绝；未运行 full dump/恢复或签发 CompleteBackup。详见[持久绑定机制、实际四门与冻结 pins](p0c4-source-control-binding.md)。父 Task3 三项、Task4/5、C4 与生产仍开放。
+
+## 历史 live admission 五门（2026-10-03）
+
+历史更新：2026-10-03。父 Task3 的 live source admission 切片已在全新批次实际通过并限定接受 **5/5** 个 PG18 门。它约束遵守源端协议的并发尝试；父 Task3、完整备份/恢复、`CompleteBackup`、C4 和生产仍未验收。
 
 ## 问题与实现范围
 
@@ -17,9 +21,9 @@
 | 持有范围 | 同一个 guard 覆盖源端 SQL、catalog、journal/fsync、dump、seal/pin、ReleaseReady/GRANT/Released 与失败补偿。敏感释放和补偿 helper 必须借用 `&mut SourceAdmission`；全流程不包成一个事务，REVOKE 仍按 autocommit 提交。 |
 | catalog 与排空 | catalog 在已准入连接上执行短 repeatable-read/read-only 事务，保留 ready 全行、确定排序、limit+1 超限拒绝与 commit。短事务提交不释放 session lock；排空只排除本查询 backend，其他真实会话/事务、当前库预备事务和角色谓词保持约束。 |
 
-这是**会话存活期间、同一数据库内、遵守协议的尝试互斥**：换 attempt 或控制根不能绕过存活锁，其他数据库可独立准入。会话消失后锁会释放；它没有建立固定 source control-root 的持久身份 pin，也不能证明崩溃后换根仍被阻断。
+以下描述旧 live-admission 切片的能力边界；当前新增的会话消失后持久绑定见上文链接。该旧切片是**会话存活期间、同一数据库内、遵守协议的尝试互斥**：换 attempt 或控制根不能绕过存活锁，其他数据库可独立准入。会话消失后锁会释放；它没有建立固定 source control-root 的持久身份 pin，也不能证明崩溃后换根仍被阻断。
 
-## 实际 RED 与 GREEN
+## 历史实际 RED 与 GREEN
 
 旧实现的全新 RED 批次 `da07fe4e-8731-4708-b8cc-7a4bdf701b1e` 实际执行 busy recovery 门，退出 101、0 通过/1 失败/0 忽略；失败定位于 runtime CONNECT ACL 保存断言，无 fixture-query failure。旧结果 SHA-256 为 `0a6319ae6715c4cfc35ff458232c71aff08f729e3ddd14cb096b0e7b6da5cebf`，不是编译或测试列举 RED。
 
@@ -58,7 +62,7 @@ Linux 固定离线 builder 的格式、严格 package all-targets Clippy 和 cfg
 | `crates/learning-backup/src/source/admission_tests.rs` | 20842 | `ef33fb306c8a8d548afcc73771666c059c2944f80fa6374df49c3a57fc53f689` |
 | `crates/learning-backup/tests/maintenance_pg.rs` | 11839 | `cbca901a9146d2cb9302ccd40a4330dd85b0124d2e48d33528f5d62de8ee3677` |
 
-## 父任务仍待完成
+## 当时父任务的未完成记录（历史快照）
 
 五门均未调用 `pg_dump`；public prepare 的 SQL/catalog/journal/dump/seal/pin 持有链由完整静态审查支持，本轮未执行该入口的完整源端捕获。原 `c9f1cdaf` 维护三门的 3/3 属于旧提交 `07eaf416` 的历史专项；旧测试借用签名/所有权适配经静态审查未发现需要追加定向回归的实质问题，但没有在本候选重跑。不能将旧三门与当前五门写成新版本 8/8。
 

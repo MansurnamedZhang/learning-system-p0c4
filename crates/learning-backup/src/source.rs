@@ -2,10 +2,14 @@
 //! an independent fault-domain copy or a restorable `complete` receipt.
 #[cfg(target_os = "linux")]
 mod admission;
+#[cfg(any(target_os = "linux", test))]
+mod binding;
 #[cfg(target_os = "linux")]
 use admission::SourceAdmission;
 #[cfg(all(test, target_os = "linux"))]
 mod admission_tests;
+#[cfg(all(test, target_os = "linux"))]
+mod binding_tests;
 
 #[cfg(target_os = "linux")]
 use crate::maintenance::valid_c4_database;
@@ -125,14 +129,14 @@ pub async fn force_close_release_ready(
         if database != expected_database {
             return Err(BackupError::Invalid("recovery database identity"));
         }
-        let journal = SourceGateJournal::recover(control_root, backup_id)?;
+        let root = binding::admit_control_root(&mut admission, control_root).await?;
+        let journal = SourceGateJournal::recover_in(&root, backup_id)?;
         if journal.record().phase() != GatePhase::ReleaseReady {
             return Err(BackupError::Invalid(
                 "recovery requires release-ready phase",
             ));
         }
         compensate_release(&mut admission, &database).await?;
-        let root = BackupDir::open_private_root(control_root)?;
         let dir = root.create_dir(&format!("{backup_id}.release-recovery"))?;
         let bytes = serde_json::to_vec(&serde_json::json!({
             "format_version": 1,
@@ -160,15 +164,35 @@ async fn prepare_linux(
     {
         return Err(BackupError::Invalid("source backup configuration"));
     }
-    verify_isolation_attestation(config, true)?;
-    // Both roots must exist and be owned 0700 before altering DB privileges.
-    let control = BackupDir::open_private_root(&config.control_root)?;
-    BackupDir::open_private_root(&config.local_pin_root)?;
     let mut admission = SourceAdmission::try_acquire(admin, &config.expected_database).await?;
     let database = admission.database().to_owned();
     if database != config.expected_database {
         return Err(BackupError::Invalid("source database identity mismatch"));
     }
+    let control = binding::admit_control_root(&mut admission, &config.control_root).await?;
+    // Binding and unfinished evidence are authoritative before an attestation
+    // is needed. No ACL, attempt journal, or dump mutation has occurred.
+    ensure_no_unfinished_journal(&control, &config.control_root)?;
+    // This inspection is read-only on the already admitted session. Reject
+    // unsafe prepared work/roles before requiring any orchestration evidence;
+    // isolation remains mandatory before every journal, ACL, and dump mutation.
+    let before = inspect_gate(admission.connection()).await?;
+    if !before.admin_is_database_owner
+        || !before.runtime_can_connect
+        || before.public_can_connect
+        || before.runtime_can_inherit_admin
+        || before.runtime_is_privileged
+        || before.other_login_writers != 0
+    {
+        return Err(BackupError::Invalid("source role preflight"));
+    }
+    BackupDir::open_trusted_private_root(&config.local_pin_root)?;
+    let attestation_parent = config
+        .isolation_attestation
+        .parent()
+        .ok_or(BackupError::Invalid("isolation attestation path"))?;
+    BackupDir::open_trusted_private_root(attestation_parent)?;
+    verify_isolation_attestation(config, true)?;
     let options = admin.connect_options();
     if options.get_username() != "learning_admin"
         || options.get_host() != config.pg_host
@@ -180,7 +204,8 @@ async fn prepare_linux(
         ));
     }
     let dump_spec = PgDumpSpec::new(&database, &config.pg_host, config.pg_port)?;
-    ensure_no_unfinished_journal(&control, &config.control_root)?;
+    // Repeat the original role/prepared preflight after orchestration proof;
+    // the earlier read-only rejection does not authorize a later mutation.
     let before = inspect_gate(admission.connection()).await?;
     if !before.admin_is_database_owner
         || !before.runtime_can_connect
@@ -191,7 +216,7 @@ async fn prepare_linux(
     {
         return Err(BackupError::Invalid("source role preflight"));
     }
-    let mut journal = SourceGateJournal::start(&config.control_root, config.backup_id)?;
+    let mut journal = SourceGateJournal::start_in(&control, config.backup_id)?;
     let source = control.create_dir(&format!("{}.source", config.backup_id))?;
     let revoke = format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
     sqlx::query(&revoke).execute(admission.connection()).await?;
@@ -522,12 +547,12 @@ fn verify_isolation_attestation(
 }
 
 #[cfg(target_os = "linux")]
-fn ensure_no_unfinished_journal(root: &BackupDir, path: &Path) -> Result<(), BackupError> {
+fn ensure_no_unfinished_journal(root: &BackupDir, _path: &Path) -> Result<(), BackupError> {
     for name in root.list()? {
         if let Some(id) = name.strip_suffix(".control") {
             let id = Uuid::parse_str(id)
                 .map_err(|_| BackupError::Invalid("unknown control directory"))?;
-            let journal = SourceGateJournal::recover(path, id)?;
+            let journal = SourceGateJournal::recover_in(root, id)?;
             if journal.record().phase() != GatePhase::Released {
                 return Err(BackupError::Invalid(
                     "unfinished source maintenance journal",
@@ -938,10 +963,11 @@ mod linux_gate_tests {
     }
 
     /// Fresh migrated PG18 source, prepared transactions enabled, authentic
-    /// root-driver isolation proof, private empty roots, no runtime sessions.
+    /// root-driver isolation proof, independently preissued/compile-pinned
+    /// control binding, other private empty roots, no runtime sessions.
     /// No driver CONNECT-denial receipt is needed: refusal must precede REVOKE.
     #[tokio::test]
-    #[ignore = "requires fresh isolated PG18 prepared source and root-driver proof"]
+    #[ignore = "deferred: requires updated independent issuer/build pin, fresh PG18 prepared source and root-driver proof"]
     async fn prepared_target_transaction_survives_origin_close_and_blocks_source_preflight() {
         let id = Uuid::new_v4();
         let (pool, url) = prepared_test_pool(
@@ -961,7 +987,9 @@ mod linux_gate_tests {
         let pin = prepared_env_path("TEST_C4_PREPARED_PIN_ROOT");
         let asset_root = prepared_env_path("TEST_C4_PREPARED_ASSET_ROOT");
         let stage_root = prepared_env_path("TEST_C4_PREPARED_ASSET_STAGE_ROOT");
-        for path in [&control, &pin, &asset_root, &stage_root] {
+        binding::preissued_fixture(&control);
+        let control_before = binding::fixture_inventory(&control).unwrap();
+        for path in [&pin, &asset_root, &stage_root] {
             assert_eq!(
                 std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
                 0o700
@@ -1020,13 +1048,13 @@ mod linux_gate_tests {
             let own_prepared: i64 = sqlx::query_scalar(
                 "SELECT count(*) FROM pg_catalog.pg_prepared_xacts WHERE database=current_database() AND gid=$1",
             ).bind(id.to_string()).fetch_one(&pool).await?;
-            let control_empty = std::fs::read_dir(&control)?.next().is_none();
+            let control_after = binding::fixture_inventory(&control)?;
             let pin_empty = std::fs::read_dir(&pin)?.next().is_none();
-            Ok((sessions, inspection, capture, acl_after, own_prepared, control_empty, pin_empty))
+            Ok((sessions, inspection, capture, acl_after, own_prepared, control_after, pin_empty))
         }.await;
         rollback_fixture_work(&pool, id).await.unwrap();
         origin_closed.unwrap();
-        let (sessions, inspection, capture, acl_after, own_prepared, control_empty, pin_empty) =
+        let (sessions, inspection, capture, acl_after, own_prepared, control_after, pin_empty) =
             observed.unwrap();
         assert_eq!(sessions, 0, "prepared work has no ordinary session");
         assert!(matches!(
@@ -1046,9 +1074,9 @@ mod linux_gate_tests {
             acl_after, acl_before,
             "preflight must not mutate CONNECT ACL"
         );
-        assert!(
-            control_empty,
-            "no journal, source directory or dump may be created"
+        assert_eq!(
+            control_after, control_before,
+            "preissued binding inventory unchanged; no journal, source directory or dump may be created"
         );
         assert!(
             pin_empty,
@@ -1205,8 +1233,9 @@ mod linux_gate_tests {
 
     /// Dedicated, already-gated UUID database. Deliberately collide with the
     /// final journal name after GRANT; the compensation must revoke CONNECT.
+    /// Requires independently preissued source binding and matching build pin.
     #[tokio::test]
-    #[ignore = "requires separate isolated PG18 release-fault database"]
+    #[ignore = "deferred: requires updated independent issuer/build pin and separate PG18 release-fault database"]
     async fn release_journal_failure_recloses_runtime_connect() {
         let database = std::env::var("TEST_C4_RELEASE_DATABASE_NAME").unwrap();
         let suffix = database.strip_prefix("learning_backup_c4_task3_").unwrap();
@@ -1227,8 +1256,12 @@ mod linux_gate_tests {
             .await
             .unwrap();
         let root = PathBuf::from(std::env::var("TEST_C4_RELEASE_CONTROL_ROOT").unwrap());
+        let (control, binding_before) = binding::preissued_fixture(&root);
+        binding::admit_control_root(&mut admission, &root)
+            .await
+            .unwrap();
         let id = Uuid::new_v4();
-        let mut journal = SourceGateJournal::start(&root, id).unwrap();
+        let mut journal = SourceGateJournal::start_in(&control, id).unwrap();
         let revoke =
             format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
         sqlx::query(&revoke)
@@ -1271,6 +1304,17 @@ mod linux_gate_tests {
             root.join(format!("{id}.release-recovery"))
                 .join("closed.json")
                 .is_file()
+        );
+        assert_eq!(
+            std::fs::read(root.join("source-binding.json")).unwrap(),
+            binding_before
+        );
+        assert_eq!(
+            SourceGateJournal::recover_in(&control, id)
+                .unwrap()
+                .record()
+                .phase(),
+            GatePhase::ReleaseReady
         );
     }
 }

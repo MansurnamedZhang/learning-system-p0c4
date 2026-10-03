@@ -11,9 +11,9 @@
 | P0-C1/C2/C3 | 原件与引用、持久 Worker、融合快照交换 | 隔离验收通过；非生产 |
 | P0-C4 | 完整备份与干净实例恢复 | **实施中，未整体验收** |
 
-C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复目标准入、出生证明、干净目标 pin **候选**，以及精确子进程的只读端点绑定/同一 guard 重启拒绝（新批次结果已核对）。独立备份目标、`CompleteBackup`、构建 pin、真实数据库与资产恢复及整关故障注入仍未验收。候选记录不能当作恢复许可。详见 [C4 验证记录](docs/p0c4-verification.md)。
+C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复目标准入、出生证明、干净目标 pin **候选**，以及精确子进程的只读端点绑定/同一 guard 重启拒绝（新批次结果已核对）。独立备份目标、`CompleteBackup`、恢复构建 pin、真实数据库与资产恢复及整关故障注入仍未验收。候选记录不能当作恢复许可。详见 [C4 验证记录](docs/p0c4-verification.md)。
 
-2026-10-03 源端 live 准入的五个 PG18 门已获本切片限定接受，覆盖同库跨 attempt/root 互斥；跨根崩溃持久身份与真实源端完整捕获仍待父 Task3 验收。
+2026-10-04 源控制根持久绑定四个 Linux/PG18 门实际通过 4/4，另有两个 live admission 回归各通过一次；独立限定返回接受 PASS（新增发现 0）；文档复审与发布待完成。绑定限定单可信容器命名空间、每部署独立 build pin，保留 close-only 恢复；显式 finish/abandon 和真实全量捕获仍待父 Task3 验收。2026-10-03 live admission 五门 5/5 为旧源基线的历史限定接受，不作当前候选五门重跑计数。
 
 ## 代码与文档导航
 
@@ -26,7 +26,8 @@ C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复�
 - `deploy`：隔离测试配置与初始化脚本；不含生产部署配置。
 - `docs/content-boundary.md`：块与内容边界；`docs/p0c3-format.md`：融合快照格式。
 - `docs/p0c4-restore-target-acceptance.md`、`docs/p0c4-restore-birth-acceptance.md`、`docs/p0c4-restore-pin-acceptance.md`：C4 单机目标验收协议。
-- [源端维护准入](docs/p0c4-source-admission.md)：live 同库互斥、实际五门及父 Task3 尚待完成的边界。
+- [源控制根持久绑定](docs/p0c4-source-control-binding.md)：独立构建 pin、实际四门与两项独立回归、信任边界。
+- [源端维护准入](docs/p0c4-source-admission.md)：live 同库互斥、历史五门及父 Task3 尚待完成的边界。
 - `docs/superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md` 与 `docs/superpowers/plans/2026-09-28-p0c4-backup-recovery.md`：C4 设计和实施任务。
 
 各阶段的边界、执行取舍和原始证据索引见 `docs/p0*-boundary.md`、`docs/p0*-execution.md`、`docs/p0*-verification.md`。验证记录区分已运行结果、静态审查和未覆盖的门槛；不能把某一阶段通过推断为整体上线。

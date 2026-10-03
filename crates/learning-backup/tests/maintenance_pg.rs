@@ -1,14 +1,16 @@
 #![cfg(target_os = "linux")]
+use learning_assets::backup_fs::BackupDir;
 use learning_assets::{FsAssetStore, UploadDeclaration};
 use learning_backup::{
     GatePhase, SourceBackupConfig, SourceGateJournal, prepare_source_backup, verify_sealed,
 };
+use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, postgres::PgPoolOptions};
 use std::{
     collections::HashSet,
     fs,
-    os::unix::fs::PermissionsExt,
-    path::PathBuf,
+    os::unix::fs::{MetadataExt, PermissionsExt},
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 use uuid::Uuid;
@@ -17,10 +19,62 @@ fn env_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} required")))
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct BindingInventory {
+    root_identity: (u64, u64),
+    file_identity: (u64, u64),
+    uid: u32,
+    mode: u32,
+    links: u64,
+    bytes: Vec<u8>,
+}
+
+fn binding_inventory(path: &Path) -> BindingInventory {
+    let root = BackupDir::open_trusted_private_root(path).unwrap();
+    let file = root
+        .open_file("source-binding.json")
+        .expect("independently preissued binding required");
+    let metadata = file.metadata().unwrap();
+    assert!(metadata.len() > 0 && metadata.len() <= 4096);
+    BindingInventory {
+        root_identity: root.identity().unwrap(),
+        file_identity: (metadata.dev(), metadata.ino()),
+        uid: metadata.uid(),
+        mode: metadata.mode() & 0o7777,
+        links: metadata.nlink(),
+        bytes: fs::read(path.join("source-binding.json")).unwrap(),
+    }
+}
+
+/// Consume a record independently issued before compilation. This fixture
+/// never issues/registers a binding or supplies a runtime expected digest.
+fn preissued_fixture(path: &Path) -> BindingInventory {
+    let snapshot = binding_inventory(path);
+    assert_eq!(snapshot.uid, 0);
+    assert_eq!(snapshot.mode, 0o600);
+    assert_eq!(snapshot.links, 1);
+    let pin = match option_env!("KNOWWEAVE_C4_SOURCE_CONTROL_BINDING_SHA256") {
+        Some(pin) => pin,
+        None => panic!("fixture requires updated independent issuer and build pin"),
+    };
+    assert_eq!(format!("{:x}", Sha256::digest(&snapshot.bytes)), pin);
+    assert_eq!(
+        BackupDir::open_trusted_private_root(path)
+            .unwrap()
+            .list()
+            .unwrap(),
+        vec!["source-binding.json"]
+    );
+    snapshot
+}
+
 /// Run only against a *new*, migrated, UUID-named PG18 database inside a new
 /// Compose project, with all paths private and dedicated to this batch.
+/// Full dump/pin scenario is deferred until its independent driver issues the
+/// source binding before the matching compile-pinned build. The bound NO_DUMP
+/// public prepared gate and live admission old-session drain are current gates.
 #[tokio::test]
-#[ignore = "requires a new isolated PG18 database and private Linux roots"]
+#[ignore = "deferred: requires updated independent issuer/build pin, fresh PG18 and private Linux roots"]
 async fn real_gate_waits_for_old_runtime_session_and_rejects_new_runtime_login() {
     assert!(option_env!("KNOWWEAVE_SOURCE_COMMIT").is_some());
     assert!(option_env!("KNOWWEAVE_BUILD_ID_SHA256").is_some());
@@ -49,7 +103,8 @@ async fn real_gate_waits_for_old_runtime_session_and_rejects_new_runtime_login()
     let pin = env_path("TEST_C4_PIN_ROOT");
     let asset_root = env_path("TEST_C4_ASSET_ROOT");
     let stage_root = env_path("TEST_C4_ASSET_STAGE_ROOT");
-    for path in [&control, &pin, &asset_root, &stage_root] {
+    let binding_before = preissued_fixture(&control);
+    for path in [&pin, &asset_root, &stage_root] {
         assert_eq!(
             fs::metadata(path).unwrap().permissions().mode() & 0o777,
             0o700
@@ -178,14 +233,21 @@ async fn real_gate_waits_for_old_runtime_session_and_rejects_new_runtime_login()
     .await
     .unwrap();
     assert!(can_connect);
+    assert_eq!(
+        binding_inventory(&control),
+        binding_before,
+        "full capture must preserve independent binding"
+    );
 }
 
 /// Run this ignored case twice, with FAILURE_KIND=missing_original and
 /// FAILURE_KIND=pg_dump_exit, each against a different fresh UUID database,
 /// Compose project, roots, and root-driver lock. A source failure must never
 /// release runtime CONNECT or publish a sealed/complete package.
+/// Deferred full capture failures require the updated independent issuer to
+/// provision source-binding.json and embed its pin before compiling this test.
 #[tokio::test]
-#[ignore = "requires dedicated root driver and two fresh isolated PG18 failure projects"]
+#[ignore = "deferred: requires updated independent issuer/build pin and two root-driver PG18 failure projects"]
 async fn missing_original_or_pg_dump_failure_keeps_gate_closed() {
     let kind = std::env::var("TEST_C4_FAILURE_KIND").unwrap();
     assert!(matches!(kind.as_str(), "missing_original" | "pg_dump_exit"));
@@ -199,6 +261,7 @@ async fn missing_original_or_pg_dump_failure_keeps_gate_closed() {
         .await
         .unwrap();
     let control = env_path("TEST_C4_CONTROL_ROOT");
+    let binding_before = preissued_fixture(&control);
     let pin = env_path("TEST_C4_PIN_ROOT");
     let assets = FsAssetStore::new(
         env_path("TEST_C4_ASSET_ROOT"),
@@ -287,6 +350,11 @@ async fn missing_original_or_pg_dump_failure_keeps_gate_closed() {
     .await
     .unwrap();
     assert!(!can_connect);
+    assert_eq!(
+        binding_inventory(&control),
+        binding_before,
+        "failed capture must preserve independent binding"
+    );
     assert!(!pin.join(format!("{id}.sealed")).exists());
     assert!(!pin.join(format!("{id}.complete")).exists());
 }
