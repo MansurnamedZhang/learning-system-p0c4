@@ -260,11 +260,16 @@ def sync_dir(path):
 
 def atomic_write(path, payload, mode=0o600):
     temporary = path.with_name("." + path.name + "." + uuid.uuid4().hex + ".tmp")
-    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), mode)
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), mode & 0o600)
     try:
         with os.fdopen(fd, "wb") as output:
             output.write(payload)
             output.flush()
+            if os.name != "nt":
+                # Creation mode is filtered by umask; repair it on the owned fd.
+                os.fchmod(output.fileno(), mode)
+                if stat.S_IMODE(os.fstat(output.fileno()).st_mode) != mode:
+                    raise OSError("atomic write mode mismatch")
             os.fsync(output.fileno())
         # Same-filesystem hard link is atomic and cannot replace an existing name.
         os.link(temporary, path, follow_symlinks=False)

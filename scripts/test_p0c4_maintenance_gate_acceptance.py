@@ -3,11 +3,14 @@ import copy
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import warnings
 import zipfile
 
@@ -219,6 +222,54 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises((gate.GateError, FileExistsError)):
                 gate.atomic_write(target, b"overwrite")
             self.assertEqual(target.read_bytes(), b"complete")
+
+    @unittest.skipUnless(os.name == "posix", "requires real POSIX file modes")
+    def test_atomic_init_script_preserves_0444_under_private_umask(self):
+        temporary_root = Path(__file__).resolve().parents[1] / ".runtime"
+        temporary_root.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+            target = Path(directory) / "initdb.sh"
+            previous_umask = os.umask(0o077)
+            try:
+                gate.atomic_write(target, b"# harmless synthetic init script\n", 0o444)
+                self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o444)
+                self.assertEqual(target.read_bytes(), b"# harmless synthetic init script\n")
+                self.assertEqual(list(Path(directory).iterdir()), [target])
+            finally:
+                os.umask(previous_umask)
+
+    @unittest.skipUnless(os.name == "posix", "requires real POSIX file modes")
+    def test_atomic_private_files_retain_literal_modes_under_private_umask(self):
+        temporary_root = Path(__file__).resolve().parents[1] / ".runtime"
+        temporary_root.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+            previous_umask = os.umask(0o077)
+            try:
+                for name, requested, expected in (("evidence.json", 0o600, 0o600), ("pg-copy", 0o400, 0o400)):
+                    with self.subTest(name=name):
+                        target = Path(directory) / name
+                        gate.atomic_write(target, b"fixed non-secret fixture", requested)
+                        self.assertEqual(stat.S_IMODE(target.stat().st_mode), expected)
+                        self.assertEqual(target.read_bytes(), b"fixed non-secret fixture")
+            finally:
+                os.umask(previous_umask)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX fchmod")
+    def test_atomic_mode_failure_cannot_publish_destination(self):
+        temporary_root = Path(__file__).resolve().parents[1] / ".runtime"
+        temporary_root.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+            target = Path(directory) / "initdb.sh"
+            previous_umask = os.umask(0o077)
+            try:
+                for failure in (OSError("injected mode failure"), None):
+                    with self.subTest(failure=failure), mock.patch.object(gate.os, "fchmod", side_effect=failure):
+                        with self.assertRaises(OSError):
+                            gate.atomic_write(target, b"# harmless synthetic init script\n", 0o444)
+                    self.assertFalse(target.exists())
+                    self.assertEqual(list(Path(directory).iterdir()), [])
+            finally:
+                os.umask(previous_umask)
 
     def test_fresh_source_tree_rejects_extra_file_and_modified_bytes(self):
         temporary_root = Path(__file__).resolve().parents[1] / ".test-tmp"

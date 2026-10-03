@@ -447,3 +447,11 @@ bash /home/hans/knowweave-c4-source-pin-b1a18043-2ae0-4f8b-a8eb-8a9112064a74/rea
 控制器经普通 SSH 对全新、从未启动的构建容器取得真实 stopped-only GREEN，SSH 退出 0。`task3-builder-stopped-identity-green-observation.json` 保存完整修复 validator 接受实际完整 facts、额外/修改基线/缺失基线/外来批次四种标签拒绝、最终模板通过固定 PG/Builder 镜像、never_started 与 exact_id_removed 的证据。现场只证明模板和启动前身份/隔离核验；Linux build/discovery 未执行，三个真实 PG 门仍为 0/3，父 Task3、CompleteBackup、完整恢复、C4 与生产状态保持未验收。
 
 本地 Python scripts discovery 292 项通过、退出 0（28.453 秒）；仅为本地 Python 证据，不计为 Linux/PG 或整项目验收，未重复未改的 Rust 检查。
+
+### 父 Task3：POSIX 原子写入请求模式修复（2026-10-03）
+
+维护批次 `8c440305-7a02-447c-a5aa-3471669836c1` 用户回传止于 `PG_READY_TIMEOUT`，没有到达实际 PG 测试。普通 SSH 精确容器只读观察确认 initdb/临时服务成功及初始化脚本 `Permission denied`，不等于读取 root 私有结果或直接核验旧主机文件模式。操作模板及该批包装脚本使用 `umask 077`；控制器在普通 hans 全新目录执行 AST 提取旧真实 writer 的 Linux RED，退出 1，请求 `0444` 实际为 `0400`，私有 `0600` / `0400` 保持原值。
+
+限定修复只涉及维护 runner、相邻测试及两份文档：临时文件先以仅所有者权限独占 no-follow 创建，payload flush 后对打开的 POSIX 描述符 fchmod 并核验精确模式，再按原顺序 fsync 和独占发布。模式异常/不符在发布前失败且清理临时文件；不放宽全局 umask 或秘密模式。Windows 纯检查路径无需 fchmod。新增真实 POSIX 用例覆盖 `077` 下非敏感脚本 `0444`、私有证据 `0600` / PG 副本 `0400`，以及模式设置异常和 no-op 不能发布文件。
+
+最终限定 Windows Python 收集 36 项，33 项通过、3 项 POSIX 测试跳过，退出 0（维护 20 通过/3 跳过；隔离 13 通过）。控制器在第二个全新 uid 1000 目录执行修复后同源 Linux GREEN，SSH 退出 0：真实三种目标模式和固定字节匹配，既有目标替换被拒绝且原字节保留/临时文件消失，fchmod 异常与静默 no-op 均拒绝且无目标/临时文件。私有 RED/GREEN 观察分别保存为 `task3-atomic-mode-linux-red-observation.json` / `task3-atomic-mode-linux-green-observation.json`；原失败证据未改。没有运行完整 Linux 单元套件、Rust 构建或新的 PG 批次。此仅关闭 writer 模式缺陷，三个真实 PG 门仍为 **0/3**，父 Task3、完整恢复、`CompleteBackup`、C4 与生产尚未验收。
