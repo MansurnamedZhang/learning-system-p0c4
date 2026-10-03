@@ -439,3 +439,11 @@ bash /home/hans/knowweave-c4-source-pin-b1a18043-2ae0-4f8b-a8eb-8a9112064a74/rea
 运行器三项静态审查问题分别以行为 RED 复现后修复：全局合法卷名误拒绝、停止后的外来网络附着未拒绝、未知旧凭据进入完整 inspection 日志。修订后定向 Python 17 项通过，库存完整性追加 RED 后再次通过；随后依据 Docker 官方网络命名合同补齐空格/中文网络名，新增行为 RED 后最终 18 项通过。既有隔离纯检查 13 项通过。仅计为本地运行器证据，Linux 编译和真实 PG18 三门仍待执行。封包与上传的私有交付检查另有 14 项通过，不计为数据库用例。
 
 首批现场执行止于 preflight/OBSERVATION_EXIT，PG 为0/3，源码前后摘要一致。普通 SSH 只读复现固定构建镜像缺失可选 Config.Volumes 时 Docker 模板退出1；单字段改用 index 读取后，最终模板在固定 PG/Builder 上均退出0且镜像合同核验通过。18 项既有纯检查及两文件语法检查通过，限定独立复审无新增问题；没有重复运行未改的 Rust 测试。旧失败证据保留，新包与全新批次另行执行；这不是离线构建或数据库门通过记录。
+
+后续 `BUILDER_IDENTITY` 用户回传 cases 为空，源码未变；不是控制器独立读取 root 私有文件。全新 never-started 构建器诊断核对八项非标签身份谓词匹配，唯一旧 singleton 标签谓词失败：固定镜像标签 1 个、实际容器 2 个、精确继承加批次标签匹配，容器已按精确 ID 删除；编译和 PG 均未执行。限定 Python 修复从预检不可变固定镜像观察取得内存标签基线，可选 Go index 读取，缺失/null 为空且非法类型拒绝；启动前后均精确验证基线加内部批次覆盖，外来/额外/缺失/修改标签不接受，其他身份与隔离限制继续生效，未知标签/Env/Cmd 值不落盘。
+
+本轮行为 RED 1 项以旧 `BUILDER_IDENTITY` 失败；最终维护运行器 20/20、既有隔离合同 13/13、两文件语法及启动前后基线传递检查通过。初次直接 `-I` 隔离合同调用因同树导入缺失失败，显式加入同树 scripts 后通过；不修改运行环境或安装依赖。独立限定代码复审为 PASS，Critical/Important/Minor 均为 0。
+
+控制器经普通 SSH 对全新、从未启动的构建容器取得真实 stopped-only GREEN，SSH 退出 0。`task3-builder-stopped-identity-green-observation.json` 保存完整修复 validator 接受实际完整 facts、额外/修改基线/缺失基线/外来批次四种标签拒绝、最终模板通过固定 PG/Builder 镜像、never_started 与 exact_id_removed 的证据。现场只证明模板和启动前身份/隔离核验；Linux build/discovery 未执行，三个真实 PG 门仍为 0/3，父 Task3、CompleteBackup、完整恢复、C4 与生产状态保持未验收。
+
+本地 Python scripts discovery 292 项通过、退出 0（28.453 秒）；仅为本地 Python 证据，不计为 Linux/PG 或整项目验收，未重复未改的 Rust 检查。

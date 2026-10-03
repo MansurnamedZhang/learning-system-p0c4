@@ -156,9 +156,51 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises(gate.GateError):
                 gate.verify_package(package, gate.digest(package), gate.digest(manifest), "a" * 40, runner)
 
-    def test_builder_cannot_receive_secret_mount_or_network(self):
+    def builder_fixture(self):
         facts = {"Id": "e" * 64, "Name": "/builder", "Image": gate.BUILDER, "Config": {"Image": gate.BUILDER, "Labels": {"knowweave.c4.maintenance.batch": UUID}, "Env": ["CARGO_NET_OFFLINE=true"], "User": "0:0", "WorkingDir": "/reviewed", "Entrypoint": ["/bin/sh"], "Cmd": ["-ec", "fixed"]}, "State": {"Running": False}, "HostConfig": {"Privileged": False, "CapAdd": None, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges"], "NanoCpus": 4000000000, "Memory": 8589934592, "MemorySwap": 8589934592, "PidMode": "", "IpcMode": "private", "AutoRemove": False, "NetworkMode": "none", "ReadonlyRootfs": True, "PidsLimit": 512}, "NetworkSettings": {"Networks": {}, "Ports": {}}, "Mounts": [{"Type": "bind", "Source": str(ROOT / "source"), "Destination": "/reviewed", "RW": False}, {"Type": "bind", "Source": str(ROOT / "target"), "Destination": "/target", "RW": True}]}
-        expected = {"name": "builder", "batch_id": UUID, "source": ROOT / "source", "target": ROOT / "target", "env": {"CARGO_NET_OFFLINE": "true"}, "shell": "fixed"}
+        expected = {"name": "builder", "batch_id": UUID, "source": ROOT / "source", "target": ROOT / "target", "env": {"CARGO_NET_OFFLINE": "true"}, "shell": "fixed", "image_labels": {}}
+        return facts, expected
+
+    def test_builder_inherited_labels_match_exact_pinned_baseline(self):
+        facts, expected = self.builder_fixture()
+        # A singleton-label check or a subset check breaks this contract.
+        baseline = {"synthetic.image.owner": "in-memory-only", "knowweave.c4.maintenance.batch": "image-default"}
+        expected["image_labels"] = baseline
+        facts["Config"]["Labels"]["synthetic.image.owner"] = "in-memory-only"
+        try:
+            self.assertEqual(gate.validate_builder(facts, expected, {}), "e" * 64)
+        except gate.GateError as error:
+            self.fail("exact inherited+batch labels rejected: " + str(error))
+        for labels in (
+            {"synthetic.image.owner": "in-memory-only", "knowweave.c4.maintenance.batch": UUID, "extra": "foreign"},
+            {"knowweave.c4.maintenance.batch": UUID},
+            {"synthetic.image.owner": "modified", "knowweave.c4.maintenance.batch": UUID},
+            {"synthetic.image.owner": "in-memory-only", "knowweave.c4.maintenance.batch": OTHER},
+            {"synthetic.image.owner": "in-memory-only"},
+        ):
+            modified = copy.deepcopy(facts)
+            modified["Config"]["Labels"] = labels
+            with self.subTest(labels=labels), self.assertRaisesRegex(gate.GateError, "BUILDER_IDENTITY"):
+                gate.validate_builder(modified, expected, {})
+        self.assertEqual(baseline["knowweave.c4.maintenance.batch"], "image-default")
+
+    def test_image_label_baseline_validates_optional_map_without_coercion(self):
+        for config in ({}, {"Labels": None}, {"Labels": {}}):
+            with self.subTest(config=config):
+                baseline = gate.image_labels({"Config": config})
+                self.assertEqual(baseline, {})
+                facts, expected = self.builder_fixture()
+                expected["image_labels"] = baseline
+                self.assertEqual(gate.validate_builder(facts, expected, {}), "e" * 64)
+        for labels in (False, True, [], ["k=v"], "", "k=v", 0, {1: "v"}, {"k": None}, {"k": False}, {"k": []}):
+            with self.subTest(labels=labels), self.assertRaisesRegex(gate.GateError, "BUILDER_IMAGE_LABELS"):
+                gate.image_labels({"Config": {"Labels": labels}})
+        self.assertEqual(gate.image_labels({"Config": {"Labels": {"k": "", "other": "v"}}}), {"k": "", "other": "v"})
+
+    def test_builder_cannot_receive_secret_mount_or_network(self):
+        facts, expected = self.builder_fixture()
+        expected["image_labels"] = {"synthetic.image.owner": "in-memory-only"}
+        facts["Config"]["Labels"]["synthetic.image.owner"] = "in-memory-only"
         self.assertEqual(gate.validate_builder(facts, expected, {}), "e" * 64)
         for change in (lambda f: f["Config"]["Env"].append("TEST_ADMIN_DATABASE_URL=secret"), lambda f: f["HostConfig"].update(NetworkMode="bridge"), lambda f: f["Mounts"].append({"Type": "bind", "Source": "/root/.pgpass", "Destination": "/secret", "RW": False}), lambda f: f["HostConfig"].update(AutoRemove=True)):
             modified = copy.deepcopy(facts)
@@ -254,7 +296,7 @@ class AdmissionTests(unittest.TestCase):
         temporary_root = Path(__file__).resolve().parents[1] / ".test-tmp"
         temporary_root.mkdir(exist_ok=True)
         marker = "SYNTHETIC_UNKNOWN_OLD_SECRET_7ab98d3"
-        facts = [{"Id": "a" * 64, "Name": "/legacy", "Config": {"Env": ["OLD_TOKEN=" + marker], "Cmd": [marker]}, "Mounts": [{"Source": "/" + marker}], "State": {"Running": False}}]
+        facts = [{"Id": "a" * 64, "Name": "/legacy", "Config": {"Env": ["OLD_TOKEN=" + marker], "Cmd": [marker], "Labels": {"UNKNOWN_LABEL": marker}}, "Mounts": [{"Source": "/" + marker}], "State": {"Running": False}}]
         with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
             root = Path(directory)
             runner = gate.Runner(root)
@@ -265,6 +307,7 @@ class AdmissionTests(unittest.TestCase):
             self.assertGreater(len(persisted), 0)
             self.assertNotIn(marker.encode(), persisted)
             self.assertNotIn(b"OLD_TOKEN", persisted)
+            self.assertNotIn(b"UNKNOWN_LABEL", persisted)
             self.assertNotIn(b"Mounts", persisted)
 
     def test_global_inventory_parser_rejects_unexpected_secret_fields(self):

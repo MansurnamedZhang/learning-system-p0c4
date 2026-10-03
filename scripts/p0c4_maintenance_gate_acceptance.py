@@ -237,7 +237,8 @@ def verify_package(content, archive_sha, manifest_sha, commit, runner_sha):
 
 def validate_builder(facts, expected, image_env):
     host, config = facts["HostConfig"], facts["Config"]
-    require(HEX64.fullmatch(facts.get("Id", "")) and facts.get("Name") == "/" + expected["name"] and facts.get("Image") == BUILDER and config.get("Image") == BUILDER and config.get("Labels") == {"knowweave.c4.maintenance.batch": expected["batch_id"]} and config.get("User") == "0:0" and config.get("WorkingDir") == "/reviewed" and config.get("Entrypoint") == ["/bin/sh"] and config.get("Cmd") == ["-ec", expected["shell"]], "BUILDER_IDENTITY")
+    labels = {**expected["image_labels"], "knowweave.c4.maintenance.batch": expected["batch_id"]}
+    require(HEX64.fullmatch(facts.get("Id", "")) and facts.get("Name") == "/" + expected["name"] and facts.get("Image") == BUILDER and config.get("Image") == BUILDER and config.get("Labels") == labels and config.get("User") == "0:0" and config.get("WorkingDir") == "/reviewed" and config.get("Entrypoint") == ["/bin/sh"] and config.get("Cmd") == ["-ec", expected["shell"]], "BUILDER_IDENTITY")
     validate_capabilities(host, 4, 8 * 1024 ** 3, builder=True)
     validate_env(config.get("Env") or [], expected["env"], image_env)
     settings = facts.get("NetworkSettings") or {}
@@ -515,6 +516,14 @@ def image_environment(facts):
     return dict(value.split("=", 1) for value in facts["Config"]["Env"])
 
 
+def image_labels(facts):
+    labels = facts["Config"].get("Labels")
+    if labels is None:
+        return {}
+    require(type(labels) is dict and all(type(key) is str and type(value) is str for key, value in labels.items()), "BUILDER_IMAGE_LABELS")
+    return dict(labels)
+
+
 def host_preflight(runner, identities, subnets, builder_name, batch):
     trusted(Path(DOCKER))
     trusted(Path("/usr/bin/ip"))
@@ -524,9 +533,9 @@ def host_preflight(runner, identities, subnets, builder_name, batch):
     require(daemon.get("ID") and daemon.get("OSType") == "linux" and "rootless" not in str(daemon.get("SecurityOptions", [])), "DOCKER_DAEMON")
     images = {}
     for name in (PG_IMAGE, BUILDER):
-        # Baseline image Env is needed in memory for exact container comparison;
+        # Baseline image Env/Labels are needed in memory for exact comparison;
         # only IDs/counts are persisted, never the baseline values or stderr.
-        image_format = '{"Id":{{json .Id}},"RepoDigests":{{json .RepoDigests}},"Config":{"Env":{{json .Config.Env}},"Volumes":{{json (index .Config "Volumes")}}}}'
+        image_format = '{"Id":{{json .Id}},"RepoDigests":{{json .RepoDigests}},"Config":{"Env":{{json .Config.Env}},"Volumes":{{json (index .Config "Volumes")}},"Labels":{{json (index .Config "Labels")}}}}'
         facts = runner.observe("image-inspect", [DOCKER, "image", "inspect", "--format", image_format, name], lambda raw: [json.loads(line, object_pairs_hook=unique_pairs) for line in raw.splitlines()], observation_projection)
         require(len(facts) == 1, "PINNED_IMAGE_COUNT")
         facts = facts[0]
@@ -535,6 +544,7 @@ def host_preflight(runner, identities, subnets, builder_name, batch):
             require(facts["Config"].get("Volumes") == {"/var/lib/postgresql": {}}, "PG_IMAGE_VOLUMES")
         else:
             require(not facts["Config"].get("Volumes"), "BUILDER_IMAGE_VOLUMES")
+            image_labels(facts)
         images[name] = facts
     routes = json.loads(runner.run("routes", ["/usr/bin/ip", "-j", "-4", "route", "show", "table", "all"]).stdout)
     before = snapshot(runner)
@@ -611,7 +621,7 @@ def build_binary(runner, batch, source, manifest, archive_sha, image, result):
     target = private_dir(batch / "target")
     environment = {"CARGO_TARGET_DIR": "/target", "CARGO_BUILD_JOBS": "4", "CARGO_NET_OFFLINE": "true", "RUSTUP_AUTO_INSTALL": "0", "CARGO_TERM_COLOR": "never", "KNOWWEAVE_SOURCE_COMMIT": manifest["commit"], "KNOWWEAVE_BUILD_ID_SHA256": archive_sha}
     shell = "unset KNOWWEAVE_C4_VERIFIER_KEY_SHA256; cargo fmt --all -- --check; cargo clippy --locked --offline -p learning-backup --all-targets -- -D warnings; cargo test --locked --offline -p learning-backup --test maintenance_contract --test maintenance_journal; cargo test --locked --offline -p learning-backup --lib --no-run --message-format=json"
-    expected = {"name": "knowweave-c4-maintenance-builder-" + batch.name.replace("-", ""), "batch_id": batch.name, "source": source, "target": target, "env": environment, "shell": shell}
+    expected = {"name": "knowweave-c4-maintenance-builder-" + batch.name.replace("-", ""), "batch_id": batch.name, "source": source, "target": target, "env": environment, "shell": shell, "image_labels": image_labels(image)}
     command = [DOCKER, "create", "--pull=never", "--name", expected["name"], "--label", "knowweave.c4.maintenance.batch=" + batch.name, "--network", "none", "--read-only", "--cap-drop=ALL", "--security-opt", "no-new-privileges", "--user", "0:0", "--pids-limit", "512", "--cpus", "4", "--memory", "8g", "--memory-swap", "8g", "--workdir", "/reviewed", "--tmpfs", "/tmp:rw,nosuid,nodev,size=1g", "--mount", "type=bind,src=" + str(source) + ",dst=/reviewed,readonly", "--mount", "type=bind,src=" + str(target) + ",dst=/target"]
     for key, value in sorted(environment.items()):
         command.extend(["--env", key + "=" + value])
