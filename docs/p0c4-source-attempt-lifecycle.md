@@ -1,6 +1,6 @@
 # P0-C4 源备份尝试生命周期
 
-更新：2026-10-04。源端尝试生命周期限定验收已接受；文档复审、路线图 QA 与正常 feature 分支发布仍待 root 完成。父 C4 Task3 与整关保持开放。
+更新：2026-10-04。源端尝试生命周期限定验收、独立文档及整源码复审、路线图静态QA与正常feature分支源码发布均已完成；浏览器file协议被策略拒绝，渲染和交互未验证。父C4 Task3与整关保持开放，本轮后续修改仅作发布记账。
 
 现场为 suite `943f3a4a-16a9-44ab-af07-257151349a7a`，base `e43bb2cef380adda3bf9486005e58a175237d247` 的475文件未提交 working-tree-green，common ZIP SHA-256 `85211a1fead1cd903b5ee269230b02ee6dbfc31ce2808ea31ec04aa5e4d0a466`，manifest `48aba66fef05f6f133aa6a7283651d5b2de0f30e30af9152a15797b2f7b34478`。plan `08195e2220cd4a2c3667ce3e43c348dea11634541e3c1aa88015f7f19bf09f55`；GO `0f9480c59fe4f9bd518efbae2c11fdf363ccb2b6eb24348175a309db00a663ce`；9681-byte aggregate `e61470e9092cf9bca4134e6a872902039a60a0473fd395138647db4acc66f45a`，状态 `INDEPENDENT_COMPLETE_SCOPED_LIFECYCLE_SUITE_ACCEPTED_NOT_COMPLETE_NOT_RESTORE`。后来源码发布不能改变此 execution identity。
 
@@ -74,7 +74,11 @@ legacy UID999 readonly/proc metadata observer关联实际consumer+holder+PG back
 
 ## 接受边界与发布
 
-独立实际返回审查 Spec/Quality/ActualAcceptance 均 PASS，残留阻塞发现 0，报告 SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`。文档复审、root 路线图 QA 与后续正常 feature 分支 commit/tree/ref 发布仍待完成；当前没有新的公开提交收据。
+独立实际返回审查 Spec/Quality/ActualAcceptance 均 PASS，残留阻塞发现 0，报告 SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`。生命周期源码已正常发布至 `feat/p0c4-backup-recovery`：[源码提交 `e51ff31c96b446f9b25c854d43c769182b663fe1`](https://github.com/MansurnamedZhang/learning-system-p0c4/commit/e51ff31c96b446f9b25c854d43c769182b663fe1)，tree `c98b730e51926596fe5ac21ac2fffbb00cea92c0`、唯一 parent `e43bb2cef380adda3bf9486005e58a175237d247`。独立 GitHub ref/commit/tree 核验回执 `publication-source-remote-verification.json` 为479 bytes、SHA-256 `e6f3cd2326073010c0c65dc8b30d4ce41aa887404608deaf3823360f667c02e3`；`refs/heads/feat/p0c4-backup-recovery` 与该 commit 一致，477个blob的路径/mode/OID与本地匹配，truncated=false。现场执行仍为e43基线的475文件working-tree-green ZIP `85211a1fead1cd903b5ee269230b02ee6dbfc31ce2808ea31ec04aa5e4d0a466`，不反向写成该发布commit运行。当前后续修改仅为该源码发布的记账，不增加验收范围，不改变原证据，不关闭父Task3/C4；本段只记录上述已核验的源码发布，不自引用本段所在的记账提交。
+
+独立限定文档修补复审 Spec/Quality PASS、P0/P1/P2/P3均0（4028 bytes，SHA-256 `01a9b0d7b892cad05941610186d08512779c27fad9fc2896e8b50dc7fde437b2`）；最终整源码复审 Spec/Quality PASS、Critical/Important/Minor均0（10584 bytes，SHA-256 `2357d8e2b279d8dbc7273e14a9507d71b968b8c8d073e20725d3099bfa5b21fc`）。其后的实际源码push与远端readback使用上列独立回执，不把审查readiness当作发布证明。
+
+root最终路线图静态QA已完成：14/14输出两次hash一致、精确6 SVG及56 HTML链接核对通过，回执 `roadmap-static-qa-source-publication.json` 为2120 bytes、SHA-256 `d319a0da6b979141430a6d543991b65f463530a9544dc502c27c4d1345c0d397`。浏览器file协议被策略拒绝，浏览器渲染和交互**未验证**；该项只有static完成与browser结论分列，不代表browser PASS。
 
 接受证据必须同时携带 aggregate、独立返回审查（15272 bytes，SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`）和 legacy 补充收据（1068 bytes，SHA-256 `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7`）及其六份原始文件。补充原始文件仅在私有证据中保留，不上传 Git；它们不在未改写的 aggregate/raw-index 中，不能声称冻结 aggregate validator 已自动检查这份补充。旧e1容量失败、旧3fa LEGACY_PROCESS_JOIN、旧d9aa LEGACY_BACKEND_IDENTITY及早期stop/parser/infra失败保留，不重放、不跨source拼接。
 

@@ -2,6 +2,8 @@
 
 2026-10-04 源备份生命周期新 suite `943f3a4a-16a9-44ab-af07-257151349a7a` 的九个独立新批次及离线 aggregate 已通过，独立返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均为 0。实际执行 **17 个 PG body（16 lifecycle + 1 legacy）**，覆盖 **8 个唯一生命周期主用例 + 1 个 legacy**；命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。文件系统 36 次为 4 个唯一测试体重复 9 次，相关回归 171 次为 19 个唯一测试体重复 9 次；普通 Linux Python 468 通过/27 个具名 root 跳过、独立 root 27 通过/0 跳过分别计数。现场输入为 e43 基线的 475 文件 `working-tree-green` ZIP，后续发布不改变实际执行身份。 接受证据必须同时携带 aggregate、独立返回审查（15272 bytes，SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`）和 legacy 补充收据（1068 bytes，SHA-256 `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7`）及其六份原始文件。补充原始文件仅在私有证据中保留，不上传 Git；它们不在未改写的 aggregate/raw-index 中，不能声称冻结 aggregate validator 已自动检查这份补充。 当前四入口语义见[生命周期 runbook](p0c4-source-attempt-lifecycle.md)，完整证据见[C4 验证记录](p0c4-verification.md)。父 C4 Task3 三个框、Task4/5、资产/local-pin 持久 enrollment 与 GC 保护发现、独立故障域、CompleteBackup、完整恢复、C4 与生产继续开放；完整工作区 DB 与四套旧版本升级未在本切片运行。源端同身份物理克隆端点仍待验，与此前已接受的恢复目标 clone 门分别记录。 历史绑定四门的文档复审和 e3afb 正常发布已完成，见[既有绑定发布收据](p0c4-source-control-binding.md)。
 
+当前生命周期源码正常发布及独立commit/ref/tree回执见[生命周期runbook](p0c4-source-attempt-lifecycle.md)。文档及整源码复审已通过，root静态QA已完成；浏览器策略拒绝、未验证。旧slice结果与当前tested ZIP身份保持原样，父Task3/C4仍开放。
+
 ## 历史 live admission 五门（2026-10-03）
 
 历史更新：2026-10-03。父 Task3 的 live source admission 切片已在全新批次实际通过并限定接受 **5/5** 个 PG18 门。它约束遵守源端协议的并发尝试；父 Task3、完整备份/恢复、`CompleteBackup`、C4 和生产仍未验收。

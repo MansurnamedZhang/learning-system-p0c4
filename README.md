@@ -15,6 +15,8 @@ C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复�
 
 2026-10-04 源备份生命周期新 suite `943f3a4a-16a9-44ab-af07-257151349a7a` 的九个独立新批次及离线 aggregate 已通过，独立返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均为 0。实际执行 **17 个 PG body（16 lifecycle + 1 legacy）**，覆盖 **8 个唯一生命周期主用例 + 1 个 legacy**；命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。文件系统 36 次为 4 个唯一测试体重复 9 次，相关回归 171 次为 19 个唯一测试体重复 9 次；普通 Linux Python 468 通过/27 个具名 root 跳过、独立 root 27 通过/0 跳过分别计数。现场输入为 e43 基线的 475 文件 `working-tree-green` ZIP，后续发布不改变实际执行身份。 原具备生命周期 API 的管理二进制和原编译 source/build/control binding 必须保留；latest binary 不自动兼容旧捕获。详见[生命周期 runbook](docs/p0c4-source-attempt-lifecycle.md)和[C4 验证记录](docs/p0c4-verification.md)。父 C4 Task3 三个框、Task4/5、资产/local-pin 持久 enrollment 与 GC 保护发现、独立故障域、CompleteBackup、完整恢复、C4 与生产继续开放；完整工作区 DB 与四套旧版本升级未在本切片运行。源端同身份物理克隆端点仍待验，与此前已接受的恢复目标 clone 门分别记录。 旧绑定切片已完成文档复审并正常发布，收据见[绑定页](docs/p0c4-source-control-binding.md)；旧 admission 五门仍为历史独立来源。
 
+限定文档与整源码复审和源码正常feature分支发布已完成，独立commit/ref/tree回执见[生命周期runbook](docs/p0c4-source-attempt-lifecycle.md)。root路线图static14/14、6SVG、56HTMLlinks已核对；浏览器file协议被策略拒绝、未验证。父Task3/C4保持开放，现场ZIP身份不变；本次仅发布后的文档记账。
+
 ## 代码与文档导航
 
 - [项目架构设计文档集](docs/architecture/README.md)：总体、领域模型、Rust 分层、事务权限、资产任务、快照恢复、前端学习、部署演进与决策证据；[离线 HTML](docs/architecture/KnowWeave架构设计.html)。

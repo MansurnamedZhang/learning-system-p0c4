@@ -16,7 +16,7 @@
 
 接受证据必须同时携带 aggregate、独立返回审查（15272 bytes，SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`）和 legacy 补充收据（1068 bytes，SHA-256 `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7`）及其六份原始文件。补充原始文件仅在私有证据中保留，不上传 Git；它们不在未改写的 aggregate/raw-index 中，不能声称冻结 aggregate validator 已自动检查这份补充。
 
-现场base/ZIP/manifest/GO/plan/aggregate、nineleaf及17case pins见[接受ledger](../../p0c4-verification.md)。Task1实现/限定审查、Task2/2A/2B实际范围已接受；历史f506 workspace --lib 211通过/42忽略（learning-backup 165通过/41忽略）及fmtClippy为前置检查，当前Windows55为49pass/6skip。fullworkspaceDB/四旧升级未运行，不能推称整个workspace通过。Task3文档记录完成后仍待独立文档/整分支复审、root14map与正常push；本页不提前填写公开commit/ref/tree。父Task3三框仍开放。
+现场base/ZIP/manifest/GO/plan/aggregate、nineleaf及17case pins见[接受ledger](../../p0c4-verification.md)。Task1实现/限定审查、Task2/2A/2B实际范围已接受；历史f506 workspace --lib 211通过/42忽略（learning-backup 165通过/41忽略）及fmtClippy为前置检查，当前Windows55为49pass/6skip。fullworkspaceDB/四旧升级未运行，不能推称整个workspace通过。Task3限定文档及整源码复审、root路线图static14/14、6SVG、56HTMLlinks，以及首源码commit正常push/独立ref-tree回读已完成；浏览器file协议被策略拒绝，渲染/交互未验证。源码发布收据见[生命周期runbook](../../p0c4-source-attempt-lifecycle.md)，现场ZIP保持不变；当前后续修改仅记账，本段不自引用记账提交。父Task3三框仍开放。
 
 ## Global Constraints
 
@@ -142,8 +142,16 @@ abandonment 位于 held control 的 `<canonical-id>.abandonment`（0700）。两
 **Interfaces:** consumes 真正接受的 Task1/2 source/test/binary/result pins；produces 可审查 runbook/当前进度/正常 feature-branch commit与独立远端 ref/tree 核验。
 
 - [x] 准确记录实际 RED、八门/回归分别计数、输入/输出 pins、root namespace 与 runtime-held pin scope、terminal ambiguity/取消和 retained evidence、真实捕获与钩子的区别；修正父计划上轮绑定“待发布”旧文字并保留历史来源。
-- [ ] 独立任务/整体源码与实际返回/文档复审，精确 public allowlist commit；沿用已授权 GitHub `feat/p0c4-backup-recovery` 正常 push、独立 ref/commit/tree readback，不 force/merge main。私有证据、包、credentials/caches 不上传 Git。
-- [ ] 路线图 deterministic14outputs、6SVG/本地链接静态 QA；浏览器验收分列。父 Task3 三框、Task4/5、独立存储/CompleteBackup/完整恢复/C4/生产保持开放；资产/local-pin 持久身份和独立保护 discovery 仍是后续整链条件。
+- [x] 独立任务/整体源码与实际返回/文档复审，精确 public allowlist commit；沿用已授权 GitHub `feat/p0c4-backup-recovery` 正常 push、独立 ref/commit/tree readback，不 force/merge main。私有证据、包、credentials/caches 不上传 Git。
+- [x] 路线图 deterministic14outputs、6SVG/本地链接静态 QA；浏览器验收分列。父 Task3 三框、Task4/5、独立存储/CompleteBackup/完整恢复/C4/生产保持开放；资产/local-pin 持久身份和独立保护 discovery 仍是后续整链条件。
 
 
-发布进度：当前只完成精确公开文档记录，独立文档/整体分支复审、正常featurebranch push及GitHub ref/commit/tree回读仍待root；上述发布框和route QA框保持未勾选。本次不把legacy补充原始私有字节上传Git，接受handoff须携带review+supplement receipt。
+发布进度：
+
+生命周期源码已正常发布至 `feat/p0c4-backup-recovery`：[源码提交 `e51ff31c96b446f9b25c854d43c769182b663fe1`](https://github.com/MansurnamedZhang/learning-system-p0c4/commit/e51ff31c96b446f9b25c854d43c769182b663fe1)，tree `c98b730e51926596fe5ac21ac2fffbb00cea92c0`、唯一 parent `e43bb2cef380adda3bf9486005e58a175237d247`。独立 GitHub ref/commit/tree 核验回执 `publication-source-remote-verification.json` 为479 bytes、SHA-256 `e6f3cd2326073010c0c65dc8b30d4ce41aa887404608deaf3823360f667c02e3`；`refs/heads/feat/p0c4-backup-recovery` 与该 commit 一致，477个blob的路径/mode/OID与本地匹配，truncated=false。现场执行仍为e43基线的475文件working-tree-green ZIP `85211a1fead1cd903b5ee269230b02ee6dbfc31ce2808ea31ec04aa5e4d0a466`，不反向写成该发布commit运行。当前后续修改仅为该源码发布的记账，不增加验收范围，不改变原证据，不关闭父Task3/C4；本段只记录上述已核验的源码发布，不自引用本段所在的记账提交。
+
+独立限定文档修补复审 Spec/Quality PASS、P0/P1/P2/P3均0（4028 bytes，SHA-256 `01a9b0d7b892cad05941610186d08512779c27fad9fc2896e8b50dc7fde437b2`）；最终整源码复审 Spec/Quality PASS、Critical/Important/Minor均0（10584 bytes，SHA-256 `2357d8e2b279d8dbc7273e14a9507d71b968b8c8d073e20725d3099bfa5b21fc`）。其后的实际源码push与远端readback使用上列独立回执，不把审查readiness当作发布证明。
+
+root最终路线图静态QA已完成：14/14输出两次hash一致、精确6 SVG及56 HTML链接核对通过，回执 `roadmap-static-qa-source-publication.json` 为2120 bytes、SHA-256 `d319a0da6b979141430a6d543991b65f463530a9544dc502c27c4d1345c0d397`。浏览器file协议被策略拒绝，浏览器渲染和交互**未验证**；该项只有static完成与browser结论分列，不代表browser PASS。
+
+上述child发布和路线图框已勾选；route框仅表示static QA完成且browser未验证已分列。本次不把legacy补充原始私有字节上传Git，完整接受handoff仍须携带aggregate+实际返回review+supplement receipt及六原始文件。父Task3三框、Task4/5与C4继续开放。

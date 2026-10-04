@@ -6,6 +6,8 @@
 
 当前 successor：源端 prepare/close-only/finish/abandon 的限定九叶验收已接受，见[生命周期 runbook](p0c4-source-attempt-lifecycle.md)与[验证记录](p0c4-verification.md)。本页四个绑定门仍为历史 NO_DUMP/SYNTHETIC 切片，不改写其输入或执行身份。 当前suite的capture计数按命名测试入口衡量：命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。
 
+当前生命周期源码正常feature分支发布与独立commit/ref/tree回执见[生命周期runbook](p0c4-source-attempt-lifecycle.md)。此为新生命周期发布；上述e3afb/a56收据仍属于原绑定历史切片，不能替换其执行身份。
+
 ## 身份预期与信任边界
 
 原 live admission 在同一数据库上以固定 session advisory lock 排斥遵守协议的并发维护尝试；原 backend 消失后锁会释放。持久绑定进一步要求捕获和 close-only 恢复核对独立预置的 `source-binding.json`，使复制绑定到另一个控制根或在原路径替换 inode 都不能绕过旧未完成日志。
