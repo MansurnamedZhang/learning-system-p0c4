@@ -1,8 +1,121 @@
 # P0-C4 完整备份与干净恢复验证记录
 
-## 父 Task3 最新状态（2026-10-04）：绑定四门已限定接受，父任务开放
+## 源尝试生命周期当前限定接受（2026-10-04）
 
-新 `27bdfd1d-3372-47d7-949b-e6c9a3bce162` 的四个精确 Linux/PG18 绑定门实际 **4/4**，各 exit 0、1 通过/0 失败/0 忽略；第二门内的真实 prepared-work 公共捕获拒绝属于该门。另有两项 live admission 回归各通过一次，单独计数。控制端已核对实际结果、root/RW `/target` 文件系统测试体、三次 pin/binary audit、source 不变、四精确 PG 停止/留卷/内部空网、helpers 移除与 pending 不存在；独立限定返回审查 Spec/Quality/Acceptance PASS，新增发现 0；本轮文档复审与发布仍待完成。
+2026-10-04 源备份生命周期新 suite `943f3a4a-16a9-44ab-af07-257151349a7a` 的九个独立新批次及离线 aggregate 已通过，独立返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均为 0。实际执行 **17 个 PG body（16 lifecycle + 1 legacy）**，覆盖 **8 个唯一生命周期主用例 + 1 个 legacy**；命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。文件系统 36 次为 4 个唯一测试体重复 9 次，相关回归 171 次为 19 个唯一测试体重复 9 次；普通 Linux Python 468 通过/27 个具名 root 跳过、独立 root 27 通过/0 跳过分别计数。现场输入为 e43 基线的 475 文件 `working-tree-green` ZIP，后续发布不改变实际执行身份。
+
+接受证据必须同时携带 aggregate、独立返回审查（15272 bytes，SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`）和 legacy 补充收据（1068 bytes，SHA-256 `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7`）及其六份原始文件。补充原始文件仅在私有证据中保留，不上传 Git；它们不在未改写的 aggregate/raw-index 中，不能声称冻结 aggregate validator 已自动检查这份补充。
+
+| 输入/接受身份 | 精确值 |
+| --- | --- |
+| suite UUID | `943f3a4a-16a9-44ab-af07-257151349a7a` |
+| base（非已提交执行版本） | `e43bb2cef380adda3bf9486005e58a175237d247` |
+| ZIP（1717827 bytes；475 文件 working-tree-green） | `85211a1fead1cd903b5ee269230b02ee6dbfc31ce2808ea31ec04aa5e4d0a466` |
+| manifest | `48aba66fef05f6f133aa6a7283651d5b2de0f30e30af9152a15797b2f7b34478` |
+| plan | `08195e2220cd4a2c3667ce3e43c348dea11634541e3c1aa88015f7f19bf09f55` |
+| GO | `0f9480c59fe4f9bd518efbae2c11fdf363ccb2b6eb24348175a309db00a663ce` |
+| aggregate（9681 bytes） | `e61470e9092cf9bca4134e6a872902039a60a0473fd395138647db4acc66f45a` |
+| producer（175495 bytes） | `b598d3103aefff436f0bc58e22219df94572e0ac29705990f846f25e4eb9819d` |
+| tests（113205 bytes） | `116ebd8d929f7d9fb870874a0a4b859c72e0cf63bf39fea31a51faff5ad29099` |
+| 实际返回审查（15272 bytes） | `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09` |
+| legacy 补充收据（1068 bytes） | `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7` |
+
+独立实际返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均 0。重新哈希 11044 份 selected raw、179 个 readback groups并独立重建 aggregate；715 个当前身份 token 与旧记录无碰撞，旧失败片段不贡献当前覆盖。完整接受对象包括另外六份 legacy 原始文件，不能仅凭 aggregate status 宣称其补充关联已自动核验。
+
+| 层 | 实际通过与唯一覆盖 |
+| --- | --- |
+| PG | 17 次 = 16 lifecycle + 1 legacy；8 unique lifecycle primary + 1 legacy primary |
+| 命名 real_capture_all_ready_and_retained_pin entry 执行 | 9 次 = 1 primary + 8 preludes；不统计内部 prepare/pg_dump 总调用次数 |
+| Linux FS | 36 次 = 4 unique bodies × 9 |
+| related | 171 次 = 19 unique bodies × 9；maintenance4+1/binding9/sealed5 |
+| ordinary Linux Python | 468 pass + 27 named root skips；九次 52+3 |
+| 独立 root Python | 27 pass / 0 skip；九次3 |
+| 历史 f506 Rust prerequisite | workspace --lib 211 pass/42 ignored（learning-backup 165 pass/41 ignored）、fmt/strict Clippy通过；不称当前ZIP重跑 |
+| Windows当前source driver | 55 discovered /49 pass/6 existing platform-root skips；不计PG |
+
+### 九个新 leaf 的结果与原始证据引用
+
+每个实际 PG/FS body 的精确 stdout 为 1 pass/0 fail/0 ignored；重复 prelude 执行与 unique primary coverage 分列。所有 principal 生命周期 entry 使用 `source::lifecycle_tests::` 前缀；legacy 为 `source::binding_tests::matching_bound_recovery_recloses_without_finishing`。每行的 result、verification、readback、raw-index 为该 scope 下的规范私有证据，SHA 值可用于交接校验，原始文件不进入 Git。
+
+| Scope | Stage UUID | Batch UUID | result SHA-256 | verification SHA-256 |
+| --- | --- | --- | --- | --- |
+| `real_capture_all_ready_and_retained_pin` | `e700dd8e-b6ff-4cd2-ba88-7fbb89bfaffd` | `bc06cb27-c23a-449f-88aa-edeb55624381` | `10e9f7665ebd93a6f5ffad6eb60ac23f3f3ddc5c70ad5026ecdf54b251acf74a` | `e966ece52ba0f127454782641783716fb11b2b8c84216686899133afdaf0bf4e` |
+| `finish_real_pin_after_sealed_rename` | `1c67c116-1e6c-4d08-9672-0d8f7a8e0191` | `56070e16-ede7-425e-879e-a83e04d100d3` | `7006c125f14e5f8330d18157203efd8437dd4935b9fe3a69c31b8e2bf5704eb9` | `5c6f43aee6af3f6ece89cfb7c6ce50401e8900d5c6f76700eb6105380fa51633` |
+| `finish_real_pin_from_pins_durable` | `908741d4-4f3b-4710-835c-11d684730632` | `714d1ecb-a0ed-4fa7-8757-2a45728556dc` | `905fdce3c1f5ac7b43d8588b311eedb5927afdea085d5650df30b1bf33da774e` | `30cf9d7d18a8296dd9d6d3bb4a7a2814e03c56356dba1bf1e227cbd965be808d` |
+| `finish_real_release_ready_before_and_after_grant` | `4723e5d6-415a-493f-8dcb-031a70e1041a` | `7f5ac35b-6e61-4afc-bb1d-07a88f3949e8` | `c6da564945a8f04c85030d9e7af1e551a3ae78b8ef24b0ff6ec064ff3a8164e7` | `78e8fee24e85cc76625dd5c9f5d4db7d50f22bfc1cc3f56138f60de4c06420ca` |
+| `abandon_early_and_late_attempts` | `80be683b-b1a9-4f6b-a65a-13142c849a03` | `a2b1e029-78d2-40e5-b094-d5ed44498510` | `f09efae40bec7f0fcc52b39ccb12bae184674e88bb10f8f04302637f13dd58ee` | `6a4fbb40ca14e595fad14a09f0b4d75cfc4cbac7e949ce69636d86cc3161e82b` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `d01e7f76-b137-447c-aee2-fe7598e7b38c` | `fc0ca034-f85a-475a-a261-ac99278fe789` | `892da53cbc3252e4f5a8abf335d69a31d3bb49fe4a4aed70672bd5450ef5bf1b` | `7207078444701d4ee0322fc6d456a7a4676ebd5b8c2b54acdf5bdafe3ff2d141` |
+| `lifecycle_release_failure_compensates_same_session` | `2095daf6-397f-47cb-903f-de7ba8c113d3` | `2a78e621-4353-484a-9149-81a1a8e46f7f` | `4ef1bcded43a30257c9cfc30569c5aeb41b76e8f5d88e63e52fb4686a33ced2e` | `f042a81a2bd63974cae5ed2fa975228072ab437bd4df92b0b45d1da5de46fdb1` |
+| `lifecycle_admission_and_held_roots` | `bec1346f-ba97-411b-a920-bba605ab1c40` | `a3fa27d2-180c-4958-91f0-d68dc1d852a2` | `6a0db9f2fe7620fdc592f62759957a5a5e6a2560d3ea52dd15793e9345e458b1` | `56357094c1b8b4a754d0c4a4f808911f75b3b89ff11b4c3ea91fc6f1035cc96f` |
+| `legacy-close` | `ad72284f-9366-4cf6-996c-adf3aafdc8c1` | `b06c2a28-8da7-44ca-9dbd-cd6664b52e71` | `2f1709b28575c1bbc7194c617e5e6fa58a916d26213cf54f40b8ff784117645b` | `d40491884306fb210f9c932f5dafe7d608756921960a635ae30fb6930e1d3e37` |
+
+| Scope | readback SHA-256 | raw-index SHA-256 |
+| --- | --- | --- |
+| `real_capture_all_ready_and_retained_pin` | `b9f44c6100d8d2e5825bb9e79138cc2cb8cca9e06b4aa732ec9d350a2c17e334` | `b36d1e25a2d2ec662862295c5e3065b09836586f811ddd6936d567e7cc8ac1b6` |
+| `finish_real_pin_after_sealed_rename` | `8e19019a3bf0a5c8de76475409e02efef0355c2f31950584d8a3c79fe49ac575` | `26c0dcdbbc0d550c605f728736efc2995562d5df29b26e9e5d6e8b9da10d9ec9` |
+| `finish_real_pin_from_pins_durable` | `a75f03cd3331a7cd3c7a8e46107e34f711ae28f73ba83e64234cffb6461566d8` | `239f752349142adaf79274f26c86fe741e90e3b5dacd1a97337825a143abf159` |
+| `finish_real_release_ready_before_and_after_grant` | `26936a428c6e8ff959098a0ec8809baeecbd8953d175097d1a665a68086d4943` | `b166414b934885ebb511459abeae6b05d59c9e66715ba91acacc3240976e6514` |
+| `abandon_early_and_late_attempts` | `ba28547732e2bfd0cb8f659f84c4d68350cd5dac4276fd041858a6f225b500ad` | `cf0706f8572b4d52331105789847b2b3bf007d8896a1b21a54c79c5b2e29b097` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `85dcd596147c48df8e23132a492d0befa77b9ca2d6932ee5b38304ea9bb890d0` | `e0a5a5586ae9173258a607e0f318f720d4ac5f365643d1116b9d9fd48219518f` |
+| `lifecycle_release_failure_compensates_same_session` | `39b4c313ae9ef61f527d44c8c7f508d5ec76871e6a2501ce07919971232804e0` | `032104cb2b783b7087cd39318e355c58dbdfcbcf5c6675a54ddcdf7d0dad123c` |
+| `lifecycle_admission_and_held_roots` | `598fe390fb12eccc17472df6a94bb4b74728638b10c94f2083bc931af22f06c1` | `96e540de085e2c9b901df7e7c005a70d2ccb14a1eb1c54209a93c98c71b071cf` |
+| `legacy-close` | `908cd7fc0fee1dc6e2b1bf3f09895cb0fde62e80195efeb501d8da9f7144503c` | `4ccf0466e831e6c197c4db083a15c0885082c3a26036280008009c808fd8d4f8` |
+
+### 每个实际 case 的独立 binary 与 binding
+
+十七个 binding 与 bound consumer test binary 各自不同。migration example 的 SHA 相同，但有十七份分别核验的 compile/materialization/final-audit occurrence，不据此推断身份复用。编译 source commit为上述base、build ID为共同ZIP摘要；绑定摘要各case独立。实际DEV/TEST profile为debug0、assertions/overflow checks开启、opt0、stripnone；materialized artifact保持单链接与128MiB上限。
+
+| Scope | Case UUID | Control binding SHA-256 | Consumer test binary SHA-256 |
+| --- | --- | --- | --- |
+| `real_capture_all_ready_and_retained_pin` | `35b03885-1314-4aaf-8a3b-54d2032eb27d` | `cc82344fdb1c5925f75b184cceb83501a46b0f7fa9691f25a28799be825cd767` | `4ed4446bb22d56549363030d4522abecd14784f8f7e3649483e0005ecabb44e9` |
+| `finish_real_pin_after_sealed_rename` | `6eb8e9b5-a08e-4b66-b751-05eaf35c886f` | `771f1e43ab7f9026a854a2749d9349d50ee657854128130f30efebba37342159` | `1272baa08c71a971c5ea1702fc2a6cffa3a4a9f0805f93ac1583389c46759a49` |
+| `finish_real_pin_after_sealed_rename` | `9235957d-1e9b-4b4a-91b0-f6b9cb0b6c8c` | `e9bf6c5fcec03f01dc77d0f5ea2327987d7064f989c6393a937a7284f50de1a6` | `6fede56bc755c88c2b30b460a3b1bf484b215e29d85dcdfa5a7eb1b353c1911f` |
+| `finish_real_pin_from_pins_durable` | `3ae1f5fa-7409-4b9a-a1dc-6bde972f3bb7` | `0373ca1c857c8e8ea8ca9474f153c7f12c68817ea161414420cd58780b8dea13` | `a5ffaa64035641b314f0f933f893e8c43dbb7c9a3fa4cf93c1ad1eb530fabf4f` |
+| `finish_real_pin_from_pins_durable` | `0cabdcd6-6577-4d76-b407-9f85816c3e69` | `183ec29ba70d5916c0154c9f38354eb9b5e6eeff5229da0deb36b9953975e8a5` | `a4dc819a1dfe3051319c0316cf76959446518908df7e92563085396b555bf721` |
+| `finish_real_release_ready_before_and_after_grant` | `29444231-976d-48fd-808b-2c4caa3cfca2` | `409856623ead33f3c0a4946e82608e8cbd743254acf34cf29aabad2060e8b871` | `ac8acfa0bf5d237cd0505b3a74a15e798d6a3693f9a32f392c407d7bc5c96885` |
+| `finish_real_release_ready_before_and_after_grant` | `7b0ade7a-e86e-4b8b-ba94-4e67f41a40cb` | `5de1416e9fa040dbbbc047b70e9d5a2d589d2ad9ac113f5817f0e4c7c6d8de71` | `076c11e8f3b9a1b37be6dcfd86da18080bbb0b422f9331b952958ef8556a26db` |
+| `abandon_early_and_late_attempts` | `3ad716d7-b205-4816-b79c-2da6f3a0739d` | `90813f8d4d88d41bc26adc47e72df44283087d9bfe75301490bdff27f83e4682` | `71cfc7ab3577f68c8f410c2b85d5732a78f26438a33c154a06c90db9cef8293d` |
+| `abandon_early_and_late_attempts` | `1fd4456c-1de5-4f09-90c1-d7e77f335bee` | `d04c2605c23b74a58c994ec37d6e9e9e1fa11af536088331d655ee3f63ffb11d` | `53e24c73d0ce3152b1bdc4aee1fb4b2279a72cecf75a3071dab8c0003a52bae4` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `146023c7-9192-441e-82f2-bbf0ee87c308` | `59403c9827a0f1886c6a2119d2f41acc211b985340182bbe366d85e9d851f074` | `827f772fc4644f7f5b1a63a676fd33e40792f9b5a39d15f15162a4e8c9268149` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `732835de-6bc0-4b74-926c-ee92a301e6b3` | `f067493ed761056968737d8747eeccdf59010604b5a92739138c93f898a8cb94` | `c0adf12a7d18e467ee52f2c66d0ee367afc105c1ca02bc836db328a08a814c96` |
+| `lifecycle_release_failure_compensates_same_session` | `927268cb-02b2-4cdd-80f7-0a65aee21c0e` | `979bbdd07d152f2c30e64a4e629ad07098fd1257d7d134116118a548eb57a553` | `1344ec687bec1cb32a3b89ba06a9608d4b5072d205862db740c4d47bb34f6e42` |
+| `lifecycle_release_failure_compensates_same_session` | `9464f232-8cc6-446d-8303-3c524d0fe43f` | `2fc9065a42b1059238bc2c350ca65fb50ee52fd42397662be2ffb3c0a973926d` | `8f4f4ffd505892b97dd0d7b553a01152e59852f30f7697390413f94512c6ed0a` |
+| `lifecycle_admission_and_held_roots` | `163f6bd5-106d-4579-9979-a13f3662c534` | `51d4914068abe846e5a33a448812220af7c57db840e89fbabccd86906d025748` | `78c6362113b3a1f4f92bbc787ef278c9abf3153fb46edaf995329c21113bae8b` |
+| `lifecycle_admission_and_held_roots` | `48656360-7117-4e64-a657-5251e353e8aa` | `4b246d4db60db408b98102b3282ef181bd3665bdbf1b7493f8205cd697744c27` | `bb9744bbc134305f836ead22b703635381451a272e7a0fd221fd3793aa2ebd29` |
+| `legacy-close` | `ae44683a-5965-4688-abfe-f80a721dcc52` | `5d558615c61de3fda686fa95f8cd1096dae45efadda991ccb01afd80ec1ab94b` | `7d67e005bd8f347267d4ed26c82d9b43c3213e1476fa0e8e6432fdf42b5c0124` |
+| `legacy-close` | `5ccbd878-414d-4fb0-a92a-b2c3f8098e98` | `f1b0b78b809ca6b563f784bd2d0838716d294188ae224c2af2f78bc9957cced1` | `11c2bab3a6573f380526e67f121337472b69927be1dbd0ced547c65d3e6df976` |
+
+十七份 migration binary 的共同字节 SHA-256 为 `400b5a04def5df099c7b80cd7cde3e4b7d159552c9fb79dc497e57fcd3904fff`。每case独立十五个migration SHA384 rows、before/after tool observations、source/binary/control-root/final-volume audits及其原始RPC关联均通过。fresh UID999 sampler、UID0 held anchor与running PG前后guards/generation/denial/drain形成实际证据链；same digest不能替代same-case occurrence证明。
+
+### Legacy 补充证据与信任边界
+
+legacy case `5ccbd878-414d-4fb0-a92a-b2c3f8098e98` 的root0 holderPID235、consumerPID242与UID999 PG backendPID241按实际进程记录关联。backend environment area仅保存opaque digest `ef9c5466f273794de4012a582cd38b5a40da7e484c6cf4c29c6044de8aa55826`，不声明环境key/策略/内容或稳定性。补充holder stdout为`RENDEZVOUS 241 true`、process exit0；随后同holder COMMIT/quit结束，RPC0512返回0（backend absence）、exit0，且holder finish < absence < tools-after。原legacy result与readback保持上述2f1709b2/908cd7fc全hash，不重放、不重写。
+
+| 补充原始文件 | bytes | SHA-256 |
+| --- | ---: | --- |
+| `0512.process.json` | 63 | `7d636e22315d62d1988cf89164af916ee528a417bfbb23e32cbbed603f672f59` |
+| `0512.stderr` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `0512.stdout` | 2 | `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa` |
+| `child-a73dffe1fd5f441985cfe282a95d2228.process.json` | 64 | `014ad59110d5563288ef063b332ba1f9a51066230a7c1f3269b69d0766655d6d` |
+| `child-a73dffe1fd5f441985cfe282a95d2228.stderr` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `child-a73dffe1fd5f441985cfe282a95d2228.stdout` | 20 | `7f984452f68607d26ec52d66ee22ba4fc1175fa1d5d3dc15ede2be969feee76c` |
+
+这六份共149 bytes的原始内容通过原inventory pins核验，单独随review+receipt交接，不在冻结aggregate/raw-index selected closure中。opaque digest只证明本次actual read关联；producer数据流/holder对象关联仍处于既有可信fixture边界，不是对恶意host owner的认证。legacy恢复门本身为close-only/SYNTHETIC前序/NO_DUMP，不能把该leaf真实capture prelude反向写成legacy重采集。
+
+### 现场保留、故障分类与未完成门
+
+已核对17个PG停止（exactID、Runningfalse/PID0/ExecIDs空）、17个内部空网络和51个named volumes保留、226个producer helpers及9个root-unit helpers移除、pending absent、source unchanged及全部17final-volume audits；这是回传时的endpoint观察，不承诺未来远端状态。总actual inventories为20216files/52632286bytes，selected raw为11044files/38063982bytes；singleleaf最大3155/8192files、result329872/2MiB、ledger163059/1MiB。364 namespace audits/74generations均真实；最大case85/256、batch92/512、generation13/16，限制未提高。CLI总961.752s，共享clock窗口1427.844s在78000s内；review本地重建10.344s在单180s内，这不是最大容量性能保证或rootaggregate时长重测。
+
+旧e1单批六body通过后NAMESPACE_LOG_CAPACITY失败；旧3fa九leaf最后legacy因LEGACY_PROCESS_JOIN失败，旧d9aa因LEGACY_BACKEND_IDENTITY失败；早期AST alias/CopyBinary nlink2/stop-warning/auxiliary startup parser等失败按各自阶段保留，所有旧失败suite供零fragmentcredit。source/core8/API/迁移不因fixture修补改变；sealed辅助startup贡献0pass，生命周期TaskAbort/Tokio cancellation/故障hook不写成SIGKILL或掉电。真实capture/all-ready/index/原件核验已跑；nonready INSERT23514拒绝不是持久nonready行排除证明，pg_restore--list仅TOC，不是恢复。
+
+父 C4 Task3 三个框、Task4/5、资产/local-pin 持久 enrollment 与 GC 保护发现、独立故障域、CompleteBackup、完整恢复、C4 与生产继续开放；完整工作区 DB 与四套旧版本升级未在本切片运行。源端同身份物理克隆端点仍待验，与此前已接受的恢复目标 clone 门分别记录。 同字节替代pinroot仍可能被runtime-held/content校验接受；当前pin不是跨重启持久身份注册或GC自动保护发现。操作语义和原lifecycle-capable binary/source/build/control-binding留存条件见[runbook](p0c4-source-attempt-lifecycle.md)。
+
+源码与文档正常feature分支发布、独立ref/commit/tree readback、最终文档/整分支复审及root十四路线图/六SVG/静态链接/浏览器QA仍待root处理；没有预先声明新的公开commit/hash。
+
+
+## 父 Task3 历史绑定状态（2026-10-04）：四门已限定接受，父任务开放
+
+新 `27bdfd1d-3372-47d7-949b-e6c9a3bce162` 的四个精确 Linux/PG18 绑定门实际 **4/4**，各 exit 0、1 通过/0 失败/0 忽略；第二门内的真实 prepared-work 公共捕获拒绝属于该门。另有两项 live admission 回归各通过一次，单独计数。控制端已核对实际结果、root/RW `/target` 文件系统测试体、三次 pin/binary audit、source 不变、四精确 PG 停止/留卷/内部空网、helpers 移除与 pending 不存在；独立限定返回审查 Spec/Quality/Acceptance PASS，新增发现 0；该绑定切片的文档复审及正常 feature 分支发布已完成，既有 e3afb commit/tree/parent 收据见[源控制根绑定](p0c4-source-control-binding.md)；实际执行仍为原 a56 working-tree-green ZIP。
 
 输入为 base `a56ab16dfd8f8f8c7f1c83b1f3ca40f2506ff934` 的未提交 working-tree-green，469 个 public source 文件；ZIP SHA-256 `95e6c48702dd3557ce7beaa1e3427779e5944315922820ec5071d48ceae8ceae`，canonical result SHA-256 `28a1f798b49e4dbc80cce9f92e46374653a3b1fe9b45d0ad720083f3b4e4156f`。五个 Rust review pins、四个独立构建 binding/binary pins、实际名称与边界见[源控制根持久绑定](p0c4-source-control-binding.md)。原根路径/dev/inode 与同 admitted 会话的库名/OID/system identifier 绑定在单可信容器命名空间；只有独立 build pin，无 runtime expected pin 或自动 enrollment。物理克隆端点、asset/local-pin 身份与一般 finish/abandon 分别跟踪。
 

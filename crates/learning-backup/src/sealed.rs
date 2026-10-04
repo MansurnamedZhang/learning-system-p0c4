@@ -86,10 +86,35 @@ fn seal_backup_with_hook(
     assets: &FsAssetStore,
     dump: &mut File,
     roles: &mut File,
+    hook: impl FnMut(FaultPoint) -> Result<(), BackupError>,
+) -> Result<SealedBackup, BackupError> {
+    let root = BackupDir::open_private_root(destination_root)?;
+    seal_backup_in_with_hook(&root, manifest, plan, assets, dump, roles, hook)
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn seal_backup_in(
+    root: &BackupDir,
+    manifest: &BackupManifestV1,
+    plan: &BackupPlan,
+    assets: &FsAssetStore,
+    dump: &mut File,
+    roles: &mut File,
+) -> Result<SealedBackup, BackupError> {
+    seal_backup_in_with_hook(root, manifest, plan, assets, dump, roles, |_| Ok(()))
+}
+#[cfg(target_os = "linux")]
+#[allow(clippy::too_many_arguments)]
+fn seal_backup_in_with_hook(
+    root: &BackupDir,
+    manifest: &BackupManifestV1,
+    plan: &BackupPlan,
+    assets: &FsAssetStore,
+    dump: &mut File,
+    roles: &mut File,
     mut hook: impl FnMut(FaultPoint) -> Result<(), BackupError>,
 ) -> Result<SealedBackup, BackupError> {
     manifest.validate_with_index(plan.asset_index_bytes())?;
-    let root = BackupDir::open_private_root(destination_root)?;
     let stage_name = format!("{}.staging-{}", manifest.backup_id, Uuid::new_v4());
     let stage = root.create_dir(&stage_name)?;
     let dump_record = required_record(manifest, "database.dump")?;
@@ -132,9 +157,11 @@ fn seal_backup_with_hook(
     hook(FaultPoint::BeforeRename)?;
     root.rename_noreplace_without_sync(&stage_name, &format!("{}.sealed", manifest.backup_id))?;
     hook(FaultPoint::BeforeParentSync)?;
+    #[cfg(test)]
+    crate::source::lifecycle_tests::hook("sealed_after_rename")?;
     root.sync()?;
     // Reopen the published name after the parent sync, then recheck the bytes.
-    verify_sealed(destination_root, manifest.backup_id)
+    verify_sealed_in(root, manifest.backup_id)
 }
 
 /// Re-read the manifest, index, every byte, and every directory entry using
@@ -152,6 +179,13 @@ pub fn verify_sealed(root: &Path, backup_id: Uuid) -> Result<SealedBackup, Backu
     {
         verify_sealed_with_hook(root, backup_id, |_| Ok(()))
     }
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn verify_sealed_in(root: &BackupDir, id: Uuid) -> Result<SealedBackup, BackupError> {
+    root.sync()?;
+    let directory = root.open_dir(&format!("{id}.sealed"))?;
+    verify_directory(&directory, id)
 }
 
 /// Stream a fully verified source pin into a fresh destination staging tree.
@@ -319,7 +353,7 @@ fn open_file(stage: &BackupDir, path: &str) -> Result<File, BackupError> {
 }
 
 #[cfg(target_os = "linux")]
-fn check_file(stage: &BackupDir, record: &FileRecord) -> Result<(), BackupError> {
+pub(crate) fn check_file(stage: &BackupDir, record: &FileRecord) -> Result<(), BackupError> {
     let mut file = open_file(stage, &record.path)?;
     if file.metadata()?.len() != record.size {
         return Err(BackupError::Invalid("target file size"));
@@ -345,7 +379,7 @@ fn check_file(stage: &BackupDir, record: &FileRecord) -> Result<(), BackupError>
 }
 
 #[cfg(target_os = "linux")]
-fn read_small(stage: &BackupDir, path: &str, max: u64) -> Result<Vec<u8>, BackupError> {
+pub(crate) fn read_small(stage: &BackupDir, path: &str, max: u64) -> Result<Vec<u8>, BackupError> {
     let file = open_file(stage, path)?;
     if file.metadata()?.len() > max {
         return Err(BackupError::Capacity("package metadata bytes"));
@@ -359,7 +393,7 @@ fn read_small(stage: &BackupDir, path: &str, max: u64) -> Result<Vec<u8>, Backup
 }
 
 #[cfg(target_os = "linux")]
-fn verify_directory(stage: &BackupDir, id: Uuid) -> Result<SealedBackup, BackupError> {
+pub(crate) fn verify_directory(stage: &BackupDir, id: Uuid) -> Result<SealedBackup, BackupError> {
     let manifest_bytes = read_small(stage, "manifest.json", MAX_MANIFEST_BYTES)?;
     let manifest: BackupManifestV1 = serde_json::from_slice(&manifest_bytes)?;
     if manifest.backup_id != id || manifest.canonical_bytes()? != manifest_bytes {

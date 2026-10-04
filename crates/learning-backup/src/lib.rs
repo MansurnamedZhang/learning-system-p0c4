@@ -13,7 +13,8 @@ mod maintenance;
 pub use maintenance::{GateInspection, GatePhase, PgDumpSpec, SourceGateJournal, SourceGateRecord};
 mod source;
 pub use source::{
-    SourceBackupConfig, SourceLocalPin, force_close_release_ready, prepare_source_backup,
+    SourceBackupConfig, SourceLocalPin, abandon_source_backup, finish_source_backup,
+    force_close_release_ready, prepare_source_backup,
 };
 mod restore_policy;
 pub use restore_policy::{

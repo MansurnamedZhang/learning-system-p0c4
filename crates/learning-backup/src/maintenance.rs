@@ -59,7 +59,7 @@ pub enum GatePhase {
 }
 
 impl GatePhase {
-    fn file_name(self) -> &'static str {
+    pub(crate) fn file_name(self) -> &'static str {
         match self {
             Self::Intent => "intent.json",
             Self::Closed => "closed.json",
@@ -92,6 +92,10 @@ impl SourceGateRecord {
     }
     pub fn phase(&self) -> GatePhase {
         self.phase
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn source_manifest_sha256(&self) -> Option<&str> {
+        self.dump_and_index_sha256.as_deref()
     }
     pub fn pinned_manifest_sha256(&self) -> Option<&str> {
         self.pins_sha256.as_deref()
@@ -171,6 +175,7 @@ impl SourceGateRecord {
 /// re-grant. This journal is not a backup completion receipt.
 #[derive(Debug)]
 pub struct SourceGateJournal {
+    root: BackupDir,
     directory: BackupDir,
     record: SourceGateRecord,
 }
@@ -188,10 +193,37 @@ impl SourceGateJournal {
         if backup_id.is_nil() {
             return Err(BackupError::Invalid("gate journal backup id"));
         }
-        let directory = root.create_dir(&format!("{backup_id}.control"))?;
+        let staging = root.create_dir(&format!("{backup_id}.journal-staging"))?;
+        let initial_name = format!("initial-{}", Uuid::new_v4());
+        let directory = staging.create_dir(&initial_name)?;
         let record = SourceGateRecord::new(backup_id);
-        write_phase(&directory, &record)?;
-        Ok(Self { directory, record })
+        let bytes = serde_json::to_vec(&record)?;
+        let mut file = directory.create_file(record.phase.file_name())?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_before_write")?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        directory.sync()?;
+        staging.sync()?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_before_rename")?;
+        staging.rename_entry_to_noreplace_without_sync(
+            &initial_name,
+            root,
+            &format!("{backup_id}.control"),
+        )?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_after_rename")?;
+        root.sync()?;
+        staging.sync()?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_before_readback")?;
+        readback_phase(&directory, &record)?;
+        Ok(Self {
+            root: root.try_clone()?,
+            directory,
+            record,
+        })
     }
 
     pub fn recover(root_path: &Path, backup_id: Uuid) -> Result<Self, BackupError> {
@@ -258,7 +290,10 @@ impl SourceGateJournal {
         if expected != found {
             return Err(BackupError::Invalid("gate journal extra entries"));
         }
+        directory.sync()?;
+        root.sync()?;
         Ok(Self {
+            root: root.try_clone()?,
             directory,
             record: record.ok_or(BackupError::Invalid("gate journal missing intent"))?,
         })
@@ -275,18 +310,68 @@ impl SourceGateJournal {
     ) -> Result<(), BackupError> {
         let mut next = self.record.clone();
         next.advance(phase, evidence_sha256)?;
-        write_phase(&self.directory, &next)?;
+        let name = format!("{}.journal-staging", next.backup_id);
+        let staging = match self.root.open_dir(&name) {
+            Ok(dir) => dir,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.root.create_dir(&name)?
+            }
+            Err(error) => return Err(error.into()),
+        };
+        write_phase(&staging, &self.directory, &next)?;
         self.record = next;
         Ok(())
     }
 }
 
-fn write_phase(directory: &BackupDir, record: &SourceGateRecord) -> Result<(), BackupError> {
+fn write_phase(
+    staging: &BackupDir,
+    directory: &BackupDir,
+    record: &SourceGateRecord,
+) -> Result<(), BackupError> {
     let bytes = serde_json::to_vec(record)?;
-    let mut file = directory.create_file(record.phase.file_name())?;
+    if bytes.len() > 4096 {
+        return Err(BackupError::Invalid("gate journal record length"));
+    }
+    let temporary = format!(
+        "{}-{}.tmp",
+        record.phase.file_name().trim_end_matches(".json"),
+        Uuid::new_v4()
+    );
+    let mut file = staging.create_file(&temporary)?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_write")?;
     file.write_all(&bytes)?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_file_sync")?;
     file.sync_all()?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_staging_sync")?;
+    staging.sync()?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_rename")?;
+    staging.rename_entry_to_noreplace_without_sync(
+        &temporary,
+        directory,
+        record.phase.file_name(),
+    )?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_after_rename")?;
     directory.sync()?;
+    staging.sync()?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_readback")?;
+    readback_phase(directory, record)
+}
+fn readback_phase(directory: &BackupDir, record: &SourceGateRecord) -> Result<(), BackupError> {
+    let mut bytes = Vec::new();
+    directory
+        .open_file(record.phase.file_name())?
+        .take(4097)
+        .read_to_end(&mut bytes)?;
+    if bytes != serde_json::to_vec(record)? {
+        return Err(BackupError::Invalid("gate journal publication readback"));
+    }
     Ok(())
 }
 

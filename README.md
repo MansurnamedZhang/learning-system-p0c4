@@ -13,7 +13,7 @@
 
 C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复目标准入、出生证明、干净目标 pin **候选**，以及精确子进程的只读端点绑定/同一 guard 重启拒绝（新批次结果已核对）。独立备份目标、`CompleteBackup`、恢复构建 pin、真实数据库与资产恢复及整关故障注入仍未验收。候选记录不能当作恢复许可。详见 [C4 验证记录](docs/p0c4-verification.md)。
 
-2026-10-04 源控制根持久绑定四个 Linux/PG18 门实际通过 4/4，另有两个 live admission 回归各通过一次；独立限定返回接受 PASS（新增发现 0）；文档复审与发布待完成。绑定限定单可信容器命名空间、每部署独立 build pin，保留 close-only 恢复；显式 finish/abandon 和真实全量捕获仍待父 Task3 验收。2026-10-03 live admission 五门 5/5 为旧源基线的历史限定接受，不作当前候选五门重跑计数。
+2026-10-04 源备份生命周期新 suite `943f3a4a-16a9-44ab-af07-257151349a7a` 的九个独立新批次及离线 aggregate 已通过，独立返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均为 0。实际执行 **17 个 PG body（16 lifecycle + 1 legacy）**，覆盖 **8 个唯一生命周期主用例 + 1 个 legacy**；命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。文件系统 36 次为 4 个唯一测试体重复 9 次，相关回归 171 次为 19 个唯一测试体重复 9 次；普通 Linux Python 468 通过/27 个具名 root 跳过、独立 root 27 通过/0 跳过分别计数。现场输入为 e43 基线的 475 文件 `working-tree-green` ZIP，后续发布不改变实际执行身份。 原具备生命周期 API 的管理二进制和原编译 source/build/control binding 必须保留；latest binary 不自动兼容旧捕获。详见[生命周期 runbook](docs/p0c4-source-attempt-lifecycle.md)和[C4 验证记录](docs/p0c4-verification.md)。父 C4 Task3 三个框、Task4/5、资产/local-pin 持久 enrollment 与 GC 保护发现、独立故障域、CompleteBackup、完整恢复、C4 与生产继续开放；完整工作区 DB 与四套旧版本升级未在本切片运行。源端同身份物理克隆端点仍待验，与此前已接受的恢复目标 clone 门分别记录。 旧绑定切片已完成文档复审并正常发布，收据见[绑定页](docs/p0c4-source-control-binding.md)；旧 admission 五门仍为历史独立来源。
 
 ## 代码与文档导航
 
@@ -26,6 +26,7 @@ C4 已通过部分单机隔离门，包括备份清单、安全封存、恢复�
 - `deploy`：隔离测试配置与初始化脚本；不含生产部署配置。
 - `docs/content-boundary.md`：块与内容边界；`docs/p0c3-format.md`：融合快照格式。
 - `docs/p0c4-restore-target-acceptance.md`、`docs/p0c4-restore-birth-acceptance.md`、`docs/p0c4-restore-pin-acceptance.md`：C4 单机目标验收协议。
+- [源备份尝试完成与放弃](docs/p0c4-source-attempt-lifecycle.md)：四管理 Rust 库入口、原构建绑定、保留证据与终态人工歧义。
 - [源控制根持久绑定](docs/p0c4-source-control-binding.md)：独立构建 pin、实际四门与两项独立回归、信任边界。
 - [源端维护准入](docs/p0c4-source-admission.md)：live 同库互斥、历史五门及父 Task3 尚待完成的边界。
 - `docs/superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md` 与 `docs/superpowers/plans/2026-09-28-p0c4-backup-recovery.md`：C4 设计和实施任务。

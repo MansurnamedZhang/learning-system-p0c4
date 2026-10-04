@@ -1,6 +1,6 @@
 # P0-C4 源端维护准入
 
-更新：2026-10-04。源控制根持久绑定的新四个 Linux/PG18 门实际通过 **4/4**；另有两个 live admission 回归各 1 通过/0 失败/0 忽略。独立限定返回接受 PASS（新增发现 0）；文档复审与发布待完成。当前限定单可信容器命名空间与每部署独立编译 pin，覆盖原会话消失后换根拒绝、原根未完成日志、close-only 重新关闸和另一数据库身份拒绝；未运行 full dump/恢复或签发 CompleteBackup。详见[持久绑定机制、实际四门与冻结 pins](p0c4-source-control-binding.md)。父 Task3 三项、Task4/5、C4 与生产仍开放。
+2026-10-04 源备份生命周期新 suite `943f3a4a-16a9-44ab-af07-257151349a7a` 的九个独立新批次及离线 aggregate 已通过，独立返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均为 0。实际执行 **17 个 PG body（16 lifecycle + 1 legacy）**，覆盖 **8 个唯一生命周期主用例 + 1 个 legacy**；命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。文件系统 36 次为 4 个唯一测试体重复 9 次，相关回归 171 次为 19 个唯一测试体重复 9 次；普通 Linux Python 468 通过/27 个具名 root 跳过、独立 root 27 通过/0 跳过分别计数。现场输入为 e43 基线的 475 文件 `working-tree-green` ZIP，后续发布不改变实际执行身份。 接受证据必须同时携带 aggregate、独立返回审查（15272 bytes，SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`）和 legacy 补充收据（1068 bytes，SHA-256 `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7`）及其六份原始文件。补充原始文件仅在私有证据中保留，不上传 Git；它们不在未改写的 aggregate/raw-index 中，不能声称冻结 aggregate validator 已自动检查这份补充。 当前四入口语义见[生命周期 runbook](p0c4-source-attempt-lifecycle.md)，完整证据见[C4 验证记录](p0c4-verification.md)。父 C4 Task3 三个框、Task4/5、资产/local-pin 持久 enrollment 与 GC 保护发现、独立故障域、CompleteBackup、完整恢复、C4 与生产继续开放；完整工作区 DB 与四套旧版本升级未在本切片运行。源端同身份物理克隆端点仍待验，与此前已接受的恢复目标 clone 门分别记录。 历史绑定四门的文档复审和 e3afb 正常发布已完成，见[既有绑定发布收据](p0c4-source-control-binding.md)。
 
 ## 历史 live admission 五门（2026-10-03）
 
@@ -9,6 +9,8 @@
 ## 问题与实现范围
 
 此前，另一维护尝试可能在发现其他会话之前先 REVOKE runtime CONNECT；按 attempt 或控制根隔离的日志也不能统一排斥同一数据库上的并发尝试。源端 SQL 和 catalog 若重新借用连接池，还可能让 `max=1` 池等待自己占用的连接，或把另一个管理 backend 算入排空检查。
+
+以下两入口及约束表描述历史 live-admission 切片。当前 Linux 管理 Rust 库入口为 prepare、close-only、finish、abandon；后两者保持同一准入和 held roots 至核验/释放/补偿，晚期 finish 不重采集，终态重复不自动 GRANT，closed/unsafe terminal 要人工处理；详见[当前 runbook](p0c4-source-attempt-lifecycle.md)。
 
 源端现在用私有、不可 Clone 的 `SourceAdmission` 拥有一个 `PoolConnection<Postgres>`。公开 `prepare_source_backup`、`force_close_release_ready` 和 `AdminAssetCatalog::plan_assets` 的签名保持不变；新增的借用 helper 仅供内部组合。
 
@@ -69,3 +71,6 @@ Linux 固定离线 builder 的格式、严格 package all-targets Clippy 和 cfg
 父 Task3 继续保留：可信固定 source control-root 的独立持久身份 pin；广义 finish/abandon 和中断捕获/封存恢复；真实源 dump、全部 ready assets/index、保留保护、独立目标全量校验与完成收据的组合验收。独立存储故障域按用户安排延后。全部 in-flight cancellation、SIGKILL、网络/掉电故障以及绕过协议的特权写入者不由此五门证明；Windows no-follow、性能和生产部署也未验收。
 
 父 Task3 三项复选框、Task4 干净恢复与 Task5 整关故障注入继续开放，未签发 `CompleteBackup`。历史专项见[维护闸补充验证](p0c4-maintenance-gates.md)，完整记录见[C4 验证记录](p0c4-verification.md)，后续任务见[父施工单](superpowers/plans/2026-09-28-p0c4-backup-recovery.md)。
+
+
+当前 successor：显式 finish/abandon 与真实本地捕获已在上述限定 suite 接受；原历史未完成列表保留其当时来源。父 C4 Task3 三个框、Task4/5、资产/local-pin 持久 enrollment 与 GC 保护发现、独立故障域、CompleteBackup、完整恢复、C4 与生产继续开放；完整工作区 DB 与四套旧版本升级未在本切片运行。源端同身份物理克隆端点仍待验，与此前已接受的恢复目标 clone 门分别记录。

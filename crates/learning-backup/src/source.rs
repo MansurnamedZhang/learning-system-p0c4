@@ -4,6 +4,10 @@
 mod admission;
 #[cfg(any(target_os = "linux", test))]
 mod binding;
+#[cfg(any(target_os = "linux", test))]
+mod lifecycle;
+#[cfg(test)]
+pub(crate) mod lifecycle_tests;
 #[cfg(target_os = "linux")]
 use admission::SourceAdmission;
 #[cfg(all(test, target_os = "linux"))]
@@ -17,7 +21,7 @@ use crate::{BackupError, BackupManifestV1, SealedBackup};
 #[cfg(target_os = "linux")]
 use crate::{
     FileRecord, GateInspection, GatePhase, MigrationRecord, PgDumpSpec, SourceGateJournal,
-    SourceIdentity, seal_backup,
+    SourceIdentity,
 };
 use learning_assets::FsAssetStore;
 #[cfg(target_os = "linux")]
@@ -104,6 +108,46 @@ pub async fn prepare_source_backup(
     }
 }
 
+/// Explicitly finish an interrupted capture only from an already published,
+/// fully verified local pin. Cancellation in a GRANT window requires explicit
+/// inspection and reclosure; dropping admission never reopens the gate.
+pub async fn finish_source_backup(
+    admin: &PgPool,
+    config: &SourceBackupConfig,
+) -> Result<SourceLocalPin, BackupError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (admin, config);
+        Err(BackupError::Io(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "source lifecycle requires Linux",
+        )))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        lifecycle::finish(admin, config).await
+    }
+}
+/// Persistently abandon an unresolved source attempt, retaining every original.
+/// A visible terminal with closed ACL is ambiguous and requires manual handling.
+pub async fn abandon_source_backup(
+    admin: &PgPool,
+    config: &SourceBackupConfig,
+) -> Result<(), BackupError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (admin, config);
+        Err(BackupError::Io(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "source lifecycle requires Linux",
+        )))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        lifecycle::abandon(admin, config).await
+    }
+}
+
 /// Crash recovery for a durable `release_ready` record only. It never resumes
 /// service or labels a backup complete: it revokes runtime CONNECT, confirms
 /// no session remains, and writes a separate private recovery observation.
@@ -186,7 +230,10 @@ async fn prepare_linux(
     {
         return Err(BackupError::Invalid("source role preflight"));
     }
-    BackupDir::open_trusted_private_root(&config.local_pin_root)?;
+    let pin_root = BackupDir::open_trusted_private_root(&config.local_pin_root)?;
+    if control.identity()? == pin_root.identity()? {
+        return Err(BackupError::Invalid("source control and pin root alias"));
+    }
     let attestation_parent = config
         .isolation_attestation
         .parent()
@@ -268,19 +315,17 @@ async fn prepare_linux(
     write_bytes(&source, "manifest.json", &manifest.canonical_bytes()?)?;
     inspect_gate(admission.connection()).await?.validate()?;
     journal.advance(GatePhase::DumpAndIndexDurable, Some(&manifest_sha256))?;
+    #[cfg(test)]
+    lifecycle_tests::hook("capture_dump_durable")?;
 
-    let sealed = seal_backup(
-        &config.local_pin_root,
-        &manifest,
-        &plan,
-        assets,
-        &mut dump,
-        &mut roles,
-    )?;
+    let sealed =
+        crate::sealed::seal_backup_in(&pin_root, &manifest, &plan, assets, &mut dump, &mut roles)?;
     if sealed.manifest_sha256() != manifest_sha256 {
         return Err(BackupError::Invalid("local pin manifest digest"));
     }
     journal.advance(GatePhase::PinsDurable, Some(&manifest_sha256))?;
+    #[cfg(test)]
+    lifecycle_tests::hook("capture_pins_durable")?;
     inspect_gate(admission.connection()).await?.validate()?;
     verify_isolation_attestation(config, false)?;
     release_runtime_connect(&mut admission, &database, &mut journal).await?;
@@ -295,12 +340,18 @@ async fn release_runtime_connect(
     journal: &mut SourceGateJournal,
 ) -> Result<(), BackupError> {
     journal.advance(GatePhase::ReleaseReady, None)?;
+    #[cfg(test)]
+    lifecycle_tests::hook("capture_release_ready")?;
+    #[cfg(test)]
+    lifecycle_tests::checkpoint("capture_before_grant").await;
     let grant = format!("GRANT CONNECT ON DATABASE \"{database}\" TO learning_runtime");
     let granted = sqlx::query(&grant).execute(admission.connection()).await;
     if granted.is_err() {
         compensate_release(admission, database).await?;
         return Err(BackupError::Invalid("runtime CONNECT grant failed"));
     }
+    #[cfg(test)]
+    lifecycle_tests::checkpoint("capture_after_grant").await;
     match inspect_gate(admission.connection()).await {
         Ok(after) if after.runtime_can_connect && !after.public_can_connect => {}
         _ => {
@@ -548,19 +599,7 @@ fn verify_isolation_attestation(
 
 #[cfg(target_os = "linux")]
 fn ensure_no_unfinished_journal(root: &BackupDir, _path: &Path) -> Result<(), BackupError> {
-    for name in root.list()? {
-        if let Some(id) = name.strip_suffix(".control") {
-            let id = Uuid::parse_str(id)
-                .map_err(|_| BackupError::Invalid("unknown control directory"))?;
-            let journal = SourceGateJournal::recover_in(root, id)?;
-            if journal.record().phase() != GatePhase::Released {
-                return Err(BackupError::Invalid(
-                    "unfinished source maintenance journal",
-                ));
-            }
-        }
-    }
-    Ok(())
+    lifecycle::scan(root, None)
 }
 
 #[cfg(target_os = "linux")]

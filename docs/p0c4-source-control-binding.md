@@ -4,6 +4,8 @@
 
 发布收据：上述源码提交的唯一 parent 为 `a56ab16dfd8f8f8c7f1c83b1f3ca40f2506ff934`；实际执行仍是该 base 的 469 文件未提交 working-tree-green ZIP（SHA-256 `95e6c48702dd3557ce7beaa1e3427779e5944315922820ec5071d48ceae8ceae`），不反向写成现场执行 e3 提交。本次后续修改仅作发布回执与复选框的文档记账，不扩充已验收范围，也不改变现场执行身份。
 
+当前 successor：源端 prepare/close-only/finish/abandon 的限定九叶验收已接受，见[生命周期 runbook](p0c4-source-attempt-lifecycle.md)与[验证记录](p0c4-verification.md)。本页四个绑定门仍为历史 NO_DUMP/SYNTHETIC 切片，不改写其输入或执行身份。 当前suite的capture计数按命名测试入口衡量：命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。
+
 ## 身份预期与信任边界
 
 原 live admission 在同一数据库上以固定 session advisory lock 排斥遵守协议的并发维护尝试；原 backend 消失后锁会释放。持久绑定进一步要求捕获和 close-only 恢复核对独立预置的 `source-binding.json`，使复制绑定到另一个控制根或在原路径替换 inode 都不能绕过旧未完成日志。
@@ -23,15 +25,17 @@ JSON 必须按键排序、紧凑序列化且无额外换行；未知/重复字�
 
 **本切片限定一个可信容器挂载命名空间和每部署的独立构建 pin。** 预置、编译及消费采用一致的控制路径/挂载身份。目录 inode 或数据库身份替换后必须重新独立签发并重建；不允许自动接受新身份。独立签发和重建有部署成本，尚未成为宿主生产安装流程。root 祖先与句柄实测证明的是本容器 fixture；特权 root/Docker 管理者任意换挂载、修改记录和重建可信二进制的威胁不由此切片解决。
 
-数据库名、OID 和 system identifier 不能区分保留这些身份的物理克隆端点；**同身份克隆的端点排除仍是独立端点绑定协议的职责**，不把本切片写成克隆端点证明。资产根和 local pin 的身份绑定也须分别设计/验收；它们的可信路径预检不等于这里的源控制根持久绑定。
+数据库名、OID 和 system identifier 不能区分保留这些身份的物理克隆端点；**源端同身份物理克隆的端点排除仍待独立协议验收；此前恢复目标 clone 门已接受，二者不同**，不把本切片写成克隆端点证明。资产根和 local pin 的身份绑定也须分别设计/验收；它们的可信路径预检不等于这里的源控制根持久绑定。
 
 ## 支持入口与恢复语义
 
 `prepare_source_backup` 和 `force_close_release_ready` 保持公开签名，内部先取得同数据库 `SourceAdmission`，在该 admitted 会话核对数据库身份，打开并保留可信控制根句柄。日志扫描、start、recover 和恢复观察均相对这个句柄；核验后路径被换名也不会改到替代目录写日志。旧公开 journal 路径包装与 v1 序列化字节保持兼容。
 
+当前新增 `finish_source_backup(&PgPool, &SourceBackupConfig)` 与 `abandon_source_backup(&PgPool, &SourceBackupConfig)` 同样先取得同会话准入和独立 compiled binding，分别返回 SourceLocalPin 与 ()。它们不执行 dump/重采集/重封存或提升 staging；终态重复只读核对安全 ACL/authority。操作员须保留原 audited lifecycle-capable binary、executable SHA、编译 source/build/control binding、原 manifest/migrations/source-binding bytes/root 与实际 profile provenance；latest 或同 profile 不自动 finish 原捕获。close-only 的 create-only observation 使重复调用可能先闭闸后报已存在，不是通用幂等修复。
+
 捕获先核对绑定和未完成日志，再做同会话只读角色/预备事务检查，之后保留原隔离/端点证明及紧邻第一次维护变更前的角色/预备事务复核。绑定、未完成日志和真实 prepared-work 的权威拒绝不能被缺失 attestation 掩盖；尚未核验时不得改 ACL、创建尝试日志或运行 dump。
 
-匹配原根的恢复仅重新 REVOKE runtime CONNECT、记录 close observation，并保留 `ReleaseReady` 和原日志。它不自动完成、放弃或重启捕获。显式广义 finish/abandon、全量捕获/封存恢复仍是父 Task3 下一项。
+匹配原根的恢复仅重新 REVOKE runtime CONNECT、记录 close observation，并保留 `ReleaseReady` 和原日志。它不自动完成、放弃或重启捕获。当前显式 finish/abandon 与真实本地捕获已限定接受；close-only 本身仍不提供这些能力。详见[生命周期 runbook](p0c4-source-attempt-lifecycle.md)。
 
 ## 实际 RED 与当前四门
 
@@ -98,4 +102,4 @@ Python 全 scripts 回归经进程内精确 worktree Git trust 后 **331 总数�
 
 保留的 legacy full-capture/drain/release/prepared-driver fixture 已改为消费独立签发/编译 pin；旧 driver/build 管线须更新后重新独立验收，**明确延后**，本候选不宣称这些管线执行通过。当前 prepared 安全拒绝只由上述第二门提供实际支持。
 
-父 Task3 三项复选框、Task4/5、完整备份/恢复、`CompleteBackup`、C4 与生产继续开放。下一项是显式 finish/abandon 和真实 `pg_dump`、全 ready assets/index、保留保护与完成收据的组合链；独立存储故障域按用户安排延后。没有新的 full dump、restore、CompleteBackup 或独立存储验收。本页对应[绑定子计划](superpowers/plans/2026-10-04-p0c4-source-control-binding.md)，父任务见[五任务计划](superpowers/plans/2026-09-28-p0c4-backup-recovery.md)。
+父 Task3 三项复选框、Task4/5、完整备份/恢复、`CompleteBackup`、C4 与生产继续开放。显式 finish/abandon 与真实本地 dump/全 ready assets/index 的限定链已接受；持久资产/local-pin enrollment、GC 保护发现、独立故障域和完成收据/完整恢复仍待验收。旧四绑定门仍未执行 dump，不能反向添加新 suite 的捕获结果。本页对应[绑定子计划](superpowers/plans/2026-10-04-p0c4-source-control-binding.md)，父任务见[五任务计划](superpowers/plans/2026-09-28-p0c4-backup-recovery.md)。
