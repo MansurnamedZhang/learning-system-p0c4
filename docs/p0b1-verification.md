@@ -24,7 +24,7 @@
 | 修复后宿主全量 | 68/68，0 failed / 0 ignored；fmt、全目标 Clippy、workspace test 均 exit 0 |
 | 全新空库 Compose | 68/68，0 failed / 0 ignored；config / 标准 build / up / stop 均 exit 0 |
 
-源码包均在 `.runtime/`，包含逐文件 SOURCE-MANIFEST.json，服务器执行前后验证；原始日志与结果保存在 `<local-user-home>/Documents/ubuntu_Seoul/learning-system-p0b1/evidence/`。本任务已独立核对 10 批结果、24 份日志的 SHA-256、测试计数、退出码和当前源码一致性；副本与审计结果保留在忽略目录 `artifacts/p0b1/`。最终包内 58 个文件的运行前后哈希一致，之后仅更新交付文档。
+源码包均在 `.runtime/`，包含逐文件 SOURCE-MANIFEST.json，服务器执行前后验证；原始日志与结果保存在 `<user-home>/Documents/ubuntu_Seoul/learning-system-p0b1/evidence/`。本任务已独立核对 10 批结果、24 份日志的 SHA-256、测试计数、退出码和当前源码一致性；副本与审计结果保留在忽略目录 `artifacts/p0b1/`。最终包内 58 个文件的运行前后哈希一致，之后仅更新交付文档。
 
 ## 固定包
 

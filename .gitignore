@@ -11,7 +11,3 @@
 
 __pycache__/
 *.pyc
-
-/evidence/
-/incoming/
-*.zip

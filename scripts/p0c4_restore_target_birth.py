@@ -140,15 +140,40 @@ def _pg_sql():
     WHERE d.datname=pg_catalog.current_database();"""
 
 
-def probe_pg_facts(identity, container_id, *, _phase=None):
+def _full_pg_sql():
+    # Fixed three-role policy, never caller role SQL. Legacy _pg_sql stays byte
+    # for byte and the same catalog/birth validator still requires zero extras.
+    query=_pg_sql()
+    before="('postgres','learning_admin','learning_runtime')"
+    require(query.count(before)==1,"full birth role template")
+    query=query.replace(before,"('postgres','learning_admin','learning_runtime','learning_auth_lock')")
+    before="WHERE r.rolname IN ('learning_admin','learning_runtime')\n            OR g.rolname IN ('learning_admin','learning_runtime'))"
+    after="WHERE (r.rolname IN ('learning_admin','learning_runtime','learning_auth_lock') OR g.rolname IN ('learning_admin','learning_runtime','learning_auth_lock')) AND NOT (r.rolname='learning_admin' AND g.rolname='learning_auth_lock' AND NOT m.inherit_option AND m.set_option AND NOT m.admin_option AND pg_catalog.pg_get_userbyid(m.grantor)='postgres'))"
+    require(query.count(before)==1,"full birth membership template")
+    query=query.replace(before,after)
+    before="r.rolname='learning_runtime' AND NOT r.rolcanlogin"
+    require(query.count(before)==1,"full birth runtime template")
+    query=query.replace(before,"r.rolname='learning_runtime' AND r.rolcanlogin")
+    before="AND NOT r.rolbypassrls AND NOT r.rolreplication)),"
+    after="AND NOT r.rolbypassrls AND NOT r.rolreplication) AND EXISTS(SELECT 1 FROM pg_catalog.pg_roles l WHERE l.rolname='learning_auth_lock' AND NOT l.rolcanlogin AND NOT l.rolsuper AND NOT l.rolcreatedb AND NOT l.rolcreaterole AND NOT l.rolbypassrls AND NOT l.rolreplication) AND NOT pg_catalog.has_schema_privilege('learning_auth_lock','public','CREATE')),"
+    require(query.count(before)==1,"full birth auth role template")
+    return query.replace(before,after)
+
+
+def probe_pg_facts(identity, container_id, *, _phase=None, _full_profile=None, _controlled_profile=None):
+    if _controlled_profile is not None:
+        from p0c4_completion.controlled_fixture import ControlledFixtureContext
+        require(type(_controlled_profile) is ControlledFixtureContext and _full_profile is None,"fixed two-role controlled context required")
+        _controlled_profile._require_current_container(identity,container_id)
     require(bool(target_provisioner.HEX_ID.fullmatch(container_id)),
             "verified PG container required")
     if _phase is not None:
         _phase("PG_SQL_EXECUTION")
-    output = target_provisioner._docker(
+    execute=_controlled_profile._docker if _controlled_profile is not None else target_provisioner._docker if _full_profile is None else _full_profile._docker
+    output = execute(
         "exec", "--user", "postgres", container_id, "psql", "-XAt",
         "-v", "ON_ERROR_STOP=1", "--dbname", identity["database"],
-        "-c", _pg_sql())
+        "-c", _pg_sql() if _full_profile is None else _full_pg_sql())
     if _phase is not None:
         _phase("PG_SQL_PARSE")
     require(output.endswith("\n") and len(output.splitlines()) == 1,
@@ -259,7 +284,7 @@ def canonical_birth(identity, facts, control_id, asset_id, nonce):
 
 
 def verify_birth_docker(identity, subnet, before, after, original_ids,
-                        target, initdb):
+                        target, initdb, _full_profile=None):
     ids = target_provisioner.verify_created(identity, subnet, before, after)
     require(ids == original_ids, "Docker immutable object changed before birth")
     volume = next(v for v in after["volumes"] if v.get("Name") == identity["volume"])
@@ -274,6 +299,9 @@ def verify_birth_docker(identity, subnet, before, after, original_ids,
         "/run/secrets/admin_password": (
             "bind", str(target / "secrets" / "admin_password"), False),
     }
+    if _full_profile is not None:
+        expected.update(_full_profile._extra_target_mounts())
+        _full_profile._validate_extra_target_mounts(pg)
     mounts = pg.get("Mounts") or []
     require(len(mounts) == len(expected) and
             {m.get("Destination") for m in mounts} == set(expected),
@@ -404,41 +432,84 @@ def _verify_creation_state(root, target, identity, status):
             "target creation record differs")
 
 
+def _full_files_profile(profile):
+    if profile is None:return False
+    from p0c4_completion.full_import import FullRehearsalContext
+    return type(profile) is FullRehearsalContext
+
+def _controlled_files_profile(profile):
+    if profile is None:return False
+    from p0c4_completion.controlled_fixture import ControlledFixtureContext
+    require(type(profile) is ControlledFixtureContext,"fixed two-role controlled context required")
+    return True
+
+
 def _issue_birth_inner(root, target, identity, subnet, before, ids, status,
-                       initdb, phase):
+                       initdb, phase, _full_profile=None, _controlled_profile=None):
     """Called only inside provisioner's creation lock, after fresh creation."""
     phase("CREATION_STATE")
-    _verify_creation_state(root, target, identity, status)
+    full_files=_full_files_profile(_full_profile)
+    controlled=_controlled_files_profile(_controlled_profile)
+    require(not controlled or _full_profile is None,"disjoint fixed role recipes required")
+    profile=_controlled_profile if controlled else _full_profile
+    owned_files=full_files or controlled
+    if owned_files:profile._verify_target_files(status)
+    else:_verify_creation_state(root, target, identity, status)
     phase("DOCKER_REINSPECTION")
     roots = [target / name for name in ("destination", "control", "assets")]
-    require(all(not os.path.lexists(path) for path in roots),
-            "restore roots must be new and disjoint")
-    after = target_provisioner.snapshot()
-    after["images"] = target_provisioner._inspect("image", [identity["image"]])
-    verify_birth_docker(identity, subnet, before, after, ids, target, initdb)
+    if not owned_files:
+        require(all(not os.path.lexists(path) for path in roots),"restore roots must be new and disjoint")
+    after = target_provisioner.snapshot() if profile is None else profile._snapshot()
+    after["images"] = target_provisioner._inspect("image", [identity["image"]]) if profile is None else profile._inspect("image",[identity["image"]])
+    verify_birth_docker(identity, subnet, before, after, ids, target, initdb, _full_profile)
+    exact = [item for item in after["containers"] if
+             item.get("Id") == ids["container_id"]]
+    require(len(exact) == 1 and
+            exact[0].get("State", {}).get("Running") is True and
+            type(exact[0]["State"].get("StartedAt")) is str and
+            re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
+                         r"[0-9]{2}(?:\.[0-9]{1,9})?Z",
+                         exact[0]["State"]["StartedAt"]) and
+            not exact[0]["State"]["StartedAt"].startswith("0001-"),
+            "verified birth Docker start time unavailable")
+    container_started_at = exact[0]["State"]["StartedAt"]
     phase("TRUSTED_VOLUME_PATH")
-    mount_dev, mount_ino = _trusted_volume_mount(ids["volume_mountpoint"])
+    mount_dev,mount_ino=(profile._measure_birth_pg(ids) if owned_files else _trusted_volume_mount(ids["volume_mountpoint"]))
     phase("INITDB_RECHECK")
-    target_provisioner.probe_initdb(identity, ids["container_id"])
-    facts = probe_pg_facts(identity, ids["container_id"], _phase=phase)
+    if profile is None:
+        target_provisioner.probe_initdb(identity, ids["container_id"])
+    else:
+        profile._probe(identity, ids["container_id"])
+    facts = probe_pg_facts(identity, ids["container_id"], _phase=phase, _full_profile=_full_profile,_controlled_profile=_controlled_profile)
     phase("PRIVATE_ROOT_CREATION")
+    if owned_files:
+        return profile._publish_target_birth(status,ids,after['images'][0]['Id'],container_started_at,(mount_dev,mount_ino),facts)
+    return _publish_birth_files(root,target,identity,status,ids,after['images'][0]['Id'],container_started_at,(mount_dev,mount_ino),facts,after['daemon_id'],_phase=phase)
+
+
+def _publish_birth_files(root,target,identity,status,ids,image_id,container_started_at,volume_id,facts,daemon_id,*,_phase=None):
+    _verify_creation_state(root,target,identity,status)
+    roots=[target/name for name in ('destination','control','assets')]
+    require(all(not os.path.lexists(path) for path in roots),'restore roots must be new and disjoint')
+    mount_dev,mount_ino=volume_id
     root_ids = [_new_private_root(path) for path in roots]
     destination, control, assets = roots
     require(not any(destination.iterdir()) and not any(control.iterdir()) and
             not any(assets.iterdir()), "new restore roots are not empty")
-    phase("BIRTH_PUBLICATION")
+    if _phase is not None:_phase("BIRTH_PUBLICATION")
     nonce = str(uuid.uuid4())
     payload = canonical_birth(identity, facts, root_ids[1], root_ids[2], nonce)
     evidence = {
         "state": "BIRTH_SOURCE_REINSPECTED_NOT_RESTORE_ACCEPTANCE",
         "project": identity["project"], "batch_id": status["batch_id"],
-        "docker_daemon_id": after["daemon_id"],
+        "docker_daemon_id": daemon_id,
         "container_id": ids["container_id"],
+        "container_started_at": container_started_at,
         "network_id": ids["network_id"],
         "volume_name": ids["volume_name"],
         "volume_mountpoint": ids["volume_mountpoint"],
         "volume_mount_dev": mount_dev, "volume_mount_ino": mount_ino,
-        "image_id": after["images"][0]["Id"],
+        "image_id": image_id,
         "destination_dev": root_ids[0][0], "destination_ino": root_ids[0][1],
         "control_dev": root_ids[1][0], "control_ino": root_ids[1][1],
         "asset_dev": root_ids[2][0], "asset_ino": root_ids[2][1],
@@ -448,7 +519,7 @@ def _issue_birth_inner(root, target, identity, subnet, before, ids, status,
         target / "birth-evidence.json",
         json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode())
     digest, success_digest = finalize_birth_issuance(
-        target, control, identity, status, ids, after["images"][0]["Id"],
+        target, control, identity, status, ids, image_id,
         (mount_dev, mount_ino), payload, nonce)
     name = identity["database"] + ".birth.json"
     return {"birth_sha256": digest, "issuance_sha256": success_digest,
@@ -458,6 +529,24 @@ def _issue_birth_inner(root, target, identity, subnet, before, ids, status,
 
 
 def issue_birth(root, target, identity, subnet, before, ids, status, initdb):
+    return _issue_birth(root,target,identity,subnet,before,ids,status,initdb)
+
+
+def _issue_full_birth(root,target,identity,subnet,before,ids,status,initdb,profile):
+    from p0c4_completion.roles import _FullRoleProfile
+    from p0c4_completion.full_import import FullRehearsalContext
+    require(type(profile) in (_FullRoleProfile,FullRehearsalContext), "fixed full restore profile required")
+    profile._validate_target(root,status["batch_id"],subnet,initdb)
+    return _issue_birth(root,target,identity,subnet,before,ids,status,initdb,profile)
+
+def _issue_controlled_birth(root,target,identity,subnet,before,ids,status,initdb,profile):
+    require(_controlled_files_profile(profile),"fixed controlled fixture context required")
+    profile._validate_target(root,status['batch_id'],subnet,initdb)
+    profile._require_current_container(identity,ids['container_id'])
+    return _issue_birth(root,target,identity,subnet,before,ids,status,initdb,_controlled_profile=profile)
+
+
+def _issue_birth(root, target, identity, subnet, before, ids, status, initdb, _full_profile=None, *, _controlled_profile=None):
     """Failed issuer work emits only bounded diagnostic codes, never raw data."""
     current_phase = "CREATION_STATE"
 
@@ -467,10 +556,13 @@ def issue_birth(root, target, identity, subnet, before, ids, status, initdb):
 
     try:
         return _issue_birth_inner(root, target, identity, subnet, before, ids,
-                                  status, initdb, set_phase)
+                                  status, initdb, set_phase, _full_profile,_controlled_profile)
     except BaseException as error:
-        _write_failure_diagnostic(target, identity, status, current_phase,
-                                  error)
+        if not _full_files_profile(_full_profile) and not _controlled_files_profile(_controlled_profile):
+            _write_failure_diagnostic(target, identity, status, current_phase,
+                                      error)
+        # The full owner retains fixed phase evidence and writes its private
+        # failure record only after the parent has attempted isolation.
         raise
 
 

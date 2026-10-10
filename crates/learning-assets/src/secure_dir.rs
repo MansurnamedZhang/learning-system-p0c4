@@ -235,6 +235,9 @@ mod platform {
             })
         }
         pub(crate) fn list(&self) -> io::Result<Vec<String>> {
+            self.list_bounded(usize::MAX)
+        }
+        pub(crate) fn list_bounded(&self, maximum: usize) -> io::Result<Vec<String>> {
             let dot = CString::new(".").expect("literal");
             let duplicate = unsafe {
                 libc::openat(
@@ -277,11 +280,29 @@ mod platform {
                 if bytes == b"." || bytes == b".." {
                     continue;
                 }
+                if names.len() == maximum {
+                    return Err(io::Error::new(
+                        io::ErrorKind::FileTooLarge,
+                        "directory entry limit",
+                    ));
+                }
                 names.push(String::from_utf8(bytes.to_vec()).map_err(|_| invalid())?);
             }
         }
         pub(crate) fn sync(&self) -> io::Result<()> {
             self.file.sync_all()
+        }
+        pub(crate) fn remove_empty_dir(&self, name: &str) -> io::Result<()> {
+            let child = self.open_dir(name)?;
+            child.require_private_directory()?;
+            child.list_bounded(0)?;
+            let name = Self::name(name)?;
+            if unsafe { libc::unlinkat(self.file.as_raw_fd(), name.as_ptr(), libc::AT_REMOVEDIR) }
+                < 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+            self.sync()
         }
         pub(crate) fn device_id(&self) -> io::Result<u64> {
             Ok(self.file.metadata()?.dev())
@@ -325,6 +346,49 @@ mod platform {
             }
             Ok(())
         }
+        pub(crate) fn rename_entry_to_without_sync(
+            &self,
+            old: &str,
+            destination: &Self,
+            new: &str,
+        ) -> io::Result<()> {
+            let old = Self::name(old)?;
+            let new = Self::name(new)?;
+            if self.device_id()? != destination.device_id()? {
+                return Err(io::Error::from_raw_os_error(libc::EXDEV));
+            }
+            let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+            if unsafe {
+                libc::fstatat(
+                    self.file.as_raw_fd(),
+                    old.as_ptr(),
+                    stat.as_mut_ptr(),
+                    libc::AT_SYMLINK_NOFOLLOW,
+                )
+            } < 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+            let stat = unsafe { stat.assume_init() };
+            match stat.st_mode & libc::S_IFMT {
+                libc::S_IFREG if stat.st_nlink == 1 => {}
+                libc::S_IFDIR => {}
+                _ => return Err(invalid()),
+            }
+            if unsafe {
+                libc::renameat2(
+                    self.file.as_raw_fd(),
+                    old.as_ptr(),
+                    destination.file.as_raw_fd(),
+                    new.as_ptr(),
+                    libc::RENAME_NOREPLACE,
+                )
+            } < 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        }
         pub(crate) fn remove_tree(&self, name: &str) -> io::Result<()> {
             let child = self.open_dir(name)?;
             child.chmod(0o700)?;
@@ -346,6 +410,13 @@ mod platform {
                 return Err(io::Error::last_os_error());
             }
             self.sync()
+        }
+        pub(crate) fn require_private_directory(&self) -> io::Result<()> {
+            let meta = self.file.metadata()?;
+            if meta.uid() != 0 || meta.mode() & 0o7777 != 0o700 {
+                return Err(invalid());
+            }
+            Ok(())
         }
         pub(crate) fn try_clone(&self) -> io::Result<Self> {
             Ok(Self {
@@ -440,6 +511,12 @@ mod platform {
         pub(crate) fn list(&self) -> io::Result<Vec<String>> {
             unsupported()
         }
+        pub(crate) fn list_bounded(&self, _: usize) -> io::Result<Vec<String>> {
+            unsupported()
+        }
+        pub(crate) fn remove_empty_dir(&self, _: &str) -> io::Result<()> {
+            unsupported()
+        }
         pub(crate) fn sync(&self) -> io::Result<()> {
             unsupported()
         }
@@ -461,7 +538,18 @@ mod platform {
         pub(crate) fn rename_without_sync(&self, _: &str, _: &str) -> io::Result<()> {
             unsupported()
         }
+        pub(crate) fn rename_entry_to_without_sync(
+            &self,
+            _: &str,
+            _: &Self,
+            _: &str,
+        ) -> io::Result<()> {
+            unsupported()
+        }
         pub(crate) fn remove_tree(&self, _: &str) -> io::Result<()> {
+            unsupported()
+        }
+        pub(crate) fn require_private_directory(&self) -> io::Result<()> {
             unsupported()
         }
         pub(crate) fn try_clone(&self) -> io::Result<Self> {

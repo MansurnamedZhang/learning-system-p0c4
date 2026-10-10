@@ -2,7 +2,7 @@
 
 状态：P0_B2_VERIFIED。早期 pending / in progress 行为历史记录，最终结论位于末尾。
 
-# SDD ledger — plan: <local-workspace>/docs/superpowers/plans/2026-09-19-p0b2-personal-reading.md
+# SDD ledger — plan: <workspace>/docs/superpowers/plans/2026-09-19-p0b2-personal-reading.md
 
 2026-09-19 user explicitly said 推进吧 after plan delivery. BASE 182fa2a. Execute all six tasks inline, final independent review. Current brand 知织 / KnoWeave; no unrelated rename/refactor.
 Ruling: reuse existing dedicated feat/rust-learning-core checkout as B1 continuation; clean baseline, no remote/main branch — avoids copying local offline caches, cost no separate worktree.

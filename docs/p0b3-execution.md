@@ -34,7 +34,7 @@ B2 producer 实际运行冻结 ContentStore/CompositionStore/ReadingStore/Migrat
 
 controller 已审计 `b3-task8-validation1`：宿主 focused12、full222 均 0 failed/0 ignored，每轮四 bootstrap exit0。focused stdout SHA-256 `be729cb9db88cfd7a6c473e09c0f53eafb0cc51b113394aa1c514fb182b039ff`；full stdout `c2c0e01f51581f769f31fb050b746862644397b16113d1b1b1211935725c79f2`。新增验收测试第一轮 GREEN，未伪称新增产品缺陷的 RED→GREEN。
 
-首次 Compose `learning-system-p0b3-test`：build0、up101、stop0。外部执行环境的 secret 文件为 host-user 所有、0600，PostgreSQL UID 不能读取；初始化角色密码为空，p0a bootstrap101，后续三个 bootstrap 与 workspace **NOT RUN**。这不是产品断言失败，也不是完整 Compose 通过。失败日志、数据库卷和证据卷均保留。
+首次 Compose `learning-system-p0b3-test`：build0、up101、stop0。外部执行环境的 secret 文件为 hans 所有、0600，PostgreSQL UID 不能读取；初始化角色密码为空，p0a bootstrap101，后续三个 bootstrap 与 workspace **NOT RUN**。这不是产品断言失败，也不是完整 Compose 通过。失败日志、数据库卷和证据卷均保留。
 
 仅修正外部测试凭据可读性：宿主 secret 父目录0700，生成凭据文件0444以供容器 PostgreSQL UID 读取，文件内容不输出、不打包。相同 `e560181f…` 可执行源码使用全新 `learning-system-p0b3-test2`、全新卷重试；不修改产品/测试/deploy，不删除失败卷，不重复已通过且可执行字节未变的宿主全量。
 
@@ -50,11 +50,11 @@ controller 已审计 `b3-task8-compose2`：config/build/up/stop 全部exit0，�
 
 以下是 Tasks 1–7 到 Task 8 分派时的原始账本。`Ruling:` 行（含行内 Ruling）完整保留其决定、理由与出错成本；历史失败和中间 pending 不覆盖本文开头的当前状态。后续 Task 8 最终证据须追加到验证记录，不篡改历史。
 
-# SDD ledger — plan: <local-workspace>/docs/superpowers/plans/2026-09-20-p0b3-relations-review.md
+# SDD ledger — plan: <workspace>/docs/superpowers/plans/2026-09-20-p0b3-relations-review.md
 
 User approved design, requested implementation, and selected per-task subagent implementation and review on 2026-09-20. No further between-task confirmation required.
 
-Workspace: <local-workspace>/.worktrees/knowweave-b3, branch feat/p0b3-relations, baseline b60056b. Native create_worktree returned Not a git repository for outer task cwd; Git fallback created linked worktree within authorized workspace root. Original feat/rust-learning-core untouched.
+Workspace: <source-workspace> branch feat/p0b3-relations, baseline b60056b. Native create_worktree returned Not a git repository for outer task cwd; Git fallback created linked worktree within authorized workspace root. Original feat/rust-learning-core untouched.
 Skill scripts attempted with Git bash; basename/dirname unavailable. Equivalent PowerShell extraction creates plan-scoped briefs and contracts. No application code changed by setup.
 Baseline local: core 23/23, db pure 8/8, both exit 0; database integration requires isolated Linux runner. Cargo cache and target use original repository paths, explicitly supplied.
 
@@ -109,8 +109,8 @@ Ruling: Keep shared reference DTOs including RelationSelection and ContentRevisi
 ## Execution
 
 Task 1: ready; BASE b60056b. Tasks 2–8 pending.
-Task 1: dispatched /root/b3_task1 (gpt-5.6-sol), BASE b60056b. Linux server coordination preparation requested. Frozen B2 baseline package <local-workspace>/learning-system/.runtime/b3-frozen-b2-baseline-b60056b.zip SHA256 d915d39599abc394f191b93858d058ae170bf654fa671c951c4eea6046eb0deb (94 whitelisted files).
-Linux B3 ready: <server-user-home>/experiments/learning-system-p0b3, Compose learning-system-p0b3, dedicated internal network/volume, PG 2CPU/4GiB no ports, tests pending packages. Preparation evidence <local-user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/preparation.json. B2 exited and retained. Baseline frozen package sent for checksum-only receipt.
+Task 1: dispatched /root/b3_task1 (gpt-5.6-sol), BASE b60056b. Linux server coordination preparation requested. Frozen B2 baseline package <workspace>/learning-system/.runtime/b3-frozen-b2-baseline-b60056b.zip SHA256 d915d39599abc394f191b93858d058ae170bf654fa671c951c4eea6046eb0deb (94 whitelisted files).
+Linux B3 ready: <server-user-home>/experiments/learning-system-p0b3, Compose learning-system-p0b3, dedicated internal network/volume, PG 2CPU/4GiB no ports, tests pending packages. Preparation evidence <user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/preparation.json. B2 exited and retained. Baseline frozen package sent for checksum-only receipt.
 Ruling: Content commands use flat strict wire envelope request_id/contract_version/draft/reason (+base_revision_id for revise); Rust ContentDraft carries the version. BodyV2 uses kind=text with payload, kind=reference with target, kind=relation_view with selections — resolves omitted version in prose DTO and gives schema a single exact shape — if wrong, unpublished v2 wire DTOs need revision.
 Task 1: implementation b4701d7, report and RED/GREEN logs present; core 35/35 and workspace all-targets check exit0. Review dispatched /root/b3_task1_review (gpt-5.6-sol), package task-1-diff.md b60056b..b4701d7.
 Task 1: minor (deferred): exact 256 accepted boundary and Invalid(reference_budget_exceeded) payload are not pinned; Task3 budget suite/final review must cover. No behavior defect claimed.
@@ -253,5 +253,5 @@ Task8 fresh /root/b3_task8 dispatched BASEd2dfcd8; fullscenario/frozenB2/fiveDBf
 Final pinnedproduct crossmodulereview b60056b..d2dfcd8 PASSspec/PASSquality0actionable; /root/b3_final_code_review reportfinal-code-review.md. Task8upgrade/deploy/docs/runtime deliberatelypending, notmilestonecompletion.
 Task8 validation1 e560181f41ccbc0fb5f18f0dcd8a1b0950dfa2dfd6494ccda20a6b3093c80ead227files sent fresh5DB/4bootstrap focused12expected->freshfull222expected->freshCompose conditional. Newacceptancecoverage notclaimedRED. Product/migrations/rootlock/frozen unchanged; docsphasepending.
 Task8 supplementalreview PASSspec/PASSquality noactionable; genuinefrozen5stores/independentexpectations/deploy/26rulings/105baselineconfirmed. Runtimeconditionalpendinghostrawaudit+Compose, noverifiedstatusyet. Linuxpreliminaryfocused12/full222+4bootstrapsreported,finalhashesawaited.
-Task8validation1 audited227files focused12/full222pass0fail0ignored,48fullsummaries; stdoutbe729cb9db88cfd7a6c473e09c0f53eafb0cc51b113394aa1c514fb182b039ff/c2c0e01f51581f769f31fb050b746862644397b16113d1b1b1211935725c79f2. Composebuild0/up101/stop0: external0600host-usersecretbind unreadablebyPGuid,emptyDBrolepassword,p0abootstrap101,restbootstrap/workspaceNOTRUN. Notproducttestfailure. Sameexecutablee560 authorizedsecretpreparationfix(parent0700/readablefile) andfreshproject learning-system-p0b3-test2/twoNEWvolumes, preservefailedprojectvolumes/evidence; hostnotrerun.
+Task8validation1 audited227files focused12/full222pass0fail0ignored,48fullsummaries; stdoutbe729cb9db88cfd7a6c473e09c0f53eafb0cc51b113394aa1c514fb182b039ff/c2c0e01f51581f769f31fb050b746862644397b16113d1b1b1211935725c79f2. Composebuild0/up101/stop0: external0600hanssecretbind unreadablebyPGuid,emptyDBrolepassword,p0abootstrap101,restbootstrap/workspaceNOTRUN. Notproducttestfailure. Sameexecutablee560 authorizedsecretpreparationfix(parent0700/readablefile) andfreshproject learning-system-p0b3-test2/twoNEWvolumes, preservefailedprojectvolumes/evidence; hostnotrerun.
 Task8 Compose2 actualauditedsamee560227files beforeafterunchanged,43evidencehashes0mismatch; config/build/up/stop0,4bootstrap0,workspace222pass0fail0ignored48summaries. stdout48b05905d2df7067a4bcc6033450039ee43e8381acadec6a9261a44c666b2d68. learning-system-p0b3-test2 newvolumes,test/PGExited0,resource/internal/noportsverifiedserver. Conditionalreviewruntimeclosure andfinaldocs pending; noexecutablechangesneeded.

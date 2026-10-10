@@ -2,7 +2,7 @@
 
 状态：`P0_B1_VERIFIED`。以下账本按执行时间保留，早期 pending / in progress 是历史状态；末尾记录最终结果。
 
-# SDD ledger — plan: <local-workspace>/docs/superpowers/plans/2026-09-19-p0b1-composition-release.md
+# SDD ledger — plan: <workspace>/docs/superpowers/plans/2026-09-19-p0b1-composition-release.md
 
 Start: 2026-09-19; user continued after implementation plan; execute B1 only. BASE e799d6f.
 

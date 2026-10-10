@@ -1,6 +1,6 @@
 # P0-C4 完整备份与干净实例恢复详细设计
 
-**状态：** 本文细化已批准的 [P0-C 总设计](../../../../../docs/superpowers/specs/2026-09-23-p0c-assets-jobs-portability-design.md) C4 节及[服务器部署与数据恢复设计](../../../../../docs/服务器部署与数据恢复设计.md)第 7–8 节。基线为 C3 提交 `4507f3f55f860a6d3afed2cefe2bce27f7ff6b7c`，状态 `P0_C3_VERIFIED / NOT_PRODUCTION`。本设计不代表 C4 已验收或允许部署生产。
+**状态：** 本文细化已批准的 P0-C 总设计（私有或未公开参考） C4 节及[服务器部署与数据恢复设计](../../服务器部署与数据恢复设计.md)第 7–8 节。基线为 C3 提交 `4507f3f55f860a6d3afed2cefe2bce27f7ff6b7c`，状态 `P0_C3_VERIFIED / NOT_PRODUCTION`。本设计不代表 C4 已验收或允许部署生产。
 
 ## 目标与边界
 

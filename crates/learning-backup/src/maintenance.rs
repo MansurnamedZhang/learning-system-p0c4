@@ -8,11 +8,6 @@ use std::{
     io::{Read, Write},
     path::Path,
 };
-#[cfg(target_os = "linux")]
-use std::{
-    fs::File,
-    process::{Command, Stdio},
-};
 use uuid::Uuid;
 
 /// A snapshot of the facts the live database gate must establish. This value
@@ -59,7 +54,7 @@ pub enum GatePhase {
 }
 
 impl GatePhase {
-    fn file_name(self) -> &'static str {
+    pub(crate) fn file_name(self) -> &'static str {
         match self {
             Self::Intent => "intent.json",
             Self::Closed => "closed.json",
@@ -92,6 +87,10 @@ impl SourceGateRecord {
     }
     pub fn phase(&self) -> GatePhase {
         self.phase
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn source_manifest_sha256(&self) -> Option<&str> {
+        self.dump_and_index_sha256.as_deref()
     }
     pub fn pinned_manifest_sha256(&self) -> Option<&str> {
         self.pins_sha256.as_deref()
@@ -171,6 +170,7 @@ impl SourceGateRecord {
 /// re-grant. This journal is not a backup completion receipt.
 #[derive(Debug)]
 pub struct SourceGateJournal {
+    root: BackupDir,
     directory: BackupDir,
     record: SourceGateRecord,
 }
@@ -181,10 +181,44 @@ impl SourceGateJournal {
             return Err(BackupError::Invalid("gate journal backup id"));
         }
         let root = BackupDir::open_private_root(root_path)?;
-        let directory = root.create_dir(&format!("{backup_id}.control"))?;
+        Self::start_in(&root, backup_id)
+    }
+
+    pub(crate) fn start_in(root: &BackupDir, backup_id: Uuid) -> Result<Self, BackupError> {
+        if backup_id.is_nil() {
+            return Err(BackupError::Invalid("gate journal backup id"));
+        }
+        let staging = root.create_dir(&format!("{backup_id}.journal-staging"))?;
+        let initial_name = format!("initial-{}", Uuid::new_v4());
+        let directory = staging.create_dir(&initial_name)?;
         let record = SourceGateRecord::new(backup_id);
-        write_phase(&directory, &record)?;
-        Ok(Self { directory, record })
+        let bytes = serde_json::to_vec(&record)?;
+        let mut file = directory.create_file(record.phase.file_name())?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_before_write")?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        directory.sync()?;
+        staging.sync()?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_before_rename")?;
+        staging.rename_entry_to_noreplace_without_sync(
+            &initial_name,
+            root,
+            &format!("{backup_id}.control"),
+        )?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_after_rename")?;
+        root.sync()?;
+        staging.sync()?;
+        #[cfg(all(test, target_os = "linux"))]
+        crate::source::lifecycle_tests::hook("initial_before_readback")?;
+        readback_phase(&directory, &record)?;
+        Ok(Self {
+            root: root.try_clone()?,
+            directory,
+            record,
+        })
     }
 
     pub fn recover(root_path: &Path, backup_id: Uuid) -> Result<Self, BackupError> {
@@ -192,8 +226,41 @@ impl SourceGateJournal {
             return Err(BackupError::Invalid("gate journal backup id"));
         }
         let root = BackupDir::open_private_root(root_path)?;
+        Self::recover_in(&root, backup_id)
+    }
+
+    pub(crate) fn recover_in(root: &BackupDir, backup_id: Uuid) -> Result<Self, BackupError> {
+        Self::recover_in_observed(root, backup_id, None)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn recover_in_metered(
+        root: &BackupDir,
+        backup_id: Uuid,
+        budget: &std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
+    ) -> Result<Self, BackupError> {
+        Self::recover_in_observed(root, backup_id, Some(budget))
+    }
+
+    fn recover_in_observed(
+        root: &BackupDir,
+        backup_id: Uuid,
+        budget: Option<&std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>>,
+    ) -> Result<Self, BackupError> {
+        if backup_id.is_nil() {
+            return Err(BackupError::Invalid("gate journal backup id"));
+        }
         let directory = root.open_dir(&format!("{backup_id}.control"))?;
-        let found = directory.list()?.into_iter().collect::<BTreeSet<_>>();
+        let entries = if let Some(budget) = budget {
+            directory
+                .list_bounded(7.min(budget.lock().expect("scan budget").remaining_entries()))?
+        } else {
+            directory.list()?
+        };
+        if let Some(budget) = budget {
+            budget.lock().expect("scan budget").entries(entries.len())?;
+        }
+        let found = entries.into_iter().collect::<BTreeSet<_>>();
         let phases = [
             GatePhase::Intent,
             GatePhase::Closed,
@@ -217,11 +284,21 @@ impl SourceGateJournal {
             }
             expected.insert(name.to_owned());
             let mut file = directory.open_file(name)?;
-            if file.metadata()?.len() > 4096 {
+            let size = file.metadata()?.len();
+            if size > 4096 {
                 return Err(BackupError::Invalid("gate journal record length"));
             }
-            let mut bytes = Vec::new();
-            file.read_to_end(&mut bytes)?;
+            let bytes = if let Some(budget) = budget {
+                let raw = crate::registry::read_metadata(&mut file, size, budget)?;
+                if file.metadata()?.len() != size {
+                    return Err(BackupError::Invalid("gate journal record length"));
+                }
+                raw
+            } else {
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes)?;
+                bytes
+            };
             let next: SourceGateRecord = serde_json::from_slice(&bytes)?;
             if serde_json::to_vec(&next)? != bytes || next.phase != phase {
                 return Err(BackupError::Invalid("gate journal record bytes"));
@@ -244,7 +321,10 @@ impl SourceGateJournal {
         if expected != found {
             return Err(BackupError::Invalid("gate journal extra entries"));
         }
+        directory.sync()?;
+        root.sync()?;
         Ok(Self {
+            root: root.try_clone()?,
             directory,
             record: record.ok_or(BackupError::Invalid("gate journal missing intent"))?,
         })
@@ -261,18 +341,68 @@ impl SourceGateJournal {
     ) -> Result<(), BackupError> {
         let mut next = self.record.clone();
         next.advance(phase, evidence_sha256)?;
-        write_phase(&self.directory, &next)?;
+        let name = format!("{}.journal-staging", next.backup_id);
+        let staging = match self.root.open_dir(&name) {
+            Ok(dir) => dir,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.root.create_dir(&name)?
+            }
+            Err(error) => return Err(error.into()),
+        };
+        write_phase(&staging, &self.directory, &next)?;
         self.record = next;
         Ok(())
     }
 }
 
-fn write_phase(directory: &BackupDir, record: &SourceGateRecord) -> Result<(), BackupError> {
+fn write_phase(
+    staging: &BackupDir,
+    directory: &BackupDir,
+    record: &SourceGateRecord,
+) -> Result<(), BackupError> {
     let bytes = serde_json::to_vec(record)?;
-    let mut file = directory.create_file(record.phase.file_name())?;
+    if bytes.len() > 4096 {
+        return Err(BackupError::Invalid("gate journal record length"));
+    }
+    let temporary = format!(
+        "{}-{}.tmp",
+        record.phase.file_name().trim_end_matches(".json"),
+        Uuid::new_v4()
+    );
+    let mut file = staging.create_file(&temporary)?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_write")?;
     file.write_all(&bytes)?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_file_sync")?;
     file.sync_all()?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_staging_sync")?;
+    staging.sync()?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_rename")?;
+    staging.rename_entry_to_noreplace_without_sync(
+        &temporary,
+        directory,
+        record.phase.file_name(),
+    )?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_after_rename")?;
     directory.sync()?;
+    staging.sync()?;
+    #[cfg(all(test, target_os = "linux"))]
+    crate::source::lifecycle_tests::hook("phase_before_readback")?;
+    readback_phase(directory, record)
+}
+fn readback_phase(directory: &BackupDir, record: &SourceGateRecord) -> Result<(), BackupError> {
+    let mut bytes = Vec::new();
+    directory
+        .open_file(record.phase.file_name())?
+        .take(4097)
+        .read_to_end(&mut bytes)?;
+    if bytes != serde_json::to_vec(record)? {
+        return Err(BackupError::Invalid("gate journal publication readback"));
+    }
     Ok(())
 }
 
@@ -312,60 +442,6 @@ impl PgDumpSpec {
             "--username=learning_admin".into(),
             format!("--dbname={}", self.database),
         ]
-    }
-
-    /// Stream custom-format output into an already-open private file handle.
-    /// No shell, password argv, arbitrary pg_dump options, or raw stderr log.
-    #[cfg(target_os = "linux")]
-    pub(crate) fn run_to_file(
-        &self,
-        executable: &Path,
-        pgpassfile: &Path,
-        output: &mut File,
-    ) -> Result<(), BackupError> {
-        use std::os::unix::fs::{MetadataExt, PermissionsExt};
-        let meta = std::fs::symlink_metadata(executable)?;
-        let passmeta = std::fs::symlink_metadata(pgpassfile)?;
-        if !executable.is_absolute()
-            || !meta.file_type().is_file()
-            || meta.uid() != 0
-            || meta.permissions().mode() & 0o022 != 0
-            || !pgpassfile.is_absolute()
-            || !passmeta.file_type().is_file()
-            || passmeta.uid() != unsafe { libc::geteuid() }
-            || passmeta.permissions().mode() & 0o077 != 0
-        {
-            return Err(BackupError::Invalid(
-                "trusted pg_dump executable or private password file",
-            ));
-        }
-        let version = Command::new(executable)
-            .arg("--version")
-            .env_clear()
-            .env("LC_ALL", "C")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .output()?;
-        if !version.status.success()
-            || !String::from_utf8_lossy(&version.stdout).contains("(PostgreSQL) 18.")
-        {
-            return Err(BackupError::Invalid("pg_dump 18 required"));
-        }
-        let status = Command::new(executable)
-            .args(self.args())
-            .env_clear()
-            .env("LC_ALL", "C")
-            .env("PGPASSFILE", pgpassfile)
-            .env("PGAPPNAME", "knowweave_c4_pg_dump")
-            .env("PGCONNECT_TIMEOUT", "10")
-            .stdout(Stdio::from(output.try_clone()?))
-            .stderr(Stdio::null())
-            .status()?;
-        if !status.success() {
-            return Err(BackupError::Invalid("pg_dump failed"));
-        }
-        output.sync_all()?;
-        Ok(())
     }
 }
 

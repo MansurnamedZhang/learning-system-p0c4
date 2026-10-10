@@ -8,6 +8,17 @@ from pathlib import Path
 import subprocess
 import zipfile
 
+# Explicit current Task1 source inclusion inventory. tracked_snapshot still
+# packages exact tracked HEAD bytes; no private/historical evidence is added.
+TASK1_SOURCE_FILES = (
+    "crates/learning-backup/src/registry.rs", "crates/learning-backup/src/protection.rs",
+    "crates/learning-backup/src/protection_tests.rs", "scripts/p0c4_storage_registry.py",
+    "scripts/p0c4_completion_acceptance.py", "scripts/test_p0c4_storage_registry.py",
+    "scripts/test_p0c4_completion_acceptance.py", "scripts/p0c4_completion/__init__.py", "scripts/p0c4_completion/plan.py",
+    "scripts/p0c4_completion/resources.py", "scripts/p0c4_completion/evidence.py",
+    "scripts/test_p0c4_completion_resources.py",
+)
+
 
 def tracked_snapshot(repository):
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repository, text=True).strip()
@@ -31,7 +42,8 @@ def package(repository, destination):
         "files": [{"path": path, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
                   for path, data in sorted(entries.items())],
     }
-    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, sort_keys=True,
+                                separators=(",", ":")).encode("utf-8")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_STORED) as archive:
         for path, data in sorted(entries.items()):

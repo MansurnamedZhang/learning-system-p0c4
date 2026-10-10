@@ -1,0 +1,32 @@
+flowchart TB
+    block["Block 稳定身份<br/>用途 intent 与形式分开 · 修订时不换稳定 ID<br/>【已验收】"]
+    reading["ReadingViewRevision<br/>原文 + 个人层 + 关系选择 · Original / Fused / Personal<br/>【已验收】"]
+    resource["ResourceVersion / Source<br/>逻辑资源的不可变版本 · 页 / 区域 / cell / 时间定位<br/>【已验收】"]
+    composition["Composition / Release<br/>固定有序组合与原子发布 · 复用引用，不复制正文<br/>【已验收】"]
+    overlay["OverlayRevision 个人层<br/>固定根文档和原文基线 · 独立位置与个人块引用<br/>【已验收】"]
+    relation["RelationRevision 语义边<br/>端点固定块修订 · 支持 / 反对 / 启发等<br/>【已验收】"]
+    occurrence["Occurrence 精确出现<br/>有序项 / 完整出现路径 · 同一块可重复出现<br/>【已验收】"]
+    placement["Placement / GapAnchor<br/>左右邻居 / 附着偏好 · 未确定迁移项保持可找回<br/>【已验收】"]
+    review["EpistemicReview 认识审查<br/>固定猜想与证据快照 · 结论有条件；撤权后不泄露<br/>【已验收】"]
+    learning["学习事实与能力判断<br/>LearningRun / Plan / Attempt · 规则、产物和验收；P1-B<br/>【待建设】"]
+    revision["BlockRevision 不可变正文<br/>精确 block_id + revision_id · 文本 / 引用 / 图片 / 附件<br/>【已验收】"]
+    asset["Asset + 原件字节<br/>业务资产 ID ≠ 内容哈希 · 精确 AssetUse 授权后读取<br/>【已验收】"]
+    block -- "持有修订历史" --> revision
+    reading -- "固定原文基线" --> composition
+    reading -- "固定个人层" --> overlay
+    reading -- "固定关系选择" --> relation
+    composition -- "固定有序成员" --> occurrence
+    overlay -- "固定个人位置" --> placement
+    occurrence -- "精确块引用" --> revision
+    placement -- "个人块引用" --> revision
+    relation -- "固定端点" --> revision
+    review -- "证据关系选择" --> relation
+    resource -- "固定原件" --> asset
+    revision -- "v3 精确资产使用" --> asset
+    learning -. "固定内容上下文" .-> reading
+    class block,reading,resource,composition,overlay,relation,occurrence,placement,review,revision,asset done
+    class learning planned
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362

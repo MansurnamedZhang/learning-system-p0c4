@@ -1,0 +1,1095 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="KnowWeave 全项目架构：领域模型、Rust 模块、事务权限、原件任务、交换备份、前端学习与部署演进。"><title>KnowWeave 架构设计文档</title><style>
+:root{color-scheme:light dark;--bg:#f4f6f9;--paper:#fff;--ink:#1b2b3e;--muted:#56667a;--line:#d8e0e8;--accent:#1e655c;--tag:#e3f1eb;--soft:#edf2f7}
+@media(prefers-color-scheme:dark){:root{--bg:#111923;--paper:#192533;--ink:#e8edf3;--muted:#adbac9;--line:#354456;--accent:#90d3bb;--tag:#203f35;--soft:#233345}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font:16px/1.85 'Microsoft YaHei','PingFang SC',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:var(--accent);text-underline-offset:3px}a:hover{text-decoration-thickness:2px}button,input{font:inherit}button{cursor:pointer}.shell{max-width:1510px;margin:auto;display:grid;grid-template-columns:280px minmax(0,1fr);gap:36px;padding:30px}
+aside{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow:auto;padding-right:5px}.brand{font-weight:750;font-size:24px;line-height:1.4;letter-spacing:.4px}.brand small{font-weight:400;display:block;font-size:13px;color:var(--muted);margin:8px 0 20px}
+.controls{display:grid;gap:10px}.controls input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}.controls button{padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}.counter{font-size:12px;color:var(--muted)}
+nav{display:grid;gap:5px;margin:20px 0}nav a{font-size:14px;text-decoration:none;padding:7px 10px;border-left:3px solid transparent;line-height:1.6}nav a:hover,nav a.active{border-color:var(--accent);background:var(--soft)}.aside-note{font-size:12px;color:var(--muted);line-height:1.8}
+main{min-width:0}header{padding:34px 40px;background:var(--paper);border:1px solid var(--line);border-radius:14px;margin-bottom:26px}.eyebrow{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--accent)}h1{font-size:34px;line-height:1.35;margin:12px 0 14px}header p{color:var(--muted);margin:12px 0}.badges{display:flex;gap:8px;flex-wrap:wrap}.badge{padding:3px 10px;background:var(--tag);border-radius:20px;font-size:12px}.chapter{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:30px 40px;margin-bottom:24px;scroll-margin-top:20px}.chapter[hidden]{display:none}h2{font-size:25px;margin:0 0 24px;line-height:1.5}h3{font-size:20px;margin:32px 0 14px;line-height:1.5}h4{font-size:17px}p{margin:12px 0}ul,ol{padding-left:27px}li{margin:7px 0}.table-wrap{overflow-x:auto;margin:18px 0}table{width:100%;border-collapse:collapse;font-size:14px;min-width:580px}th,td{padding:12px 14px;vertical-align:top;text-align:left;border:1px solid var(--line);line-height:1.7}th{background:var(--soft)}code{font:13px/1.7 Consolas,monospace;overflow-wrap:anywhere;background:var(--soft);padding:2px 5px;border-radius:4px}pre{overflow:auto;padding:18px 20px;background:var(--soft);border:1px solid var(--line);border-radius:8px;line-height:1.7}pre code{background:transparent;padding:0;white-space:pre;overflow-wrap:normal}figure{margin:22px 0}figure .diagram{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--paper)}svg{display:block;width:100%;min-width:750px;height:auto}figcaption{font-size:13px;color:var(--muted);text-align:center;margin:8px 0}.chapter-source{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;margin-top:25px}footer{font-size:13px;color:var(--muted);padding:10px 0 30px}.hide-code pre{display:none}.empty{padding:35px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+@media(max-width:1000px){.shell{grid-template-columns:220px minmax(0,1fr);gap:20px;padding:20px}.chapter,header{padding:26px}}
+@media(max-width:760px){.shell{display:block;padding:14px}aside{position:static;max-height:none;padding:10px 4px 18px}nav{grid-template-columns:1fr 1fr;gap:3px}.brand{font-size:22px}.controls{grid-template-columns:1fr auto}.counter{grid-column:1/-1}.aside-note{display:none}.chapter,header{padding:22px 18px}h1{font-size:29px}h2{font-size:22px}h3{font-size:19px}}
+@media print{body{background:#fff;color:#111}.shell{display:block;padding:0;max-width:none}aside,.chapter-source,.empty{display:none}.chapter,header{border:0;border-radius:0;padding:12px 0;box-shadow:none}h2,h3{break-after:avoid}.table-wrap,.diagram{overflow:visible}table{min-width:0;font-size:10px}svg{min-width:0}pre{white-space:pre-wrap}.chapter{break-before:page}.chapter:first-of-type{break-before:auto}.chapter[hidden]{display:block}.hide-code pre{display:block}a{color:#111;text-decoration:none}footer{font-size:10px}}
+</style></head><body><aside id="private-evidence-note" style="padding:16px;margin:16px;border:1px solid #9ca3af;border-radius:12px">公开同步：2026-10-10。P0-C4 仍在补验，当前 Task5 十一门实际 0/11；最新状态见 <a href="../项目最新进度.md">项目最新进度</a>。架构基础章节保留原核对日期；私有证据未随仓库公开。</aside><div class="shell"><aside><div class="brand">知织 · KnowWeave<small>项目架构设计 · 2026-09-30</small></div><div class="controls"><input id="search" type="search" aria-label="搜索架构章节" placeholder="搜索：版本、关系、恢复…"><button id="print" type="button">打印 / PDF</button><div id="counter" class="counter">全部 10 章</div></div><nav aria-label="章节目录"><a href="#chapter-index">阅读入口与状态</a><a href="#chapter-overview">01 总体架构与产品边界</a><a href="#chapter-domain">02 块与版本化领域模型</a><a href="#chapter-modules">03 Rust 模块与代码边界</a><a href="#chapter-permissions">04 事务授权与关系查询</a><a href="#chapter-assets">05 原件存储与持久任务</a><a href="#chapter-recovery">06 快照交换与备份恢复</a><a href="#chapter-interfaces">07 API 前端与学习闭环</a><a href="#chapter-deployment">08 部署运维与架构演进</a><a href="#chapter-evidence">09 决策记录与证据索引</a></nav><p class="aside-note">正文来自可编辑 Markdown。六张 SVG 图已嵌入，可离线阅读。绿色为阶段已验收，蓝色为实施中，灰色为待建设，紫色为可选。</p></aside><main><header><div class="eyebrow">ARCHITECTURE · 当前实现与目标边界</div><h1>整个项目的架构，在一处读清楚</h1><p>从语义块和个人思考，到事务、原件、任务、快照及恢复；再到待建设的浏览器学习应用与运维体系。</p><div class="badges"><span class="badge">Rust · PostgreSQL 18</span><span class="badge">5 个 crate</span><span class="badge">C3 已隔离验收</span><span class="badge">C4 实施中</span><span class="badge">API / 前端待建设</span></div></header><div id="empty" class="empty" hidden>没有匹配章节。试试“权限”“版本”“原件”或“恢复”。</div><section class="chapter" id="chapter-index" aria-label="阅读入口与状态"><h2 id="index-heading-1">KnowWeave 项目架构设计</h2>
+<p>整理日期：2026-09-30。本文档集面向项目维护者、后续实现者与个人部署者，统一说明产品目标、数据模型、模块职责、关键流程、运行边界和阶段验收。</p>
+<p><strong>当前产品形态是 Rust 内核与隔离验收工具。P0-A、B1–B4、C1–C3 已完成各自隔离验收；C4 备份恢复仍在实施，登录、HTTP API、浏览器前端及学习闭环尚未建设。</strong> 目标架构与现状在各章分别标明，不能把设计图理解为已部署系统。</p>
+<p>本次以文档提交 <code>031f80d9108b4b5110c89e55cd9dcbb1e4d6db76</code> 对应的仓库结构核对代码；最新 C4 只读子进程门实际使用源码 <code>273f106e7addfcbc8bad3d96f5ba4dd7b8ab30c2</code>。整理文档不扩大该测试的覆盖范围。</p>
+<h3 id="index-heading-2">阅读入口</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文档</th>
+<th>回答的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="#chapter-overview">01 总体架构与产品边界</a></td>
+<td>系统为谁服务、有哪些层、什么是权威数据</td>
+</tr>
+<tr>
+<td><a href="#chapter-domain">02 块与版本化领域模型</a></td>
+<td>一切皆块如何落到身份、修订、位置、关系和来源</td>
+</tr>
+<tr>
+<td><a href="#chapter-modules">03 Rust 模块与代码边界</a></td>
+<td>五个 crate 如何依赖、代码从哪里读起</td>
+</tr>
+<tr>
+<td><a href="#chapter-permissions">04 事务授权与关系查询</a></td>
+<td>如何处理并发、重试、撤权、图遍历与影响范围</td>
+</tr>
+<tr>
+<td><a href="#chapter-assets">05 原件存储与持久任务</a></td>
+<td>文件如何定稿、作业如何接管、什么可以重建</td>
+</tr>
+<tr>
+<td><a href="#chapter-recovery">06 快照交换与备份恢复</a></td>
+<td>C3 与 C4 的区别、备份何时完整、恢复如何绑定目标</td>
+</tr>
+<tr>
+<td><a href="#chapter-interfaces">07 API 前端与学习闭环</a></td>
+<td>待建设的用户应用如何复用现有内核</td>
+</tr>
+<tr>
+<td><a href="#chapter-deployment">08 部署运维与架构演进</a></td>
+<td>如何部署、升级、观测、清理和扩展</td>
+</tr>
+<tr>
+<td><a href="#chapter-evidence">09 决策记录与证据索引</a></td>
+<td>为什么这样设计、哪些证据支持哪些结论</td>
+</tr>
+</tbody></table></div>
+<p>第一次了解项目建议按 01 → 02 → 03 → 06 → 09 阅读。进行接口实现先读 04、07；进行运维或清理先读 05、06、08。</p>
+<h3 id="index-heading-3">状态用语</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>用语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>已隔离验收</td>
+<td>指定源码、夹具、环境和阶段门已运行并保留证据，不代表生产就绪</td>
+</tr>
+<tr>
+<td>部分专项通过</td>
+<td>指定能力通过；不能外推为所在阶段全部通过</td>
+</tr>
+<tr>
+<td>已实现但未整体验收</td>
+<td>存在代码或契约，还缺实际环境或端到端验证</td>
+</tr>
+<tr>
+<td>待建设</td>
+<td>目标能力，不属于当前可交付应用功能</td>
+</tr>
+<tr>
+<td>可选演进</td>
+<td>真实需求、容量和测量支持后再决定是否接入</td>
+</tr>
+</tbody></table></div>
+<h3 id="index-heading-4">维护规则</h3>
+<p>这里是当前架构的阅读入口；具体接口以 Rust 类型、SQL 迁移和对应边界文档为准，具体验收以各阶段验证记录为准。历史设计和旧失败记录继续保留。发生冲突时核对日期、源码与证据，不能仅凭“更新更晚”推翻旧实验事实。</p>
+<p>新增业务能力同时更新负责章节、决策记录、实现状态和证据链接。改变正文契约、目录包格式或数据库模式时分别升级版本，不以文档版本替代协议版本。图源和 SVG 放在 <a href="#private-evidence-note">diagrams</a>，正文为可编辑 Markdown；HTML 是阅读副本。</p>
+<p>没有新增服务、执行数据库迁移或修改运行数据。本次也没有清理编译缓存、测试卷或验收证据。</p>
+<h3 id="index-heading-5">生成离线阅读版</h3>
+<p>图示 SVG/Mermaid 已随文档保存。使用 Node 与 <code>marked</code> 渲染，输出不依赖 CDN 或在线图形库：</p>
+<pre><code class="language-sh">node scripts/build_architecture.mjs
+# 可选：将完整阅读版输出到指定目录
+node scripts/build_architecture.mjs --output /path/to/KnowWeave架构设计.html
+</code></pre>
+<p>脚本先尝试当前 Node 环境的 <code>marked</code>，也可用 <code>KNOWWEAVE_DOCS_NODE_MODULES</code> 指定已有依赖目录；Codex Windows 环境支持只读复用随应用提供的依赖。它只读取架构正文与图示，不读取凭据或原始验收包。相邻 <code>.qa.json</code> 记录章节、链接和图示检查；它是文档生成检查，不是业务测试结果。</p>
+<p class="chapter-source"><a href="README.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-overview" aria-label="01 总体架构与产品边界"><h2 id="overview-heading-1">01 总体架构与产品边界</h2>
+<h3 id="overview-heading-2">系统定位</h3>
+<p>知织 KnowWeave 是面向个人长期学习的知识与实践系统。首个使用场景是已有实践经验的学习者，以每周 10–15 小时学习深度学习、大模型与工程；核心模型应能复用于系统工程、数学等领域。</p>
+<p>用户需要的不只是资料目录，而是能保留内容版本、个人思考、来源、实践证据和变化依据的工作空间。系统应回答“当前学什么、为什么学、怎样算通过”，并在内容更新后保留原先学习与判断发生的条件。</p>
+<p>目标为单人私有服务器实例，浏览器跨设备访问同一权威服务。多人实时共同编辑、组织管理、离线双向同步、任意 Notebook 自动执行不属于首版范围。</p>
+<h3 id="overview-heading-3">当前形态与目标形态</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>层面</th>
+<th>当前</th>
+<th>目标及阶段</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>业务内核</td>
+<td>Rust 块、修订、组合、阅读、关系与审查</td>
+<td>继续复用，不在前端重写领域规则</td>
+</tr>
+<tr>
+<td>持久化</td>
+<td>PostgreSQL 18、SQLx、私有原件文件存储</td>
+<td>单机起步，按实测演进</td>
+</tr>
+<tr>
+<td>后台处理</td>
+<td>持久 Worker，资产完整性与 C3 快照任务</td>
+<td>后续按需增加预览、OCR、索引处理器</td>
+</tr>
+<tr>
+<td>可移植性</td>
+<td>C3 范围快照交换已验收</td>
+<td>C4 全量备份与恢复实施中</td>
+</tr>
+<tr>
+<td>用户入口</td>
+<td>库接口、受控测试和管理工具</td>
+<td>P1-A 登录、HTTP API、浏览器内容工作台</td>
+</tr>
+<tr>
+<td>学习产品</td>
+<td>知识证据内核已具备</td>
+<td>P1-B 任务、尝试、产物、验收、复习和计划</td>
+</tr>
+</tbody></table></div>
+<p>当前没有正式 HTTP 服务、登录界面或前端。测试工具能够调用内核，不等于用户已经能在浏览器中完成学习流程。</p>
+<h3 id="overview-heading-4">总体架构</h3>
+<figure><div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 930" role="img" aria-labelledby="overview-title overview-desc"><title id="overview-title">01 · 全系统架构总览</title><desc id="overview-desc">模块化单体：共享业务契约，API 与 Worker 分进程；首版单机部署。</desc><style>
+:root{--paper:#ffffff;--ink:#172338;--muted:#506078;--edge:#6b7b92;--line:#c7d0df;--done:#eaf5ee;--done-ink:#246547;--next:#ebf1ff;--next-ink:#294ea5;--planned:#f2f4f8;--planned-ink:#506078;--optional:#f3ecfb;--optional-ink:#714993;--neutral:#fafbfc;}
+@media(prefers-color-scheme:dark){:root{--paper:#131b29;--ink:#e6edf7;--muted:#b0bdd0;--edge:#97a9c0;--line:#415269;--done:#163a2d;--done-ink:#8fd8b3;--next:#203758;--next-ink:#a7c2ff;--planned:#283447;--planned-ink:#c1ccdc;--optional:#382c49;--optional-ink:#d3b5f2;--neutral:#202b3b;}}
+text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="overview-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="930" fill="var(--paper)"/><path class="edge" d="M217,70 L217,42 L567,42 L567,70" marker-end="url(#overview-arrow)"/><rect x="373" y="21" width="38" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="34" text-anchor="middle">访问</text><path class="edge" d="M567,170 L567,228" marker-end="url(#overview-arrow)"/><rect x="572" y="178" width="66.4" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="191" text-anchor="start">同源 API</text><path class="edge" d="M917,170 L917,228" marker-end="url(#overview-arrow)"/><rect x="922" y="178" width="111.30000000000001" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="191" text-anchor="start">登记 / 受控导入</text><path class="edge" d="M567,228 L567,200 L217,200 L217,228" marker-end="url(#overview-arrow)"/><rect x="360" y="179" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="192" text-anchor="middle">业务调用</text><path class="edge" d="M567,328 L567,357 L217,357 L217,386" marker-end="url(#overview-arrow)"/><rect x="353.5" y="336" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="349" text-anchor="middle">校验与编排</text><path class="edge" d="M917,328 L917,386" marker-end="url(#overview-arrow)"/><rect x="922" y="336" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="349" text-anchor="start">原件与引用</text><path class="edge" d="M217,486 L217,544" marker-end="url(#overview-arrow)"/><rect x="222" y="494" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="507" text-anchor="start">事务读写</text><path class="edge" d="M917,486 L917,544" marker-end="url(#overview-arrow)"/><rect x="922" y="494" width="158.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="507" text-anchor="start">校验 / 定稿 / 授权读取</text><path class="edge" d="M917,486 L917,515 L217,515 L217,544" marker-end="url(#overview-arrow)"/><rect x="704.2" y="496" width="171.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="790" y="509" text-anchor="middle">元数据 / 精确使用 / 授权</text><path class="edge optional-edge" d="M70,278 L40,278 L40,594 L70,594" marker-end="url(#overview-arrow)"/><rect x="40" y="340" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="45" y="353" text-anchor="start">学习事实</text><path class="edge" d="M567,486 L567,515 L217,515 L217,544" marker-end="url(#overview-arrow)"/><rect x="325.7" y="494" width="132.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="507" text-anchor="middle">转投 / 租约 / 结果</text><path class="edge" d="M567,386 L567,358 L917,358 L917,386" marker-end="url(#overview-arrow)"/><rect x="697" y="337" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="350" text-anchor="middle">复用精确授权</text><path class="edge optional-edge" d="M567,486 L567,544" marker-end="url(#overview-arrow)"/><rect x="572" y="494" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="507" text-anchor="start">未来处理器</text><path class="edge" d="M1064,594 L1090,594 L1090,858 L217,858 L217,802" marker-end="url(#overview-arrow)"/><rect x="615" y="837" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="653.5" y="850" text-anchor="middle">原字节闭包</text><path class="edge" d="M217,644 L217,702" marker-end="url(#overview-arrow)"/><rect x="222" y="652" width="103" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="665" text-anchor="start">闭包与一致快照</text><path class="edge optional-edge" d="M217,644 L217,673 L567,673 L567,702" marker-end="url(#overview-arrow)"/><rect x="353.5" y="652" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="665" text-anchor="middle">可重建投影</text><path class="edge optional-edge" d="M567,644 L567,673 L917,673 L917,702" marker-end="url(#overview-arrow)"/><rect x="710" y="652" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="665" text-anchor="middle">按需适配</text><g class="node neutral" data-node="user"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">上下文</text><text x="86" y="114" class="node-title">个人学习者</text><text x="86" y="136" class="node-body">电脑 / 平板 / 手机</text><text x="86" y="155" class="node-body">跨设备访问同一服务</text></g><g class="node planned" data-node="web"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">待建设</text><text x="436" y="114" class="node-title">Web 学习工作台</text><text x="436" y="136" class="node-body">阅读 · 编辑 · 图谱 · 今日</text><text x="436" y="155" class="node-body">P1-A / P1-B 待建设</text></g><g class="node neutral" data-node="sources"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">上下文</text><text x="786" y="114" class="node-title">课程与实践来源</text><text x="786" y="136" class="node-body">PDF / PPTX / Notebook / 代码</text><text x="786" y="155" class="node-body">原格式资料与实验产物</text></g><g class="node planned" data-node="learning"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">待建设</text><text x="86" y="272" class="node-title">学习与计划模块</text><text x="86" y="294" class="node-body">单元 / 任务 / 尝试 / 验收</text><text x="86" y="313" class="node-body">P1-B；规则推荐延伸到 P2</text></g><g class="node planned" data-node="api"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">待建设</text><text x="436" y="272" class="node-title">Rust HTTP / 身份边界</text><text x="436" y="294" class="node-body">会话 · DTO · 授权入口</text><text x="436" y="313" class="node-body">P1-A；Axum 为建议</text></g><g class="node planned" data-node="import"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">待建设</text><text x="786" y="272" class="node-title">交换与导入入口</text><text x="786" y="294" class="node-body">C3 授权快照；P1-B 首批资料</text><text x="786" y="313" class="node-body">批量来源更新在后续阶段</text></g><g class="node done" data-node="content"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">已验收</text><text x="86" y="430" class="node-title">内容与关系内核</text><text x="86" y="452" class="node-body">块 / 组合 / 个人层 / 审查</text><text x="86" y="471" class="node-body">P0-A / B1–B4 已验收</text></g><g class="node done" data-node="jobs"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">已验收</text><text x="436" y="430" class="node-title">持久任务与 Worker</text><text x="436" y="452" class="node-body">job_outbox → job → 租约</text><text x="436" y="471" class="node-body">C2 资产完整性已验收</text></g><g class="node done" data-node="assetapi"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">已验收</text><text x="786" y="430" class="node-title">资产与来源模块</text><text x="786" y="452" class="node-body">资源版本 · 精确使用授权</text><text x="786" y="471" class="node-body">C1 原字节与 v3 图片/附件</text></g><g class="node done" data-node="pg"><rect x="70" y="544" width="294" height="100" rx="9"/><text x="86" y="564" class="state">已验收</text><text x="86" y="588" class="node-title">PostgreSQL 权威库</text><text x="86" y="610" class="node-body">结构化正文与关系 / 作业状态</text><text x="86" y="629" class="node-body">SQLx · 事务 · 追加迁移</text></g><g class="node optional" data-node="derived"><rect x="420" y="544" width="294" height="100" rx="9"/><text x="436" y="564" class="state">可选</text><text x="436" y="588" class="node-title">可重建派生层</text><text x="436" y="610" class="node-body">预览 / OCR / 搜索 / 检索片段</text><text x="436" y="629" class="node-body">处理器与索引后续按需建设</text></g><g class="node done" data-node="files"><rect x="770" y="544" width="294" height="100" rx="9"/><text x="786" y="564" class="state">已验收</text><text x="786" y="588" class="node-title">不可变原件库</text><text x="786" y="610" class="node-body">assets/sha256 · 独立持久卷</text><text x="786" y="629" class="node-body">staging 与原件分区</text></g><g class="node next" data-node="portable"><rect x="70" y="702" width="294" height="100" rx="9"/><text x="86" y="722" class="state">实施中</text><text x="86" y="746" class="node-title">C3 / C4 可移植性</text><text x="86" y="768" class="node-body">C3 范围导出已验收</text><text x="86" y="787" class="node-body">C4 全量恢复实施中</text></g><g class="node optional" data-node="graph"><rect x="420" y="702" width="294" height="100" rx="9"/><text x="436" y="722" class="state">可选</text><text x="436" y="746" class="node-title">Neo4j 可选投影</text><text x="436" y="768" class="node-body">首版不常驻</text><text x="436" y="787" class="node-body">来源仍为 PostgreSQL</text></g><g class="node optional" data-node="ai"><rect x="770" y="702" width="294" height="100" rx="9"/><text x="786" y="722" class="state">可选</text><text x="786" y="746" class="node-title">可选 AI / 外部执行</text><text x="786" y="768" class="node-body">仅建议；实验默认外部运行</text><text x="786" y="787" class="node-body">关闭后不影响核心流程</text></g></svg></div><figcaption>全系统目标架构与实施状态</figcaption></figure>
+<p>推荐模块化单体：以同一代码库维护领域契约与事务规则，未来 API 和现有 Worker 分进程运行；管理与恢复工具采用独立权限和运行入口。crate 是代码边界，不是微服务。</p>
+<p>浏览器经受保护 API 访问内容；API 提取可信用户身份后调用内核。数据库保存结构化事实，原件库保存文件字节；Worker 执行持久任务。搜索、图投影和 AI 只能消费授权后的事实，不能成为另一套可以随意修改的正文主库。</p>
+<h3 id="overview-heading-5">五层数据与权威来源</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>数据</th>
+<th>权威位置</th>
+<th>失效与更新方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>原件</td>
+<td>PDF、PPTX、Notebook、代码、图片与媒体原字节</td>
+<td>私有文件库；数据库登记身份与摘要</td>
+<td>字节变更生成新资产，不覆盖旧原件</td>
+</tr>
+<tr>
+<td>内容</td>
+<td>知识、笔记、问题、想法、猜想等版本化正文</td>
+<td>PostgreSQL 关系列与有类型 JSONB</td>
+<td>单块新增不可变修订</td>
+</tr>
+<tr>
+<td>组合</td>
+<td>文档、固定发布、个人插入层、阅读视图</td>
+<td>PostgreSQL 固定引用与位置</td>
+<td>新组合/阅读修订，不静默跟随最新正文</td>
+</tr>
+<tr>
+<td>学习与思考</td>
+<td>关系、认识审查；后续计划、尝试与能力验收</td>
+<td>PostgreSQL 中各自独立记录</td>
+<td>判断固定依据；新证据产生新判断</td>
+</tr>
+<tr>
+<td>派生</td>
+<td>预览、抽取、OCR、检索片段与图投影</td>
+<td>可重建缓存或索引</td>
+<td>依来源版本和处理器版本重建</td>
+</tr>
+</tbody></table></div>
+<p>当前实现已覆盖前四层中的内容、关系与认识审查；完整学习任务模型和大部分派生处理器仍待建设。JSON、Markdown、HTML 是交换或阅读格式，不能同时成为与数据库自由双写的权威正文。</p>
+<h3 id="overview-heading-6">不变的架构原则</h3>
+<ol>
+<li>最小维护单位是可独立解释与引用的语义块，不按固定字符数机械切分。</li>
+<li>稳定身份、正文修订、出现位置、发布版本、阅读快照分别保存。</li>
+<li>原文与个人思考可连续展示，但归属、权限、位置和版本保持独立。</li>
+<li>正文和必要引用闭包共同授权；历史存在不代表永久读取权。</li>
+<li>用户操作、持久事件和权威回执在相应事务内一致提交。</li>
+<li>文件系统与数据库不假设分布式原子事务；顺序设计和失败留痕承担一致性。</li>
+<li>离线阅读副本、范围交换包和全量灾难恢复备份是不同能力。</li>
+<li>AI 建议和知识关系不直接变成学习能力“已通过”的事实。</li>
+</ol>
+<h3 id="overview-heading-7">容量与性能的边界</h3>
+<p>现有阶段验收证明指定行为、回滚和权限语义；不是完整应用吞吐量或生产容量证明。数据库选型的合成中样性能不能替代包含登录、HTTP、权限、文件与浏览器渲染的测量。部署容量应依真实资料、文件大小、引用密度和任务负载测定。</p>
+<p>进一步阅读：<a href="#chapter-domain">领域模型</a>、<a href="#chapter-modules">代码边界</a>、<a href="#chapter-evidence">决策与证据</a>。</p>
+<p class="chapter-source"><a href="01-overview.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-domain" aria-label="02 块与版本化领域模型"><h2 id="domain-heading-1">02 块与版本化领域模型</h2>
+<h3 id="domain-heading-2">一切皆块的准确含义</h3>
+<p>可以独立阅读、修订、复用的知识、笔记、图片、想法、猜想与证据正文采用统一内容块体系。身份、权限、出现位置、任务、资产字节、回执和学习事实仍有独立模型；不是把所有数据库行强行塞成同一种块。</p>
+<p>至少区分三种粒度：Block 是长期内容维护单位；LearningUnit 是未来学习目标、任务与验收组织单位；RetrievalChunk 是可重新切分的检索派生片段。后两者不能替代块的长期身份。</p>
+<figure><div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 772" role="img" aria-labelledby="domain-title domain-desc"><title id="domain-title">02 · 块、位置与版本关系</title><desc id="domain-desc">箭头统一由持有者或引用者指向目标；省略部分约束字段，不把对象画成独立服务。</desc><style>
+:root{--paper:#ffffff;--ink:#172338;--muted:#506078;--edge:#6b7b92;--line:#c7d0df;--done:#eaf5ee;--done-ink:#246547;--next:#ebf1ff;--next-ink:#294ea5;--planned:#f2f4f8;--planned-ink:#506078;--optional:#f3ecfb;--optional-ink:#714993;--neutral:#fafbfc;}
+@media(prefers-color-scheme:dark){:root{--paper:#131b29;--ink:#e6edf7;--muted:#b0bdd0;--edge:#97a9c0;--line:#415269;--done:#163a2d;--done-ink:#8fd8b3;--next:#203758;--next-ink:#a7c2ff;--planned:#283447;--planned-ink:#c1ccdc;--optional:#382c49;--optional-ink:#d3b5f2;--neutral:#202b3b;}}
+text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="domain-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="772" fill="var(--paper)"/><path class="edge" d="M70,120 L42,120 L42,704 L567,704 L567,644" marker-end="url(#domain-arrow)"/><rect x="259.5" y="683" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="304.5" y="696" text-anchor="middle">持有修订历史</text><path class="edge" d="M567,170 L567,199 L217,199 L217,228" marker-end="url(#domain-arrow)"/><rect x="347" y="178" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="191" text-anchor="middle">固定原文基线</text><path class="edge" d="M567,170 L567,228" marker-end="url(#domain-arrow)"/><rect x="572" y="178" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="191" text-anchor="start">固定个人层</text><path class="edge" d="M567,170 L567,199 L917,199 L917,228" marker-end="url(#domain-arrow)"/><rect x="697" y="178" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="191" text-anchor="middle">固定关系选择</text><path class="edge" d="M217,328 L217,386" marker-end="url(#domain-arrow)"/><rect x="222" y="336" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="349" text-anchor="start">固定有序成员</text><path class="edge" d="M567,328 L567,386" marker-end="url(#domain-arrow)"/><rect x="572" y="336" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="349" text-anchor="start">固定个人位置</text><path class="edge" d="M217,486 L217,515 L567,515 L567,544" marker-end="url(#domain-arrow)"/><rect x="353.5" y="494" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="507" text-anchor="middle">精确块引用</text><path class="edge" d="M567,486 L567,544" marker-end="url(#domain-arrow)"/><rect x="572" y="494" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="507" text-anchor="start">个人块引用</text><path class="edge" d="M1064,278 L1090,278 L1090,668 L567,668 L567,644" marker-end="url(#domain-arrow)"/><rect x="796.5" y="647" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="828.5" y="660" text-anchor="middle">固定端点</text><path class="edge" d="M917,386 L917,328" marker-end="url(#domain-arrow)"/><rect x="922" y="336" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="349" text-anchor="start">证据关系选择</text><path class="edge" d="M770,120 L742,120 L742,594 L770,594" marker-end="url(#domain-arrow)"/><rect x="747" y="340" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="752" y="353" text-anchor="start">固定原件</text><path class="edge" d="M567,544 L567,516 L917,516 L917,544" marker-end="url(#domain-arrow)"/><rect x="686.35" y="495" width="111.3" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="508" text-anchor="middle">v3 精确资产使用</text><path class="edge optional-edge" d="M70,594 L16,594 L16,20 L567,20 L567,70" marker-end="url(#domain-arrow)"/><rect x="238.5" y="1" width="103" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="290" y="14" text-anchor="middle">固定内容上下文</text><g class="node done" data-node="block"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">已验收</text><text x="86" y="114" class="node-title">Block 稳定身份</text><text x="86" y="136" class="node-body">用途 intent 与形式分开</text><text x="86" y="155" class="node-body">修订时不换稳定 ID</text></g><g class="node done" data-node="reading"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">已验收</text><text x="436" y="114" class="node-title">ReadingViewRevision</text><text x="436" y="136" class="node-body">原文 + 个人层 + 关系选择</text><text x="436" y="155" class="node-body">Original / Fused / Personal</text></g><g class="node done" data-node="resource"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">已验收</text><text x="786" y="114" class="node-title">ResourceVersion / Source</text><text x="786" y="136" class="node-body">逻辑资源的不可变版本</text><text x="786" y="155" class="node-body">页 / 区域 / cell / 时间定位</text></g><g class="node done" data-node="composition"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">已验收</text><text x="86" y="272" class="node-title">Composition / Release</text><text x="86" y="294" class="node-body">固定有序组合与原子发布</text><text x="86" y="313" class="node-body">复用引用，不复制正文</text></g><g class="node done" data-node="overlay"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">已验收</text><text x="436" y="272" class="node-title">OverlayRevision 个人层</text><text x="436" y="294" class="node-body">固定根文档和原文基线</text><text x="436" y="313" class="node-body">独立位置与个人块引用</text></g><g class="node done" data-node="relation"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">已验收</text><text x="786" y="272" class="node-title">RelationRevision 语义边</text><text x="786" y="294" class="node-body">端点固定块修订</text><text x="786" y="313" class="node-body">支持 / 反对 / 启发等</text></g><g class="node done" data-node="occurrence"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">已验收</text><text x="86" y="430" class="node-title">Occurrence 精确出现</text><text x="86" y="452" class="node-body">有序项 / 完整出现路径</text><text x="86" y="471" class="node-body">同一块可重复出现</text></g><g class="node done" data-node="placement"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">已验收</text><text x="436" y="430" class="node-title">Placement / GapAnchor</text><text x="436" y="452" class="node-body">左右邻居 / 附着偏好</text><text x="436" y="471" class="node-body">未确定迁移项保持可找回</text></g><g class="node done" data-node="review"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">已验收</text><text x="786" y="430" class="node-title">EpistemicReview 认识审查</text><text x="786" y="452" class="node-body">固定猜想与证据快照</text><text x="786" y="471" class="node-body">结论有条件；撤权后不泄露</text></g><g class="node planned" data-node="learning"><rect x="70" y="544" width="294" height="100" rx="9"/><text x="86" y="564" class="state">待建设</text><text x="86" y="588" class="node-title">学习事实与能力判断</text><text x="86" y="610" class="node-body">LearningRun / Plan / Attempt</text><text x="86" y="629" class="node-body">规则、产物和验收；P1-B</text></g><g class="node done" data-node="revision"><rect x="420" y="544" width="294" height="100" rx="9"/><text x="436" y="564" class="state">已验收</text><text x="436" y="588" class="node-title">BlockRevision 不可变正文</text><text x="436" y="610" class="node-body">精确 block_id + revision_id</text><text x="436" y="629" class="node-body">文本 / 引用 / 图片 / 附件</text></g><g class="node done" data-node="asset"><rect x="770" y="544" width="294" height="100" rx="9"/><text x="786" y="564" class="state">已验收</text><text x="786" y="588" class="node-title">Asset + 原件字节</text><text x="786" y="610" class="node-body">业务资产 ID ≠ 内容哈希</text><text x="786" y="629" class="node-body">精确 AssetUse 授权后读取</text></g></svg></div><figcaption>身份、版本与位置关系</figcaption></figure>
+<h3 id="domain-heading-3">主要实体</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>实体</th>
+<th>职责</th>
+<th>版本或引用规则</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Block / BlockRevision</td>
+<td>稳定内容身份与不可变正文</td>
+<td>改正文生成 revision；相同正文摘要不合并业务身份</td>
+</tr>
+<tr>
+<td>Composition / CompositionRevision</td>
+<td>组织有序块或嵌套组合</td>
+<td>成员固定版本，嵌套组合不得成环</td>
+</tr>
+<tr>
+<td>Occurrence</td>
+<td>组合中某一次出现</td>
+<td>同一块重复使用时分别定位；保留完整出现路径</td>
+</tr>
+<tr>
+<td>Release</td>
+<td>固定发布根与可复现依赖闭包</td>
+<td>校验与发布原子提交；不等同于可变工作头</td>
+</tr>
+<tr>
+<td>Overlay / OverlayRevision</td>
+<td>属于个人的插入与编排层</td>
+<td>固定原文基线，不直接修改原文</td>
+</tr>
+<tr>
+<td>Placement / GapAnchor</td>
+<td>个人块在原文间隙的位置</td>
+<td>正文与移动分别修订；不依赖屏幕坐标定位</td>
+</tr>
+<tr>
+<td>ReadingView / ReadingViewRevision</td>
+<td>原文、个人层与所选关系的阅读版本</td>
+<td>支持 Original、Fused、Personal 投影</td>
+</tr>
+<tr>
+<td>Relation / RelationRevision</td>
+<td>有类型、有方向的语义关系</td>
+<td>端点固定具体块修订，关系自身也有修订</td>
+</tr>
+<tr>
+<td>RelationReview / EpistemicReview</td>
+<td>关系审查和认识判断</td>
+<td>固定依据及适用条件，不由关系数量自动推断真伪</td>
+</tr>
+<tr>
+<td>Lineage</td>
+<td>派生、拆分与合并谱系</td>
+<td>保存前后身份与引用，不冒用旧 ID</td>
+</tr>
+<tr>
+<td>Asset / ResourceVersion / SourceSegment</td>
+<td>文件身份、逻辑资源版本与来源定位</td>
+<td>资产字节不可变；业务资产身份不同于内容摘要</td>
+</tr>
+</tbody></table></div>
+<p>数据库实体与 Rust 类型不是一对一映射。命令、查询投影、回执和精确引用也都是类型，但不应在架构图中画成独立服务。</p>
+<h3 id="domain-heading-4">正文形式与用途</h3>
+<p><code>intent</code> 表示 knowledge、note、question、idea、conjecture、observation、evidence、conclusion。形式与用途分别表达；一段图片说明可以服务于笔记或证据，不需要制造另一套笔记文件系统。</p>
+<p>当前已实现正文合同：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>合同</th>
+<th>已支持形式</th>
+<th>尚不能推断的能力</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>v1</td>
+<td>Markdown 文本与八类用途</td>
+<td>不是整个系统的交换包 1.0</td>
+</tr>
+<tr>
+<td>v2</td>
+<td>文本、精确块引用、关系选择视图</td>
+<td>不是任意自由 JSON 或任意对象 target</td>
+</tr>
+<tr>
+<td>v3</td>
+<td>在版本化正文体系中加入 Figure、Attachment</td>
+<td>不等于独立公式、代码、表格、练习、评分规则类型全部实现</td>
+</tr>
+</tbody></table></div>
+<p>公式和代码可以作为文本内容展示；若需要结构化编辑、类型校验和专门执行语义，应追加自己的合同与验收，不能仅凭 Markdown 能显示就宣称已支持该业务类型。</p>
+<h3 id="domain-heading-5">身份与摘要</h3>
+<p>Block ID 代表“哪一个知识对象”，Revision ID 代表“这个对象的哪一版”，正文摘要用于核对规范内容字节。两个来源或归属不同的块即使正文相同也可拥有不同身份。</p>
+<p>精确引用携带稳定 ID 与修订 ID。关系、关系审查和认识审查拥有各自的精确引用类型；依赖还标明 basis、target、requires_context、source_run、selected_relation、selected_review 等作用。禁止将未知字段或未登记引用藏在自由载荷中绕过授权。</p>
+<p>可变 head 便于继续编辑；正式发布与阅读修订固定依赖，不能自动换成 head。正文、位置、关系、包格式和数据库迁移拥有不同版本维度，不能用一个“项目 v2”替代这些规则。</p>
+<h3 id="domain-heading-6">连续阅读与插入</h3>
+<pre><code class="language-text">原文 A @固定修订
+  个人笔记 N @修订1
+  个人图片 I @修订2
+  猜想 H @修订1
+原文 B @固定修订
+  引用另一文档中的块 R @固定修订
+原文 C @固定修订
+</code></pre>
+<p>间隙锚点固定原文组合修订、完整 occurrence 路径、左右邻居及附着偏好。文首、文尾和两块之间均可定位。页面的“连在一起”是阅读投影；不把个人块直接写入别人的源组合。</p>
+<p>原文更新后保留旧基线，计算可迁移候选。映射不能确定时保留待重新放置项，用户仍可找回内容。自动保存、任意间隙插入控件、外观区分和迁移确认页面属于未来前端；当前已有对应阅读和位置内核。</p>
+<h3 id="domain-heading-7">猜想与知识修订的两条主线</h3>
+<p>“猜想—证据—反例—结论”通过有方向关系和条件化审查表达。猜想修订后，不自动继承旧版结论；证据撤权后，当前投影不泄露隐藏标识和路径。</p>
+<p>“知识修订—影响范围”先创建新修订，再找出固定范围内的引用者、具体出现位置、关系及解释路径。结果用于选择采用新版的组合，不能自动改写已发布文档或历史事实。</p>
+<p>支持/反对的知识判断已实现；“某学习任务是否通过、能力是否掌握”是 P1-B 待建设的另一套条件化验收，不可混淆。</p>
+<h3 id="domain-heading-8">实现依据</h3>
+<p>契约见 <a href="../../crates/learning-core/src/content.rs">content.rs</a>、<a href="../../crates/learning-core/src/content_version.rs">content_version.rs</a>、<a href="../../crates/learning-core/src/references.rs">references.rs</a>、<a href="../../crates/learning-core/src/overlay.rs">overlay.rs</a>、<a href="../../crates/learning-core/src/relation.rs">relation.rs</a>。模式见 <a href="#private-evidence-note">migrations</a>；实际限制以合同类型与数据库约束为准。</p>
+<p class="chapter-source"><a href="02-domain-model.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-modules" aria-label="03 Rust 模块与代码边界"><h2 id="modules-heading-1">03 Rust 模块与代码边界</h2>
+<h3 id="modules-heading-2">实际代码结构</h3>
+<p>当前 workspace 是 Rust 2024 edition、Rust 1.97、锁定 Cargo.lock 的五个 crate；Tokio 提供异步运行，SQLx 访问 PostgreSQL 18，Serde 表达版本化 JSON。没有 Axum、React 或 HTTP 登录模块被当作已经实施的应用。</p>
+<pre><code class="language-text">crates/
+  learning-core/     领域契约、校验、精确引用与摘要
+  learning-assets/   私有原件、安全文件操作、C3 目录包
+  learning-db/       权限、事务、图查询、持久任务与原子导入
+  learning-worker/   作业轮询、处理器、租约和进程停止
+  learning-backup/   C4 清单、封存、收据、恢复预检与绑定
+migrations/         0001–0015 追加模式迁移
+deploy/             隔离 Compose、初始化、升级夹具
+scripts/            受控验收与管理辅助脚本
+docs/               设计、边界、实施及验证记录
+</code></pre>
+<p>未来 <code>learning-api</code> 与 <code>apps/web</code> 尚不存在于当前 workspace。部署测试夹具中的旧源码是升级输入，不是另一套正在维护的产品实现。</p>
+<figure><div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 614" role="img" aria-labelledby="crates-title crates-desc"><title id="crates-title">03 · Rust 代码与授权边界</title><desc id="crates-desc">实线显示现有模块依赖与运行接口；虚线表示未来接入。crate 是代码模块，不是独立网络服务。</desc><style>
+:root{--paper:#ffffff;--ink:#172338;--muted:#506078;--edge:#6b7b92;--line:#c7d0df;--done:#eaf5ee;--done-ink:#246547;--next:#ebf1ff;--next-ink:#294ea5;--planned:#f2f4f8;--planned-ink:#506078;--optional:#f3ecfb;--optional-ink:#714993;--neutral:#fafbfc;}
+@media(prefers-color-scheme:dark){:root{--paper:#131b29;--ink:#e6edf7;--muted:#b0bdd0;--edge:#97a9c0;--line:#415269;--done:#163a2d;--done-ink:#8fd8b3;--next:#203758;--next-ink:#a7c2ff;--planned:#283447;--planned-ink:#c1ccdc;--optional:#382c49;--optional-ink:#d3b5f2;--neutral:#202b3b;}}
+text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="crates-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="614" fill="var(--paper)"/><path class="edge optional-edge" d="M217,70 L217,42 L567,42 L567,70" marker-end="url(#crates-arrow)"/><rect x="357.6" y="21" width="68.80000000000001" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="34" text-anchor="middle">JSON API</text><path class="edge optional-edge" d="M567,170 L567,228" marker-end="url(#crates-arrow)"/><rect x="572" y="178" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="191" text-anchor="start">身份和命令</text><path class="edge" d="M917,170 L917,199 L567,199 L567,228" marker-end="url(#crates-arrow)"/><rect x="831.5" y="181" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="870" y="194" text-anchor="middle">作业与授权</text><path class="edge" d="M917,170 L917,228" marker-end="url(#crates-arrow)"/><rect x="922" y="178" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="191" text-anchor="start">核对原件</text><path class="edge" d="M1064,120 L1088,118 L1088,208 L45,208 L45,270 L70,270 L70,278" marker-end="url(#crates-arrow)"/><rect x="131" y="187" width="38" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="150" y="200" text-anchor="middle">契约</text><path class="edge" d="M567,228 L567,200 L217,200 L217,228" marker-end="url(#crates-arrow)"/><rect x="349.35" y="179" width="85.30000000000001" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="192" text-anchor="middle">类型 / 校验</text><path class="edge" d="M567,228 L567,200 L917,200 L917,228" marker-end="url(#crates-arrow)"/><rect x="703.5" y="179" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="192" text-anchor="middle">字节先就绪</text><path class="edge" d="M917,328 L917,355 L217,355 L217,328" marker-end="url(#crates-arrow)"/><rect x="528.5" y="354" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="567" y="367" text-anchor="middle">快照包契约</text><path class="edge" d="M567,328 L567,386" marker-end="url(#crates-arrow)"/><rect x="572" y="336" width="79.4" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="349" text-anchor="start">参数化 SQL</text><path class="edge" d="M917,328 L917,386" marker-end="url(#crates-arrow)"/><rect x="922" y="336" width="66.4" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="349" text-anchor="start">流式 I/O</text><path class="edge" d="M217,386 L217,347 L567,347 L567,328" marker-end="url(#crates-arrow)"/><rect x="360" y="325" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="338" text-anchor="middle">直接依赖</text><path class="edge" d="M70,436 L25,436 L25,525 L1095,525 L1095,278 L1064,278" marker-end="url(#crates-arrow)"/><rect x="535" y="505" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="567" y="518" text-anchor="middle">直接依赖</text><path class="edge" d="M217,386 L217,358 L567,358 L567,386" marker-end="url(#crates-arrow)"/><rect x="360" y="412" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="425" text-anchor="middle">受控管理</text><g class="node planned" data-node="web"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">待建设</text><text x="86" y="114" class="node-title">apps/web 待建设</text><text x="86" y="136" class="node-body">编辑草稿与用户交互</text><text x="86" y="155" class="node-body">不直连数据库或文件目录</text></g><g class="node planned" data-node="api"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">待建设</text><text x="436" y="114" class="node-title">learning-api 待建设</text><text x="436" y="136" class="node-body">HTTP 身份 → 业务 actor</text><text x="436" y="155" class="node-body">稳定 DTO / 幂等与冲突语义</text></g><g class="node done" data-node="worker"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">已验收</text><text x="786" y="114" class="node-title">learning-worker</text><text x="786" y="136" class="node-body">进程循环 / 处理器 / 停止恢复</text><text x="786" y="155" class="node-body">非 owner runtime 登录</text></g><g class="node done" data-node="core"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">已验收</text><text x="86" y="272" class="node-title">learning-core</text><text x="86" y="294" class="node-body">版本化契约 / 校验 / 摘要</text><text x="86" y="313" class="node-body">块、位置、关系、资产、任务</text></g><g class="node done" data-node="db"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">已验收</text><text x="436" y="272" class="node-title">learning-db</text><text x="436" y="294" class="node-body">SQLx / 显式事务 / 授权查询</text><text x="436" y="313" class="node-body">发布、融合视图、关系、作业</text></g><g class="node done" data-node="assets"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">已验收</text><text x="786" y="272" class="node-title">learning-assets</text><text x="786" y="294" class="node-body">不可变字节 / staging / 校验</text><text x="786" y="313" class="node-body">Filesystem 原件存储</text></g><g class="node done" data-node="pg"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">已验收</text><text x="436" y="430" class="node-title">PostgreSQL 内部接口</text><text x="436" y="452" class="node-body">最小权限 / 限定数据库函数</text><text x="436" y="471" class="node-body">业务行、收据、两个独立 outbox</text></g><g class="node done" data-node="file"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">已验收</text><text x="786" y="430" class="node-title">文件系统存储卷</text><text x="786" y="452" class="node-body">原件只读；staging 私有可写</text><text x="786" y="471" class="node-body">C3 挂私有可写 snapshots</text></g><g class="node next" data-node="backup"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">实施中</text><text x="86" y="430" class="node-title">learning-backup</text><text x="86" y="452" class="node-body">C4 管理侧备份与恢复绑定</text><text x="86" y="471" class="node-body">高权凭据不下发给 Worker</text></g></svg></div><figcaption>crate 依赖与授权边界</figcaption></figure>
+<h3 id="modules-heading-3">Cargo 依赖</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>直接依赖本仓库模块</th>
+<th>明确不承担</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>learning-core</td>
+<td>无</td>
+<td>不连接数据库、不处理登录、不持有文件权限</td>
+</tr>
+<tr>
+<td>learning-assets</td>
+<td>core</td>
+<td>不认证 actor，不独立决定业务读取权限</td>
+</tr>
+<tr>
+<td>learning-db</td>
+<td>core、assets</td>
+<td>不提供浏览器身份验证，不把 SQL 账号等同于用户</td>
+</tr>
+<tr>
+<td>learning-worker</td>
+<td>core、assets、db</td>
+<td>不决定学习是否掌握，不承担 API 或高权管理</td>
+</tr>
+<tr>
+<td>learning-backup</td>
+<td>assets、db</td>
+<td>不是普通用户导出，不是已完成的生产恢复入口</td>
+</tr>
+</tbody></table></div>
+<p>表中只列直接 Cargo 依赖；backup 可经 db 使用 core 的能力，不应画成不存在的直接依赖。模块共享契约，但原件 I/O、数据库授权与管理操作不能因为处在同一仓库而混用职责。</p>
+<h3 id="modules-heading-4">推荐读代码顺序</h3>
+<ol>
+<li>从 <a href="../../Cargo.toml">Cargo.toml</a> 与各 crate 的 <code>lib.rs</code> 确认模块和公开入口。</li>
+<li>阅读 core 的 content、composition、overlay、reading、references，理解身份、位置和固定版本。</li>
+<li>阅读 db 的 write、release、reading、relation、impact，理解事务与当前授权。</li>
+<li>阅读 assets 的资产存储及快照目录代码，再看 db 的 asset 和 snapshot 模块。</li>
+<li>阅读 job 合同、0011–0014 迁移和 worker 处理器，理解 token fencing。</li>
+<li>阅读 backup 的 restore_policy、restore_preflight 与 target_binding；再对照 db 的 snapshot/import，区分 C4 恢复与 C3 范围导入，同时核对各阶段状态和公开/内部边界。</li>
+</ol>
+<p>示例和验收程序可说明调用方法，但不能替代生产身份边界。对当前内部接口进行 HTTP 包装前，要明确 trusted caller、actor、请求收据和错误投影的责任。</p>
+<h3 id="modules-heading-5">模式迁移地图</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>迁移</th>
+<th>主要职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0001</td>
+<td>app_user、space、grant、块修订与 mutation receipt</td>
+</tr>
+<tr>
+<td>0002</td>
+<td>组合、occurrence、发布、request key 与旧 release outbox</td>
+</tr>
+<tr>
+<td>0003</td>
+<td>个人层、阅读视图、位置迁移与确认记录</td>
+</tr>
+<tr>
+<td>0004–0006</td>
+<td>类型化引用登记、关系审查、阅读证据、发布闭包与谱系</td>
+</tr>
+<tr>
+<td>0007–0008</td>
+<td>影响查询和谱系索引</td>
+</tr>
+<tr>
+<td>0009–0010</td>
+<td>原件、资源版本、来源定位及块资产使用一致性</td>
+</tr>
+<tr>
+<td>0011–0013</td>
+<td>job_outbox、job、租约函数与资产完整性结果</td>
+</tr>
+<tr>
+<td>0014</td>
+<td>C3 快照作业、独立状态与完成结果</td>
+</tr>
+<tr>
+<td>0015</td>
+<td>C3 原子导入批次回执</td>
+</tr>
+</tbody></table></div>
+<p>C4 当前代码包含文件清单、角色恢复规则和目标绑定，不因此产生“已完成 C4 数据库恢复”的事实。追加迁移和旧版升级须保持已发布迁移字节不变。</p>
+<h3 id="modules-heading-6">分层约束</h3>
+<p>纯合同检查靠 core，涉及可见性与原子提交的检查靠 db，实际文件句柄与字节靠 assets。Worker 协调这些能力；它不是授权规则的第二实现。高权备份与恢复不进入普通 Worker 的凭据范围。</p>
+<p>数据库约束与延迟触发器负责持久不变量，Rust 入口负责命令校验和可读错误。参数化运行时 SQL 不能称为已经完成全部 SQL 的编译期校验。</p>
+<p>代码事实来自 <a href="../../Cargo.toml">workspace</a> 和 <a href="../content-boundary.md">内容边界</a>。每个阶段还有自己的 boundary、execution、verification 三类文档，分别回答“做了什么、怎么落地、怎样验证”。</p>
+<p class="chapter-source"><a href="03-modules.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-permissions" aria-label="04 事务授权与关系查询"><h2 id="permissions-heading-1">04 事务授权与关系查询</h2>
+<h3 id="permissions-heading-2">用户身份与数据库角色</h3>
+<p><code>Principal</code> 是可信调用方传入的业务 actor；当前内核不提供终端用户登录。未来 HTTP 层必须从已认证会话提取 actor，不能相信浏览器自行声明的作者或用户 ID。</p>
+<p>空间授权决定 actor 对业务对象的读写权限。<code>learning_runtime</code> 是可信内部服务的数据库身份，非数据库 owner、非 BYPASSRLS；它不是每位最终用户的独立权限域。数据库账号不能交给浏览器，管理凭据不能交给普通 Worker。</p>
+<p>当前 <code>space_grant</code> 有对应行表示可读，<code>can_write=true</code> 才能写。用户授权由 Store 检查，不能称为已实现用户级数据库 RLS。受限 SECURITY DEFINER 函数锁定 grant；runtime 不因此获得修改授权表的权限。</p>
+<p>正文、引用端点、来源、位置、路径、审查依据及精确资产使用都参与授权。摘要一致、对象在旧快照中存在、UUID 难猜，都不能代替当前授权。</p>
+<h3 id="permissions-heading-3">一次保存的事务边界</h3>
+<pre><code class="language-text">可信 actor + 命令 + request_id + base_revision
+  → 合同校验与请求摘要
+  → 幂等请求锁、当前授权锁、目标对象锁
+  → 检查当前权限与基础修订
+  → 新增不可变修订、依赖登记、工作头及业务回执
+  → 若该业务需要后台处理，同事务追加持久事件
+  → 提交后返回确定结果
+</code></pre>
+<p>幂等键范围包含 actor；同键同命令重放返回绑定结果，同键不同命令冲突。重放仍先检查当前写权限，不能利用旧收据在撤权后完成写操作。相同正文的新请求仍可以产生独立业务对象。</p>
+<p>乐观并发检查基础修订。Conflict 表示工作头已经改变，不是自动覆盖许可。未来前端应保留未提交草稿和不确定请求，重试保留 request_id；收到服务器确认才显示已保存。</p>
+<p>READ COMMITTED 下正文与当前权限在同一语句快照判断。需要跨多个对象验证与发布时使用明确锁序及事务；先得到必要 grant 锁的写入可使撤权等待，撤权先提交则后续操作拒绝。已经返回的内容无法被远程收回。</p>
+<h3 id="permissions-heading-4">不泄露隐藏对象</h3>
+<p>读不存在与不可见对象采用一致的无结果语义；必要依赖不可读时按对应投影规则拒绝或裁剪，不返回隐藏 ID、路径或数量提示。游标依据可见结果生成，不能通过分页总量泄露隐藏数据。</p>
+<p>隐藏对象碰撞须先沿真实目标归属授权，再决定能否报告 IdentityConflict。Storage 类错误不得向用户暴露 SQL、连接参数或完整 DSN。公开 HTTP 错误映射尚待 P1-A 定义和验收。</p>
+<h3 id="permissions-heading-5">发布和固定闭包</h3>
+<p>发布固定组合与阅读输入，求出完整必要引用闭包，核对类型、精确修订、权限、环与上下文。通过后清单、发布记录和对应回执原子可见；失败不留下半发布。</p>
+<p>正文引用、组合嵌套、思考关系、来源谱系和能力硬先修具有不同语义。组合嵌套必须无环；思考关系允许成环，但遍历必须有预算；未来能力硬先修需单独保证无环。不得把五种图合为一个不区分作用的边列表。</p>
+<h3 id="permissions-heading-6">关系查询与影响范围</h3>
+<p>“猜想—支持/反对—审查依据”和“修订—消费者—出现位置—解释路径”在 PostgreSQL 权威表上查询。影响结果是待复查候选，不会自动改写已发布消费者或旧判断。</p>
+<p>查询输入固定范围与版本；限定深度、扩展量、结果与超时。隐藏桥不能参与继续扩展；可见节点之间如果只通过不可见对象相连，不能泄露那条路径。预算耗尽、结果截断、没有结果和执行失败应分别表达。</p>
+<p>图形 UI 可以直接使用 PostgreSQL 返回的授权投影，并不要求安装 Neo4j。若未来引入 Neo4j，正文回读仍由权威库重新授权，投影结果不能变成绕过权限的凭证。</p>
+<h3 id="permissions-heading-7">已知限制</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>限制</th>
+<th>含义与后续动作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>内核 trusted caller</td>
+<td>P1-A 必须补登录、会话、HTTP 授权和错误投影</td>
+</tr>
+<tr>
+<td>共享 runtime 能力</td>
+<td>持当前 token 的内部代码仍可误用通用完成函数；生产前需收紧已记录契约缺口</td>
+</tr>
+<tr>
+<td>文件已交付</td>
+<td>撤权可以阻止后续交付，不能擦除用户已取得的字节</td>
+</tr>
+<tr>
+<td>查询预算</td>
+<td>有界查询支持可解释失败；不承诺任意密图都完整返回</td>
+</tr>
+</tbody></table></div>
+<p>依据：<a href="../content-boundary.md">内容边界</a>、<a href="../p0b3-boundary.md">B3 边界</a>、<a href="../p0b4-boundary.md">B4 边界</a>、<a href="../p0c2-boundary.md">C2 边界</a>、<a href="../p0c3-boundary.md">C3 边界</a>。</p>
+<p class="chapter-source"><a href="04-transactions-and-permissions.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-assets" aria-label="05 原件存储与持久任务"><h2 id="assets-heading-1">05 原件存储与持久任务</h2>
+<h3 id="assets-heading-2">原格式、统一格式与派生格式</h3>
+<p>PDF、PPTX、DOCX、Notebook、代码与媒体保留原字节及格式；元数据和已编写的语义块采用统一合同。抽取文本、缩略图和检索片段是可重建派生物，不覆盖原件，也不成为笔记的唯一长期身份。</p>
+<p>Resource 表示一份逻辑资料，ResourceVersion 固定内容与来源元数据，Asset 登记某份字节，SourceSegment 记录版本内定位。资产业务 ID 不等于内容哈希；文件可以按 SHA-256 复用物理字节，但不能跨授权边界合并逻辑身份。</p>
+<p>当前 SourceSegment 保存固定资源版本内的 selector，尚无定位真实性验证或独立审查状态。后续来源定位入口应记录人工或可靠处理器的核对状态；未经核对不能推测页码、cell 或时间范围，也不能宣称 verified。这是后续产品规则，不是当前字段或验证器的能力。</p>
+<h3 id="assets-heading-3">原件写入与读取</h3>
+<pre><code class="language-text">受控输入
+  → 私有 staging / 流式大小与摘要检查
+  → 文件句柄与路径安全检查
+  → 不可变原字节定稿
+  → 数据库登记资产及精确使用关系
+  → 事务提交后通过授权入口读取
+</code></pre>
+<p>文件系统与 PostgreSQL 不具有共同原子提交。失败可能留下不可引用的定稿字节，不能因本次数据库回滚就删除可能被其它资产共用的 digest。C3 原子导入也是先核对并持久化 CAS 字节，再提交业务事实和回执。</p>
+<p>Linux 路径处理拒绝符号链接、越界和不受信目录，使用 no-follow 与受控文件句柄避免名称替换。大小、摘要、同名碰撞、部分写入和中断都必须验证；SIGKILL 与同步测试钩子不是物理掉电证明。</p>
+<p>读取需核对 actor、当前空间授权，并按 AssetUseRef 校验精确块修订或资源版本的使用关系。已知 storage_key 或 digest 不能直接授权下载；未来 HTTPS 文件入口必须继承该语义。安全文件 I/O crate 本身不负责业务身份判断。</p>
+<h3 id="assets-heading-4">持久任务链路</h3>
+<figure><div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 772" role="img" aria-labelledby="jobs-title jobs-desc"><title id="jobs-title">04 · 持久任务与真实故障恢复</title><desc id="jobs-desc">C2 已验收路径：新事件来自精确 v3 块资产使用，采用至少一次执行与幂等结果。</desc><style>
+:root{--paper:#ffffff;--ink:#172338;--muted:#506078;--edge:#6b7b92;--line:#c7d0df;--done:#eaf5ee;--done-ink:#246547;--next:#ebf1ff;--next-ink:#294ea5;--planned:#f2f4f8;--planned-ink:#506078;--optional:#f3ecfb;--optional-ink:#714993;--neutral:#fafbfc;}
+@media(prefers-color-scheme:dark){:root{--paper:#131b29;--ink:#e6edf7;--muted:#b0bdd0;--edge:#97a9c0;--line:#415269;--done:#163a2d;--done-ink:#8fd8b3;--next:#203758;--next-ink:#a7c2ff;--planned:#283447;--planned-ink:#c1ccdc;--optional:#382c49;--optional-ink:#d3b5f2;--neutral:#202b3b;}}
+text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="jobs-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="772" fill="var(--paper)"/><path class="edge" d="M217,70 L217,42 L567,42 L567,70" marker-end="url(#jobs-arrow)"/><rect x="353.5" y="21" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="34" text-anchor="middle">校验后提交</text><path class="edge" d="M567,70 L567,42 L917,42 L917,70" marker-end="url(#jobs-arrow)"/><rect x="703.5" y="21" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="34" text-anchor="middle">原子持久化</text><path class="edge" d="M917,170 L917,228" marker-end="url(#jobs-arrow)"/><rect x="922" y="178" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="191" text-anchor="start">事务转投</text><path class="edge" d="M917,228 L917,200 L567,200 L567,228" marker-end="url(#jobs-arrow)"/><rect x="723" y="179" width="38" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="192" text-anchor="middle">领取</text><path class="edge" d="M567,228 L567,200 L217,200 L217,228" marker-end="url(#jobs-arrow)"/><rect x="360" y="179" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="192" text-anchor="middle">精确输入</text><path class="edge" d="M217,328 L217,386" marker-end="url(#jobs-arrow)"/><rect x="222" y="336" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="349" text-anchor="start">处理成功</text><path class="edge" d="M217,486 L217,544" marker-end="url(#jobs-arrow)"/><rect x="222" y="494" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="507" text-anchor="start">提交结果</text><path class="edge" d="M567,328 L567,386" marker-end="url(#jobs-arrow)"/><rect x="572" y="336" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="349" text-anchor="start">进程丢失</text><path class="edge" d="M567,486 L567,544" marker-end="url(#jobs-arrow)"/><rect x="572" y="494" width="152.69999999999996" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="507" text-anchor="start">新租约使旧 token 失效</text><path class="edge" d="M567,328 L567,357 L917,357 L917,386" marker-end="url(#jobs-arrow)"/><rect x="686.35" y="336" width="111.3" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="349" text-anchor="middle">受控终止 / 重试</text><g class="node done" data-node="write"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">已验收</text><text x="86" y="114" class="node-title">真实 v3 块写入</text><text x="86" y="136" class="node-body">Figure / Attachment</text><text x="86" y="155" class="node-body">request_id 幂等</text></g><g class="node done" data-node="tx"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">已验收</text><text x="436" y="114" class="node-title">同一业务事务</text><text x="436" y="136" class="node-body">BlockRevision + block_asset_use</text><text x="436" y="155" class="node-body">同时写 job_outbox</text></g><g class="node done" data-node="outbox"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">已验收</text><text x="786" y="114" class="node-title">job_outbox 持久事件</text><text x="786" y="136" class="node-body">actor + 精确 BlockRef</text><text x="786" y="155" class="node-body">处理器版本 / 稳定业务键</text></g><g class="node done" data-node="handler"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">已验收</text><text x="86" y="272" class="node-title">资产完整性处理器</text><text x="86" y="294" class="node-body">按原 actor 重验当前授权</text><text x="86" y="313" class="node-body">核对大小与 SHA-256</text></g><g class="node done" data-node="lease"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">已验收</text><text x="436" y="272" class="node-title">Worker 原子领取租约</text><text x="436" y="294" class="node-body">数据库时间 + 新 token</text><text x="436" y="313" class="node-body">attempt / lease_until</text></g><g class="node done" data-node="job"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">已验收</text><text x="786" y="272" class="node-title">原子转投为唯一 job</text><text x="786" y="294" class="node-body">事件与作业一一收敛</text><text x="786" y="313" class="node-body">重复 / 并发转投不增任务</text></g><g class="node done" data-node="complete"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">已验收</text><text x="86" y="430" class="node-title">带 token 的原子完成</text><text x="86" y="452" class="node-body">写 asset_integrity_result</text><text x="86" y="471" class="node-body">同事务标记 succeeded</text></g><g class="node done" data-node="takeover"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">已验收</text><text x="436" y="430" class="node-title">进程终止后的接管</text><text x="436" y="452" class="node-body">真实 SIGKILL → 租约到期</text><text x="436" y="471" class="node-body">第二 Worker 领取新 token</text></g><g class="node done" data-node="terminal"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">已验收</text><text x="786" y="430" class="node-title">取消 / 撤权 / 有限失败</text><text x="786" y="452" class="node-body">cancelled / failed / retry_wait</text><text x="786" y="471" class="node-body">失败不撤销已发布原文</text></g><g class="node done" data-node="result"><rect x="70" y="544" width="294" height="100" rx="9"/><text x="86" y="564" class="state">已验收</text><text x="86" y="588" class="node-title">唯一、版本化结果</text><text x="86" y="610" class="node-body">重复运行不增结果</text><text x="86" y="629" class="node-body">保留输入与输出摘要</text></g><g class="node done" data-node="fence"><rect x="420" y="544" width="294" height="100" rx="9"/><text x="436" y="564" class="state">已验收</text><text x="436" y="588" class="node-title">拒绝旧 Worker 写入</text><text x="436" y="610" class="node-body">renew / checkpoint</text><text x="436" y="629" class="node-body">succeed / fail 均拒绝</text></g><g class="node neutral" data-node="old"><rect x="770" y="544" width="294" height="100" rx="9"/><text x="786" y="564" class="state">上下文</text><text x="786" y="588" class="node-title">旧 outbox_event 独立</text><text x="786" y="610" class="node-body">只处理 composition_released</text><text x="786" y="629" class="node-body">不是 C2 作业输入</text></g></svg></div><figcaption>同事务事件、转投、租约与结果</figcaption></figure>
+<p>C2 在 v3 图片或附件的真实写入事务中追加 <code>job_outbox</code>。只登记资产、只关联资源版本或重放旧请求收据，不自动产生同一事件。旧 <code>outbox_event</code> 只保存组合发布事件，与 C2 <code>job_outbox</code> 是两个协议。</p>
+<p>转投器按稳定业务键将事件原子收敛为一条 job。Worker 领取、续租、写检查点和完成都通过数据库判断当前租约 token；过期后新 attempt 可以接管，旧 token 不能再提交结果。</p>
+<p>当前最多三次尝试，使用数据库时钟、有限错误类别和退避。保证的是至少一次执行与副作用收敛，不是进程只执行一次；取消与终态不复活。</p>
+<h3 id="assets-heading-5">处理器职责与隔离</h3>
+<p>首个处理器复核原件大小/SHA-256 并写轻量元信息；完成前重新检查原业务 actor 和精确使用授权，再以当前 token 原子提交结果。缺件、损坏或撤权使任务失败或拒绝；不回滚已正确保存的用户正文。</p>
+<p>Worker 专用容器只获得 runtime 凭据，资产和固定二进制只读；暂存区为私有可写区。配置 C3 时另挂载服务所有的私有可写 SNAPSHOT_ROOT，不取得管理凭据。容器采用非 root、只读根文件系统和私有临时区。宿主 root 与 Docker daemon 仍属于可信管理边界，容器验收不能证明它们无法读取进程凭据。</p>
+<p>C3 快照任务使用独立 snapshot_queued、snapshot_running、snapshot_retry_wait 状态与扫描入口，防止旧 C2 Worker 误领新类型。尝试目录由 job 和 lease token 隔离；进程重启从持久结果与文件摘要重开，而非依赖原内存对象。</p>
+<h3 id="assets-heading-6">文件寿命与清理</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>数据</th>
+<th>性质</th>
+<th>清理原则</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Rust target、测试编译输出</td>
+<td>可重编缓存</td>
+<td>确认没有占用和证据依赖后清理</td>
+</tr>
+<tr>
+<td>staging、失败尝试目录</td>
+<td>私有中间文件</td>
+<td>按 job 状态和引用核对，不能按时间直接推断无用</td>
+</tr>
+<tr>
+<td>derived、检索与图投影</td>
+<td>可重建结果</td>
+<td>保留来源和处理器版本，失效后重建</td>
+</tr>
+<tr>
+<td>原件 CAS 字节</td>
+<td>权威文件</td>
+<td>核对全部已提交引用及备份保留集后回收</td>
+</tr>
+<tr>
+<td>测试 evidence</td>
+<td>验收依据</td>
+<td>先归档索引、摘要和必要日志，保留失败与成功的对应关系</td>
+</tr>
+<tr>
+<td>C4 隔离目标卷</td>
+<td>隔离/脏/禁止复用状态</td>
+<td>未明确批准清理前保留，绝不当作下一批恢复目标</td>
+</tr>
+</tbody></table></div>
+<p>当前没有自动 TTL collector、公开下载 URL 或完整解析器集。租约过期不等于目录到期，撤权不等于立即擦除磁盘字节。依据：<a href="../p0c1-boundary.md">C1 边界</a>、<a href="../p0c2-boundary.md">C2 边界</a>、<a href="../p0c3-boundary.md">C3 边界</a>。</p>
+<p class="chapter-source"><a href="05-assets-and-jobs.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-recovery" aria-label="06 快照交换与备份恢复"><h2 id="recovery-heading-1">06 快照交换与备份恢复</h2>
+<h3 id="recovery-heading-2">三种可移植产物</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>产物</th>
+<th>目的</th>
+<th>保存范围</th>
+<th>不能代替</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>阅读副本</td>
+<td>离线连续阅读</td>
+<td>经裁剪的可读内容与允许的媒体</td>
+<td>精确身份交换或灾难恢复</td>
+</tr>
+<tr>
+<td>C3 精确目录包</td>
+<td>授权范围内迁移一个 Reading 固定闭包</td>
+<td>必要对象、具体修订、关系与审查、可选原件</td>
+<td>全库用户、授权、可变 head 和全部资产备份</td>
+</tr>
+<tr>
+<td>C4 全量备份</td>
+<td>将一个实例恢复到干净目标</td>
+<td>数据库一致快照、全部逻辑资产及字节、角色规则与构建/迁移身份</td>
+<td>未验收的候选包不能作为已完成恢复许可</td>
+</tr>
+</tbody></table></div>
+<figure><div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 772" role="img" aria-labelledby="portability-title portability-desc"><title id="portability-title">05 · C3 交换与 C4 恢复</title><desc id="portability-desc">C3 阅读快照交换已通过隔离整关验收；C4 全量备份和干净恢复已启动，尚未验收。</desc><style>
+:root{--paper:#ffffff;--ink:#172338;--muted:#506078;--edge:#6b7b92;--line:#c7d0df;--done:#eaf5ee;--done-ink:#246547;--next:#ebf1ff;--next-ink:#294ea5;--planned:#f2f4f8;--planned-ink:#506078;--optional:#f3ecfb;--optional-ink:#714993;--neutral:#fafbfc;}
+@media(prefers-color-scheme:dark){:root{--paper:#131b29;--ink:#e6edf7;--muted:#b0bdd0;--edge:#97a9c0;--line:#415269;--done:#163a2d;--done-ink:#8fd8b3;--next:#203758;--next-ink:#a7c2ff;--planned:#283447;--planned-ink:#c1ccdc;--optional:#382c49;--optional-ink:#d3b5f2;--neutral:#202b3b;}}
+text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="portability-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="772" fill="var(--paper)"/><path class="edge" d="M217,70 L217,42 L567,42 L567,70" marker-end="url(#portability-arrow)"/><rect x="360" y="21" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="34" text-anchor="middle">固定输入</text><path class="edge" d="M567,70 L567,42 L917,42 L917,70" marker-end="url(#portability-arrow)"/><rect x="710" y="21" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="34" text-anchor="middle">精确清单</text><path class="edge" d="M917,170 L917,228" marker-end="url(#portability-arrow)"/><rect x="922" y="178" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="191" text-anchor="start">授权交付</text><path class="edge" d="M917,228 L917,200 L567,200 L567,228" marker-end="url(#portability-arrow)"/><rect x="710" y="179" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="192" text-anchor="middle">受控导入</text><path class="edge" d="M567,228 L567,200 L217,200 L217,228" marker-end="url(#portability-arrow)"/><rect x="353.5" y="179" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="192" text-anchor="middle">校验全通过</text><path class="edge" d="M217,386 L217,358 L567,358 L567,386" marker-end="url(#portability-arrow)"/><rect x="353.5" y="337" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="350" text-anchor="middle">一致恢复点</text><path class="edge" d="M567,386 L567,358 L917,358 L917,386" marker-end="url(#portability-arrow)"/><rect x="690.5" y="337" width="103" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="350" text-anchor="middle">不可变资产复制</text><path class="edge" d="M917,486 L917,515 L567,515 L567,544" marker-end="url(#portability-arrow)"/><rect x="827" y="495" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="872" y="508" text-anchor="middle">校验完整备份</text><path class="edge" d="M567,544 L567,516 L217,516 L217,544" marker-end="url(#portability-arrow)"/><rect x="360" y="495" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="508" text-anchor="middle">恢复验证</text><path class="edge optional-edge" d="M917,544 L917,516 L567,516 L567,544" marker-end="url(#portability-arrow)"/><rect x="703.5" y="495" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="508" text-anchor="middle">补学习事实</text><g class="node done" data-node="view"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">已验收</text><text x="86" y="114" class="node-title">C3 · 选定阅读快照</text><text x="86" y="136" class="node-body">精确版本 / 模式 / 原件选项</text><text x="86" y="155" class="node-body">按当前主体权限取范围</text></g><g class="node done" data-node="closure"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">已验收</text><text x="436" y="114" class="node-title">只读一致快照求闭包</text><text x="436" y="136" class="node-body">块 / 位置 / 关系 / 审查 / 资产</text><text x="436" y="155" class="node-body">不泄露隐藏 ID 或计数</text></g><g class="node done" data-node="bundle"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">已验收</text><text x="786" y="114" class="node-title">manifest + JSON + 原件</text><text x="786" y="136" class="node-body">逐对象摘要与格式版本</text><text x="786" y="155" class="node-body">HTML / Markdown 阅读副本</text></g><g class="node done" data-node="visible"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">已验收</text><text x="86" y="272" class="node-title">原子发布导入批次</text><text x="86" y="294" class="node-body">同 ID 同字节复用</text><text x="86" y="313" class="node-body">失败无半可用视图</text></g><g class="node done" data-node="preflight"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">已验收</text><text x="436" y="272" class="node-title">staging 校验与预检</text><text x="436" y="294" class="node-body">引用闭包 / 权限归属 / 路径</text><text x="436" y="313" class="node-body">摘要冲突或缺件即拒绝</text></g><g class="node done" data-node="delivery"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">已验收</text><text x="786" y="272" class="node-title">重验权限后交付</text><text x="786" y="294" class="node-body">完成时及下载时再检查</text><text x="786" y="313" class="node-body">导入授权目标范围</text></g><g class="node next" data-node="pause"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">实施中</text><text x="86" y="430" class="node-title">C4 · 受控写入维护窗</text><text x="86" y="452" class="node-body">先停 runtime / Worker</text><text x="86" y="471" class="node-body">全量封存验证后再开放</text></g><g class="node next" data-node="backup"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">实施中</text><text x="436" y="430" class="node-title">一致数据库 + 资产清单</text><text x="436" y="452" class="node-body">源端与单机专项已通过</text><text x="436" y="471" class="node-body">独立完成收据尚未验收</text></g><g class="node planned" data-node="copy"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">待建设</text><text x="786" y="430" class="node-title">复制至独立故障域</text><text x="786" y="452" class="node-body">保护清单引用的全部资产</text><text x="786" y="471" class="node-body">逐件校验后才能 complete</text></g><g class="node planned" data-node="check"><rect x="70" y="544" width="294" height="100" rx="9"/><text x="86" y="564" class="state">待建设</text><text x="86" y="588" class="node-title">核对后开放实例</text><text x="86" y="610" class="node-body">旧版 / 当前版 / 位置 / 权限</text><text x="86" y="629" class="node-body">关系与原字节完整一致</text></g><g class="node planned" data-node="restore"><rect x="420" y="544" width="294" height="100" rx="9"/><text x="436" y="564" class="state">待建设</text><text x="436" y="588" class="node-title">恢复到干净实例</text><text x="436" y="610" class="node-body">数据库 + 原件 / 失效租约处理</text><text x="436" y="629" class="node-body">可重建派生物后续重建</text></g><g class="node planned" data-node="future"><rect x="770" y="544" width="294" height="100" rx="9"/><text x="786" y="564" class="state">待建设</text><text x="786" y="588" class="node-title">P1-B 扩展恢复闭包</text><text x="786" y="610" class="node-body">学习事实 / 规则 / 产物 / 计划</text><text x="786" y="629" class="node-body">另做全链恢复验收</text></g></svg></div><figcaption>范围交换与全量备份恢复</figcaption></figure>
+<h3 id="recovery-heading-3">C3 导出与交付</h3>
+<p>在一致的只读事务中固定 Reading 和必要引用闭包；规划、发布成功结果、每次交付都重新核对当前授权。私有 attempt 目录经流式核摘要、预算及 no-follow 检查后封存，不公开 staging 或失败中间件。</p>
+<p>精确目录包用版本化 manifest 描述对象身份、内容摘要、文件清单与合同。metadata-only 导出保留授权资产元数据，不复制原件，也不消耗 included-originals 字节预算；实际包含的原件字节须受相应限额约束。</p>
+<p>metadata-only 的目标原件核验属于导入预检及事务内复核：目标必须已有同 space、同 asset ID 的相同元数据与真实原件，并重新打开核对大小和摘要。仅有相同 digest 的另一资产不足以满足要求；导出不能证明目的地原件可用。</p>
+<p>实际交换能力区分 <code>exact_import_v1</code> 与 <code>reading_copy_v1</code>。入口为普通目录，不接受任意压缩包解包导入。Linux 是权威 staging/交付验收环境，Windows 对这条权威文件链当前 fail closed；Windows 合同测试不能代替 Linux 文件安全门。</p>
+<p>阅读副本去除不应暴露的精确身份，不冒充 exact。导出内容的历史版本固定，但读取授权仍是当前状态。已经交付的字节与句柄无法远程撤销。</p>
+<h3 id="recovery-heading-4">C3 导入的原子可见</h3>
+<ol>
+<li>预检版本、文件路径、摘要、身份、引用闭包与资产可用性。</li>
+<li>核对并定稿原件字节，保留受控文件句柄。</li>
+<li>在数据库事务中重核授权、全部不可变字段、自然键和 registry 完整集合。</li>
+<li>固定顺序插入，初始化新容器的必要 head；已有 head、published 与 release 不后退。</li>
+<li>强制执行延迟约束后，将权威行与 <code>snapshot_import_batch</code> 回执一起提交。</li>
+</ol>
+<p>同 ID 同字节可以复用，同 ID 不同内容拒绝。PreparedSnapshotImport 是已预检输入，不是绕过事务内权限复核的许可证。事务失败不出现半可见业务视图，但可能留下不可引用 CAS 字节。</p>
+<p>C3 不创建 app_user、space 或 grant；缺失的第三方 reviewer 历史不能靠冒充用户导入。新容器 head 初始化是确定性的目标构造，<strong>不是恢复源端全部可变 head</strong>。因此 C3 不能被称为 C4 完整恢复。</p>
+<p>exact 白名单固定为 29 张表，排除用户/空间/grant、普通回执、release/lineage、job/outbox 和导出结果。完整名单以格式文档为准，不通过本章概览推断额外表可导入。</p>
+<h3 id="recovery-heading-5">C4 全量备份链</h3>
+<p>管理协调器在受控写入维护窗中阻止新变更、排空必要在途操作，取得数据库一致 dump 和资产全量清单。包包含 <code>database.dump</code>、<code>roles.json</code>、<code>asset-index.json</code>、资产字节及版本化 manifest；没有当前引用的逻辑资产也须考虑，不能只沿一个 Reading 求闭包。</p>
+<p>现有源端 API 要求可信管理调用方先停 runtime/Worker，再按写闸协议撤销 CONNECT、排空会话与封存；不能假定库函数会自动管理所有外部进程。只有 dump、index、control 持久化且本地 sealed pin 中全部原件验证完成后才重新开放 CONNECT，维护窗口可能较长。缩短窗口是待验证的后续优化，当前没有短时完成保证。操作与退出状态保留持久 journal。</p>
+<p>构建身份、PostgreSQL 主版本、迁移版本和校验列表参与兼容性判断。资产目录按逻辑身份排序，文件按 digest 复用；逻辑资产数量、唯一字节量与文件数分别核对。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>状态</th>
+<th>已建立什么</th>
+<th>尚未证明什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Staging / BackupPlan</td>
+<td>规划和清单</td>
+<td>原件已核完、dump 有效、传输完整</td>
+</tr>
+<tr>
+<td>SealedBackup</td>
+<td>私有包经摘要、路径和封存检查</td>
+<td>已有独立故障域副本或实际可恢复</td>
+</tr>
+<tr>
+<td>CompleteBackup</td>
+<td>需要独立目标见证与受信校验链</td>
+<td>当前单机验证不能签发或宣称此状态通过</td>
+</tr>
+</tbody></table></div>
+<p>目标见证与签名合同已有代码和专项，默认完整收据门受控关闭。只有 feature 并不足够，还需要受审构建的 verifier 信任绑定和实际独立目标验证。当前用户没有独立备份目标，单机传输通过仅证明该范围，不构成抗整机故障备份。</p>
+<h3 id="recovery-heading-6">干净目标的信任链</h3>
+<p>恢复目标准入核对全新数据库、角色配方、权限、PG18 初始化事实与 Compose/卷身份。出生证明绑定受控创建事实；pin 候选记录固定目标观察。它们是后续恢复前提，不是任意输入 DSN 指向“差不多相同实例”就可以继续的依据。</p>
+<p>当前只读绑定进一步核对精确容器、网络和挂载、PG system identifier/database OID、启动身份、会话与同一 SQLx 事务中的两把锁。只读子进程限定精确 Docker 目标和本地 Unix socket，不接受用户随意提供主机、端口或新的 passfile。</p>
+<p>物理克隆负例验证：即使两个实例拥有相同 system identifier 和 database OID，错误端点仍必须拒绝。因此仅核对数据库“身份数字相同”不够。</p>
+<p>同一 guard 重启负例验证：首次只读证明成功，目标重启后原会话被拒绝，旧 guard 不可复用，最终精确停机留卷。预期的 Session 拒绝是该负例成功条件，不是批次失败。</p>
+<h3 id="recovery-heading-7">C4 当前完成度与待完成门</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>能力</th>
+<th>截至 2026-09-30 的证据状态</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>全量清单与普通角色拒绝</td>
+<td>隔离专项通过</td>
+</tr>
+<tr>
+<td>Linux 安全封存与故障场景</td>
+<td>隔离专项通过</td>
+</tr>
+<tr>
+<td>维护窗源端三场景、单机传输七门</td>
+<td>指定单机范围通过</td>
+</tr>
+<tr>
+<td>恢复目标准入、出生证明、干净 pin 候选</td>
+<td>指定单机范围通过；候选不是构建 pin</td>
+</tr>
+<tr>
+<td>只读 bound target、同 SQL 会话、同 ID/OID 错端点</td>
+<td>指定 Linux/PG18 门通过</td>
+</tr>
+<tr>
+<td>精确子进程首次只读证明与同 guard 重启拒绝</td>
+<td>新批次 aa3feac4 通过，结果摘要独立复算匹配</td>
+</tr>
+<tr>
+<td>固定导入子进程、凭据交付、实际数据库写入</td>
+<td>待设计与验证</td>
+</tr>
+<tr>
+<td>资产恢复闭包、恢复后作业处理、开放实例</td>
+<td>未整链验收</td>
+</tr>
+<tr>
+<td>独立目标与 CompleteBackup、整关故障注入</td>
+<td>未验收；C4 不能标完成</td>
+</tr>
+</tbody></table></div>
+<p>下一阶段先定稿实际导入子进程与凭据契约，再用新空目标和受控小型 dump 验证首次写入；通过后扩展到资产、历史、位置、关系、权限和作业恢复。不能将只读门直接升级成恢复许可，也不复用停机隔离的旧验收卷。</p>
+<h3 id="recovery-heading-8">恢复后的作业与失败隔离</h3>
+<p>恢复政策代码已区分终态、旧租约和未完成作业，实际执行与验证仍待整链验收。旧 token 不能在新目标继续完成，外部副作用不能因恢复而无条件重放。验证一致后再开放服务，派生物另行重建。</p>
+<p>发生 ACL 变更、目标身份无法证明或恢复失败时，目标标为脏/不可用/禁止复用，按精确容器 ID 停机，保留卷与证据。不能用清理脚本把失败变成“干净目标”，也不能在同一失败批次重跑。</p>
+<p>详细规范：<a href="../p0c3-boundary.md">C3 边界</a>、<a href="../snapshot-directory-v1.md">目录格式</a>、<a href="../superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md">C4 设计</a>、<a href="../p0c4-verification.md">C4 验证台账</a>、<a href="../superpowers/specs/2026-09-29-p0c4-pg-restore-child-binding-design.md">只读子进程设计</a>。</p>
+<p class="chapter-source"><a href="06-portability-and-recovery.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-interfaces" aria-label="07 API 前端与学习闭环"><h2 id="interfaces-heading-1">07 API 前端与学习闭环</h2>
+<h3 id="interfaces-heading-2">本章状态</h3>
+<p>本章是已批准方向的后续产品设计整理，不是当前 API 文档。HTTP 路由、登录方案、DTO、前端依赖和完整学习表结构均需在相应阶段固化。Rust 后端已确定；Axum、React + TypeScript + Vite 是建议组合，尚未成为现有应用依赖。</p>
+<h3 id="interfaces-heading-3">API 的接入边界</h3>
+<p>浏览器只访问受保护 API，不连接数据库、不读取原件路径、不持有管理或 runtime 凭据。HTTP 层负责认证与会话失效、可信 actor 提取、输入限额、领域命令映射和可安全显示的错误；核心事务和授权继续由已验收内核执行。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>API 类别</th>
+<th>复用内核</th>
+<th>还需验证</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>块编辑与历史</td>
+<td>精确修订、请求摘要、冲突、幂等收据</td>
+<td>身份不可伪造、限额、重试和草稿保留</td>
+</tr>
+<tr>
+<td>连续阅读与个人层</td>
+<td>Reading、Overlay、GapAnchor、迁移确认</td>
+<td>三种投影、任意间隙插入、视觉归属、跨设备位置</td>
+</tr>
+<tr>
+<td>关系与影响</td>
+<td>关系版本、认识审查、有界图查询</td>
+<td>HTTP 投影不泄露隐藏标识、路径、计数</td>
+</tr>
+<tr>
+<td>原件与图片</td>
+<td>AssetUse、当前授权、安全句柄</td>
+<td>上传与交付权限、内容渲染、撤权后新请求拒绝</td>
+</tr>
+<tr>
+<td>快照导出与导入</td>
+<td>C3 精确包、回执与 Worker</td>
+<td>交付接口、大小与超时、不公开私有目录</td>
+</tr>
+<tr>
+<td>管理与恢复</td>
+<td>C4 管理合同</td>
+<td>与普通用户入口分离，C4 验收前不开放写入口</td>
+</tr>
+</tbody></table></div>
+<p>目前没有冻结的 OpenAPI 文档或正式 endpoint 路径。命令示意不能直接用作已发布客户端合同。</p>
+<h3 id="interfaces-heading-4">前端信息架构</h3>
+<p>目标工作空间包含今日、学习路径、学习工作台、资料与知识、项目与证据、复盘与调整。P1-A 先实现内容工作台，P1-B 再连通完整学习流程。</p>
+<p>连续阅读保持文档感：原文使用中性正文，个人笔记以侧线/标签和适度缩进区分；想法、猜想及待复核状态明确表达，不能只依赖颜色。图片沿其用途与归属呈现。关系面板、来源与版本在需要核对时展开，避免把数据库字段铺满正文。</p>
+<p>插入个人块与编辑原文是不同模式。共享块编辑先显示影响；只想改变本处表达时派生新块，不静默覆盖所有消费者。原文升级先展示位置迁移候选与待处理项，旧阅读版本仍能打开。</p>
+<h3 id="interfaces-heading-5">前端状态与保存语义</h3>
+<p>服务端确认是“已保存”的依据；草稿和不确定请求留在前端缓冲。网络失败重试保留同一 request_id 和命令；冲突保留草稿与当前可见版本供对照，不自动回滚或覆盖用户输入。</p>
+<p>跨设备访问的是同一服务器保存的阅读位置与业务状态，首版不建设离线双向同步。离线快照只是某一固定版本的阅读/交换产物，不能被解释为离线编辑后自动合并回权威库。</p>
+<h3 id="interfaces-heading-6">学习闭环的目标模型</h3>
+<pre><code class="language-text">目标与约束 → 诊断 → 计划修订 → 学习单元
+  → 阅读与实践 → 尝试 / 产物 / 观察
+  → 固定条件下的验收 → 复习与复盘 → 调整建议
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>目标实体</th>
+<th>需要保存的事实</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>LearningUnit</td>
+<td>目标、先修、任务、资源、验收规则与版本</td>
+</tr>
+<tr>
+<td>Plan / LearningRun</td>
+<td>时间预算、路线版本、选择原因和调整历史</td>
+</tr>
+<tr>
+<td>Attempt / Artifact</td>
+<td>实践过程、代码/报告/指标、输入与环境条件</td>
+</tr>
+<tr>
+<td>Assessment</td>
+<td>所用规则、证据、评价主体、结果和适用范围</td>
+</tr>
+<tr>
+<td>Review / Reflection</td>
+<td>待复习内容、卡点、耗时和下一次建议</td>
+</tr>
+</tbody></table></div>
+<p>上述是目标模型，不是已经落表的 Rust 类型名称承诺。48 周路线是可复用内容模板；每周预算变化修订个人计划，不改写已完成事实。</p>
+<p>能力分理解、实现、测量、迁移四个维度。阅读完成、自评、自动检查、AI 建议与人工复核分别记录；“通过”必须绑定任务、规则、内容和环境条件。换领域或换标准复用证据前检查兼容性。</p>
+<h3 id="interfaces-heading-7">AI 与外部实践</h3>
+<p>核心学习不依赖 AI。AI 可生成解释草稿、问题、关联或调整建议，必须保留来源和所用快照，并经明确操作采用；不能直接发布权威知识或改写能力判断。</p>
+<p>Notebook 和代码默认在外部受控实践环境运行，系统记录原件、产物和条件。任意执行器、模型凭据、GPU 作业平台和恶意文件扫描需要独立设计，不能随上传功能自动开放。</p>
+<p>接入次序见 <a href="#chapter-deployment">部署与演进</a>，底层行为依据 <a href="#chapter-permissions">事务与权限</a>。</p>
+<p class="chapter-source"><a href="07-product-interfaces.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-deployment" aria-label="08 部署运维与架构演进"><h2 id="deployment-heading-1">08 部署运维与架构演进</h2>
+<h3 id="deployment-heading-2">目标部署与当前环境</h3>
+<p>目标为私有单机 Linux + Docker Compose；HTTPS 是浏览器入口，数据库和资产卷位于内部网络/私有路径。当前 <code>deploy</code> 提供隔离测试配置与升级夹具，没有完整生产 Compose、登录服务或生产恢复手册。</p>
+<figure><div class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 772" role="img" aria-labelledby="deployment-title deployment-desc"><title id="deployment-title">06 · 目标部署与存储边界</title><desc id="deployment-desc">目标为私有单机 Linux + Compose。现有证明来自隔离验收环境，未部署成生产服务。</desc><style>
+:root{--paper:#ffffff;--ink:#172338;--muted:#506078;--edge:#6b7b92;--line:#c7d0df;--done:#eaf5ee;--done-ink:#246547;--next:#ebf1ff;--next-ink:#294ea5;--planned:#f2f4f8;--planned-ink:#506078;--optional:#f3ecfb;--optional-ink:#714993;--neutral:#fafbfc;}
+@media(prefers-color-scheme:dark){:root{--paper:#131b29;--ink:#e6edf7;--muted:#b0bdd0;--edge:#97a9c0;--line:#415269;--done:#163a2d;--done-ink:#8fd8b3;--next:#203758;--next-ink:#a7c2ff;--planned:#283447;--planned-ink:#c1ccdc;--optional:#382c49;--optional-ink:#d3b5f2;--neutral:#202b3b;}}
+text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="deployment-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="772" fill="var(--paper)"/><path class="edge" d="M217,70 L217,42 L567,42 L567,70" marker-end="url(#deployment-arrow)"/><rect x="368.25" y="21" width="47.5" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="34" text-anchor="middle">HTTPS</text><path class="edge" d="M567,170 L567,199 L217,199 L217,228" marker-end="url(#deployment-arrow)"/><rect x="360" y="178" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="191" text-anchor="middle">静态资源</text><path class="edge" d="M567,170 L567,228" marker-end="url(#deployment-arrow)"/><rect x="572" y="178" width="79.4" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="191" text-anchor="start">受保护 API</text><path class="edge" d="M917,170 L917,228" marker-end="url(#deployment-arrow)"/><rect x="922" y="178" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="191" text-anchor="start">发布固定构建</text><path class="edge" d="M567,328 L567,386" marker-end="url(#deployment-arrow)"/><rect x="572" y="336" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="349" text-anchor="start">私有网络</text><path class="edge" d="M917,328 L917,357 L567,357 L567,386" marker-end="url(#deployment-arrow)"/><rect x="697" y="336" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="349" text-anchor="middle">受限作业权限</text><path class="edge" d="M917,328 L917,386" marker-end="url(#deployment-arrow)"/><rect x="922" y="336" width="38" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="349" text-anchor="start">只读</text><path class="edge" d="M567,328 L567,357 L217,357 L217,386" marker-end="url(#deployment-arrow)"/><rect x="336.35" y="336" width="111.3" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="349" text-anchor="middle">受控上传 / 导出</text><path class="edge" d="M567,486 L567,544" marker-end="url(#deployment-arrow)"/><rect x="572" y="494" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="507" text-anchor="start">一致备份</text><path class="edge optional-edge" d="M917,486 L917,544" marker-end="url(#deployment-arrow)"/><rect x="922" y="494" width="103" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="507" text-anchor="start">按资产清单复制</text><path class="edge optional-edge" d="M567,544 L567,516 L917,516 L917,544" marker-end="url(#deployment-arrow)"/><rect x="692.85" y="495" width="98.30000000000001" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="508" text-anchor="middle">数据库 + 清单</text><g class="node planned" data-node="browser"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">待建设</text><text x="86" y="114" class="node-title">浏览器 / HTTPS</text><text x="86" y="136" class="node-body">唯一面向用户的入口</text><text x="86" y="155" class="node-body">电脑 / 平板 / 手机</text></g><g class="node planned" data-node="gateway"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">待建设</text><text x="436" y="114" class="node-title">反向代理 / TLS</text><text x="436" y="136" class="node-body">同源静态 Web 与 API</text><text x="436" y="155" class="node-body">P1-A 部署时配置</text></g><g class="node planned" data-node="management"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">待建设</text><text x="786" y="114" class="node-title">受控运维入口</text><text x="786" y="136" class="node-body">部署 / 迁移 / 恢复管理</text><text x="786" y="155" class="node-body">高权凭据单独保管</text></g><g class="node planned" data-node="web"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">待建设</text><text x="86" y="272" class="node-title">Web 静态资源</text><text x="86" y="294" class="node-body">受控内容渲染 / 草稿缓冲</text><text x="86" y="313" class="node-body">不执行 Notebook</text></g><g class="node planned" data-node="api"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">待建设</text><text x="436" y="272" class="node-title">API 运行角色</text><text x="436" y="294" class="node-body">服务端身份与业务授权</text><text x="436" y="313" class="node-body">后续独立进程</text></g><g class="node done" data-node="worker"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">已验收</text><text x="786" y="272" class="node-title">Worker 运行角色</text><text x="786" y="294" class="node-body">C2 容器隔离已验收</text><text x="786" y="313" class="node-body">仅 runtime secret / 只读资产</text></g><g class="node neutral" data-node="staging"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">上下文</text><text x="86" y="430" class="node-title">staging / derived</text><text x="86" y="452" class="node-body">临时工作 / 可重建派生缓存</text><text x="86" y="471" class="node-body">各自寿命，不冒充权威正文</text></g><g class="node done" data-node="pg"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">已验收</text><text x="436" y="430" class="node-title">内部 PostgreSQL</text><text x="436" y="452" class="node-body">postgres 独立持久卷</text><text x="436" y="471" class="node-body">业务事实与持久任务</text></g><g class="node done" data-node="assets"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">已验收</text><text x="786" y="430" class="node-title">assets 独立持久卷</text><text x="786" y="452" class="node-body">不可变原字节 / SHA-256</text><text x="786" y="471" class="node-body">当前为 filesystem 后端</text></g><g class="node next" data-node="backup"><rect x="420" y="544" width="294" height="100" rx="9"/><text x="436" y="564" class="state">实施中</text><text x="436" y="588" class="node-title">C4 备份协调器</text><text x="436" y="610" class="node-body">维护窗与一致性清单</text><text x="436" y="629" class="node-body">管理权限与运行角色分开</text></g><g class="node planned" data-node="remote"><rect x="770" y="544" width="294" height="100" rx="9"/><text x="786" y="564" class="state">待建设</text><text x="786" y="588" class="node-title">独立备份副本</text><text x="786" y="610" class="node-body">另一故障域 / 可校验保留集</text><text x="786" y="629" class="node-body">密钥另存；恢复到干净实例</text></g></svg></div><figcaption>目标部署与存储边界</figcaption></figure>
+<p>API、Worker 和管理工具可共用构建来源但采用不同运行职责与凭据。普通任务不能得到备份管理凭据。宿主 root/Docker daemon 是可信管理边界，不能把容器限制写成对宿主管理员的防护承诺。</p>
+<h3 id="deployment-heading-3">程序与运行数据分开</h3>
+<p>以下为目标目录职责，不是可复制执行的安装命令：</p>
+<pre><code class="language-text">application/     固定发布程序与前端静态产物
+postgres/        数据库专用持久卷
+assets/          不可变原件与业务登记对应的字节
+staging/         上传、导出和未完成尝试
+derived/         可重建预览、抽取和索引
+backups/         封存包及独立副本见证记录
+secrets/         与角色对应的私有凭据
+evidence/        隔离验收记录与哈希索引
+</code></pre>
+<p>开发源码、编译缓存和课程原件不混放为一个服务卷。Windows 当前源码与生成文档在 D 盘；后续部署位置应明确程序、镜像、数据库、原件和缓存各自落点，不能只检查源码目录。</p>
+<h3 id="deployment-heading-4">可观测性与验收</h3>
+<p>当前证据关注固定源码/包哈希、工具版本、项目/数据库/卷、命令退出码、测试计数、日志摘要和清理状态。root 私有结果与人机终端回传要记录来源，不能将回传摘要称为直接读取的私有日志。</p>
+<p>生产目标需补充 API 延迟与错误、连接池、作业排队/租约/尝试/失败、资产核验、备份年龄与独立副本、恢复演练、容量增长和升级状态。日志保存可追溯标识而不打印密码、完整 DSN、token 或锁随机值。</p>
+<p>Worker 租约使用数据库时钟；跨进程和运维审计仍需正确时间同步。服务器时间偏差及生产配置属于后续必须复核的门槛，不能以记录时间看起来合理推断已解决。</p>
+<h3 id="deployment-heading-5">发布、升级与回退</h3>
+<p>锁定依赖及构建来源，保留发布版本与迁移指纹；先在全新隔离项目运行适当旧版升级和故障门，再考虑生产变更。迁移追加，不修改已发布迁移字节。</p>
+<p>应用回退、内容修订回退与数据库恢复是三种不同操作。切回旧阅读版本不会逆向删除新修订；回退程序需要数据库兼容性；恢复必须使用完成其独立验收的备份和干净目标。</p>
+<h3 id="deployment-heading-6">保留与清理策略</h3>
+<p>优先处理可重编/可重建缓存，记录清理范围和前后占用。Docker 镜像与构建缓存有共享层，不能将显示大小简单相加。停机容器不一定无价值，引用它们的卷、构建来源和日志仍可能构成验收依据。</p>
+<p>旧隔离项目清理前先保存资源清单、源码和关键证据索引，明确当前验收所需的固定镜像及 C4 卷。只按已确认 ID/路径操作，不使用全服务器无范围 prune。权威原件要检查已提交引用、备份保留集及恢复所需字节。</p>
+<p>当前没有通用自动垃圾回收器。失败包和 C4 禁止复用卷的清理也不能变成重新认证或复用它们的手段。</p>
+<h3 id="deployment-heading-7">演进路线</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>交付边界</th>
+<th>当前状态</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P0-A、B1/B2</td>
+<td>块、固定组合、发布、个人阅读与位置</td>
+<td>已隔离验收</td>
+</tr>
+<tr>
+<td>P0-B3/B4</td>
+<td>关系、认识审查、谱系、授权图查询与影响分析</td>
+<td>已隔离验收</td>
+</tr>
+<tr>
+<td>P0-C1/C2/C3</td>
+<td>原件、持久任务、范围快照交换</td>
+<td>已隔离验收</td>
+</tr>
+<tr>
+<td>P0-C4</td>
+<td>完整备份、干净目标实际恢复与整关故障注入</td>
+<td>实施中；只读绑定专项通过</td>
+</tr>
+<tr>
+<td>P1-A</td>
+<td>身份、HTTP、连续阅读与内容编辑工作台</td>
+<td>待建设</td>
+</tr>
+<tr>
+<td>P1-B</td>
+<td>单元、计划、尝试、产物、验收、复习与首批资料</td>
+<td>待建设</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>批量升级、位置迁移处理、第二领域与规则推荐</td>
+<td>待建设</td>
+</tr>
+<tr>
+<td>P3 / 可选</td>
+<td>AI、解析、语义检索、S3 或 Neo4j 投影</td>
+<td>需求与实测支持后选择</td>
+</tr>
+</tbody></table></div>
+<p>文档中“P2 契约问题”表示问题优先级，不自动意味着路线的 P2 阶段才修复；影响生产边界的问题必须在相关生产验收前处理。</p>
+<h3 id="deployment-heading-8">扩展条件</h3>
+<p>Neo4j 只考虑可重建图投影，正文和授权权威仍在 PostgreSQL；出现真实深图瓶颈、查询表达维护收益和投影恢复证据后重新评估。S3/对象存储需证明私有交付、不可变字节、摘要核验和备份闭包不退化。</p>
+<p>新增领域优先通过块、单元、规则和路线包表达，不把某一课程 ID 写死到内核。增加解析器要登记输入版本、处理器版本、失败语义和限额；增加执行器则单独建立资源、权限及副作用边界。首版无需先引入 Redis、Kafka、Kubernetes、向量数据库或微服务拆分。</p>
+<p class="chapter-source"><a href="08-deployment-and-evolution.md">编辑本章 Markdown ↗</a></p></section>
+<section class="chapter" id="chapter-evidence" aria-label="09 决策记录与证据索引"><h2 id="evidence-heading-1">09 决策记录与证据索引</h2>
+<h3 id="evidence-heading-2">关键架构决策</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>决策</th>
+<th>理由与约束</th>
+<th>重评条件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ADR-01</td>
+<td>服务器个人工作空间</td>
+<td>跨设备访问同一权威服务；不是离线双写文件库</td>
+<td>明确离线编辑和冲突合并需求</td>
+</tr>
+<tr>
+<td>ADR-02</td>
+<td>模块化单体，API/Worker 分进程</td>
+<td>统一事务与契约，避免过早分布式复杂度</td>
+<td>实测独立扩缩与团队边界确有需要</td>
+</tr>
+<tr>
+<td>ADR-03</td>
+<td>Rust + PostgreSQL + 私有原件库</td>
+<td>Rust 执行业务边界，数据库管理结构化事实，文件保真</td>
+<td>保持数据与安全合同的迁移方案成熟</td>
+</tr>
+<tr>
+<td>ADR-04</td>
+<td>稳定身份与不可变修订分开</td>
+<td>旧知识、发布、笔记与依据可复现</td>
+<td>不以省存储理由静默覆盖历史</td>
+</tr>
+<tr>
+<td>ADR-05</td>
+<td>原文 + 个人插入层</td>
+<td>连续阅读并保持来源、位置与归属清晰</td>
+<td>多人实时共同编辑需要独立设计</td>
+</tr>
+<tr>
+<td>ADR-06</td>
+<td>PostgreSQL 首版承担关系查询</td>
+<td>正文、授权和关系共用权威事务；两场景合成基准作为选型参考，不代表真实产品容量</td>
+<td>真实数据与变更证明图投影收益</td>
+</tr>
+<tr>
+<td>ADR-07</td>
+<td>Neo4j 非首版常驻组件</td>
+<td>需额外维护同步、撤权、就绪与重建</td>
+<td>完整权限与投影恢复另验</td>
+</tr>
+<tr>
+<td>ADR-08</td>
+<td>outbox + 数据库租约 fencing</td>
+<td>持久重试、接管与结果收敛，不承诺只执行一次</td>
+<td>外部副作用增加时设计独立幂等合同</td>
+</tr>
+<tr>
+<td>ADR-09</td>
+<td>C3 范围交换与 C4 灾备分开</td>
+<td>范围包不保存全库身份、授权、可变 head 与所有资产</td>
+<td>不允许仅更名就升级为灾难恢复备份</td>
+</tr>
+<tr>
+<td>ADR-10</td>
+<td>独立见证后才 complete</td>
+<td>同机校验不抵御整机故障</td>
+<td>独立目标及受信构建完成实测</td>
+</tr>
+<tr>
+<td>ADR-11</td>
+<td>恢复绑定具体目标、会话与锁</td>
+<td>同 ID/OID 克隆不能代替精确端点</td>
+<td>实际导入子进程保持并另验这条链</td>
+</tr>
+<tr>
+<td>ADR-12</td>
+<td>AI 作为建议层</td>
+<td>关闭 AI 仍能学习；判断基于事实与条件</td>
+<td>任何执行/自动发布都先明确授权与回滚</td>
+</tr>
+</tbody></table></div>
+<p>这些编号是此次整理的文档索引，不是新的批准或功能变更。已有批准方向保持不变；实际导入与独立备份等待定合同仍需相应设计和验收。</p>
+<h3 id="evidence-heading-3">证据按阶段查阅</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>范围</th>
+<th>边界</th>
+<th>验证记录</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P0-A</td>
+<td><a href="../content-boundary.md">内容合同</a></td>
+<td><a href="../p0a-verification.md">A 验证</a></td>
+</tr>
+<tr>
+<td>P0-B1</td>
+<td><a href="../p0b1-boundary.md">组合发布</a></td>
+<td><a href="../p0b1-verification.md">B1 验证</a></td>
+</tr>
+<tr>
+<td>P0-B2</td>
+<td><a href="../p0b2-boundary.md">个人阅读</a></td>
+<td><a href="../p0b2-verification.md">B2 验证</a></td>
+</tr>
+<tr>
+<td>P0-B3</td>
+<td><a href="../p0b3-boundary.md">关系审查</a></td>
+<td><a href="../p0b3-verification.md">B3 验证</a></td>
+</tr>
+<tr>
+<td>P0-B4</td>
+<td><a href="../p0b4-boundary.md">影响查询</a></td>
+<td><a href="../p0b4-verification.md">B4 验证</a></td>
+</tr>
+<tr>
+<td>P0-C1</td>
+<td><a href="../p0c1-boundary.md">资产使用</a></td>
+<td><a href="../p0c1-verification.md">C1 验证</a></td>
+</tr>
+<tr>
+<td>P0-C2</td>
+<td><a href="../p0c2-boundary.md">持久任务</a></td>
+<td><a href="../p0c2-verification.md">C2 验证</a></td>
+</tr>
+<tr>
+<td>P0-C3</td>
+<td><a href="../p0c3-boundary.md">交换边界</a>、<a href="../p0c3-format.md">格式</a></td>
+<td><a href="../p0c3-verification.md">C3 验证</a></td>
+</tr>
+<tr>
+<td>P0-C4</td>
+<td><a href="../superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md">设计</a>、<a href="../superpowers/plans/2026-09-28-p0c4-backup-recovery.md">计划</a></td>
+<td><a href="../p0c4-verification.md">C4 验证</a></td>
+</tr>
+</tbody></table></div>
+<p>当前仓库在 C4 工作分支上承接前面阶段的代码与记录；历史工作树可保留作追溯，但理解当前架构不需要在多个分支拼装正文。</p>
+<h3 id="evidence-heading-4">最新只读子进程门</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>记录</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>源码</td>
+<td><code>273f106e7addfcbc8bad3d96f5ba4dd7b8ab30c2</code></td>
+</tr>
+<tr>
+<td>批次</td>
+<td><code>aa3feac4-45ab-4b48-a117-098d2e42b2fd</code></td>
+</tr>
+<tr>
+<td>状态</td>
+<td><code>CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE</code></td>
+</tr>
+<tr>
+<td>result SHA-256</td>
+<td><code>909cef1f72485398751a8b3065605d7c95ba2eccd55f35f9b237081ee08791c0</code></td>
+</tr>
+<tr>
+<td>证明</td>
+<td>首次只读证明、重启后 Session 拒绝、旧 guard 不可复用、精确停机留卷</td>
+</tr>
+<tr>
+<td>完整性</td>
+<td>源码前后相同、十个检查点各一次、执行与校验退出 0、PENDING_ABSENT</td>
+</tr>
+<tr>
+<td>证据来源</td>
+<td>用户 root 终端回传 JSON 与哈希；控制端复算结果摘要并独立检查 Docker 停机/留卷</td>
+</tr>
+<tr>
+<td>不覆盖</td>
+<td>实际导入、资产恢复、构建 pin、CompleteBackup、C4 整关及生产</td>
+</tr>
+</tbody></table></div>
+<p>这里只保存已脱敏的索引。私有原始日志、凭据、源码 ZIP、课程原件和服务器卷不进入 GitHub 源码交付。收到回传摘要不能声称已独立读取所有 root 私有日志；需要文件级证明时核对具体文件和来源。</p>
+<h3 id="evidence-heading-5">数据库实验的历史边界</h3>
+<p>早期 PostgreSQL/Neo4j 合成两场景基准支持首版技术顺序，但总合同为 NOT_PASSED：补充权限检查存在四项失败。后续 Rust 内核按正式权限合同完成对应阶段验收，不能反向改写旧实验为通过。</p>
+<p>实验不能证明所有图查询都更快，也不能将进程内数据库调用时间当作完整产品延迟。后续引入 Neo4j 时须重新验证权限、同步、就绪、乱序、撤权与重建。</p>
+<h3 id="evidence-heading-6">维护检查单</h3>
+<ol>
+<li>架构变更写清问题、决策、后果、兼容范围和重评条件。</li>
+<li>更新本章状态、负责章节与源码入口，避免只改路线图颜色。</li>
+<li>保存旧失败和新通过对应的源码、包、环境及证据，禁止覆盖为成功。</li>
+<li>实现完成、静态审查、单机专项、整关验收与生产部署分别标明。</li>
+<li>改动只涉及文档时校验链接、图源、渲染和事实；不因此无范围重跑破坏性数据库测试。</li>
+<li>Markdown 是架构正文来源，SVG/Mermaid 是图示来源，HTML 是可重建阅读产物。</li>
+</ol>
+<p class="chapter-source"><a href="09-decisions-and-evidence.md">编辑本章 Markdown ↗</a></p></section><footer>更新于 2026-09-30。最新受测 C4 源码 273f106；文档核对基线 031f80d。此文档不构成生产部署或实际恢复通过证明。<br><a href="#chapter-index">返回阅读入口 ↑</a> · <a href="README.md">架构 Markdown 索引</a></footer></main></div><script>
+const chapters=[...document.querySelectorAll('.chapter')];
+const input=document.querySelector('#search');const counter=document.querySelector('#counter');
+input.addEventListener('input',()=>{const q=input.value.trim().toLocaleLowerCase();let count=0;for(const section of chapters){section.hidden=q!==''&&!section.textContent.toLocaleLowerCase().includes(q);if(!section.hidden)count++;}counter.textContent=q?'匹配 '+count+' / '+chapters.length+' 章':'全部 '+chapters.length+' 章';document.querySelector('#empty').hidden=count!==0;});
+document.querySelector('#print').addEventListener('click',()=>window.print());
+document.querySelectorAll('nav a').forEach(a=>a.addEventListener('click',()=>{input.value='';input.dispatchEvent(new Event('input'));}));
+const observer=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+e.target.id));}},{rootMargin:'-10% 0px -65% 0px'});chapters.forEach(s=>observer.observe(s));
+</script></body></html>

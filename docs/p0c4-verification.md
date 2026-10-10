@@ -1,13 +1,357 @@
 # P0-C4 完整备份与干净恢复验证记录
 
+## 源尝试生命周期当前限定接受（2026-10-04）
+
+2026-10-04 源备份生命周期新 suite `943f3a4a-16a9-44ab-af07-257151349a7a` 的九个独立新批次及离线 aggregate 已通过，独立返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均为 0。实际执行 **17 个 PG body（16 lifecycle + 1 legacy）**，覆盖 **8 个唯一生命周期主用例 + 1 个 legacy**；命名测试入口 `source::lifecycle_tests::real_capture_all_ready_and_retained_pin` 执行 9 次（1 个 primary + 8 次 prelude）；该计数不统计各测试体内部的 prepare_source_backup/pg_dump 总调用次数。文件系统 36 次为 4 个唯一测试体重复 9 次，相关回归 171 次为 19 个唯一测试体重复 9 次；普通 Linux Python 468 通过/27 个具名 root 跳过、独立 root 27 通过/0 跳过分别计数。现场输入为 e43 基线的 475 文件 `working-tree-green` ZIP，后续发布不改变实际执行身份。
+
+接受证据必须同时携带 aggregate、独立返回审查（15272 bytes，SHA-256 `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09`）和 legacy 补充收据（1068 bytes，SHA-256 `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7`）及其六份原始文件。补充原始文件仅在私有证据中保留，不上传 Git；它们不在未改写的 aggregate/raw-index 中，不能声称冻结 aggregate validator 已自动检查这份补充。
+
+| 输入/接受身份 | 精确值 |
+| --- | --- |
+| suite UUID | `943f3a4a-16a9-44ab-af07-257151349a7a` |
+| base（非已提交执行版本） | `e43bb2cef380adda3bf9486005e58a175237d247` |
+| ZIP（1717827 bytes；475 文件 working-tree-green） | `85211a1fead1cd903b5ee269230b02ee6dbfc31ce2808ea31ec04aa5e4d0a466` |
+| manifest | `48aba66fef05f6f133aa6a7283651d5b2de0f30e30af9152a15797b2f7b34478` |
+| plan | `08195e2220cd4a2c3667ce3e43c348dea11634541e3c1aa88015f7f19bf09f55` |
+| GO | `0f9480c59fe4f9bd518efbae2c11fdf363ccb2b6eb24348175a309db00a663ce` |
+| aggregate（9681 bytes） | `e61470e9092cf9bca4134e6a872902039a60a0473fd395138647db4acc66f45a` |
+| producer（175495 bytes） | `b598d3103aefff436f0bc58e22219df94572e0ac29705990f846f25e4eb9819d` |
+| tests（113205 bytes） | `116ebd8d929f7d9fb870874a0a4b859c72e0cf63bf39fea31a51faff5ad29099` |
+| 实际返回审查（15272 bytes） | `7fea115d64204f5da0f453eb6a7f70aad7c9b94249b087e767bf8ef5a04d5a09` |
+| legacy 补充收据（1068 bytes） | `c3f95f8196a6deda0236c1cf19be558b43c865d606ad9a3a64d0bfe49ec419f7` |
+
+独立实际返回审查 Spec/Quality/ActualAcceptance 均 PASS，P0/P1/P2/P3 均 0。重新哈希 11044 份 selected raw、179 个 readback groups并独立重建 aggregate；715 个当前身份 token 与旧记录无碰撞，旧失败片段不贡献当前覆盖。完整接受对象包括另外六份 legacy 原始文件，不能仅凭 aggregate status 宣称其补充关联已自动核验。
+
+| 层 | 实际通过与唯一覆盖 |
+| --- | --- |
+| PG | 17 次 = 16 lifecycle + 1 legacy；8 unique lifecycle primary + 1 legacy primary |
+| 命名 real_capture_all_ready_and_retained_pin entry 执行 | 9 次 = 1 primary + 8 preludes；不统计内部 prepare/pg_dump 总调用次数 |
+| Linux FS | 36 次 = 4 unique bodies × 9 |
+| related | 171 次 = 19 unique bodies × 9；maintenance4+1/binding9/sealed5 |
+| ordinary Linux Python | 468 pass + 27 named root skips；九次 52+3 |
+| 独立 root Python | 27 pass / 0 skip；九次3 |
+| 历史 f506 Rust prerequisite | workspace --lib 211 pass/42 ignored（learning-backup 165 pass/41 ignored）、fmt/strict Clippy通过；不称当前ZIP重跑 |
+| Windows当前source driver | 55 discovered /49 pass/6 existing platform-root skips；不计PG |
+
+### 九个新 leaf 的结果与原始证据引用
+
+每个实际 PG/FS body 的精确 stdout 为 1 pass/0 fail/0 ignored；重复 prelude 执行与 unique primary coverage 分列。所有 principal 生命周期 entry 使用 `source::lifecycle_tests::` 前缀；legacy 为 `source::binding_tests::matching_bound_recovery_recloses_without_finishing`。每行的 result、verification、readback、raw-index 为该 scope 下的规范私有证据，SHA 值可用于交接校验，原始文件不进入 Git。
+
+| Scope | Stage UUID | Batch UUID | result SHA-256 | verification SHA-256 |
+| --- | --- | --- | --- | --- |
+| `real_capture_all_ready_and_retained_pin` | `e700dd8e-b6ff-4cd2-ba88-7fbb89bfaffd` | `bc06cb27-c23a-449f-88aa-edeb55624381` | `10e9f7665ebd93a6f5ffad6eb60ac23f3f3ddc5c70ad5026ecdf54b251acf74a` | `e966ece52ba0f127454782641783716fb11b2b8c84216686899133afdaf0bf4e` |
+| `finish_real_pin_after_sealed_rename` | `1c67c116-1e6c-4d08-9672-0d8f7a8e0191` | `56070e16-ede7-425e-879e-a83e04d100d3` | `7006c125f14e5f8330d18157203efd8437dd4935b9fe3a69c31b8e2bf5704eb9` | `5c6f43aee6af3f6ece89cfb7c6ce50401e8900d5c6f76700eb6105380fa51633` |
+| `finish_real_pin_from_pins_durable` | `908741d4-4f3b-4710-835c-11d684730632` | `714d1ecb-a0ed-4fa7-8757-2a45728556dc` | `905fdce3c1f5ac7b43d8588b311eedb5927afdea085d5650df30b1bf33da774e` | `30cf9d7d18a8296dd9d6d3bb4a7a2814e03c56356dba1bf1e227cbd965be808d` |
+| `finish_real_release_ready_before_and_after_grant` | `4723e5d6-415a-493f-8dcb-031a70e1041a` | `7f5ac35b-6e61-4afc-bb1d-07a88f3949e8` | `c6da564945a8f04c85030d9e7af1e551a3ae78b8ef24b0ff6ec064ff3a8164e7` | `78e8fee24e85cc76625dd5c9f5d4db7d50f22bfc1cc3f56138f60de4c06420ca` |
+| `abandon_early_and_late_attempts` | `80be683b-b1a9-4f6b-a65a-13142c849a03` | `a2b1e029-78d2-40e5-b094-d5ed44498510` | `f09efae40bec7f0fcc52b39ccb12bae184674e88bb10f8f04302637f13dd58ee` | `6a4fbb40ca14e595fad14a09f0b4d75cfc4cbac7e949ce69636d86cc3161e82b` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `d01e7f76-b137-447c-aee2-fe7598e7b38c` | `fc0ca034-f85a-475a-a261-ac99278fe789` | `892da53cbc3252e4f5a8abf335d69a31d3bb49fe4a4aed70672bd5450ef5bf1b` | `7207078444701d4ee0322fc6d456a7a4676ebd5b8c2b54acdf5bdafe3ff2d141` |
+| `lifecycle_release_failure_compensates_same_session` | `2095daf6-397f-47cb-903f-de7ba8c113d3` | `2a78e621-4353-484a-9149-81a1a8e46f7f` | `4ef1bcded43a30257c9cfc30569c5aeb41b76e8f5d88e63e52fb4686a33ced2e` | `f042a81a2bd63974cae5ed2fa975228072ab437bd4df92b0b45d1da5de46fdb1` |
+| `lifecycle_admission_and_held_roots` | `bec1346f-ba97-411b-a920-bba605ab1c40` | `a3fa27d2-180c-4958-91f0-d68dc1d852a2` | `6a0db9f2fe7620fdc592f62759957a5a5e6a2560d3ea52dd15793e9345e458b1` | `56357094c1b8b4a754d0c4a4f808911f75b3b89ff11b4c3ea91fc6f1035cc96f` |
+| `legacy-close` | `ad72284f-9366-4cf6-996c-adf3aafdc8c1` | `b06c2a28-8da7-44ca-9dbd-cd6664b52e71` | `2f1709b28575c1bbc7194c617e5e6fa58a916d26213cf54f40b8ff784117645b` | `d40491884306fb210f9c932f5dafe7d608756921960a635ae30fb6930e1d3e37` |
+
+| Scope | readback SHA-256 | raw-index SHA-256 |
+| --- | --- | --- |
+| `real_capture_all_ready_and_retained_pin` | `b9f44c6100d8d2e5825bb9e79138cc2cb8cca9e06b4aa732ec9d350a2c17e334` | `b36d1e25a2d2ec662862295c5e3065b09836586f811ddd6936d567e7cc8ac1b6` |
+| `finish_real_pin_after_sealed_rename` | `8e19019a3bf0a5c8de76475409e02efef0355c2f31950584d8a3c79fe49ac575` | `26c0dcdbbc0d550c605f728736efc2995562d5df29b26e9e5d6e8b9da10d9ec9` |
+| `finish_real_pin_from_pins_durable` | `a75f03cd3331a7cd3c7a8e46107e34f711ae28f73ba83e64234cffb6461566d8` | `239f752349142adaf79274f26c86fe741e90e3b5dacd1a97337825a143abf159` |
+| `finish_real_release_ready_before_and_after_grant` | `26936a428c6e8ff959098a0ec8809baeecbd8953d175097d1a665a68086d4943` | `b166414b934885ebb511459abeae6b05d59c9e66715ba91acacc3240976e6514` |
+| `abandon_early_and_late_attempts` | `ba28547732e2bfd0cb8f659f84c4d68350cd5dac4276fd041858a6f225b500ad` | `cf0706f8572b4d52331105789847b2b3bf007d8896a1b21a54c79c5b2e29b097` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `85dcd596147c48df8e23132a492d0befa77b9ca2d6932ee5b38304ea9bb890d0` | `e0a5a5586ae9173258a607e0f318f720d4ac5f365643d1116b9d9fd48219518f` |
+| `lifecycle_release_failure_compensates_same_session` | `39b4c313ae9ef61f527d44c8c7f508d5ec76871e6a2501ce07919971232804e0` | `032104cb2b783b7087cd39318e355c58dbdfcbcf5c6675a54ddcdf7d0dad123c` |
+| `lifecycle_admission_and_held_roots` | `598fe390fb12eccc17472df6a94bb4b74728638b10c94f2083bc931af22f06c1` | `96e540de085e2c9b901df7e7c005a70d2ccb14a1eb1c54209a93c98c71b071cf` |
+| `legacy-close` | `908cd7fc0fee1dc6e2b1bf3f09895cb0fde62e80195efeb501d8da9f7144503c` | `4ccf0466e831e6c197c4db083a15c0885082c3a26036280008009c808fd8d4f8` |
+
+### 每个实际 case 的独立 binary 与 binding
+
+十七个 binding 与 bound consumer test binary 各自不同。migration example 的 SHA 相同，但有十七份分别核验的 compile/materialization/final-audit occurrence，不据此推断身份复用。编译 source commit为上述base、build ID为共同ZIP摘要；绑定摘要各case独立。实际DEV/TEST profile为debug0、assertions/overflow checks开启、opt0、stripnone；materialized artifact保持单链接与128MiB上限。
+
+| Scope | Case UUID | Control binding SHA-256 | Consumer test binary SHA-256 |
+| --- | --- | --- | --- |
+| `real_capture_all_ready_and_retained_pin` | `35b03885-1314-4aaf-8a3b-54d2032eb27d` | `cc82344fdb1c5925f75b184cceb83501a46b0f7fa9691f25a28799be825cd767` | `4ed4446bb22d56549363030d4522abecd14784f8f7e3649483e0005ecabb44e9` |
+| `finish_real_pin_after_sealed_rename` | `6eb8e9b5-a08e-4b66-b751-05eaf35c886f` | `771f1e43ab7f9026a854a2749d9349d50ee657854128130f30efebba37342159` | `1272baa08c71a971c5ea1702fc2a6cffa3a4a9f0805f93ac1583389c46759a49` |
+| `finish_real_pin_after_sealed_rename` | `9235957d-1e9b-4b4a-91b0-f6b9cb0b6c8c` | `e9bf6c5fcec03f01dc77d0f5ea2327987d7064f989c6393a937a7284f50de1a6` | `6fede56bc755c88c2b30b460a3b1bf484b215e29d85dcdfa5a7eb1b353c1911f` |
+| `finish_real_pin_from_pins_durable` | `3ae1f5fa-7409-4b9a-a1dc-6bde972f3bb7` | `0373ca1c857c8e8ea8ca9474f153c7f12c68817ea161414420cd58780b8dea13` | `a5ffaa64035641b314f0f933f893e8c43dbb7c9a3fa4cf93c1ad1eb530fabf4f` |
+| `finish_real_pin_from_pins_durable` | `0cabdcd6-6577-4d76-b407-9f85816c3e69` | `183ec29ba70d5916c0154c9f38354eb9b5e6eeff5229da0deb36b9953975e8a5` | `a4dc819a1dfe3051319c0316cf76959446518908df7e92563085396b555bf721` |
+| `finish_real_release_ready_before_and_after_grant` | `29444231-976d-48fd-808b-2c4caa3cfca2` | `409856623ead33f3c0a4946e82608e8cbd743254acf34cf29aabad2060e8b871` | `ac8acfa0bf5d237cd0505b3a74a15e798d6a3693f9a32f392c407d7bc5c96885` |
+| `finish_real_release_ready_before_and_after_grant` | `7b0ade7a-e86e-4b8b-ba94-4e67f41a40cb` | `5de1416e9fa040dbbbc047b70e9d5a2d589d2ad9ac113f5817f0e4c7c6d8de71` | `076c11e8f3b9a1b37be6dcfd86da18080bbb0b422f9331b952958ef8556a26db` |
+| `abandon_early_and_late_attempts` | `3ad716d7-b205-4816-b79c-2da6f3a0739d` | `90813f8d4d88d41bc26adc47e72df44283087d9bfe75301490bdff27f83e4682` | `71cfc7ab3577f68c8f410c2b85d5732a78f26438a33c154a06c90db9cef8293d` |
+| `abandon_early_and_late_attempts` | `1fd4456c-1de5-4f09-90c1-d7e77f335bee` | `d04c2605c23b74a58c994ec37d6e9e9e1fa11af536088331d655ee3f63ffb11d` | `53e24c73d0ce3152b1bdc4aee1fb4b2279a72cecf75a3071dab8c0003a52bae4` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `146023c7-9192-441e-82f2-bbf0ee87c308` | `59403c9827a0f1886c6a2119d2f41acc211b985340182bbe366d85e9d851f074` | `827f772fc4644f7f5b1a63a676fd33e40792f9b5a39d15f15162a4e8c9268149` |
+| `abandon_crash_retry_and_terminal_ambiguity` | `732835de-6bc0-4b74-926c-ee92a301e6b3` | `f067493ed761056968737d8747eeccdf59010604b5a92739138c93f898a8cb94` | `c0adf12a7d18e467ee52f2c66d0ee367afc105c1ca02bc836db328a08a814c96` |
+| `lifecycle_release_failure_compensates_same_session` | `927268cb-02b2-4cdd-80f7-0a65aee21c0e` | `979bbdd07d152f2c30e64a4e629ad07098fd1257d7d134116118a548eb57a553` | `1344ec687bec1cb32a3b89ba06a9608d4b5072d205862db740c4d47bb34f6e42` |
+| `lifecycle_release_failure_compensates_same_session` | `9464f232-8cc6-446d-8303-3c524d0fe43f` | `2fc9065a42b1059238bc2c350ca65fb50ee52fd42397662be2ffb3c0a973926d` | `8f4f4ffd505892b97dd0d7b553a01152e59852f30f7697390413f94512c6ed0a` |
+| `lifecycle_admission_and_held_roots` | `163f6bd5-106d-4579-9979-a13f3662c534` | `51d4914068abe846e5a33a448812220af7c57db840e89fbabccd86906d025748` | `78c6362113b3a1f4f92bbc787ef278c9abf3153fb46edaf995329c21113bae8b` |
+| `lifecycle_admission_and_held_roots` | `48656360-7117-4e64-a657-5251e353e8aa` | `4b246d4db60db408b98102b3282ef181bd3665bdbf1b7493f8205cd697744c27` | `bb9744bbc134305f836ead22b703635381451a272e7a0fd221fd3793aa2ebd29` |
+| `legacy-close` | `ae44683a-5965-4688-abfe-f80a721dcc52` | `5d558615c61de3fda686fa95f8cd1096dae45efadda991ccb01afd80ec1ab94b` | `7d67e005bd8f347267d4ed26c82d9b43c3213e1476fa0e8e6432fdf42b5c0124` |
+| `legacy-close` | `5ccbd878-414d-4fb0-a92a-b2c3f8098e98` | `f1b0b78b809ca6b563f784bd2d0838716d294188ae224c2af2f78bc9957cced1` | `11c2bab3a6573f380526e67f121337472b69927be1dbd0ced547c65d3e6df976` |
+
+十七份 migration binary 的共同字节 SHA-256 为 `400b5a04def5df099c7b80cd7cde3e4b7d159552c9fb79dc497e57fcd3904fff`。每case独立十五个migration SHA384 rows、before/after tool observations、source/binary/control-root/final-volume audits及其原始RPC关联均通过。fresh UID999 sampler、UID0 held anchor与running PG前后guards/generation/denial/drain形成实际证据链；same digest不能替代same-case occurrence证明。
+
+### Legacy 补充证据与信任边界
+
+legacy case `5ccbd878-414d-4fb0-a92a-b2c3f8098e98` 的root0 holderPID235、consumerPID242与UID999 PG backendPID241按实际进程记录关联。backend environment area仅保存opaque digest `ef9c5466f273794de4012a582cd38b5a40da7e484c6cf4c29c6044de8aa55826`，不声明环境key/策略/内容或稳定性。补充holder stdout为`RENDEZVOUS 241 true`、process exit0；随后同holder COMMIT/quit结束，RPC0512返回0（backend absence）、exit0，且holder finish < absence < tools-after。原legacy result与readback保持上述2f1709b2/908cd7fc全hash，不重放、不重写。
+
+| 补充原始文件 | bytes | SHA-256 |
+| --- | ---: | --- |
+| `0512.process.json` | 63 | `7d636e22315d62d1988cf89164af916ee528a417bfbb23e32cbbed603f672f59` |
+| `0512.stderr` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `0512.stdout` | 2 | `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa` |
+| `child-a73dffe1fd5f441985cfe282a95d2228.process.json` | 64 | `014ad59110d5563288ef063b332ba1f9a51066230a7c1f3269b69d0766655d6d` |
+| `child-a73dffe1fd5f441985cfe282a95d2228.stderr` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `child-a73dffe1fd5f441985cfe282a95d2228.stdout` | 20 | `7f984452f68607d26ec52d66ee22ba4fc1175fa1d5d3dc15ede2be969feee76c` |
+
+这六份共149 bytes的原始内容通过原inventory pins核验，单独随review+receipt交接，不在冻结aggregate/raw-index selected closure中。opaque digest只证明本次actual read关联；producer数据流/holder对象关联仍处于既有可信fixture边界，不是对恶意host owner的认证。legacy恢复门本身为close-only/SYNTHETIC前序/NO_DUMP，不能把该leaf真实capture prelude反向写成legacy重采集。
+
+### 现场保留、故障分类与未完成门
+
+已核对17个PG停止（exactID、Runningfalse/PID0/ExecIDs空）、17个内部空网络和51个named volumes保留、226个producer helpers及9个root-unit helpers移除、pending absent、source unchanged及全部17final-volume audits；这是回传时的endpoint观察，不承诺未来远端状态。总actual inventories为20216files/52632286bytes，selected raw为11044files/38063982bytes；singleleaf最大3155/8192files、result329872/2MiB、ledger163059/1MiB。364 namespace audits/74generations均真实；最大case85/256、batch92/512、generation13/16，限制未提高。CLI总961.752s，共享clock窗口1427.844s在78000s内；review本地重建10.344s在单180s内，这不是最大容量性能保证或rootaggregate时长重测。
+
+旧e1单批六body通过后NAMESPACE_LOG_CAPACITY失败；旧3fa九leaf最后legacy因LEGACY_PROCESS_JOIN失败，旧d9aa因LEGACY_BACKEND_IDENTITY失败；早期AST alias/CopyBinary nlink2/stop-warning/auxiliary startup parser等失败按各自阶段保留，所有旧失败suite供零fragmentcredit。source/core8/API/迁移不因fixture修补改变；sealed辅助startup贡献0pass，生命周期TaskAbort/Tokio cancellation/故障hook不写成SIGKILL或掉电。真实capture/all-ready/index/原件核验已跑；nonready INSERT23514拒绝不是持久nonready行排除证明，pg_restore--list仅TOC，不是恢复。
+
+父 C4 Task3 三个框、Task4/5、资产/local-pin 持久 enrollment 与 GC 保护发现、独立故障域、CompleteBackup、完整恢复、C4 与生产继续开放；完整工作区 DB 与四套旧版本升级未在本切片运行。源端同身份物理克隆端点仍待验，与此前已接受的恢复目标 clone 门分别记录。 同字节替代pinroot仍可能被runtime-held/content校验接受；当前pin不是跨重启持久身份注册或GC自动保护发现。操作语义和原lifecycle-capable binary/source/build/control-binding留存条件见[runbook](p0c4-source-attempt-lifecycle.md)。
+
+生命周期源码已正常发布至 `feat/p0c4-backup-recovery`：[源码提交 `e51ff31c96b446f9b25c854d43c769182b663fe1`](https://github.com/MansurnamedZhang/learning-system-p0c4/commit/e51ff31c96b446f9b25c854d43c769182b663fe1)，tree `c98b730e51926596fe5ac21ac2fffbb00cea92c0`、唯一 parent `e43bb2cef380adda3bf9486005e58a175237d247`。独立 GitHub ref/commit/tree 核验回执 `publication-source-remote-verification.json` 为479 bytes、SHA-256 `e6f3cd2326073010c0c65dc8b30d4ce41aa887404608deaf3823360f667c02e3`；`refs/heads/feat/p0c4-backup-recovery` 与该 commit 一致，477个blob的路径/mode/OID与本地匹配，truncated=false。现场执行仍为e43基线的475文件working-tree-green ZIP `85211a1fead1cd903b5ee269230b02ee6dbfc31ce2808ea31ec04aa5e4d0a466`，不反向写成该发布commit运行。当前后续修改仅为该源码发布的记账，不增加验收范围，不改变原证据，不关闭父Task3/C4；本段只记录上述已核验的源码发布，不自引用本段所在的记账提交。
+
+独立限定文档修补复审 Spec/Quality PASS、P0/P1/P2/P3均0（4028 bytes，SHA-256 `01a9b0d7b892cad05941610186d08512779c27fad9fc2896e8b50dc7fde437b2`）；最终整源码复审 Spec/Quality PASS、Critical/Important/Minor均0（10584 bytes，SHA-256 `2357d8e2b279d8dbc7273e14a9507d71b968b8c8d073e20725d3099bfa5b21fc`）。其后的实际源码push与远端readback使用上列独立回执，不把审查readiness当作发布证明。
+
+root最终路线图静态QA已完成：14/14输出两次hash一致、精确6 SVG及56 HTML链接核对通过，回执 `roadmap-static-qa-source-publication.json` 为2120 bytes、SHA-256 `d319a0da6b979141430a6d543991b65f463530a9544dc502c27c4d1345c0d397`。浏览器file协议被策略拒绝，浏览器渲染和交互**未验证**；该项只有static完成与browser结论分列，不代表browser PASS。
+
+
+## 父 Task3 历史绑定状态（2026-10-04）：四门已限定接受，父任务开放
+
+新 `27bdfd1d-3372-47d7-949b-e6c9a3bce162` 的四个精确 Linux/PG18 绑定门实际 **4/4**，各 exit 0、1 通过/0 失败/0 忽略；第二门内的真实 prepared-work 公共捕获拒绝属于该门。另有两项 live admission 回归各通过一次，单独计数。控制端已核对实际结果、root/RW `/target` 文件系统测试体、三次 pin/binary audit、source 不变、四精确 PG 停止/留卷/内部空网、helpers 移除与 pending 不存在；独立限定返回审查 Spec/Quality/Acceptance PASS，新增发现 0；该绑定切片的文档复审及正常 feature 分支发布已完成，既有 e3afb commit/tree/parent 收据见[源控制根绑定](p0c4-source-control-binding.md)；实际执行仍为原 a56 working-tree-green ZIP。
+
+输入为 base `a56ab16dfd8f8f8c7f1c83b1f3ca40f2506ff934` 的未提交 working-tree-green，469 个 public source 文件；ZIP SHA-256 `95e6c48702dd3557ce7beaa1e3427779e5944315922820ec5071d48ceae8ceae`，canonical result SHA-256 `28a1f798b49e4dbc80cce9f92e46374653a3b1fe9b45d0ad720083f3b4e4156f`。五个 Rust review pins、四个独立构建 binding/binary pins、实际名称与边界见[源控制根持久绑定](p0c4-source-control-binding.md)。原根路径/dev/inode 与同 admitted 会话的库名/OID/system identifier 绑定在单可信容器命名空间；只有独立 build pin，无 runtime expected pin 或自动 enrollment。物理克隆端点、asset/local-pin 身份与一般 finish/abandon 分别跟踪。
+
+本批 Linux 库 **158 通过/30 忽略**，四个 Linux 文件系统测试体实际执行；维护 contract **4 通过**、journal **1 通过**；格式/严格 Clippy exit 0。Windows whole-workspace `--lib` **185 通过**与免环境集成合同 **28 通过**分开记录；早先 full package 在 `catalog_pg` 缺少专用数据库名环境而失败（exit 1），不得改写成完整 package/DB/升级通过。Python 全 scripts **331 总数/324 通过/7 平台跳过**，进程内精确 worktree Git trust 后 exit 0，不是 PG 证据。
+
+首 `41f658ea` Clippy infra 失败与新 `b2a63c86` 实际 ACL-preservation RED 均保留；后者 exit 101、0 通过/1 失败/0 忽略，旧 backend 消失且 lock free 时 CONNECT true→false，result SHA-256 `6f1557ddc242d52d3011c2f244d43296a666a91668ba56659c937370a92bdd5b`。当前四门 NO_DUMP、前序日志摘要 SYNTHETIC，未运行完整 source capture、full dump 或 restore；legacy full-capture/drain/release drivers 显式延后到独立 issuer/build 更新后。旧五门 5/5 与 c9f 三门 3/3 各属历史源码，不与本候选四门和两项回归累计。父 Task3 三复选框、Task4/5、CompleteBackup、C4/生产均开放，独立存储故障域延后。
+
+## 父 Task3 历史状态（2026-10-03）：live source admission 实际五门已接受 5/5，父任务开放
+
+新批次 `06a0882f-5c7a-4fa5-ab86-252ece7732fa` 实际通过 **5/5** 个精确 PG18 准入门，状态 `FIVE_ADMISSION_GATES_PASSED_NOT_FULL_BACKUP_NOT_RESTORE`。输入是基于 `0adab2e340c0980c120364a1214ebb53277e4405` 的未提交 `working-tree-green` 冻结快照。该次测试运行时尚未产生本修订提交，base 仅表示测试包基线；本次接受绑定 ZIP 和五个 Rust 原始字节 pins。控制端已读真实规范结果、五份精确日志并独立核对本批资源；独立限定返回审查 Spec/Quality/返回接受均 Approved，Critical/Important/Minor 均为 0，只接受本切片五门 5/5，审查报告 SHA-256 为 `a917823c88cb7a265f247da92c3b4146ad314fb7f8b0254e2587f031d531671e`。返回审查从本地证据重建规范 result、核对全 ZIP/manifest/source aggregate，不冒充审查员直接读取远端。机制与冻结 Rust pins 见[源端维护准入](p0c4-source-admission.md)。
+
+| 运行输入或输出 | SHA-256 |
+| --- | --- |
+| ZIP | `90086c9413d2d4d46bba689267ad6ad3a6aa67a5ea5e2c334e18115f656c543f` |
+| manifest | `e7f642b7717e8c1227d639bd0e4d2b48876f0def0522c7a3055a98b5a8c65926` |
+| driver | `86c59ad4f29eb35ce2cbf6af3fec50fabe981a56a27bfbf157279ba389fe2920` |
+| 规范 result | `98b0883bef44abe10259006e34b5481e322fac38511421b35c37d56afd74cd98` |
+| 实际测试二进制 | `7c6cff0b68a3db71acb7e76c302027a424c46952edc43c11c565a4f731e3bed3` |
+| 运行输入源码，前后相同 | `b87289f3be941373ba6626a04f16879debd1766209eb0dcfb697baa5488656cc` |
+
+下列五项均在 `source::admission_tests`，**各 exit 0、1 通过、0 失败、0 忽略、stderr 0 字节**；每项使用一个新隔离 PG18 项目/卷/私有根。
+
+| 精确测试 | 本批实际行为 |
+| --- | --- |
+| `busy_source_recovery_preserves_acl_and_journal` | busy recovery 保留 ACL、日志字节与目录项，无新恢复文件。 |
+| `same_database_attempts_share_admission_and_other_database_is_independent` | 不同 attempt/root 同库互斥，其他库独立；owner close 后可再准入。 |
+| `single_connection_catalog_and_drain_share_admitted_backend` | max=1/min=1 的 catalog/排空同 PID，零自增会话；真实额外事务仍计数并拒绝。 |
+| `dropping_admission_closes_backend_without_reopening_gate` | Drop 使旧 backend 消失，ACL 仍闭闸，未完成日志与固定根拒绝保留。 |
+| `release_and_compensation_keep_admission_until_owner_closes` | release 与补偿都持有准入至 owner close；前序摘要为 SYNTHETIC。 |
+
+Linux 固定离线 builder 已完成格式、严格 `learning-backup --all-targets` Clippy 和 cfg 编译，builder exit 0；库 **149 通过/0 失败/26 忽略**、maintenance_contract **4 通过/0 失败/0 忽略**、maintenance_journal **1 通过/0 失败/0 忽略**。构建/普通测试不增加实际 PG 门数。源码与二进制已按冻结输入核验不变，builder 已移除，五个本批精确 PG ID 全部停止，卷及内部空网保留，pending 不存在。运行身份为普通 hans，使用自己拥有的新私有夹具，不是直接读取宿主 root 私有旧证据；测试根权限不证明生产固定根可信。
+
+五门没有调用 `pg_dump`；public prepare 的完整持有调用链来自静态审查，本轮没有执行 dump/seal/pin 全流程。下列 c9f 3/3 为旧提交 `07eaf416` 的历史专项，旧测试适配经静态审查未发现需要追加定向回归的实质问题，但原三门没有在本候选重跑，不能相加成新版本 8/8。父 Task3 尚缺可信固定 source control-root 持久身份 pin、跨根崩溃后的持久绑定、广义 finish/abandon 恢复，以及真实 dump/全部 ready assets/index/保留保护/独立目标全量校验/完成收据组合验收。独立故障域按用户安排延后；Task3 三项复选框、Task4/5、完整备份/恢复、`CompleteBackup`、C4 与生产均保持开放。
+
+## 历史专项（2026-10-03）：维护聚焦门已接受 3/3，父任务开放
+
+新批次 `c9f1cdaf-de98-4f69-96a1-0c6a479fc7cb` 在提交 `07eaf416af795cbad309bf5436b27c2289e6a06c` 的冻结源码上实际通过三个精确 Linux/PG18 用例：各 1 通过、0 失败、0 忽略，main 退出 0。状态 `MAINTENANCE_FOCUSED_GATES_PASSED_NOT_FULL_BACKUP_NOT_RESTORE` 只接受这三个聚焦门，不关闭父 Task3 或整个 C4。
+
+| 精确聚焦门 | 本批实际结果与边界 |
+| --- | --- |
+| 当前库预备事务 | 原连接关闭后预备事务仍存在；预检在 ACL 和维护日志修改前拒绝，控制根/pin 根不变。 |
+| 其他库预备事务 | 另一库持有预备事务不误阻塞为空的当前库；持有事务的另一库仍拒绝。 |
+| 释放日志失败 | 补偿 REVOKE 与显式重新关闸通过；前序摘要为 SYNTHETIC 合成摘要，不是真实 dump/封存证据。 |
+
+控制器独立规范化用户粘贴的完整 root JSON，SHA-256 `698eebc766e6aa137f7622111c456422f23d451ad8eee48a00f89275e216fc71`，并核对输入 pins、源码提交及运行前后摘要一致；没有直接读取 root 私有原始结果。普通 hans SSH 的另一份独立只读资源观察确认三个精确 PG 容器停止、卷及内部空网络保留、构建器移除，观察 SHA-256 `e9782ac6991a88d6df612ee3b59509b7dc980ed3116b103fc65931ad9af31530`；没有重跑用例或修改资源。
+
+独立限定返回审查为 `PASS_THREE_FOCUSED_PG_GATES_ONLY`，Spec/Quality Approved，Critical/Important/Minor 均为 0；本专项已接受 3/3。本三项只核验容器内 `pg_dump` 路径/版本，**没有执行 pg_dump**。父 Task3 的跨尝试统一维护准入锁、广义中断完成/放弃恢复、真实源端封存到独立目标的组合校验和完成收据仍待验收，计划三项复选框均未勾选。用户已将独立存储故障域延后，继续代码/单机隔离工作；Task4/5 保持待后续验收。完整备份、完整恢复、`CompleteBackup`、C4 与生产均未验收。详见[维护闸补充验证](p0c4-maintenance-gates.md)；下文旧 0/3 是各交接/修复阶段的历史快照，不代表当前本专项。
+
+## 受控导入 Task6 已接受状态（2026-10-03）：最终回归 3/3
+
+固定合成 fixture 的累计现场场景 11/11 已接受；当前 17153d8 源码实际 7/11，历史四项保留 5619026 来源并经差异复审携带。新 dda83916 批次集成回归 37 通过 / 2 忽略、文档测试 exit0（0 可执行用例）、工作区严格 Clippy exit0，三门全部接受，not_run=[]。
+
+完整返回、publisher 哈希重建、逐目标名称/源码/二进制摘要和独立精确 Docker 停机/留卷/清理已核对。限定 Task6 已完成验收与正常分支同步；完整恢复、P0-C4 整关和 CompleteBackup 未验收。当前状态与证据范围见[Task6 验收汇总](p0c4-controlled-import-task6-final.md)。
+
+以下为历史实施与交接记录；旧交接命令已执行或作废，不再运行，旧失败证据保留。
+
+## Task6 最后三道回归入口已交接（待运行）
+
+受控合成导入累计 **11/11**，当前封存提交17153d8实际 **7/11**，四项历史来源经差异审查携带。最后三道回归入口已独立复审并上传，但现场新增通过数仍 **0/3**；Task6保持未关闭。本轮运行指定集成目标、文档测试和工作区严格Clippy，首错停止，结束精确ID停机留证。运行命令与交接回执见最终回归交接（本地私有记录，未纳入仓库）。C4完整恢复、CompleteBackup和生产尚未验收。
+
+
+## 当前状态（2026-10-02）
+
+**Task6 固定合成 fixture 的现场场景清单累计已接受 11/11：1 项正例与 10 项负例。整计划最终复审和必要回归仍待收口。** 历史四项来自 `5619026`；当前源码 `17153d8` 实际通过 7/11，不能称最终修订同源 11 项重跑通过，也不能换算整个项目完成百分比。
+
+| 门 | 当前结果 |
+| --- | --- |
+| 当前 Linux 前置 | `1df95b63`：格式、严格 Clippy、编译、库测试 146 通过／19 忽略、journal 1 通过；不增加现场场景计数。 |
+| 历史四项 | success、READY 真 EOF、PRECOMMIT 真 EOF、提交前取消已接受；保留 `5619026` 原收据。 |
+| 当前修订七项 | DDL 前重启，以及 SQL 错误、COPY 截断、attempt 同步失败、commit-intent 同步失败、提交结果未知、错误端点均已实际接受。 |
+| 最新六项回传 | 六个精确测试及 main 均退出 0；总 `REMAINING_SIX_RUN_EXIT=0`。检查点数量分别为 11／12／12／13／14／13，结果 canonical SHA 与回传一致。 |
+| 提交结果未知 | `CommitUnknown`，已尝试 COMMIT，未确认回滚且禁止重试；该负例通过不代表导入成功。 |
+| 独立接受 | Spec／Quality Approved，C0／I0／M0；控制者读取完整报告并重验 26 个输入 pin，新增登记 6 项。 |
+| 独立停机核对 | 13 个精确 PG 容器 ID 均停止，固定镜像／项目／挂载卷匹配且卷保留；12 个 builder ID 已消失。 |
+| 下一道门 | Task6 整计划最终独立复审、历史四项对最终源码的覆盖适用性、必要定向及 package/workspace 回归。专项场景累计 11/11 本身不能关闭计划。 |
+| 验收边界 | C4 整关、完整恢复与独立备份目标仍未验收；CompleteBackup 未签发。 |
+
+本轮六项运行单已执行并关闭，禁止重跑其批次或历史失败批次。原封存交接保持创建时的未运行快照；实际执行与接受另存于 remaining-six-accepted-record.json（本地私有记录，未纳入仓库），SHA-256 `4a6ef39da32d49f494efcfb408a533512a4c80a75ff704bff7e9394e9b7c2bd5`。返回审查 seal SHA-256 `ae0098d01e91782955c64dc6e6868c1ddcc454c6e5164aef1521c2b8fd1b7ebb`；控制者只读 Docker 证明 SHA-256 `4ef2d64a259d0ff9d9ea1909a7b422e447081440f75d156a09ffa11f0e44d5c0`。
+
+控制者核对用户完整返回及普通用户 Docker 元数据，没有直接读取 root 私有原始日志、工件、marker 或 fsync 状态；这些由封存并审查的原操作器及严格 runner 承载。未重跑用例、未放宽现场谓词，旧失败结果及未用预约全部保留。
+
+## 历史实施与验证记录
+
+### 2026-10-02：剩余六项交接时的历史状态（六项命令现已执行，禁止重跑）
+
+**Task6 固定合成 fixture 的实际验收累计为 5/11：1 项导入正例和 4 项负例已接受，剩余 6 项未运行。** 这是专项验收进度，不代表整个项目完成百分比。累计前四项来自 `5619026`；当前源码 `17153d8` 已实际验证 `ready-restart` 一项，不能把历史四项写成当前源码重新执行通过。
+
+| 门 | 当前结果 |
+| --- | --- |
+| 当前 Linux 前置 `1df95b63` | 源码 `17153d8`：格式、严格 Clippy、编译、库测试 146 通过／19 忽略、journal 1 通过。前置门不计入 11 项实际验收。 |
+| 已接受的历史四项 | 导入正例 `94b411de`；READY 真 EOF `5ce4c404`；PRECOMMIT 真 EOF `c679e11d`；提交前取消 `b2c7b953`。原收据保留，不重跑、不改写。 |
+| DDL 前重启 `431b411b` | 全新源目标批次实际通过，精确测试及本机 wrapper 退出 0；Identity 拒绝、全部 12 个原检查点、无 COMMIT、attempt／intent 均不存在；旧 guard 拒绝及精确停机门满足。 |
+| 原重启失败 `7f2ed357` | 历史失败及诊断证据保留；旧批次禁止重跑。本轮成功不反向改写旧结果，也不单凭本轮成功断言旧失败的全部根因。 |
+| 独立返回审查 | Spec／Quality Approved，C0／I0／M0。控制者重新核对报告、seal 及 21 个输入 pin，新增登记 1 项。 |
+| 停机与证据 | 原 canonical result SHA 与用户完整返回一致；普通用户 Docker 元数据独立核对源目标精确 ID 均停止、固定镜像／项目／卷匹配、卷保留，两个 builder ID 消失。 |
+| 后续六项 | SQL 错误、COPY 截断、attempt 同步失败、commit-intent 同步失败、提交结果未知、错误端点。均为 NOT_RUN；新资源预约已只读预检，适配的 16 项本地检查及独立 runtime/staging 审查通过（C0／I0／M0）；两份封存文件已上传，各完成两次字节／哈希读回。等待用户本机 sudo 运行。最后一项独占第三个克隆项目。 |
+| 验收边界 | C4 整关、完整恢复及独立备份目标均未验收；CompleteBackup 未签发。 |
+
+本轮 `READY_RESTART_RUN_EXIT=0`。原先已执行的重启运行命令和十负例命令均禁止再运行；后续六项必须使用新控制 UUID、新源目标项目、新 PG18 卷与新子网，并按首个失败即停规则执行。
+
+登记文件 ready-restart-accepted-record.json（本地私有记录，未纳入仓库），SHA-256 `e99d518b12430b856fd0f1a438b1cdc72cd4edef1c3731eee120453e14f89e32`；B result SHA-256 `6717beb481f8bec5163e98d0819ffa80887448c96c8e6c24d090052b2a140b7f`；A result SHA-256 `3c07639ce1de10186424657b43ad0574c1fa2ebffc9f481b6bb99d99aeb5ca01`。返回审查 seal SHA-256 `65dc16f585252ac8fc029f09a5570560c21831ad8552b849a1d2f6bf652dced7`；控制者只读 Docker 证明 SHA-256 `53ba58309e7a5f0d03b091ec35d492f8a1b86ad9f5f4aaaeb3f693dc030863db`。
+
+控制者核对用户完整返回和普通用户 Docker 元数据，没有直接读取 root 私有原始结果、stdout／stderr、marker、工件或文件系统持久化状态。A 原始严格／列举／库／journal 日志与源码、二进制由已审查的 root 操作器在唯一 B 调用前复验；B 原始精确测试及完整严格解析由封存 runner 执行。控制者和返回审查员仅对返回数据作纯验证，没有重跑实际用例。历史 uploader 首行“三文件”注释问题（实际两文件白名单）仍作为既有 M1 保留到最终分支审查；现场谓词未放宽。
+
+剩余六项可使用 剩余六项运行单（本地私有记录，未纳入仓库） 的单行入口。交接 SHA-256 `5d42a9fd2f2a6452a0baa4988466f8562350d3ff07aadb25a25a63cca19b27a3`；runtime review seal SHA-256 `3fec70d6a8cd50d61814e1f144ef0b8e0c755462b44430f34498de0b47b9e4be`。上传本身未增加实际通过数，root 现场门仍未执行。
+
+### 2026-10-02：重启修补交接时的历史状态（当前命令已执行，禁止重跑）
+
+**固定合成 fixture 的实际验收为 4/11：1 项导入正例和 3 项负例通过；DDL 前重启负例正式失败，余下 6 项未运行。** 这是 Task6 单机专项进度，不能换算为整个项目的完成百分比。
+
+| 门 | 当前结果 |
+| --- | --- |
+| Linux 前置 `86dae3be`（历史） | 源码 `5619026`：格式、严格 Clippy、编译、库测试 140 通过／19 忽略、journal 1 通过；保留既有收据，不作为新源码 `17153d8` 的前置证明。 |
+| 新源码与前置 `1df95b63` | 窄修补提交 `17153d8` 已独立审查通过（C0／I0／M0）；本地六项回归和 Windows 库测试 136 通过、格式／严格 Clippy 退出 0。新 Linux 前置与真实重启负例均待运行。 |
+| 导入正例 `94b411de` | 已接受。真实 dump 解码、同 writer 准入、attempt／intent 持久屏障、唯一 COMMIT、表／两行／主键／摘要读回通过。 |
+| 新负例通过 | READY 真 EOF `5ce4c404`、PRECOMMIT 真 EOF `c679e11d`、提交前取消 `b2c7b953`。各精确测试与原 main 均退出 0，12／14／15 项检查点、无提交／零对象／marker 谓词完整。 |
+| DDL 前重启 `7f2ed357` | 正式失败不改写。固定只读诊断确认仅检查点集合不满足：缺少 `RESTART_BEFORE_DDL`、`OLD_GUARD_REJECTED`、`DDL_NOT_SENT`，其余 15 个谓词匹配；诊断退出 1，不增加通过数。 |
+| 停机与证据 | 四份 canonical result SHA 与用户返回一致；独立返回审查新增 C0／I0／M0。控制者普通用户只读核对 8 个精确 PG 容器已停止、固定镜像／项目／卷匹配、8 卷保留、8 个 builder ID 消失。 |
+| 后续 | 新 Git 原样源码包和新运行单已独立审查、上传并逐文件读回核验 2 次。一次本机 sudo 先运行新 Linux 格式／Clippy／编译／库测试／journal，再在全新源目标项目验证 `ready-restart`；旧失败批次不重跑，后续六项仍 NOT_RUN。见 READY 重启新批次运行单（本地私有记录，未纳入仓库）。 |
+| 验收边界 | C4 整关、完整恢复及独立备份目标均未验收；CompleteBackup 未签发。 |
+
+顺序操作器按首个失败即停规则结束，`NEGATIVE_SEQUENCE_RUN_EXIT=1`。原四批源库／目标库、卷及证据保留隔离；既有交接与旧失败记录不改写、不重放。此前十项运行命令已经执行，不能再运行同一命令。未运行的六项不能用编译／列举／静态检查代替真实验收。
+
+新登记记录 `real-import-negative-sequence-accepted-record.json` SHA-256 `9a2ae590f8d9ec88d2226524d42e68cdc9ef00ef07a54506e8bdd5726e508f97`；只读 Docker 证明 SHA-256 `f2b548eccd0b9eb9d6fef04e50970824a11f4054d09eac83c610118ead543a06`；返回独立 seal SHA-256 `efb919945446918de833f56304e95f2c333e277a4de16d81ba79b5bad59472b3`。失败 result SHA-256 `d9e6550f171ec6a2738edf89690fb4a875b7cf2d5d58130e6e7161b0ce912bba`。
+
+控制者核对来自用户终端的四份完整返回和已授权的普通用户 Docker 元数据，没有直接读取 root 私有结果、日志、出生记录、marker 或工件原文。A86 原始证据由现场操作器复验，不能把控制者未读的私有事实写成直接观察。沿用既有 M1 uploader 首行“三文件”注释问题（实际白名单为两文件），留到最终分支审查；没有放宽任何现场验收条件。
+
+### 2026-10-02：十负例交接时的历史状态（尚未运行，命令现已执行，禁止重跑）
+
+**固定 fixture 导入正例已通过，实际验收为 1/11；其余 10 项负例尚未运行。** 候选源码 `5619026` 的真实 Linux 前置门为库测试 **140 通过／19 忽略**、journal 专项 **1 通过**。`SOURCE_PIN_RUN_EXIT=0`。
+
+| 门 | 当前结果 |
+| --- | --- |
+| Linux 前置 `86dae3be` | 格式、严格 Clippy、编译及真实库／journal 通过；pending 不存在。结果 SHA-256 `68e9cf5e11dfeb46d7ff4c302a0d365d327a1fc00a757d53b8576566cd5ccb8c`。 |
+| 实际正例 `94b411de` | 精确 `live_controlled_import_commits_fixture` 退出 0；真 dump 解码、同 writer 准入、attempt／intent 持久屏障、唯一 COMMIT、表／两行／主键／摘要读回均通过。 |
+| 证据复核 | 独立规格／质量审查 PASS、0 阻塞／0 重要／0 次要；B 完整返回按真实生产者合同重算 result SHA 吻合。控制者只读核对两精确 PG 容器已停止、卷保留及两 builder ID 不在。 |
+| 下一门 | READY／PRECOMMIT 真 EOF、取消、DDL 前重启、SQL／COPY 故障、两项 journal 同步故障、提交未知和实际 writer 错端点，共 10 项；每项全新资源、顺序执行、首个失败即停。 |
+| 验收边界 | 仅单机固定合成 fixture 正例；C4 整关、完整恢复、独立备份目标及 CompleteBackup 均未验收。 |
+
+正例 result SHA-256 `94f0411b96732d741567042b8603ede5fc96f62d40d310f5f550069dfd8d0737`，验收记录 `real-import-success-5619026-accepted-record.json` SHA-256 `85536e02e25975e7d2f1c8895af207c1b2e35ee23c11dc55b4c1dcc9f3239d30`。A 只回传摘要，控制者不能据此独立重算 A 私有 result；B 正式操作器在现场重新读取其原始收据、strict／all／ignored／unit／journal 日志和源码／二进制后放行。控制者没有直接读取 root 私有结果、原始日志、marker、dump／TOC／SQL 原文；不把用户终端来源写成直接远端读取。
+
+所有旧失败批次和本轮成功卷均保留隔离，不重跑。沿用相同封存源码和 builder，通过严格原始证据复验后复用 A86 收据；不重复已通过的 A 或 success。新的负例顺序操作器已通过本地 17/17、独立规格／质量与上传器审查，两份新脚本已上传到全新 hans 0700 私有目录，每份 0400／两次稳定哈希读回。十项现场仍为 NOT_RUN；当前实际验收继续为 1/11。独立审查 0 阻塞／0 重要／1 次要；M1 为 uploader 首行“三文件”注释，实际白名单严格只有 root／wrapper 两文件，保留到最终分支审查。
+
+在 Linux 终端执行一次（sudo 密码仅在该终端输入）：
+
+```sh
+bash <server-user-home>/knowweave-c4-negative-sequence-51e6e796-749b-46e0-a60c-7daaa1a93719/real-import-negative-sequence-operator-command.sh
+```
+
+依次验证 READY／PRECOMMIT EOF、取消、DDL 前重启、SQL／COPY 故障、两项 journal 同步故障、提交未知、实际 writer 错端点。每项新源库／目标库／卷；末项另建新物理克隆。首个失败即停止后续项，不复用旧批次，不重跑原前置门或正例。运行前实际复验原 A86／B94 证据及资源／子网／容量；结束后精确 ID 停机、留卷留证。贴回终端 JSON 输出及 `NEGATIVE_SEQUENCE_RUN_EXIT`；失败后不要重跑同一批次。
+
+新 runtime 审查 seal SHA-256 `11b0dd445930af2fa1bf730884aeec991c7eaa00fd81df10f8ae895b652fcc8c`；上传 receipt SHA-256 `f0e9ba7a92e52b346d294b923572dc0ac5944cd9107018ae8b7b93bf873e7ac6`。上述上传未执行 root／PG／负例；receipt 中 actual_cases_passed=0 指本次上传没有运行新用例，不覆盖已接受的 1/11。
+
+### 2026-10-02：修复包交接时的历史状态（尚未运行）
+
+源码候选 **`5619026`** 已完成三文件修复、独立规格与质量审查，并封存上传；新 Linux 批次尚未运行，固定 fixture 导入实际验收仍为 **0/11**。
+
+| 项目 | 当前证据 |
+| --- | --- |
+| 修复 | 夹具采集的源库 guard 原来使用目标库编译时 birth pin；测试构建现在分别选择 source／target pin。目标恢复入口继续固定使用 target pin。 |
+| 本地验证 | Windows 库 130/130；格式及严格 all-targets/all-features Clippy 退出 0。整包测试退出 101，集成夹具缺少 `TEST_BACKUP_EMPTY_DATABASE_NAME`；后续整包用例未验证。 |
+| 独立审查 | 源码、操作器、wrapper 与普通用户上传器通过；新审查 0 阻塞／0 重要／0 次要。 |
+| 上传 | 新源码 ZIP 456 个 Git 文件；ZIP、操作器、wrapper 已在新 hans 私有目录排他写入，每份 0400、两次稳定哈希读取一致。上传没有执行 root 或测试。 |
+| 下一门 | 全新 `86dae3be` Linux 格式／严格 Clippy／编译／真实库和 journal 前置门；再次读取其实际收据与日志通过后，只运行一次全新 `94b411de` success。 |
+| 验收边界 | 新源码 Linux 计数未知；旧源码 `0902bc34` 的 136/19/1 不能作为新源码证明。C4 整关、完整恢复和 CompleteBackup 仍未验收。 |
+
+上一轮 `282a1dfc` 的精确测试退出 101，固定阶段为 `fresh-fixture-capture`／`Identity`。此次修复依据封存源码中可复现的调用合同错误；该现场内部首个失败谓词未被观察，旧 `91a` 根因仍未知。所有旧失败批次和证据保留，不重跑。
+
+在 Linux 服务器终端运行一次（sudo 密码仅在本机输入）：
+
+```sh
+bash <server-user-home>/knowweave-c4-source-pin-b1a18043-2ae0-4f8b-a8eb-8a9112064a74/real-import-source-pin-operator-command.sh
+```
+
+命令末尾回传 A／B 的 JSON 摘要和 `SOURCE_PIN_RUN_EXIT`。失败即停，不在同一批次重跑。新源／目标 UUID 为 `81e27cfc-a51b-4009-81fe-b4158467f3af`／`a9720b7d-ed0c-4112-8554-523d65baa4ed`，拟用子网 `10.253.134.0/24`／`10.253.135.0/24`，运行时再次检查路径、项目和子网未占用。
+
+封存 ZIP SHA-256 `9e73c9665604b348436f39f62117dce02e02629b4a988bacb2f494a70a6c5c82`；新交接记录 `real-import-source-pin-runtime-handoff.json` SHA-256 `40dc74bfbb67dffdf78a850c38adc1e017b295c1aa857c94936f39184dc7f5ff`；可变进度账本为 `.superpowers/sdd/2026-09-30-p0c4-controlled-import/task6-live-gates-status.json`。
+
+以下保留各轮当时的状态、待运行提示和失败证据，以本页“当前状态”为最新口径。
+
+**新源码 Linux 前置门通过，success 定位到夹具采集身份拒绝（2026-10-02）。** 用户终端回传新 `0902bc34` 前置收据：库测试 136 通过／19 忽略，journal 1 通过，pending 不存在，结果 SHA-256 `552c34642d017b829ed9e1312e32344d37a3af9f90acdaff4c0f1cbd08206b91`。统一操作器重新读取该实际收据和原始日志后进入新 `282a1dfc` success；精确测试实际退出 101，固定诊断为 `fresh-fixture-capture`／`Identity`，candidate 为空，结果 SHA-256 `81a2990a3a0071bb6ce6e4913bca6387180e40e0fd125c8ea4cafc514a10b999`，总命令退出 1。构建／列举退出 0 的 executed:false 仅描述列举，不覆盖实际测试失败。控制者独立只读核对两个精确 PG 容器已退出、映像／项目／卷匹配且卷保留，两个构建器 ID 均不存在；未直接读取 root 私有结果或日志。当前实际仍 0/11，内部首个失败谓词尚未观察；正在核对封存源码的 source 身份 pin 调用合同。该失败批次不重跑，不将新诊断倒推为旧 91a 的确定根因。
+
+**最新现场结果（2026-10-02）：首项 success 的精确测试已执行且失败，实际仍 0/11。** 用户回传已审查的 root 只读诊断，`IMPORT_DIAGNOSTIC_EXIT=0` 只表示诊断成功。批次 `91a34686-ad94-4ad9-9c40-c70021b4e4dc` 的精确测试 `live_controlled_import_commits_fixture` 为 0 通过／1 失败／0 忽略／147 过滤；原测试退出码未保存，仍为 UNKNOWN。失败日志仅包含 `live_tests.rs:149:9` 的固定 `CONTROLLED_IMPORT_CASE_REJECTED`，没有原始 ImportFailure 或阶段；导入根因尚未确定。列举阶段的 `builds.*.executed:false` 不再用于推断实际测试执行状态。源、目标已停机留卷，两构建器已清理；旧失败批次不重跑。
+
+**只读诊断证据已核对，补充范围已确定（2026-10-02）。** 原结果 7365 字节、SHA-256 `b4364530ea2a4e973360620be4cc3ed279c2a412daba9720d1e885b35171a136`；stdout 370 字节、SHA-256 `b3ec415c651fe06475f7341f9d757e87a4694379224d7a337c9c0e406f3bc5a9`；stderr 346 字节、SHA-256 `29257534f4ae842f9df4216869cee0cb6aed0aea503e346cb866a830f59b77fb`。三份均为 0600、READ_OK，结果摘要和身份一致、pending 不存在；来源是用户终端的脱敏诊断，控制者未直接读取 root 私有日志。原驱动在测试返回后因非空 stderr 拒绝，未进入成功 Observation 解析；测试层又将类型错误和 join 错误折叠为固定 panic，尚不能据此修导入算法。本轮补充限定为测试层的固定阶段、类型原因和实际退出码，由子代理实现并独立审查；后续仍须新源码、新前置门和全新隔离 success 批次验证，不放宽原验收、权限、清理或预算。历史只读解析器展示歧义 M-91A-01 保留待办，以 `files.*.read_outcome` 为准。C4 整关、CompleteBackup 和生产恢复仍未验收。
+
+**诊断补充已提交；新源码 Linux 验证待运行（2026-10-02）。** 六文件提交 `c26e14c59f2332fb1ab15dd658619e8b8f5b068a` 已完成子代理实现及独立规格／质量审查，0 阻塞／0 重要／0 次要。本地 Python 57/57、Windows Rust 库 126/126，格式与严格 all-targets/all-features Clippy 退出 0；控制者核对 33 份审查输入及真实日志。新增输出只有封闭阶段、类型原因和布尔状态，保留原 panic、失败判定及成功 payload；不修尚未确定的导入根因。封存 ZIP 包含 455 个 Git 原始 blob，SHA-256 `66d52d6d19c0f188e6290f126da29e5944fec19ed007f0e709b7cce79b8263f9`。本轮安排新 `0902bc34` Linux 前置批次和一次新 `282a1dfc` success 用例；旧 `03d1c8c8` 收据仅证明旧 `1cc3aec` 源码，不作为新源码通过证据。服务器尚未运行本轮，实际仍 0/11。
+
+**统一运行脚本已审查并上传，等待本机 sudo（2026-10-02）。** 新操作器定向 28/28、退出 0；独立规格／质量与普通用户上传器审查通过，0 阻塞／0 重要／1 次要。M1 仅为审查 diff 的末行换行格式，完整运行脚本可独立审查，该 diff 不上传或执行。控制者复核 48 份审查输入及报告；源码 ZIP、root 操作器、短 wrapper 已上传到新私有目录，服务器每份两次稳定哈希／0400 权限核验一致。运行命令为 `bash <server-user-home>/knowweave-c4-failure-phase-95b52cde-a1bf-4441-bd1e-d6e1a03e2b65/real-import-failure-phase-operator-command.sh`。先完成全新 `0902bc34` 的严格 Linux 前置门及真实库／journal 测试，重新读取实际收据和原始日志核验通过后，只运行一次全新 `282a1dfc` success 用例；失败即停、不重跑。实际 Linux 库存当前未知，本地合成计数不作现场证明。尚未执行本轮 sudo、PG 或真实导入，实际仍 0/11；CompleteBackup 和 C4 整关未验收。
+
+
 **状态：实施中；未验收；非生产。**
+
+**首项实际导入的准入受阻，实际仍为0/11。** 全新操作批次 `6390746c` 在 `PREREQUISITE_RECEIPT` 返回 `Identity`／`REAL_IMPORT_SUCCESS_PRE_ATTESTATION_REJECTED_NOT_RUN`，退出1，没有启动真实导入；只读Docker名称盘点未发现该控制、源或目标UUID对应资源。静态诊断已确认读取端要求的四个 `build` 字段不在真实前置结果中，之前的本地模拟结构掩盖了该接口不一致；现场首次失败谓词仍未确认，控制者未读取root私有结果。只修订新的读取操作器，沿用真实严格退出码并核验原始all/ignored日志，不改旧收据、生产源码或验收门槛；旧批次不重跑。
+
+**读取端修复的现场结果：前置收据阶段通过，停在安装输入核验，实际仍0/11。** 真实生产者结构回归复现了旧读取端拒绝；修复后15项定向检查退出0，规格／质量／上传器静态复审PASS，I-RECEIPT-01已处理。新操作批次 `10dc6556` 使用全新源/目标及 `10.253.102/103.0/24`，命令19594字节、SHA-256 `af140f7410d50feb42327ab6aaf50d947dbd31ea81bbc013b09b97233c6c019c`，服务器两次读取核验一致；root终端已执行准入检查，但真实导入未启动，仍0/11。前置收据按真实七字段结构读取，严格退出码及原始all/ignored日志独立核验；旧失败脚本、收据和批次保留。
+
+**最新准入诊断（2026-10-01）：** 操作批次 `10dc6556` 返回 `Identity`／`INSTALLED_INPUT_PINS`，退出1，真实导入未启动。用户在root终端只读核对：已有runner、fixture、birth helper和ZIP的大小、权限及SHA-256均匹配；`p0c4_restore_pin_acceptance.py` 不存在可用的普通非符号链接文件。编译阶段只安装三份脚本，而导入准入要求四份。控制者未直接读取root文件；普通SSH元数据核对未发现该控制/源/目标UUID的Docker资源。已审查的窄修补会从同一封存ZIP提取四份原样Git字节到全新0700工具目录，旧目录/脚本/批次保留，不放宽身份或验收门槛；新候选尚未运行。
+
+**安装输入修补已审查并上传，等待首项实际导入（2026-10-01）：** 新操作批次 `91a34686-ad94-4ad9-9c40-c70021b4e4dc` 使用全新源/目标和 `10.253.130.0/24`、`10.253.131.0/24`。修补后的操作脚本先核验原收据、完整ZIP、源码和二进制，再从同一ZIP向新root私有工具目录排他安装四份原样脚本，旧三份工具目录保留。本地定向检查12通过／0忽略，独立规格、质量及上传器静态审查PASS，I-INPUT-01已处理，控制者核对35份审查输入。命令24995字节、SHA-256 `d5219773880fce7c0d74c221e2480d49bc5b4f255d19cfa6617297179657d7c5`，上传后服务器两次读取核验一致。尚未执行本轮root安装或真实导入，实际仍0/11；运行时再次核验资源未占用，通过后再核对完整结果、停机留卷和哈希，才能计入首项success。本地模拟/结构检查不替代Linux/PG18现场结果，C4整关、CompleteBackup及生产恢复仍未验收。
+
+**2026-10-01 最新现场进度：全新 root 批次 `03d1c8c8` 前置门通过，格式与严格 Clippy 通过，普通库129通过／19忽略，Linux journal no-follow/fsync专项1通过，退出0；实际导入仍为0/11。** 用户终端回传结果 SHA-256 `a67ab567f8bffefcb66d71f58a381f900e32fe34727b738af3ce07a9163f415a`，源码和二进制未变、builder清理确认、pending消失。封存源码提交为 `1cc3aeca3485caa7ac910e9f18411187afba6d8f`。来源为用户终端摘要；控制者未直接读取root私有完整结果或日志，后续实际导入操作先独立核验该收据。接下来在全新源/目标、PG18卷及子网运行11项实际case；C4、CompleteBackup及生产恢复仍未验收。
+
+历史前置门记录：**2026-10-01 最新现场进度：批次9583c1ba的格式／严格Clippy／no-run全部通过，普通库125通过／1失败／19忽略；journal与11项实际导入尚未开始。** 用户回传的只读诊断将唯一失败定位到阻塞stdin测试的清理返回值断言，历史错误值与实际测试退出码仍未知。测试合同窄修补及失败路径收束已完成独立规格／质量复审PASS；最终普通用户Linux隔离验证为格式0、严格Clippy0、管道26通过、库129通过／19忽略。源码LF SHA-256 `5712042c3de003e994cf7551be799dd5475f77516b11f0aa787f237d47d4b478`；I1/I2均ADDRESSED，生产算法与导入门槛未改。下一步封存此源码并运行全新root前置批次，不能据普通用户验证关闭canonical、journal、实际导入0/11或C4整关。下面b2af等为保留的历史失败记录。
+
+后续 `b2af0b1a-a81b-4c82-8cb3-5e23e1b74846` 用户终端摘要为 `LINUX_PREREQUISITES_FAILED_NOT_IMPORT`、退出1，阶段 `STRICT_LINUX_FORMAT_CLIPPY_COMPILE`、通用原因码 `Io`、实际用例0且无自动重放。用户返回的只读诊断有效标记前缀明确为 FORMAT_BEGIN、FORMAT_PASS、CLIPPY_BEGIN；格式门通过，严格Clippy未通过，no-run、默认库测试与 journal no-follow/fsync尚未开始。7处源码位置已核对，诊断的静态白名单仅确认 `clippy::collapsible_if`，其余 lint 名称来自源码推断，完整根因未由原错误文字穷举。独立只读 SSH 已确认本批 builder 精确名称与标签均无残留。该轮原脚本的22/22本地模型及审查结果保留，不能代替这次Linux失败结果。
+
+只读诊断经过16项解析检查与独立修复复审，已上传并双次核验 SHA-256 `35af222830a64199c1cf8d07cbfd984e0db518792afe5cf78105caec583f8f19`、12228字节、0400权限、私有0700目录及LF字节。用户已在终端执行它，返回的原 stderr 为8282字节、SHA-256 `3ec07ec898e37015a2046d6b1a6aa0ef1829d2fc9b58aa800855fcc2f1488b91`。控制者未直接读取原私有日志。封存源码、原操作脚本和旧失败证据保持原样，不重跑旧批次。
+
+窄修复 `d70e6eb3ec7febb197e85bce5e0246abf30311fc` 的完整4文件差异经独立规格/质量审查 PASS；仅调整测试辅助 cfg/import、一个可变绑定与两处条件写法，保留 Linux `Read`/`Serialize` 依赖和原行为。Windows包内库119/119、格式退出0、严格package all-targets Clippy退出0；格式没有保留的输出日志，退出码文件已核对。上述本地结果不证明 Linux cfg通过；须用新源码、新UUID重跑 Linux格式/严格Clippy/no-run/默认库/journal。C4与实际导入仍未验收。
+
+**2026-10-01 静态更新：受控导入整计划首次审查、一次修复及独立修复复审完成；三项 Important 和一项输出待办均 ADDRESSED，无新增修复问题。修复提交 `1d5a7b2baca4789dac4ac5d9ac2cf77b57e010cd`。一次完整 P0-C4 Python 回归258/258、Windows候选 journal模型4/4、格式检查退出0。** 修复涉及Linux ignored测试同名变量、CLI超时后的精确资源所有权与命令行失败持有状态，以及克隆发现前建立并复用原15秒隔离截止。旧37/38失败日志保留；原PID39808具体调度仍未重建，不以本地通过冒充现场证明。具体失败持有语义及门槛见 [受控导入说明](p0c4-controlled-import-acceptance.md)。下文任务1的“当前切片”属于历史记录，不能作为本轮现场状态；C4、CompleteBackup 和生产仍未验收。
+
+上述258/258先于最后的诊断输出失败保护和builder原截止传播修正；后续定向32/32及最终26/26覆盖实际适配器、继承精确ID清理、CLI持有和成功/超时清理合同，未再跑全套。该顺序不构成最终全分支或Linux验收通过。
+
+**当前切片：受控小型 dump 导入六任务中的任务1。** 分批修复 `77c24ba` 已独立限定复审，已授权的新包 `5bc482d`、控制批次 `14b45cf0` 于2026-10-01返回客户端合同/合成工件采集成功、退出0。结果/源码摘要复算一致，精确双容器停机和留卷已只读核对；工件实际字节导出与独立审查待完成，任务1未关闭，任务2–6未启动。提交后本地回归231/232，既有计时断言仍失败。不是golden、导入或C4整关验收。
+
+## 子进程只读端点绑定进度（2026-09-30）
+
+**最新结果：本节的首轮失败与本地阶段叙述属于实施历程。新批次 aa3feac4 已完成精确子进程首次只读证明、同 guard 重启后的 Session 拒绝与停机隔离验收；完整结果及摘要复算见本文末尾的最新验收记录。实际恢复、资产闭包、构建 pin、CompleteBackup 与 C4 整关仍未验收。**
+
+- 用户确认继续实施；设计与三项计划已确认，沿用逐任务实现及独立审查。
+- 本计划 Task 1 已提交 `39f194844e183e2c54c17c18732c2b9ca3f83870`，独立规格/质量审查通过：旧宿主导入方法与 marker→宿主子进程执行链已移除，加入借用容器 guard 和事务挑战的固定只读命令目标。Rust 库单测 34/34、相邻 Python 108/108、格式和严格 package Clippy 通过。依赖专用 PostgreSQL 测试库的集成测试未运行通过，不称全包通过。
+- 本计划 Task 2 本地实现与独立复审通过：`0ca23b1` 实现同一 SQLx 事务双锁/PID/OID 前后核验、固定 socket 客户端、有界 stdout/stderr/总截止时间、失败停机确认与失效 guard；独立审查发现版本误限定未验证的 Debian `+1` 后缀，修复提交 `ece5742c1714d908141731e93c305134d77e7876` 改为与固定 PG18.6-bookworm 镜像身份配套的有界版本语法，并增加真实进程句柄见证的截止时间/取消回收测试。定向 RED→GREEN 与取消处理 mutation RED 有效；最终49项库单测、格式/严格 Clippy通过，原108项Python相邻回归未改。复审 I1/M1 均已解决，无新重要缺陷。真实镜像版本输出、Linux生命周期、socket认证及Docker停机仍待 Task 3现场证据。
+- 本计划 Task 3 的 opt-in Linux 测试与 Python 隔离驱动已实现并通过独立任务审查（48a86f8）：同一 guard 与 SQLx 事务首次证明后，用有界精确 ID 重启并验证旧挑战被拒绝；本地49项Rust库单测、177项Python、格式与严格Clippy通过。首轮Linux隔离门已执行但失败，尚无通过验收；本地整计划独立审查通过后发现现场诊断缺口，正在补固定诊断码；根任务的Windows全工作区离线锁定编译（--no-run）通过，未执行数据库集成测试。Git字节封存完成后须逐文件确认源码包/runner，并使用全新项目/子网/卷。恢复写入、资产闭包、独立 CompleteBackup 与完整 C4 验收仍待完成。
 
 ## 基线与范围
 
 - C3 已验证基线：`4507f3f55f860a6d3afed2cefe2bce27f7ff6b7c`。
-- C4 工作分支：`feat/p0c4-backup-recovery`；工作树：`<local-workspace>\.worktrees\knowweave-p0c4`。
+- C4 工作分支：`feat/p0c4-backup-recovery`；工作树：`<source-workspace>`。
 - 目标是完整 PostgreSQL 权威数据、所有 ready 原件、角色/模式重建信息和干净实例恢复；C3 融合快照不是整库备份。
-- Linux 服务器仍须每份精确源码包单独确认后，在新隔离 Compose 项目验证。没有通过证据前不写 `P0_C4_VERIFIED`。
+- 2026-10-01 用户已取消逐项人工确认；批准范围内自主封存和核验精确源码/runner、新批次及资源，再在全新隔离项目验证。sudo 凭据仍只在用户 Linux 终端输入。没有通过证据前不写 `P0_C4_VERIFIED`。
 
 ## 当前门槛
 
@@ -18,7 +362,7 @@
 | C4 Task 1 清单/契约 | Linux PG18 专项通过；C4 全链未验收 | `691fd4d` 静态复审无阻断；ws3 的隔离 runner 返回 `TASK1_PG18_PASSED_NOT_C4_ACCEPTANCE`，按固定测试计数验证 9/2/1、格式、严格 Clippy 与新空库真实 PG18 专项；前两批失败证据保留 |
 | C4 Task 2 安全复制/封存 | Linux 专项通过；C4 全链未验收 | `431e002`；ws3 的封存集成 5/5、库内故障 5/5（含 SIGKILL）、格式、严格 Clippy、工作区编译均退出 0，命令身份与源码哈希已核；内核级真实 fsync 错误未注入，使用同步边界故障钩子 |
 | C4 Task 3 写闸/dump/保护/完成收据 | 源端与单机传输候选门分别通过；独立完成收据未验收 | `c344a1e` 源端三项目 runner 返回候选通过；`85fd4df` 单机传输七门与 13 项专项通过；无独立目标与生产 Complete |
-| C4 Task 4 干净恢复 | 全新目标准入、出生证明和干净目标 pin 候选的单机 PG18 门已通过；数据库导入仅有不可公开调用的内部原语；只读 Docker/PG 绑定探针静态复审通过、Linux 未验；构建 pin 与实际恢复未验收 | `4e1cb54`、`6495251`、`56907df`、`aef6d43` 收紧预检；`9900371`、`af955fa` 增加目标创建与初始化探针；隔离批次 `174020d9-3393-4c4f-b9fe-b718e8fcdfdb` 通过准入正例及 ACL 拒绝负例；出生证明新批次 `db9e47ca-21da-4b3b-bc21-518b2e96e4d0` 通过正例及 ACL 拒绝负例；`debadd5`、`1f1855e`、`845e08b`、`b018c6d`、`4deb90a`、`a020618` 形成只读 pin 候选与单机验收驱动；新批次 `770541e3-3745-46c0-a012-7cd64e3b9581` 通过候选门，结果与现场文件哈希、停机和 pending 清理均核对；`1f1c719`、`b5cd3e8` 暂存内部数据库导入原语；`c9e6b57`、`578919d`、`1eed75e` 暂存只读绑定探针；旧失败批次保留隔离；实际恢复未开始 |
+| C4 Task 4 干净恢复 | 全新目标准入、出生证明、干净目标 pin 候选及只读 Docker/PG 绑定探针的单机 PG18 门已通过；旧宿主导入执行链已移除；精确子进程只读绑定与同 guard 重启拒绝专项已验收，构建 pin 与实际恢复未验收 | `4e1cb54`、`6495251`、`56907df`、`aef6d43` 收紧预检；`9900371`、`af955fa` 增加目标创建与初始化探针；隔离批次 `174020d9-3393-4c4f-b9fe-b718e8fcdfdb` 通过准入正例及 ACL 拒绝负例；出生证明新批次 `db9e47ca-21da-4b3b-bc21-518b2e96e4d0` 通过正例及 ACL 拒绝负例；`debadd5`、`1f1855e`、`845e08b`、`b018c6d`、`4deb90a`、`a020618` 形成只读 pin 候选与单机验收驱动；新批次 `770541e3-3745-46c0-a012-7cd64e3b9581` 通过候选门；`1f1c719`、`b5cd3e8` 暂存内部数据库导入原语；`c9e6b57`、`578919d`、`1eed75e` 暂存只读绑定探针，`d034508` 的新批次 `b2b63696-b05c-4434-99bf-60abca6d4f13` 通过 Linux/PG18 单机只读门；旧失败批次保留隔离；实际恢复未开始 |
 | C4 Task 5 全链与失败注入 | 未开始 | 四套旧版升级、工作区回归、整关验收 |
 
 所有后续结果需记录源码提交与包 SHA-256、项目名、新数据库/卷、工具版本、命令、退出码、日志哈希、失败根因及清理状态。失败批次不可覆盖或改写为通过。
@@ -79,12 +423,203 @@
 - 干净目标 pin 候选单机验收驱动提交 `b018c6d`，`a6de170` 修复 CLI 帮助退出码，`4deb90a` 在精确停机前持久保存规范、脱敏的 `pin-inspection.json`（选定 Docker 身份与 PG 观测、记录摘要；敏感挂载源路径仅保留哈希），`a020618` 将最终结果先写入 fsync 的私有 pending 文件，再无覆盖原子发布。通过条件包括已观察到进程退出码 0、结果与现场记录哈希匹配、源码与已安装 runner 字节未变、精确 PG 容器停机和卷保留；孤立结果文件或中断残留均不算通过。只在专用新批次的创建锁内生成预创建记录并签发出生证明；不做 ACL 负例、不调用恢复、不产出构建 pin 或 `CompleteBackup`。独立复审对最终提交范围 `da356c7..a020618` 给出 PASS，未发现静态阻断；根任务当时独立重跑 111 项 P0-C4 Python 测试、语法与差异检查通过。后续 Linux 单机现场门已运行，结果见下条；详见 [单机 pin 候选验收说明](p0c4-restore-pin-acceptance.md)。
 - 单机 pin 候选源码包由干净提交 `13a00f8b1076ccc4ef76d5e76df508f1d4ccdfdf` 构建，393 个 Git 文件，3,891,828 字节，ZIP SHA-256 `75b1449763df964524631bd46e4c291ad02ca273ac4eb1ee9f487b23d6ffc731`，manifest SHA-256 `e8369df7de13008906e3e35733d1cf03cbd6a5372e40a160375b786557c7a478`；独立 runner 22,572 字节、SHA-256 `1714a67573737da01786fd2b628fa29163157c581deff4fe2ed307c12e5e2161`。独立只读包审计确认 ZIP 的 393 个源码成员逐字节等于该提交、规范清单与 CRC/路径/模式正确，内存重建 ZIP 字节完全相同。用户逐包授权后，两文件已上传至 `<test-server>:<server-user-home>/experiments/learning-system-p0c4/incoming/` 并经服务器 SHA-256 复核相符。新批次 `770541e3-3745-46c0-a012-7cd64e3b9581` 使用 `10.251.223.0/24`；用户终端返回 `PIN_CANDIDATE_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE`、`PIN_RUN_EXIT=0`、`result_sha256=72c9152faded731c5e4fbb718be7d8e53712ef5b10616994c127e1e9e995676f`、`birth_sha256=4a04daa46ca4b8f9c394260477066a147c4774e4fec69d76b4b564a35ea17cef`、`inspection_evidence_sha256=f628082e2d10bde436f404abc5dc76d69193b122a312a80a521dc79346b4ce6f`。root 私有证据位于 `/var/lib/knowweave-c4/pin-acceptance/batches/770541e3-3745-46c0-a012-7cd64e3b9581/evidence`。用户终端重新计算 `result.json` 与 `pin-inspection.json` 原始 SHA-256，分别与上述结果/现场摘要相同，且 `PENDING_ABSENT`；脱敏结果还确认 `failure_type=null`、源码前后 SHA-256 同为 `9e6a53aed1f61797bc5a60f8b2bf26e274c6fee507782c0db22beace94e4b369`、`inspection_record_sha256=inspection_evidence_sha256`、`stop.confirmed=true`、精确容器 ID `862b148908fe6748665adcb79ca9f5ed7c21a4a86de79d5a1c385b0c3c5c15ac`、`volume_retained=true`、`target_condition=CLEAN_STOPPED_QUARANTINED_NOT_RESTORE`、`target_reuse_permitted=false`。根任务另以只读 Docker 查询确认该项目 PG 容器 `Exited (0)`、同名卷仍在；root 私有文件的内容与哈希由用户终端提供，根任务未直接读取其字节。该证据仅认定单机干净目标 pin **候选**通过；没有构建 pin、`CompleteBackup`、独立目标或实际恢复验收。
 - Task 4 数据库导入窄切片由 `1f1c719` 实现：预检对象持独占锁，内部方法在执行前重验完成收据和已打开 dump 的大小、`PGDMP` 格式、SHA-256，固定 PG18 `pg_restore` 参数包含 `--single-transaction`、`--exit-on-error`、`--no-owner` 和 `--no-acl`；成功仍只返回持锁的内部隔离状态。独立复审发现原提交的公开写入口无法证明子进程连接仍指向预检时的 PostgreSQL/Docker 身份，且失败后缺少持久尝试记录；因此 `b5cd3e8` 移除公开写入口，在 root 私有控制目录持锁、`O_EXCL` 创建并同步 `DATABASE_IMPORT_ATTEMPTED_QUARANTINED` 标记，后续预检遇同名项或检查错误即拒绝。复审认为**内部暂存切片**无新的确定性阻断；Windows 专项测试、格式和严格 Clippy 通过。该方法在当前 crate 没有调用方，不能据此宣称已可执行恢复。对外开放前必须解决子进程与预检目标的强身份绑定、可执行文件及密码路径的替换竞态，再在 Linux/PG18 隔离项目中验证；资产导入、租约失效、闭包验收与放行亦未实现。
-- Task 4 只读 Docker/PG 绑定探针在 `c9e6b57` 暂存为私有 Rust 模块：先取得既有全局创建锁，再只打开已存在的目标锁；核对 pin-only 来源、出生与签发记录、精确容器/镜像/网络/卷/挂载，并按不可变容器 ID 运行固定只读 `psql` 查询，比对 PG system identifier、数据库 OID 与查询前后的 Docker 启动事实。独立审查发现首版创建目标锁而破坏干净目标、漏检同项目额外 Docker 对象与部分来源目录约束；`578919d` 改为不创建锁，并补唯一资源、卷选项、目录 inode/形状校验；`1eed75e` 再补来源 JSON 的规范字节/精确字段与 `targets` 私有权限。最终静态复审无阻断，Windows 库测试 17/17、格式及严格 Clippy 通过。该探针尚未接入恢复写入路径；Linux 专属代码尚未在 Linux 编译或运行，旧已停机的候选批次不可复用为探针现场证据。
+- Task 4 只读 Docker/PG 绑定探针在 `c9e6b57` 暂存为私有 Rust 模块：先取得既有全局创建锁，再只打开已存在的目标锁；核对 pin-only 来源、出生与签发记录、精确容器/镜像/网络/卷/挂载，并按不可变容器 ID 运行固定只读 `psql` 查询，比对 PG system identifier、数据库 OID 与查询前后的 Docker 启动事实。独立审查发现首版创建目标锁而破坏干净目标、漏检同项目额外 Docker 对象与部分来源目录约束；`578919d` 改为不创建锁，并补唯一资源、卷选项、目录 inode/形状校验；`1eed75e` 再补来源 JSON 的规范字节/精确字段与 `targets` 私有权限。最终静态复审无阻断，Windows 库测试 17/17、格式及严格 Clippy 通过。该探针尚未接入恢复写入路径；旧已停机的候选批次不可复用为探针现场证据。
+- Task 4 只读绑定探针的独立现场入口现为 Linux `#[ignore]` Rust 测试，并在既有 pin runner 上提供显式 `--bound-probe` 选项：只对新批次，在签发目标之前先用固定离线 Rust builder 镜像和占位出生摘要编译，再在宿主机执行 `--list` 验证加载；出生封存及 pin 检查后，以真实出生 SHA-256 重新编译精确测试二进制，在精确容器停机前于宿主机运行只读探针。结果使用与原 pin 候选不同的通过/失败状态，失败仍尝试精确停机。默认 pin runner 路径不变。Windows 本地单元测试、格式及严格 Clippy 已验证；Linux/PG18 现场运行结果见下一条。该切片不等于 P0-C4 完整验收，判定规则见 [bound-target 现场说明](p0c4-bound-target-probe.md)。
+- 只读绑定探针现场批次 `b2b63696-b05c-4434-99bf-60abca6d4f13` 使用源码提交 `d0345084e1d39db223e1d5754b26dc2e3d0d9a9e`、ZIP SHA-256 `c93c6157f54cd8ee0cf6250f3f925b70d45112e321a1668ee7be26fa174626f9`、manifest SHA-256 `40be6d28c1bfed6259669be6f65cb7cb021261b7bd9a6084e14c7595fdefc443`、runner SHA-256 `58c8936f8eb3df757a7f1de0a09c19a3bdc4f1bc06cbe883314768be3ea50dd1`。两份文件逐包授权后上传，服务器端哈希与授权值一致；拟用 `10.251.224.0/24` 在运行前复查无占用。用户终端执行 root-only 新批次，返回 `BOUND_TARGET_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE`、退出码 0、`result.json` SHA-256 `fcddd43237c228550705421b77d7e983c9d05bd7f3efc174b2b1978787132d3d`。用户再次计算现场文件哈希：`pin-inspection.json` SHA-256 `197ed57eb4a10b9f9bb4619922426fa29f8c117e746f7e9477ce3ad9e17f1116`，与结果内 `inspection_evidence_sha256` 和 `inspection_record_sha256` 相同，`PENDING_ABSENT`。脱敏结果确认 `bound_probe.state=BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE`、`exit_code=0`、出生 SHA-256 `eaa0040ac7e7856fc8aede00868e566c39d3334beb4f4cbb016d51d720c68882` 一致、源码前后 SHA-256 同为 `a133699e30b7631c8cdf66746975e6893faeb131490a0cc1d095060f70ef468c`，并确认精确容器 `1bbda05f63be6882ca0bdfc73ba5d2033e2fb2af42feeb0764731d3a69b7dd6e` 已停机、卷保留、目标不可复用。根任务另以只读 Docker 查询独立看到 PG 容器 `Exited (0)`、同名卷仍在、构建容器无残留；root 私有结果字节与哈希由用户终端提供。这只认定**单机只读绑定门**，没有对外写入、构建 pin、`CompleteBackup` 或实际恢复验收。
+
+
+- Task 4 内部 bound-target guard 窄切片（2026-09-29，本地）：预检先打开并取得**既有全局创建锁**，再创建/取得目标恢复锁；全局锁缺失、不安全或忙时，不会创建目标锁或尝试标记。同一内部 guard 保存精确 Docker/PG 声明及首次启动观测，并随 `RestorePreflight` 移交到内部 `RestoreDatabaseImported`，直到该状态释放才按目标锁、全局锁顺序解锁；在预检结束、内部导入前与导入返回前只读重验首次身份。独立只读探针仍不创建缺失的目标锁。
+  - TDD：3 个跨平台依赖边界行为测试先出现断言 RED，再 GREEN，覆盖锁顺序/失败早拒绝、持有及移交后释放、PG 身份与前后 Docker 启动事实漂移；锁寿命使用可析构测试资源，并非 Linux `flock` 现场证据。Windows `learning-backup` 库 21/21，所选非 PG 契约/预检/策略/文件系统拒绝测试 28/28、Python 源码隔离 13/13、`cargo fmt --all -- --check`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings` 均通过。
+  - `cargo test --offline --locked --workspace` 已执行，但止于 `catalog_pg::admin_collects_linked_and_unlinked_ready_rows_and_runtime_is_rejected`：`catalog_pg.rs:112` 缺少专用空 PG 测试数据库环境变量，返回 `NotPresent`。未改测试、未猜凭据；全 workspace 测试不算通过。本机仅安装 Windows Rust target，Linux 专属接线及真实文件锁/Docker/PG18 未编译或复验；没有远程运行或上传。
+  - **权限边界保持关闭**：Docker 只读观测仍不能证明 SQLx `PgPool` 或宿主 `pg_restore` 与被观测容器是同一精确端点，PG 克隆可共享 system identifier。`restore_policy` 宿主执行器未修改，内部暂存导入方法仍无调用方，未公开写入口、未增加 Docker 写命令，不能把此 guard 当作恢复授权。端点强绑定、可执行文件/密码路径替换竞态、构建 pin、`CompleteBackup`、资产/租约/闭包及服务放行仍待后续门，Task 4 与 C4 保持未验收。
+
+- Task 4 bound-target guard 单机 Linux/PG18 只读门：用户逐文件授权提交 `5b025ab28d7357c7ea3742e3c467af204440856d` 的源码 ZIP（SHA-256 `71555120efbb41b6204668f6331fd8a9bc6fc9e42c379774aeab26222f97edda`，manifest `a76accd71a1ee8afa2f612e901afbb7a265885950a4eb9434dd13effa796bbb1`）及 runner。首个安装的 Windows 工作树 runner 因 CRLF 与 ZIP 内 Git 字节不一致（SHA-256 `73d7516b0723a5e9ae148f6c3c40852f5897a5fac4752487eb67ffbfc7188086`），批次 `7ffbb5dc-6ff7-44b1-9eb2-5d45fbffa208` 在验收预检即退出；root 只读诊断为 `BATCH_ABSENT`、`RESULT_ABSENT`、`PENDING_ABSENT`，未创建目标。旧 runner 与失败事实保留，旧批次未重跑。随后用户单独授权上传 ZIP 内与 Git HEAD 相同的 LF 原样 runner（SHA-256 `cf9710581f4a1b8a9fee966ad08a56ecbb356c5b4fa9599423332811625cff06`）；服务器两文件哈希均与授权值一致。
+- 全新批次 `25bc9ab9-ccc0-419c-a057-3ca552ef0590` 使用运行前重查的 `10.251.226.0/24`，用户本机 sudo 运行后返回 `BOUND_TARGET_GUARD_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE`。用户从 root 私有证据目录贴回脱敏 `result.json` 并在服务器计算 SHA-256：结果 `21bbe4ee407a9c845f07285e00a5624f24d7543cf4711adea0242509b8ac67e5`、`pin-inspection.json` 为 `dd145d347f2d21121c9544dbdb6be29c30edaa8a64fa76109b241e5560af8b78`，与结果内双重检查字段一致，`PENDING_ABSENT`。`bound_guard.state=BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE`、`exit_code=0`，出生 SHA-256 `0730f4097f43bb0eea4366f611aed4052d20ca896fbd65a09010d07bf2741032` 与顶层相同；固定 builder 镜像、宿主测试列表检查、源码前后同一 SHA-256 均记录通过。结果确认精确容器 `909eaca499e1ebdfb46686e9b4298c4338b249c315a23b28bf579035461e70a3` 停机、卷保留，`target_reuse_permitted=false`。根任务另以只读 Docker 查询看到同名 PG 容器 `Exited (0)` 和隔离卷仍在；root 私有结果文件由用户终端读取，根任务未直接读取其字节。此证据只认定**单机只读锁与绑定 guard 门**；没有执行恢复、生成构建 pin/`CompleteBackup` 或放行服务，C4 仍未验收。
+
+- Task 4 SQLx 会话绑定内部切片：`bbb58ba` 增加两把随机事务锁的精确容器本地 socket 观察器；`5a5ab6e` 将所有 clean-target 预检 SQL 固定在一个 `Transaction<'static, Postgres>`，在查询前后核对同一 backend PID、数据库 OID、双锁及 Docker 启动观察，事务随内部状态保留。两任务分别通过独立静态审查；本地 Rust/Python 专项、格式与严格 Clippy 通过。`2e88035` 增加互斥的 `--sql-session-binding` Linux 只读聚焦门，独立审查确认 ZIP 的 398 个跟踪文件与 Git 字节一致。源码 ZIP SHA-256 `86d3ce19edac1c49724b7f16c979ee47836a00cc1ccc0b0b4bbe8f1db06aba4c`，manifest `67e52b24744aaa6a2fa99d78a7ca6cd69b032bb4bcff934f4c72bfb817a77878`；安装的 runner 为 ZIP/Git 原样 LF 字节 SHA-256 `565b738eb8b28781f67017acb6163b0e58cb3afecfa3e607b5527b5f8ce5a862`，没有使用 Windows 工作树 CRLF 版本。用户逐文件授权上传后，服务器端两个哈希与授权值一致。
+- Task 3a 新隔离批次 `5c2b0043-eef0-4925-8853-cda7088b77c8` 在运行前复查未占用的 `10.251.227.0/24` 上返回 `FOCUSED_SQL_SESSION_GATES_PASSED_NOT_FULL_ENDPOINT_ACCEPTANCE_READ_ONLY_NOT_RESTORE`、退出码 0。用户从 root 私有证据目录贴回脱敏结果并现场计算 SHA-256：`result.json` 为 `e5d8cd32404a105d47b7bddd112832a6e79f8a3c54218f237701ca940ac0ed07`，`pin-inspection.json` 为 `bac2fa3100b06e2aba2c60ab210e4e696ee7055a7e044e0115fd2de6374588dd`，与结果内双重字段一致；`PENDING_ABSENT`。结果内 `sql_session_binding.state=SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE`、`exit_code=0`、出生 SHA-256 `0c4b6de6ecc93f4017bc94986c5ce1062f34ccd9421b47a83d444a4ec366d7fb` 与顶层相同，固定 builder、宿主测试列表检查、源码前后 SHA-256 相同。精确容器 `5722b26c02191ab9e60f40780100aace8d9f5a5933081f3a415b816f40552bb2` 停机，卷保留且 `target_reuse_permitted=false`；根任务另以只读 Docker 查询见本批容器 `Exited (0)`、同名卷留存。root 私有结果字节由用户终端读取，根任务未直接读取。该门证明全新单目标的 SQLx 事务双锁/PID/OID、错误数据库拒绝及锁释放；**未建立第二个可连接错误 PG 端点或同 system identifier 克隆**，Task 3b 与实际 `pg_restore` 子进程端点/凭据固定仍待另验，恢复写入口保持关闭，C4 未完整验收。
+- Task 3b 同 PG 标识、异端点负例的**本地候选**：`a55e7ea`、`002808b`、`beb66de` 建立全新双 Compose 项目、在线物理克隆、出生时 `StartedAt` 封存与 pin 哈希绑定；`bcb8525` 增加 Linux ignored 双端点 SQLx/双锁负例和精确单测试门；`fff42f9`、`9acc737` 按独立审查修正串行 libtest 输出及 `0 measured` 约束。任务逐项经子代理实现与独立复审，最终没有未解决的静态 P1/P2。RED 先后覆盖缺失实现、出生后同 ID 重启、串行有效输出误拒与伪 `1 measured` 误接纳；GREEN 为 C4 Python 155/155、Rust `learning-backup --lib` 32/32、格式和严格 Clippy 通过。完整 workspace 测试止于 `catalog_pg` 缺专用 PG 测试数据库环境；本机只有 Windows MSVC target，Linux ignored 测试**未编译或运行**，没有新服务器批次或现场通过证据。此候选只准备验证克隆 SQLx 端点，尚不证明 `pg_restore` 子进程端点/凭据，不授权恢复写入、`CompleteBackup` 或生产部署。执行条件见 [Task 3b 聚焦验收说明](p0c4-sql-session-clone-negative-acceptance.md)。
+
+- Task 3b 首轮 Linux 双项目批次 `c8312230-df1c-4541-8277-2db2e16e5c2d`／克隆批次 `ce579f11-cb3a-4b86-b583-6a8d01d090c6` 使用用户逐文件授权且服务器哈希核对的 `5b57baa` 包（SHA-256 `0096640c4775e0469c8810b52cf76fa404a7debacbb45441a064ea25da18fe9c`）和 Git 原样 runner（`758a6079f046c494c4a42c02f41807533600f199c1a609fb12679243c37d1d45`）。用户贴回脱敏结果 SHA-256 `be2a6fce59f4dc2f34d857f3399912ce991c7d5c2ef660cc9a8231281e4141f6`：`stage=physical-clone-preparation`、`failure_type=ValueError`、`SAME_ID_WRONG_ENDPOINT_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN`。两个容器已按精确 ID 停机、卷保留，目标不可复用；源码前后 SHA-256 相同。后续只读 Docker 与用户在服务器的 `find/stat` 证实克隆容器从未启动，克隆卷没有 `18/` 或 `PG_VERSION`。因此尚未证明物理复制、备份校验或 Rust 异端点负例，不能视为 Task 3b 通过；旧批次不重跑。`8ae4fb5` 增加仅使用新空卷、无网络和无 PG 凭据的 setup helper 分阶段诊断脚本，10 项假 Docker 测试和 19 项相邻回归通过、独立复审无 P1/P2。用户单独授权的 Git 原样诊断脚本 SHA-256 `17acfb37b32ffa3447a0f0ed1e03c1758a8cd6c0e07f7ef3edf6cbc94e486e71` 已上传到服务器收件目录并核对。全新诊断批次 `358237e4-7946-4522-8466-e3396f600f08` 返回 `IDENTITY_REJECTED`、`DIAG_RUN_EXIT=1`；只读 Docker 与用户贴回的固定字段均显示 helper 仍为 `created`、无网络或密码环境，`CapAdd=[CAP_CHOWN]`，而授权 runner 要求 `[CHOWN]`。诊断卷保留；身份检查未通过，helper 未启动也未盲删，`cleanup=UNCONFIRMED`。这定位了启动前的 Docker 能力名称规范化差异，尚未完成复制或 Task 3b 业务负例。
+
+- Task 3b setup 身份检查修复候选：现场诊断后采用 RED→GREEN，只在 setup 的 `HostConfig.CapAdd` 允许精确单元素 `CHOWN` 或 Docker inspect 规范值 `CAP_CHOWN`；缺失、空值、额外能力及双拼写并列均拒绝，copy/verify 仍要求 `None`。独立只读复审 PASS、无 P1/P2；本地 C4 Python 测试 166/166 通过，尚无新 Linux 复制或异端点负例通过证据。旧诊断脚本锁定旧 runner 哈希，不能拿来直接重测修复版；需新源码包、新双项目批次和现场验收。
+
+- Task 3b 修复版隔离候选封存于提交 `b416a93d1fbeb6b49a05d67c0f0b6bec020b49a0`：Git 跟踪源码 ZIP SHA-256 `99d0b4222cef254638da0708e900ec52e8d00bbe9eb8c1ab8a0756336243e1dd`（403 文件，manifest `31fb9db1a123813ce73a6c98dc7e7643228eff56c598d8edf93c69fe1be6c4a1`），ZIP/Git 原样 runner SHA-256 `97faf3ec7cd98d13844d8f9f5659ffc8a4f1ca1c288eed53a41b4f86f114b6eb`。用户已逐文件授权上传和只在新主批次 `2e3dcf60-91b3-479a-8b7e-32a42a481cb2`／克隆批次 `4ef67d65-379d-47ed-9c56-2da4e1a2c6b8` 重测；服务器收件目录两文件哈希二次核对通过。`10.251.230.0/24` 与 `10.251.231.0/24` 以及精确 Compose 资源名在准备时只读查证未占用；现场验收结果待回填。
+
+- Task 3b `b416a93` 修复版新批次返回 `CLONE_CAPFIX_RUN_EXIT=1`；用户贴回 root 私有 `result.json`：`stage=physical-clone-preparation`、`failure_type=ValueError`、`SAME_ID_WRONG_ENDPOINT_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN`，主/克隆精确容器均停机、卷保留且不可复用，源码前后 SHA-256 同为 `73aaf0d3f9e9f144660003f2962b61340ce9e431fd1acde5fe219bc71f218bd3`。只读 Docker 确认 clone PG 未启动；用户只读卷元数据见 `18/` 与 `18/docker` 已创建且属主 `999:999`、权限仍是 `755`，没有 `PG_VERSION` 或 `backup_manifest`。这与 setup 命令中先 `chown 999:999` 再由仅有 `CAP_CHOWN` 的 root `chmod 0700` 相符：Linux 非所有者改权限需 `CAP_FOWNER`（[chmod(2)](https://man7.org/linux/man-pages/man2/chmod.2.html)、[capabilities(7)](https://man7.org/linux/man-pages/man7/capabilities.7.html)）。已实现“先 chmod 0700、检查为空，再 chown 999:999”的最小修复；独立复审 PASS，本地 C4 Python 测试 167/167 通过；仍需全新空卷的 Linux 聚焦验证，不能将这轮视为复制或异端点负例通过，不重跑旧批次。
+
+- Setup 权限顺序修复在 `7990ea1` 提交，使用 `mkdir → chmod 0700 → 独立且可传播失败的空目录检查 → chown 999:999`；`2cb5157` 将单次新空卷诊断固定到该 runner SHA-256 `b298f6814d50eff3a6fc1b6e322492264183e5fd263486a6a871cce3b5a5b97a`，并使证据投影不回显未验证的 Docker inspect 字符串。两项分别经独立审查 PASS，C4 Python 测试 170/170 通过。用户逐文件授权的 Git 原样 runner（82,160 字节）及诊断脚本（SHA-256 `7119fc606b2c8c845f22418ab8770cf4036c5011f55282a87c42a135aa4c92cb`，13,440 字节）已在服务器收件目录各完成两次哈希核对。新诊断批次 `81b965f6-3f47-4c59-a796-c7506b7a5b08` 返回 `CLONE_SETUP_DIAG_PASSED`、`SETUP_DIAG_EXIT=0`：固定 PG18 镜像、无网络与 PG 密码环境，helper 启动和退出均为 0，最终不运行并按精确 ID 删除；新卷保留。用户在服务器只读核验目录元数据：`_data` 为 `755 0:0`，`18/` 为 `755 999:999`，`18/docker`（PGDATA）为 `700 999:999` 且 `PGDATA_EMPTY`。因此仅能认定 setup helper 与权限顺序修复通过，不能认定物理复制、备份验证、克隆启动或异端点拒绝通过；后者必须在全新双项目批次验证。
+
+- `e4e0126` 为双项目验收增加固定白名单 `clone_phase`：失败证据只记最后阶段，不记原始异常文本；独立审查无 P1/P2，本地 C4 Python 173/173 通过。403 个 Git 文件的确定字节包 SHA-256 `4258578757840a2aa18eb334d3e38b97ed21825c3661cf573c630ce88bec7520`（manifest `379de1d31ba812ee1834d56ce50323a30cc8b9367583cedeaf24c81ae0495aa1`），ZIP/Git 原样 runner SHA-256 `e2435d1541dfc6bdb4b00b2b145eb6f18acc20c728c21b2d79f818011cebde8c`。用户逐文件授权后，两份文件在服务器暂存和最终收件路径各核验一次，项目名、容器、卷与 `10.251.232.0/24`、`10.251.233.0/24` 子网运行前均查无占用。
+- 用户在全新主批次 `e5ff5e73-80bf-4887-a723-63afcd7eb410`、克隆批次 `b7f1f331-dd84-4dd0-975b-f649ce664f62` 执行 `--sql-session-clone-negative`，返回 `CLONE_PHASE_RUN_EXIT=0`、`SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE`。用户贴回的 root 私有 `result.json` SHA-256 `647a669d376ab1294e132ee8f97737b98c69b2fc6e8aee10b65b4c8ad573e54f`、`pin-inspection.json` SHA-256 `7356a3beba8fca7bc98ecca132806d7e1bc7c85677f8a6aed5379e573a5fec22`，`PENDING_ABSENT`。结果内 `clone_phase=complete`、`backup_verified=true`、`no_standby=true`、`same_system_identifier=true`、`same_database_oid=true`、`primary_started_at_unchanged=true`；异端点只读探针 `exit_code=0` 且固定状态相同。主、克隆容器精确 ID 分别为 `f62fd4709a945570a48e5142301346e8b483999a5bb1565d171dc0da055be092`、`9138ce1018198a41a18b9da659ea8e76945f1c07b742579e83aa6f8c64dd6529`，`stop.confirmed=true`、双卷保留、`target_reuse_permitted=false`，源码前后 SHA-256 均为 `10c6b2b7d426e509dec0f72a62a3519c417bd9a0681b60f1f9d855d145fd2c32`。根任务另以只读 Docker 查询确认两容器均 `Exited (0)`、两卷与网络留存、本批无 clone helper 残留。root 私有结果字节由用户终端核验并贴回，根任务无法直接读取；此门只证明物理克隆的同 ID/OID 异端点拒绝，不证明 `pg_restore` 子进程绑定、资产闭包、租约失效、`CompleteBackup` 或干净恢复。
+
+## 只读子进程绑定 Task 3 本地候选（2026-09-30）
+
+- 新增显式 `--child-read-only-restart` 单项目模式及 Linux ignored 测试 `live_read_only_child_restart_rejection`。同一 guard 和 SQLx 事务先完成固定 socket 子进程只读证明，再对精确容器 ID 执行受限重启，原对象的第二次证明必须以固定 `Session` 或 `Identity` 原因拒绝、精确停机确认为 `STOPPED`，旧 guard 不能再用。测试还检查目标文件、资产和恢复尝试标记未变。runner 在创建目标前列举该测试，以真实出生 SHA-256 重编译；只接受首次成功、重启拒绝、原因及隔离标记、精确一项测试和退出码 0，同时在私有 `result.json` 保留失败类型、隔离与 `target_reuse_permitted=false`。成功状态 `CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE` 与旧 3a/3b 状态区分。
+- 本地 Python C4 回归 177/177、Rust library 49/49、格式及严格 Clippy 通过。仅有 Windows MSVC target；Linux ignored 测试尚未编译或运行，固定 PG18 客户端版本行与本地 socket 认证也未现场观察。该候选须经 Git 字节制包、独立复核及用户逐文件批准，方可在新 UUIDv4 项目、未占用子网和新卷验收。它不授权导入、`restore.attempt`、`CompleteBackup` 或服务放行；失败批次不得重跑。
 
 ## 设计裁定
+
+### SQL session binding Task 3a（2026-09-29，设计及本地验证）
+
+- 新 `--sql-session-binding` 只读模式复用全新 UUIDv4 项目、未占用子网、PG18 卷、固定离线 builder、出生哈希与精确 ID 停机。Linux 忽略测试从目标精确容器 inspect 与其唯一网络成员提取一致 IPv4，读取 root 私有目标的 admin 密码文件，以 SQLx 单事务取得两把临时 advisory locks，并由精确容器本地 socket 独立观察前后锁、PID、数据库 OID；对同一新 PG 的错误 `postgres` 数据库做真实连接负例，Drop 后再次独立观察锁释放。该路径不调用 `preflight_restore`、`restore_database` 或 `pg_restore`，不创建目标恢复尝试标记或用户数据。
+- TDD RED：Python 新模式两项测试分别错误走旧 pin 成功路径；Rust IP 单测因函数缺失编译失败。GREEN：Python runner/邻近回归 57/57、Rust `learning-backup --lib` 29/29、`cargo fmt --all -- --check`、严格 workspace Clippy、`git diff --check` 均通过。本机仅有 Windows target，无 Docker 和 Linux PG18，Linux 忽略测试及 root 私有密码路径尚未编译或现场运行；这些本地结果不能称作 SQL 会话现场通过。
+- 成功状态被限定为 `FOCUSED_SQL_SESSION_GATES_PASSED_NOT_FULL_ENDPOINT_ACCEPTANCE_READ_ONLY_NOT_RESTORE`。上文记录了 Task 3a 后续获得授权并在 Linux/PG18 隔离批次通过的现场证据；本条保留实施前的本地验证范围。单目标错误数据库负例不能代替第二个可连接 PG 端点或同 system identifier 克隆；独立 Task 3b 仍需新包授权与全新双目标批次。C4 写入与恢复权限保持关闭。流程见 [聚焦只读验收说明](p0c4-sql-session-binding-acceptance.md)。
 
 - Ruling: C4 走独立整库备份路径，不复用 C3 授权阅读包 — C3 排除了用户、空间、授权、作业等权威行 — 若误用会产生缺失恢复点。
 - Ruling: 本轮隔离维护窗先停止 runtime/Worker、拒绝 runtime 新连接并排空旧事务；在线只停写能力留给 P1 接入后另验 — 现有写入口分散，单入口闸无法证明完整 — 代价是隔离备份期间阅读暂停。
 - Ruling: Task 2 只交付 `sealed` 复制原语，Task 3 源端一致性/保留保护及目标校验后才可产生 `complete` — 先封存字节并不代表数据库与资产属于同一恢复点 — 代价是任务之间必须保持状态类型隔离。
 - Ruling: SHA-256 检测损坏，不证明有包写权限者未伪造；依赖私有管理目录和独立运行证据，恢复仍全量重验 — 若目标目录不可信需以后另加认证签名/MAC — 当前不宣称抗恶意目标管理员篡改。
 - Ruling: 新实例恢复使所有旧实例运行中租约失效，按重试上限和外部副作用记录分类 — 仅按过期时间处理会让旧进程令牌仍有效 — 代价是部分作业恢复后需人工核对。
+
+## 子进程绑定本地候选整计划审查（2026-09-30）
+
+- 独立整计划审查范围：`35f696c99b5be5a2f1e4bc1c8978c41a8a9a6e78` 至 `b4a0fb37b4ba8cd2a6a946f08e024b79a72aaa73`，覆盖三项本地实现、Task 2 修复及状态文档。无 Critical/Important；允许封存本地候选并进入另行授权的隔离 Linux 验证。此结论不批准实际恢复、CompleteBackup、C4整关合并或生产放行。
+- 先前延期的 compile-fail API 参数排除测试保留为非阻断回归增强；现有闭合签名和固定 argv 测试符合当前只读范围，不为测试添加 host/env/client 输入入口。
+- 根任务补充 `cargo test --offline --locked --workspace --no-run`，2026-09-30 退出0。它只证明当前Windows目标下工作区测试可编译，Linux路径及真实PostgreSQL未运行。
+- 拟用新批次 `af49afb1-2065-483f-94e2-43f8f363aa63`、项目 `learning-system-p0c4-restore-af49afb1-2065-483f-94e2-43f8f363aa63`、子网 `10.251.234.0/24`；只读预检未发现同批容器/卷/网络或Docker/路由子网冲突，运行前仍须再次检查。源码包和runner尚未上传，需用户逐文件确认。旧失败批次及证据不复用。
+
+## 子进程首轮 Linux 隔离 RED 与只读诊断（2026-09-30）
+
+- 用户授权精确 Git 字节 ZIP `2b46ca239215c404ed5dbc6145c88000e6827902d01fede02d910ef44b468ee2` 和 runner `c723617667ed23425906f9eadf4d849d7c04005aad37125e6e5297c6407a6536`，源码提交 `a7a8b1d75f54a6eb4349a16f418fef47f5e6d804`。仅运行全新批次 `af49afb1-2065-483f-94e2-43f8f363aa63`，子网 `10.251.234.0/24`；此前“待授权/未上传”条目保留为历史准备记录。
+- 人工 root 终端返回 `CHILD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN`、退出码 1，失败阶段 `read-only-child-restart`、类型 `ValueError`。结果文件报告 SHA-256 `1d8fb2b03c814c28da6dce1515ec2c02edb5ee05f27769ee3bc4ef798391543a` 与最初摘要一致；控制器按驱动的规范JSON序列化独立复算人工返回的完整JSON，SHA-256亦逐字节一致（本机保存注明来源的副本，并非自行读取远端root私有文件）；源码前后摘要一致；`stop.confirmed=true`、留卷、`PENDING_ABSENT`、禁止目标复用。控制器另行通过精确 Docker ID 只读核对容器已停止。
+- Linux 离线编译/测试枚举前置门通过。人工 root 只读元数据确认现场测试二进制 `learning_backup-b09ce7eacfe3f175` 存在（108811696 字节）；出生证据摘要与 pin-inspection 相符。出生时 StartedAt 为 `2026-09-30T14:28:58.090902251Z`，现为 `2026-09-30T14:29:24.136471843Z`，后者亦经控制器只读 Docker 核对。证明生成过现场二进制并发生了出生后的容器重启，不能替代完整子测试成功标记。
+- 驱动当前将编译/子测试输出保存在临时文件，遇到验证失败后未持久化固定细分诊断；结果仅有粗阶段与异常类型。具体失败仍不能区分重启命令返回、重启后拒绝、隔离/断言与输出解析；启动时间变化不等于重启命令成功退出。按同一测试的执行顺序缩小调查范围，但不猜测或放宽运行时策略。
+- 已交子代理按 RED→GREEN 补充固定白名单的阶段/原因/退出状态/标记观察，并独立复审；不保存原始 stderr、任意异常消息、密码、DSN 或随机锁值。旧失败批次不重跑，不修改其证据；下一次现场运行须封存新字节并单独取得新包/runner/UUID/子网授权。C4、实际恢复与生产仍未验收。
+
+### 固定诊断补充：本地完成并独立复审通过，Linux门仍未通过
+
+- 子代理提交 `db468ec9af0863887d6bff5c7c279a719b13df16`，仅改 runner、相邻 Python 测试及 Rust opt-in 测试模块。新增 `child_diagnostics` 固定白名单数据：编译/枚举/执行/解析阶段、固定原因码、有界退出状态、饱和标记计数及重启前后检查点。任意异常消息、原始输出与凭据不进入持久结果；未知项保持 UNKNOWN。诊断不赋予通过或写入权限，原验收谓词不放宽。
+- 实现报告：16项新增Python诊断有实际RED→GREEN；61项聚焦Python、193项相邻C4、50项Rust库单测、格式与严格package Clippy通过。控制器独立复核 `python -m unittest test_p0c4_restore_pin_acceptance -k child_diagnostics`：16项通过、退出0；`git diff --check`退出0。Windows不验证新增Linux-only检查点的编译或现场行为。
+- 独立复审核对 `a7a8b1d`→`db468ec` 修订：原诊断缺口已解决，规格与质量均通过，无新增Critical/Important/Minor。既有临时文件输出上限为进程结束后检查，本轮未改执行器策略，不宣称其提供运行中的字节上限。拟用全新UUID `124c3938-f820-4e88-9de7-0fbc37dbdd71` 与 `10.251.235.0/24`；只读预检未发现名称、Docker子网或路由重叠，尚未上传、未创建资源。复审及Git字节封存后仍需用户逐文件确认，执行前重查占用；旧af49失败批次不重跑。
+
+### 第二轮固定诊断：首次证明通过，重启命令输出不匹配（2026-09-30）
+
+- 用户逐文件授权后运行 `e0e65c7` 的 ZIP `5f34a1d6ed9c5fe25c61f0fd453dcd3601d46aa565635315e65580ff67aafa5d`、Git原样runner `8ddabb85535ce8a0bf2176f5824ebae40ab4800cde3d1fd17fc122820b62f85e`，新批次 `124c3938-f820-4e88-9de7-0fbc37dbdd71`、`10.251.235.0/24`。终态仍为 `CHILD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN`，命令退出1。上方尚未上传条目是此前准备状态。
+- 人工root终端返回完整JSON、结果SHA-256 `61de0edd78bcb041fc48a2622f09e8a685f9b3a1859cbf2d0fba701c7e5b29b4` 和 `PENDING_ABSENT`；控制器独立规范序列化后SHA相同。本地副本注明人工终端来源，控制器未自行读取远端root私有文件。源码前后哈希一致；`stop.confirmed=true`、留卷、不许复用。另由只读Docker核对精确ID `745d78f10c52b2aaaef7c0f87942881ce9bd2b07bc95a23e7dfe1a607aeeb602` 已停止，卷仍存在。
+- 新增诊断确认 preflight编译/枚举、现场编译均退出0。现场只读首次证明标记1次；`RESTART_BEGIN=1`、`RESTART_COMPLETED=0`、所有重启后拒绝/最终检查点0；`child_failure_phase=RESTART`、`child_reason=Identity`、现场libtest退出101。失败在测试重启helper的身份校验，尚未进入重启后拒绝检查，不能记为完整只读子进程门通过。
+- 源码追踪确认底层执行器保留原始stdout；helper要求输出仅为64位完整容器ID加LF，但使用 `--time`。服务器只读帮助命令确认 Docker29.8.0：`restart --time 5 --help` 产生固定弃用提示于stdout（1次、stderr0）；`--timeout 5 --help` 无提示。该诊断未重启或创建任何资源。[Docker CLI源码](https://github.com/docker/cli/blob/master/cli/command/container/restart.go) 将time标记弃用，[pflag源码](https://github.com/spf13/pflag/blob/master/flag.go) 会把弃用提示写入参数输出流。结合执行路径，原因定位为测试命令的弃用提示与严格stdout协议冲突。
+- 交原Task3修订流程的子代理改用受支持的 `--timeout`，用定向RED→GREEN保护严格完整ID/LF响应；不忽略提示、不trim任意输出、不修改生产身份/锁/隔离策略。旧两批均停机留证，禁止重跑；修复后仍需独立复审、精确封包、新UUID/子网授权及现场验收。实际恢复、CompleteBackup与C4整关未通过。
+
+### 重启测试helper修复：本地完成、独立复审通过，待新批次Linux门
+
+- 修复提交 `a3e322e3c1b2149765a44d67991bec31ea5e0953`，仅一个Rust文件的 `cfg(test)` 路径：实际重启helper调用经过测试的 `--timeout 5` 参数构造和严格响应验证函数，保留精确64位小写ID、仅ID+LF输出、原15秒截止时间/有界执行器与错误传播。生产/quarantine及runner验收谓词未改。
+- 实现者实际RED为参数测试中 `--time` 与 `--timeout` 断言差异（两项中一失败、一通过），GREEN定向2/2、库测试52/52、格式与严格package Clippy均退出0。控制器独立重跑 `cargo test --offline --locked -p learning-backup --lib restart_test_`：2通过、0失败、退出0。测试拒绝弃用提示、错误/短ID/名称、前缀/额外行、CRLF、缺LF或大写ID；未放宽输出协议。
+- 独立限定复审核对 `e0e65c7`→`a3e322e`，原finding已解决、规格与质量均PASS、无新增阻断。Windows不替代Linux-only实际重启与后续拒绝/停机验收；此修订尚无新的现场通过证据。
+- 计划全新UUID `aa3feac4-45ab-4b48-a117-098d2e42b2fd`、`10.251.236.0/24`；只读预检无Docker名称或网络/路由重叠，尚未创建资源。Python runner未变，拟复用之前已授权root安装且运行前再核验 `8ddabb85535ce8a0bf2176f5824ebae40ab4800cde3d1fd17fc122820b62f85e` 的原样字节。新ZIP封存核验后，上传和新批次执行仍须用户单独确认；旧两批不重跑。实际恢复、CompleteBackup、C4整关与生产未验收。
+
+### 子进程只读端点绑定：新批次Linux/PG18验收通过（2026-09-30）
+
+- 验收源码提交 `273f106e7addfcbc8bad3d96f5ba4dd7b8ab30c2`（窄修复 `a3e322e`），408个Git文件；授权ZIP SHA-256 `f98121621a2b1d793541f45031e3d993524be74f7e304d68b3d1836404ed390c`，manifest `7de8e4102988de00418fc16dcc4485057325470ff3e12a42ab2c3d8982ea18d0`，复用Git/ZIP同字节runner `8ddabb85535ce8a0bf2176f5824ebae40ab4800cde3d1fd17fc122820b62f85e`。运行前新名称和子网再次核对无占用；用户在Linux本机终端完成sudo认证后，仅运行新UUID `aa3feac4-45ab-4b48-a117-098d2e42b2fd` 和 `10.251.236.0/24`。
+- 用户终端返回 `CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE`、`CHILD_TIMEOUT_RUN_EXIT=0`。随后返回完整root私有结果、两个文件SHA和 `PENDING_ABSENT`。控制器按驱动规范独立序列化完整JSON，复算SHA-256 `909cef1f72485398751a8b3065605d7c95ba2eccd55f35f9b237081ee08791c0`，与两次终端结果摘要逐字节一致；保存注明人工终端来源的本地副本，不冒充直接读取服务器root文件。`pin-inspection.json` 终端SHA `896d18d03b2da51a181a3e217aace717248d935fd21ca7a808614e82c4120c3b` 与结果/此前摘要一致，控制器未独立获取该私有文件的字节。
+- `PREFLIGHT_COMPILE`、`PREFLIGHT_LIST`、`LIVE_COMPILE`、`LIVE_EXECUTE`、`LIVE_OUTPUT_VALIDATE` 五阶段均退出0/COMPLETE。一个精确选中的测试实际通过；现场二进制SHA `3114a3e807452c120eb254ac7979bf503d89a3665e685e86d12d5852b7759860` 前后未变，固定builder image `sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b`。
+- 十个固定检查点均且仅出现一次：首次证明、重启开始/完成、拒绝开始/观察、接受预期拒绝原因、停机确认、旧guard拒绝复用、最终快照和最终断言。首次证明为 `CHILD_READ_ONLY_ATTESTED_NOT_RESTORE`；重启后在同一guard/原SQLx事务上观察 `Session` 拒绝、`STOPPED` 隔离、`guard_reuse_rejected=true`。诊断中的 `child_failure_phase=REJECTION` 与 `child_reason=Session` 是本负例的预期拒绝，不是批次失败；`failure_type=null`。
+- 源码前后SHA均为 `3fd459ed6033e71efb7da51cfce590cc40dcfd97363cb5f412d19fe472813029`；出生证明SHA `caef819615ac61d76cf2290931fcff62aed3b2be57dc57a2b62453e78d55b6e3` 在结果与child证明中一致。最终快照/断言检查通过，无restore.attempt、数据库导入、资产写入或服务放行；只读目标控制锁是计划允许的状态。
+- root结果确认精确容器ID `b01995579648d5816bb7e9c8f354bb8ecd99bb6443bd1e7763ce48037af3b607` 已停止且留卷。控制器再次独立只读Docker核对：本项目唯一容器正是该ID、项目标签匹配、Running=false、退出0，卷 `learning-system-p0c4-restore-aa3feac4-45ab-4b48-a117-098d2e42b2fd_pg` 存在。目标状态 `CHILD_RESTART_STOPPED_QUARANTINED_NOT_RESTORE`、`target_reuse_permitted=false`；本批与旧af49/124c失败批次全部保留隔离，不重跑、不复用。
+- 关闭本施工单的三任务，只认定精确子进程**只读**准入和同guard重启拒绝的既定验收范围。postmaster独立重启、错误库/认证及其他漂移由已审查依赖注入测试覆盖，不冒充本轮全部现场复现。本结果不是 `CompleteBackup`、真实 `pg_restore` 首次写入、资产恢复闭包、C4整关或生产验收。下一步单独设计固定导入子进程/凭据契约及全新目标上的受控小型dump写入验收，再衔接完整恢复。
+
+### 下一切片：受控小型 dump 导入设计与施工单已批准（2026-09-30）
+
+- 基线 `e2435e4` 上完成只读源码梳理和独立契约审计，整理 [受控小型 dump 首次写入设计](superpowers/specs/2026-09-30-p0c4-controlled-import-design.md)。取消/提交串行边界、停机前取证和disabled passfile修订后，独立全文复审无剩余阻断或重要矛盾。设计已获用户批准；该结论不是实现完成或现场通过记录。
+- 推荐固定 `pg_restore` 离线解码与单一 `psql` writer 的显式事务：writer自己先核对目标及原SQLx双锁，持久attempt后才写DDL/COPY，提交意图先持久化再单独发送COMMIT。输入只接受完整审查过的小型fixture/golden，默认/发布构建无候选写入口；不伪造CompleteBackup。
+- 用户在设计呈现后以“推进”批准设计，并在施工单呈现后以“开始”批准 [六任务施工计划](superpowers/plans/2026-09-30-p0c4-controlled-import.md)。执行基线 `dee75734a36b77babe7d049f9819281b1301d645`，任务1开始本地RED、实现与独立规格/质量审查；任务2–6未开始。固定PG18的开放stdin协议、认证路径与实际dump/SQL采集仍需新批次现场门；现场门及工件复审通过前，不猜测封存golden或启动实际导入。
+- 仅做新轮资源预算的只读检查：Linux根文件系统可用约363 GiB、可用内存约27 GiB；拟用 `10.251.237.0/24` 与 `10.251.238.0/24`，检查108个Docker网络及全部路由未见重叠。这是准备时快照，不是资源预留，执行前必须再次核对。未上传新包、未创建服务器批次、未导入或改动旧隔离目标；具体新包、runner和现场新资源仍逐文件单独确认。
+
+### 受控小型 dump：Task 1 本地实现与独立复审通过，现场门待授权（2026-09-30）
+
+- 子代理在 `43cd2df8b10d3eb98385d7c5ddd785152d474e5f` 提交固定 Rust 参数/回执模型、仅 `--phase contract` 的新驱动、固定合成源与开放 stdin 客户端，以及实际进程/文件测试。首轮原始 RED 输出未回收，记录为前执行者报告，不冒充独立观察。后续实际 RED→GREEN 覆盖未封存模块提前执行、隔离安装依赖装载、最终证据身份缺失。
+- 独立审查发现继承的 Docker 调用不受 15 秒隔离截止约束、Rust 接口对子模块之外不可见；同文件 UUID 变体检查不一致。修复提交 `4fad8e681060c8bd4575b033f860e97054cccc2e` 用真实子进程复现并修正停机/有界输出，增加同父模块内 `pub(super)` 合同和 sibling 编译使用测试，统一 RFC UUIDv4 校验。独立定向复审逐项判定 ADDRESSED，无新的 Critical/Important/Minor 代码问题；既有负例回归输出噪声保留为后续所属测试范围的非阻塞记录。
+- 修复执行者的 Rust 专项 7/7、Python 专项 30/30、格式和严格 workspace/all-targets Clippy 通过。控制器另对提交的 Git 原字节运行 Python 专项 30/30，并实际运行 `cargo test --offline --locked --workspace --lib`，5+59+36=100 项全部通过。复审指出报告列出的 `fix1-fmt-final.txt` 不存在；控制器重新执行格式检查并保存 `controller-fix1-fmt.txt` 与退出码0，补齐当前格式证据，不虚构原日志。
+- 修复前全 Python 218/218、全 Rust 库 98/98 是历史版本验证；当前修复只再跑覆盖修改的专项及上述全库检查。未重复缺库的完整 Cargo 集成测试，仍不能声称全 workspace 或 Linux/PG18 现场通过。
+- 三个相邻脚本与源码 ZIP 将从 Git 原字节封存，逐文件核对单独哈希及 manifest 成员；旧 runner/helper 行为保持不变。新源仅创建已知两行 fixture、第三行未提交 EOF 回滚探针和 dump；新目标仅只读握手、ROLLBACK、无 DDL EOF 与独立空库观察，捕获 SQL 不送入目标。工件分列保存，必须实际核验并独立审查后才能封存 golden、启动任务2。
+- 最新只读资源复查：固定 PG18/builder 镜像一致；两个拟用项目/卷/网络均未占用，108 个 Docker 网络及 IPv4 路由与新子网无冲突；可用磁盘 `389344874496` 字节、MemAvailable `28946575360` 字节、24 个逻辑 CPU。两个 PG 上限合计 4 CPU / 8 GiB，不是预留。没有新服务器上传、容器、卷、网络或导入。完整边界和资源清单见[客户端合同与合成工件采集验收](p0c4-controlled-import-contract-acceptance.md)。
+
+### 受控小型 dump：首轮封装准入失败，封装修复已独立复审（2026-09-30）
+
+- 用户逐文件授权源码ZIP及三个原样脚本。代码/文档提交 `045544fd6b464fc08b385141949ade5f05f6f91f` 已同步既有GitHub分支。ZIP SHA-256 `8ece9bcdf9d351145912017352058731fbe87b794245ee806bd5de91ecef0925`，443个Git跟踪文件，4,764,019字节；清单SHA-256 `966e8206b2bf99a2efccd1d347120211368eb017a096e900a1f010809f534ae4`。四文件上传核验通过；用户root终端报告四项上传和四项安装后SHA-256均为OK。
+- 首轮控制UUID `afa97a4e-bd2f-4cf3-a08c-afb5f71116f1`；源/目标UUID `4193631e-f86e-4148-8d9b-000529e820ae`、`c3c4e57c-1c37-4099-92d4-341c393418dc`，子网237/238。驱动只输出 `CONTRACT_ADMISSION_OR_EVIDENCE_REJECTED_NOT_IMPORT`，`CONTRACT_RUN_EXIT=1`；不算合同或工件验收通过。控制器随后只读Docker核对，两个项目均没有容器、卷或网络；root私有批次/结果是否存在仍待只读回传。
+- 对同一授权ZIP本地只读复现：清单含两个中文路径 `docs/architecture/KnowWeave架构设计.html` 及相邻 `.qa.json`，实际63,985字节采用默认ASCII转义，接收端未改变的UTF-8原文规范要求63,961字节，首个差异在49,241。文件摘要匹配不能替代接收端规范校验。前次封存检查中的“canonical”断言使用了不一致的序列化规则，这是封装验证遗漏，不是已取得的PG18协议/SQL错误。
+- Task1修复轮2提交 `305a54f580ba5efc6a42f32fd80dc1b5b00d6707`，仅修改共享封装器的 UTF-8 清单生成并新增 `test_package_p0c4_task3.py`。三项回归使用实际 HEAD 的 Git 字节和未改动的 `verify_archive`，验证中文路径可准入、重算哈希后的旧转义清单仍拒绝、纯 ASCII 包可准入且字节稳定。只模拟 Windows 不适用的 root 权限/no-follow 元数据与本轮所需入口配置，不模拟清单、inventory 或成员哈希规则。实际 RED 为两失败/三项，GREEN 为三项通过；独立限定复审判定 I3 ADDRESSED、无新增 Critical/Important。
+- 完整 Python 在提交后首轮为 225/226，既有 `test_both_owned_resources_share_one_absolute_isolation_budget` 的进程非零退出状态断言失败。该失败日志保留；随后同一测试单独运行通过，下一次全套 226/226 通过。原因尚未证实，作为既有计时问题交最终整分支审查，不声称套件稳定。此次无 Rust 改动，未重复无关检查；此前 Rust 全库100/100及格式/严格Clippy证据的版本边界保持不变。
+- 旧信任规则、客户端、三个已安装脚本、旧包和历史证据保持原样。准备新 ZIP 与全新控制/源/目标 UUID `55571d76-02f8-4c47-aeb8-4d54fe29ad46`、`2cde52c8-fbbc-4b9c-ae4b-dce60c21acf1`、`ff1fde0c-506f-4ee8-8aec-f5f98803b2e2`，子网 `10.251.239.0/24`、`10.251.240.0/24`；资源未创建、执行前重查占用。三份同字节脚本拟复用首轮 root 安装目录并再次核验；新包及新 UUID/子网/卷仍逐项单独授权，旧失败批次不重跑。原始控制批次和服务器异常栈尚未独立读取，不能伪造具体现场原因码或提前关闭任务1。
+
+### 受控小型 dump：canonical 包通过准入，资源创建前 StdoutLimit（2026-09-30）
+
+- 上一条“待授权”是历史准备状态。用户已授权并运行 `a300908` 包，ZIP SHA-256 `2a2add6c0c2d809e2d299d4bdd8a05819f669e8e666129b31363e563b74bd6f4`；控制批次 `55571d76-02f8-4c47-aeb8-4d54fe29ad46` 返回 `CONTRACT_FAILED_QUARANTINED_NOT_IMPORT`、`reason_code=StdoutLimit`、退出1，源码未变，`identity.resources={}`。结果文件位于 `/var/lib/knowweave-c4/controlled-import/batches/55571d76-02f8-4c47-aeb8-4d54fe29ad46/evidence/result.json`。
+- 用户终端摘要的规范序列化复算匹配结果 SHA-256 `245d94129c925b1262b32052133cfd8fdd42227c78f38d99ac8d73c83b1e4933`；源码 digest `8d06ac291797ad5f6e3c199d0e6282ba6f511f443cb62df5733d130f4225d54a` 与封存清单复算一致。控制器未直接读取 root 私有结果，不把用户回传冒充独立文件读取。`volumes_retained:true` 是无资源时的通用字段，不能据此声称存在卷或停机证明；只读精确项目查询确认源/目标均无容器、网络或精确卷。
+- 现场只读观测为764个容器、108个网络、430个卷；全部容器一次 `inspect` stdout 为9,387,498字节，超过单次4 MiB。其他快照输出未超限。将已授权同字节 runner/fixture 只用于只读适配器调用，实际复现相同 `StdoutLimit`；未运行合同入口或重放失败批次，原始 Docker inspect/环境输出未保存或展示。
+- 第三轮修复仅修改合同驱动与相邻测试，要求完整 inspect 每64对象一批、单次4 MiB/64 KiB、全操作4096对象/16 MiB；共享30秒绝对截止，并与既有15秒隔离截止取更早者。完整字段、顺序和身份比较不删减，writer8 KiB与工件64 KiB不变。子代理正实施，独立复审后才封包并另行确认新 ZIP、新 runner、新批次。旧失败文件/批次不变；任务1及C4整关未验收。
+
+### 受控小型 dump：有界完整 inspect 修复已独立限定复审（2026-09-30）
+
+- 代码/测试提交 `77c24ba6ab802e815f7968e5d66d325ac0740898`，仅合同驱动及相邻测试。真实私有 snapshot 旧行为 RED为1项错误 `StdoutLimit`；最终新增6项通过，验证65个完整对象以64+1批次返回、字段/顺序保留、4096可接受/4097拒绝、16 MiB总预算、JSON/数量/类型拒绝、共用绝对截止和进程回收。未修改既有 provisioner、issuer、pin、fixture或接收端；Windows子进程测试不代替Linux/Docker现场。
+- 唯一一次提交后完整 Python 回归232项中231通过，既有 M3测试仍在“至少一个 CLI被截止终止”的返回码断言失败，日志保留，未重复跑到绿色。独立复审确认该测试用 `_command('observe')` 的替换 snapshot，不进入新增 inspect；因此是限定修复范围外的待办，确切原因尚未证明。完整回归不得写成通过，M3进入最终全分支审查。
+- 独立限定复审结论 I4 ADDRESSED、无新增修复范围问题，已核验保存的RED/GREEN/完整回归日志，不重跑套件。准备新 ZIP 与原样runner；两helper保持旧授权字节。准备控制UUID `14b45cf0-e9f3-4beb-a250-ceb6f49d5a14`、源 `ed8d1bb5-6694-4108-894d-2db815841477` /241、目标 `38bbfe39-bd18-4e51-8697-e762a14e353e` /242，均须另行授权，执行前重查占用。Task1现场门/工件复审仍待；Task2–6未开始，未执行目标导入。
+
+### 受控小型 dump：客户端合同、合成采集与独立工件审查完成（2026-10-01）
+
+- 上一条为准备历史。用户已逐文件授权 ZIP `08979f05…` /提交 `5bc482d7117549050e26f37510e695c8dbcd8dd6`、原样runner `9d78b2c3…`、新工具目录/两同字节helper复制及全新控制/源/目标批次。现场返回 `CLIENT_CONTRACT_AND_FIXTURE_CAPTURE_PASSED_NOT_IMPORT`、`CONTRACT_BATCHED_RUN_EXIT=0`；完整摘要结果SHA-256 `505ab6179e3be1f1c8afb441fa694db8d5033f27e77a0940908de208bad96508` 已由控制器规范序列化复算，源码 digest `996342cf730713bb7e0f7f585c900d869106ca6dcb65047563d97601bbd21fb3` 与封存清单一致。控制器未独立读取root私有结果文件。
+- 源/目标真实开放stdin双握手、同writer事务、回滚、无DDL EOF、字符设备和禁用passfile空stderr通过；local HBA记录为trust，无error。源第三行EOF后回滚且两行读回；目标基线不变。只有固定合成夹具，不是目标导入。
+- 独立只读Docker核对精确源 `7e9e059d…` /目标 `c2337121…` 均exited/退出0，固定PG18镜像、项目及241/242子网匹配，卷保留。结果路径为 `/var/lib/knowweave-c4/controlled-import/batches/14b45cf0-e9f3-4beb-a250-ceb6f49d5a14/evidence/result.json`。
+- 工件摘要：dump1,980字节/SHA `56b12180a18e84b998ead3f1c7d552b922c68c765de2b5725d93112e5dbb5136`；SQL1,308字节/SHA `e2c252bfa5d44c5ed9133dcdb7fd8344e0a2471489d0ee410edb6c09baabd44a`。两文件已受控导出并下载，控制器独立核对大小/实际字节哈希。离线TOC625字节/SHA `edcd6b7eb8b23a1b91113b0fde92da041c08a01235706bb481d1f23dd0d161fb`，helper无网络/凭据/新磁盘卷，身份核验后只列目录，退出0/空stderr，按精确ID清理。独立子代理实产审查的规格/产物质量均通过，无阻断；Task1完成，Task2从实产字节开始。旧失败批次/证据不改，M3全套计时失败仍待，C4/恢复/生产未验收。
+
+- 用户导出命令另核对root结果hash及 `result.pending` 消失；原始root文件仍未由控制器直接读取。实产header边界670、63位匹配key及LF规则已定位，Task2须从该实产封存完整模板并核对变长key偏移及固定四timeout转换。
+
+### 受控小型 dump Task2：冻结与完整SQL模板完成（2026-10-01）
+
+- 实现提交 `b8fb7be80dd65eec5e814770b2fc11d7d375c50b`，仅五个允许路径；所有代码位于私有cfg(test)模块。FrozenDump在读取期间执行64KiB预算，核对magic/长度/SHA后返回不可变字节，不重开路径。VerifiedFixtureSql完整匹配实产模板，只允许一对相同的1..128位ASCII字母数字restrict key，完整核验后分段并替换四句固定SET LOCAL超时。
+- 实产SQL1,308字节及两处63字节key形成1,214字节模板，模板SHA `2bc9495461ac7432d725a76868fd2165eeb6e3e32cd3a6d05b34fbeaecdb7c49`；实产转换后1,363字节/SHA `d52fadf2e5d841b57166cd9d6f281034b3b16264b66a677b55aeaab8fcbce138`。capture-contract保存镜像、来源批次、dump/TOC/原SQL/模板摘要、动态边界和唯一预期header空行。精确LF属性规则保留`.sql.in`字节；实产末尾空行保留，默认diff whitespace的EOF空行提示属于已核验数据例外。
+- 留存RED退出101：七项中五项预期失败、两项拒绝测试通过；最终定向7/7、package库66/66、格式和严格package all-targets Clippy退出0。控制器核对留存日志，独立子代理核验实际捕获SQL/dump/TOC、模板重建、key边界和转换摘要，规格符合/质量Approved，无Critical/Important问题。初次GREEN借用检查和首次格式失败记录仍保留，未掩盖为首次全绿。
+- **T2-LIMIT-01：** freeze_dump的期望摘要由内部调用者传入，本模块只接收解码SQL；后续整合必须把实际输入绑定到已审查dump/TOC、Linux no-follow打开及固定PG18解码客户端，不能仅凭本模块通过放行任意dump。这些Windows结果不证明Linux编译、真实writer/导入、服务端超时或隔离。既有M3 Python计时失败未修改/重跑；整支与C4全关尚未验收。Task2本地实现/审查完成，Task3开始持久attempt及提交意图。
+
+### 受控小型 dump Task3：候选attempt与提交意图本地完成（2026-10-01）
+
+- 实现提交 `f815b6e62bc78abe45b0610876ce4926e5346835`，仅三份Rust文件。候选类型/版本独立于production receipt，绑定batch、birth/inspection、dump/SQL摘要、fixture版本和writer身份摘要。沿用BackupDir持有目录句柄的create_new/no-follow、文件同步及父目录同步；任一步失败不返回持久permit，已创建或部分条目保留，禁止复用。
+- 非Clone的DurableAttempt与DurableCommitIntent字段私有；提交意图核对同目录device/inode、同writer，并从目录句柄打开初始文件、限定4096字节重算SHA，绑定初始证据。没有SQL发送器，也不证明数据库已提交。Windows故障模型与真实BackupDir适配器共用同一持久化算法。
+- 初次RED为三失败/一通过；自查加强既存条目用例后，失效实现mutation RED四项全部失败；最终定向4/4、package库70/70、严格Clippy通过。格式原工具回执为EXIT=0、空输出，Tee-Object未创建报告最初引用的空日志；报告已如实更正，未补造日志或重跑。独立规格审查符合、质量Approved，无Critical/Important/Minor。
+- **T3-LIMIT-01：** Linux ignored no-follow/root模式/fsync测试已添加，但当前Windows未编译/执行，实际持久化须在另授权全新私有目录验证。**T3-LIMIT-02/T2-LIMIT-01：** 信任上下文摘要不构成任意输入准入；Task5/6还要绑定实产dump/TOC及固定客户端、单一监督和真正写入顺序。M3仍待最终整支审查，整支/C4/恢复/生产未验收。Task3本地实现与独立审查完成，Task4继续管道与取消状态机。
+
+
+### 受控小型 dump Task4：管道与取消状态机本地完成（2026-10-01）
+
+- 实现提交 `1e4dbdaf6b36b2056b60b934a3218b3f5bcee7d2`，修复提交 `986137b5dce435da6bfebabe827c17a9ab73204f`；只涉及私有stream/state及模块声明，原只读bounded_process语义未改。StreamOwner独占stdin/Child，两个reader只持有输出；固定总/阶段截止、读取中预算和真实背压。状态机在首次COMMIT尝试之前要求attempt/intent及最终复验，取消先接受后不可被迟到同步复活，发送失败保守归CommitUnknown。
+- 首轮独立审查发现两项Important：已就绪成功分支可能绕过过期finish截止，继承管道可在宿主回收后无限阻塞reader清理。聚焦RED分别0/1及0/2；修复保留同一绝对截止、定时分支优先和最终截止核对，未排空reader显式abort并逐一join。自进程夹具证明持有管道的进程仍存活、两侧reader均阻塞；单侧reader失败也核对另一侧结束。新增中间JoinHandle重复poll及Clippy失败日志保留，未掩盖。
+- 最终修复源管道15/15、相邻监督器5/5，格式及严格package all-targets Clippy退出0；状态机3/3运行于未改动的状态源码。修复前完整package库83/83；仅stream.rs修订后的全包未重复运行，不能把旧83/83当最终全包证据。独立规格审查的两项缺陷均经复审ADDRESSED，无新增Critical/Important，控制器核对完整报告和留存日志。
+- **T4-LIMIT-01：** Windows真实自进程管道/OS句柄证据只证明宿主回收与reader结束，不能证明Linux Docker客户端、PG事务/提交、真实journal同步或目标容器停机。仍需Task5组合和Task6另授权现场门；现有M3计时失败留给最终整支审查。Task4本地实现/审查完成，Task5开始；目标导入、CompleteBackup、整支/C4/生产尚未验收。
+
+
+### 受控小型 dump Task5：私有写入组合本地完成（2026-10-01）
+
+- 实现提交 `fae1e56d123eda31623bbc566258d48da1473cb5`，修复提交 `fbdcd1a6649d2645707139ec9fb10c4a75131a76`、`cfea8e5bb08e824e4e5dabdf35ef9cbd48825005`。单监督器拥有原guard/SQLx双锁事务和stdin；完整golden之后才启动writer，真正attempt持久化先于payload，commit-intent与最终复验先于首次COMMIT尝试。解码、writer、journal、独立读回和精确停机是分别验证的事实。原产品恢复入口与CompleteBackup门槛未改。
+- 独立审查发现四项Important：T5-SQL-01合法PG18约束形状被误拒绝；T5-OWNERSHIP-01外层取消finish可能丢失reader句柄；T5-COMMIT-01未poll发送即记录提交尝试；T5-OWNERSHIP-02已排队的准入取消可能提前释放authority。修复采用同一严格约束合同、owner字段内可续接reader清理、首个发送poll内的单调提交标记，以及保存原Tokio运行器句柄的清理交接；离开运行上下文后的普通取消也保留authority直到隔离settle。四项经两轮新代理定向复审全部ADDRESSED，无新增Critical/Important。
+- 实际留存RED包括未发送COMMIT、finish取消/截止、已回收child、排队/未送达交接及运行上下文外取消；各自先失败再修复。组合修复后61/61，之后仅增强两个已完成reader的断言，定向2/2；最后单文件运行器交接修复定向4/4。相邻bounded_process 5/5；最终严格all-targets Clippy退出0。普通/all-features库检查通过于该最后cfg(test)单文件修复之前。原98/98 package结果属于最初修复前历史，最终未重复全包/工作区，不能合并成最终完整通过。
+- 格式最终原工具回执 `29cbe0` 退出0，空输出经PowerShell Tee-Object未创建所引用的日志文件；初次回执 `45dd91` 同样如此。报告已改为原回执并明确无日志，控制器和复审代理没有独立读取不存在的文件，没有补造或重跑替代历史证据。中间Clippy/test fixture失败保留并分别标记，最终源码/索引干净。
+- **T5-PROVENANCE-01仍开放：** 普通freeze_dump只检查不可变字节，不能签发导入能力；本地组合在真实可信producer/no-follow/TOC issuer缺失时先拒绝，尚不是可用写入链。Task6负责唯一实产签发与每个独立新case。**Linux/PG18门仍开放：** 当前Windows未编译真实Linux adapter/Send/SQLx查询、未执行生成的PG18 PRECOMMIT/独立读回谓词、未验证现场journal/EOF/COPY/部分COMMIT/停机。运行器关闭或panic不保证隔离完成，保守报告不可冒充成功。
+- Task5本地实现/审查关闭，Task6开始静态实现；现有M3计时失败仍待最终整分支审查。新的文件、UUID、子网、卷和现场场景分别授权，旧失败批次留存不重跑；CompleteBackup、完整C4与生产尚未验收。
+
+
+### 历史：父 Task3 预备事务排空检查准备（2026-10-03）
+
+受控导入 Task6 的限定关闭保持不变，继续上层维护窗/整库备份工作。真实源端 inspector 新增当前数据库 pg_prepared_xacts 零计数检查，查询/解码失败拒绝，公开 GateInspection 形状不变；不处理未知预备事务。本地行为 RED 为1通过/2失败，GREEN3通过；Windows库139、维护合同4、非Linux日志拒绝1，共144项通过，格式与严格package all-targets Clippy通过。Linux 专用查询与两个新增 PG 用例未在 Windows 编译/执行，不能计为现场门。
+
+新聚焦 runner 准备精确验证当前库非零拒绝、其他库持有事务而当前库为空可检查，以及既有 release-journal 失败补偿/显式重新关闸。使用三个全新隔离 PG18 项目/卷；运行前重新检查容量/子网/输入哈希，sudo 仅用户终端认证。具体界限与待验收项见 [维护闸补充验证](p0c4-maintenance-gates.md)。Task3、完整恢复、CompleteBackup、整个C4及生产仍未验收。
+
+运行器三项静态审查问题分别以行为 RED 复现后修复：全局合法卷名误拒绝、停止后的外来网络附着未拒绝、未知旧凭据进入完整 inspection 日志。修订后定向 Python 17 项通过，库存完整性追加 RED 后再次通过；随后依据 Docker 官方网络命名合同补齐空格/中文网络名，新增行为 RED 后最终 18 项通过。既有隔离纯检查 13 项通过。仅计为本地运行器证据，Linux 编译和真实 PG18 三门仍待执行。封包与上传的私有交付检查另有 14 项通过，不计为数据库用例。
+
+首批现场执行止于 preflight/OBSERVATION_EXIT，PG 为0/3，源码前后摘要一致。普通 SSH 只读复现固定构建镜像缺失可选 Config.Volumes 时 Docker 模板退出1；单字段改用 index 读取后，最终模板在固定 PG/Builder 上均退出0且镜像合同核验通过。18 项既有纯检查及两文件语法检查通过，限定独立复审无新增问题；没有重复运行未改的 Rust 测试。旧失败证据保留，新包与全新批次另行执行；这不是离线构建或数据库门通过记录。
+
+后续 `BUILDER_IDENTITY` 用户回传 cases 为空，源码未变；不是控制器独立读取 root 私有文件。全新 never-started 构建器诊断核对八项非标签身份谓词匹配，唯一旧 singleton 标签谓词失败：固定镜像标签 1 个、实际容器 2 个、精确继承加批次标签匹配，容器已按精确 ID 删除；编译和 PG 均未执行。限定 Python 修复从预检不可变固定镜像观察取得内存标签基线，可选 Go index 读取，缺失/null 为空且非法类型拒绝；启动前后均精确验证基线加内部批次覆盖，外来/额外/缺失/修改标签不接受，其他身份与隔离限制继续生效，未知标签/Env/Cmd 值不落盘。
+
+本轮行为 RED 1 项以旧 `BUILDER_IDENTITY` 失败；最终维护运行器 20/20、既有隔离合同 13/13、两文件语法及启动前后基线传递检查通过。初次直接 `-I` 隔离合同调用因同树导入缺失失败，显式加入同树 scripts 后通过；不修改运行环境或安装依赖。独立限定代码复审为 PASS，Critical/Important/Minor 均为 0。
+
+控制器经普通 SSH 对全新、从未启动的构建容器取得真实 stopped-only GREEN，SSH 退出 0。`task3-builder-stopped-identity-green-observation.json` 保存完整修复 validator 接受实际完整 facts、额外/修改基线/缺失基线/外来批次四种标签拒绝、最终模板通过固定 PG/Builder 镜像、never_started 与 exact_id_removed 的证据。现场只证明模板和启动前身份/隔离核验；Linux build/discovery 未执行，三个真实 PG 门仍为 0/3，父 Task3、CompleteBackup、完整恢复、C4 与生产状态保持未验收。
+
+本地 Python scripts discovery 292 项通过、退出 0（28.453 秒）；仅为本地 Python 证据，不计为 Linux/PG 或整项目验收，未重复未改的 Rust 检查。
+
+### 历史：父 Task3 POSIX 原子写入请求模式修复（2026-10-03，聚焦门执行前）
+
+维护批次 `8c440305-7a02-447c-a5aa-3471669836c1` 用户回传止于 `PG_READY_TIMEOUT`，没有到达实际 PG 测试。普通 SSH 精确容器只读观察确认 initdb/临时服务成功及初始化脚本 `Permission denied`，不等于读取 root 私有结果或直接核验旧主机文件模式。操作模板及该批包装脚本使用 `umask 077`；控制器在普通 hans 全新目录执行 AST 提取旧真实 writer 的 Linux RED，退出 1，请求 `0444` 实际为 `0400`，私有 `0600` / `0400` 保持原值。
+
+限定修复只涉及维护 runner、相邻测试及两份文档：临时文件先以仅所有者权限独占 no-follow 创建，payload flush 后对打开的 POSIX 描述符 fchmod 并核验精确模式，再按原顺序 fsync 和独占发布。模式异常/不符在发布前失败且清理临时文件；不放宽全局 umask 或秘密模式。Windows 纯检查路径无需 fchmod。新增真实 POSIX 用例覆盖 `077` 下非敏感脚本 `0444`、私有证据 `0600` / PG 副本 `0400`，以及模式设置异常和 no-op 不能发布文件。
+
+最终限定 Windows Python 收集 36 项，33 项通过、3 项 POSIX 测试跳过，退出 0（维护 20 通过/3 跳过；隔离 13 通过）。控制器在第二个全新 uid 1000 目录执行修复后同源 Linux GREEN，SSH 退出 0：真实三种目标模式和固定字节匹配，既有目标替换被拒绝且原字节保留/临时文件消失，fchmod 异常与静默 no-op 均拒绝且无目标/临时文件。私有 RED/GREEN 观察分别保存为 `task3-atomic-mode-linux-red-observation.json` / `task3-atomic-mode-linux-green-observation.json`；原失败证据未改。没有运行完整 Linux 单元套件、Rust 构建或新的 PG 批次。此仅关闭 writer 模式缺陷，三个真实 PG 门仍为 **0/3**，父 Task3、完整恢复、`CompleteBackup`、C4 与生产尚未验收。

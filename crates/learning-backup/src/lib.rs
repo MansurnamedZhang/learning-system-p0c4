@@ -1,19 +1,35 @@
 //! Management-only full-backup planning. A plan is never a verified backup.
 
 mod catalog;
+pub mod full_restore;
+mod protection;
+mod registry;
+pub use protection::{
+    CaptureProtection, ProtectionSnapshot, begin_capture_protection, discover_backup_protection,
+    reconcile_registered_assets,
+};
+pub use registry::{EnrolledDestination, EnrolledSource, ManagementRegistry, RegistryLease};
+#[cfg(test)]
+mod protection_tests;
 pub use catalog::AdminAssetCatalog;
 mod sealed;
 pub use sealed::{SealedBackup, seal_backup, transfer_sealed_backup, verify_sealed};
 mod complete;
+mod destination;
 pub use complete::{
     CompleteBackup, DestinationStatement, DestinationWitness, VerifierTrustConfig,
     open_complete_backup, publish_complete_backup, verify_destination_witness,
+};
+pub use destination::{
+    CapturedSourceProof, DESTINATION_TRUST_PATH, DestinationSigner, VerifiedDestination,
+    open_captured_source_proof, persist_captured_source_proof, verify_enrolled_destination,
 };
 mod maintenance;
 pub use maintenance::{GateInspection, GatePhase, PgDumpSpec, SourceGateJournal, SourceGateRecord};
 mod source;
 pub use source::{
-    SourceBackupConfig, SourceLocalPin, force_close_release_ready, prepare_source_backup,
+    SourceBackupConfig, SourceLocalPin, abandon_source_backup, finish_source_backup,
+    force_close_release_ready, prepare_source_backup,
 };
 mod restore_policy;
 pub use restore_policy::{

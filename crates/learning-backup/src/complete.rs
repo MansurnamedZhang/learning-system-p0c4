@@ -171,6 +171,8 @@ pub struct CompleteBackup {
     backup_id: Uuid,
     manifest_sha256: String,
     receipt_sha256: String,
+    #[cfg(target_os = "linux")]
+    pub(crate) source_control_sha256: String,
 }
 
 impl CompleteBackup {
@@ -191,7 +193,9 @@ fn digest(bytes: &[u8]) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn require_deployment_verifier_key(trust: &VerifierTrustConfig) -> Result<(), BackupError> {
+pub(crate) fn require_deployment_verifier_key(
+    trust: &VerifierTrustConfig,
+) -> Result<(), BackupError> {
     // This build switch is intentionally insufficient by itself. A reviewed
     // deployment must compile in the fingerprint of an off-host verifier key.
     if !cfg!(feature = "independent-verifier") {
@@ -214,7 +218,7 @@ fn require_deployment_verifier_key(trust: &VerifierTrustConfig) -> Result<(), Ba
 }
 
 #[cfg(target_os = "linux")]
-fn load_trust(path: &Path) -> Result<VerifierTrustConfig, BackupError> {
+pub(crate) fn load_trust(path: &Path) -> Result<VerifierTrustConfig, BackupError> {
     let parent = path
         .parent()
         .ok_or(BackupError::Invalid("verifier trust path"))?;
@@ -311,6 +315,7 @@ fn verify_receipt_against_target(
         backup_id: id,
         manifest_sha256: sealed.manifest_sha256().into(),
         receipt_sha256: receipt.receipt_sha256,
+        source_control_sha256: statement.source_control_sha256.clone(),
     })
 }
 
@@ -355,16 +360,59 @@ pub fn publish_complete_backup(
             ));
         }
         require_distinct_filesystems(source_root, destination_root)?;
-        let source = verify_sealed(source_root, backup_id)?;
-        let destination = verify_sealed(destination_root, backup_id)?;
-        if source.manifest_sha256() != destination.manifest_sha256() {
+        // Source authority is held only for publication. Recovery remains
+        // destination/trust-only and does not reopen these captured paths.
+        let registry = crate::ManagementRegistry::open_installed()?;
+        let lease = registry.try_lock()?;
+        // A fresh operation cannot reconstruct unsigned publication authority
+        // from terminal files. Genuine cross-operation admission is Task9.
+        let publication_fence =
+            crate::destination::PublicationErrorFence::new(&lease.destination_operation);
+        let control = BackupDir::open_trusted_private_root(source_control_root)?;
+        let groups = lease
+            .groups
+            .values()
+            .filter_map(|group| match group {
+                crate::registry::Group::Source(group)
+                    if lease.roots[&group.roots["control"]].path
+                        == source_control_root.to_str().unwrap_or("") =>
+                {
+                    Some(group)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if groups.len() != 1 {
+            return Err(BackupError::Invalid("publication source enrollment"));
+        }
+        let enrolled = lease.admit_control_source(&control, &groups[0].database)?;
+        if enrolled.roots["local_pins"].path != source_root.to_str().unwrap_or("") {
+            return Err(BackupError::Invalid("publication source pin enrollment"));
+        }
+        let protection = crate::discover_backup_protection(&lease, &enrolled)?;
+        let enrolled_destination = lease.admit_destination(destination_root)?;
+        let source_dir = enrolled
+            .handle("local_pins")
+            .open_dir(&format!("{backup_id}.sealed"))?;
+        let destination_dir = enrolled_destination
+            .destination()
+            .open_dir(&format!("{backup_id}.sealed"))?;
+        let source_sha =
+            crate::protection::verify_registered_package(&lease, &source_dir, backup_id)?
+                .0
+                .canonical_sha256()?;
+        let destination_sha =
+            crate::protection::verify_registered_package(&lease, &destination_dir, backup_id)?
+                .0
+                .canonical_sha256()?;
+        if source_sha != destination_sha {
             return Err(BackupError::Invalid(
                 "source and destination manifests differ",
             ));
         }
-        let journal = SourceGateJournal::recover(source_control_root, backup_id)?;
+        let journal = SourceGateJournal::recover_in_metered(&control, backup_id, &lease.budget)?;
         if journal.record().phase() != GatePhase::Released
-            || journal.record().pinned_manifest_sha256() != Some(source.manifest_sha256())
+            || journal.record().pinned_manifest_sha256() != Some(source_sha.as_str())
         {
             return Err(BackupError::Invalid(
                 "released source gate and durable pins required",
@@ -381,7 +429,7 @@ pub fn publish_complete_backup(
         let expected = DestinationStatement {
             format_version: WITNESS_FORMAT_VERSION,
             backup_id,
-            manifest_sha256: source.manifest_sha256().into(),
+            manifest_sha256: source_sha,
             source_control_sha256: control_sha,
             source_root: trust.source_root.clone(),
             source_control_root: trust.source_control_root.clone(),
@@ -401,6 +449,12 @@ pub fn publish_complete_backup(
         let signature = hex::decode(&witness.signature_hex)
             .map_err(|_| BackupError::Invalid("destination witness signature"))?;
         verify_destination_witness(&expected, &key, &signature)?;
+        crate::destination::check_publication_proof(
+            &enrolled_destination,
+            &protection,
+            &expected,
+            &trust,
+        )?;
         let body = CompleteReceiptBody {
             format_version: WITNESS_FORMAT_VERSION,
             backup_id,
@@ -411,16 +465,20 @@ pub fn publish_complete_backup(
             body,
         };
         let bytes = serde_json::to_vec(&receipt)?;
-        let root = BackupDir::open_private_root(destination_root)?;
+        let root = enrolled_destination.destination().try_clone()?;
         let temporary = format!("{backup_id}.complete-staging-{}", Uuid::new_v4());
         let mut file = root.create_file(&temporary)?;
         file.write_all(&bytes)?;
         file.sync_all()?;
         drop(file);
         root.seal_file(&temporary)?;
+        protection.recheck(&lease)?;
+        enrolled_destination.recheck()?;
         root.rename_noreplace_without_sync(&temporary, &format!("{backup_id}.complete"))?;
         root.sync()?;
-        verify_receipt_against_target(destination_root, backup_id, &trust)
+        let complete = verify_receipt_against_target(destination_root, backup_id, &trust)?;
+        publication_fence.complete();
+        Ok(complete)
     }
 }
 

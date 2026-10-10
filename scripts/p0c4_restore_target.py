@@ -346,57 +346,103 @@ THEN 'OK' ELSE 'REJECT' END;"""
 
 
 def provision(root, batch_id, subnet, initdb, *, _birth_issuer=None):
+    return _provision(root,batch_id,subnet,initdb,_birth_issuer=_birth_issuer)
+
+
+def _provision(root, batch_id, subnet, initdb, *, _birth_issuer=None, _full_profile=None, _controlled_profile=None):
     identity = identity_for(batch_id)
     _trusted_initdb(initdb)
-    with _locked_root(root):  # Held before first Docker call through quarantine.
-        before = snapshot()
+    full_files=False
+    controlled=False
+    if _controlled_profile is not None:
+        from p0c4_completion.controlled_fixture import ControlledFixtureContext
+        require(type(_controlled_profile) is ControlledFixtureContext and _full_profile is None and _birth_issuer is None,"fixed controlled fixture context required")
+        _controlled_profile._validate_target(root,batch_id,subnet,initdb)
+        controlled=True
+    if _full_profile is not None:
+        from p0c4_completion.roles import _FullRoleProfile
+        from p0c4_completion.full_import import FullRehearsalContext
+        require(type(_full_profile) in (_FullRoleProfile,FullRehearsalContext), "fixed full restore profile required")
+        full_files=type(_full_profile) is FullRehearsalContext
+        _full_profile._validate_target(root,batch_id,subnet,initdb)
+    profile=_controlled_profile if controlled else _full_profile
+    owned_files=full_files or controlled
+    docker=_docker if profile is None else profile._docker
+    observe=snapshot if profile is None else profile._snapshot
+    inspect=_inspect if profile is None else profile._inspect
+    postgres_uid=_postgres_uid if profile is None else profile._postgres_uid
+    with (profile._held_files() if owned_files else _locked_root(root)):  # Original creation lock through quarantine.
+        before = observe()
         admit_fresh(identity, subnet, before)
         target = root / "targets" / batch_id
-        targets_meta = os.lstat(root / "targets")
-        require(stat.S_ISDIR(targets_meta.st_mode) and targets_meta.st_uid == 0 and
-                stat.S_IMODE(targets_meta.st_mode) == 0o700 and not target.exists(),
-                "root-private target parent and new target required")
+        if not owned_files:
+            targets_meta = os.lstat(root / "targets")
+            require(stat.S_ISDIR(targets_meta.st_mode) and targets_meta.st_uid == 0 and
+                    stat.S_IMODE(targets_meta.st_mode) == 0o700 and not target.exists(),
+                    "root-private target parent and new target required")
         old_umask = os.umask(0o077)
         try:
-            target.mkdir(mode=0o700)
-            _sync_directory(root / "targets")
-            secret_dir = target / "secrets"
-            secret_dir.mkdir(mode=0o700)
-            uid, gid = _postgres_uid()
-            for key in ("postgres_password", "admin_password"):
-                secret_path = secret_dir / key
-                _private_write(secret_path, (secrets.token_hex(32) + "\n").encode())
-                os.chown(secret_path, uid, gid)
+            if owned_files:
+                require(postgres_uid()==(999,999),'fixed postgres UID required')
+                profile._create_target_files(before)
+            else:
+                target.mkdir(mode=0o700)
+                _sync_directory(root / "targets")
+                secret_dir = target / "secrets"
+                secret_dir.mkdir(mode=0o700)
+                uid, gid = postgres_uid()
+                for key in ("postgres_password", "admin_password"):
+                    secret_path = secret_dir / key
+                    _private_write(secret_path, (secrets.token_hex(32) + "\n").encode())
+                    os.chown(secret_path, uid, gid)
             compose = compose_document(identity, subnet, target, initdb)
+            if profile is not None:profile._extend_target_document(compose)
             compose_path = target / "compose.json"
-            _private_write(compose_path, json.dumps(compose, sort_keys=True,
-                                                    separators=(",", ":")).encode())
+            compose_bytes=json.dumps(compose,sort_keys=True,separators=(",", ":")).encode()
+            if owned_files:profile._verify_compose_bytes(compose_bytes)
+            else:_private_write(compose_path,compose_bytes)
             verified_ids = None
             try:
-                _docker("compose", "-f", str(compose_path), "config", "-q")
-                _docker("compose", "-f", str(compose_path), "up", "-d", "--wait",
+                docker("compose", "-f", str(compose_path), "config", "-q")
+                if owned_files:profile._before_target_create(before)
+                docker("compose", "-f", str(compose_path), "up", "-d", "--wait",
                         "--no-build", "--no-deps", "pg")
-                after = snapshot()
-                after["images"] = _inspect("image", [identity["image"]])
+                after = observe()
+                after["images"] = inspect("image", [identity["image"]])
                 ids = verify_created(identity, subnet, before, after)
                 verified_ids = {ids["container_id"]}
-                probe_initdb(identity, ids["container_id"])
+                if owned_files:profile._target_created(before,after,ids)
+                if profile is None:
+                    probe_initdb(identity, ids["container_id"])
+                else:
+                    profile._configure(identity, ids["container_id"])
+                    profile._probe(identity, ids["container_id"])
                 status = {"state": "CREATED_QUARANTINED", "batch_id": batch_id,
                           "project": identity["project"], "database": identity["database"],
                           "network": identity["network"], "subnet": subnet, **ids}
-                _private_write(target / "state.json", json.dumps(status, sort_keys=True).encode())
-                if _birth_issuer is not None:
+                if not owned_files:_private_write(target / "state.json", json.dumps(status,sort_keys=True).encode())
+                if controlled:
+                    from p0c4_restore_target_birth import _issue_controlled_birth
+                    status.update(_issue_controlled_birth(root,target,identity,subnet,before,ids,status,initdb,profile))
+                elif _full_profile is not None:
+                    from p0c4_restore_target_birth import _issue_full_birth
+                    status.update(_issue_full_birth(root,target,identity,subnet,before,ids,status,initdb,_full_profile))
+                elif _birth_issuer is not None:
                     # The opt-in issuer runs before releasing the creation lock.
                     # Its durable birth publication must be its final operation.
                     status.update(_birth_issuer(root, target, identity, subnet,
                                                 before, ids, status, initdb))
             except BaseException:
+                if owned_files:
+                    # The lifecycle owner retains the creation lock and exact
+                    # intent; it transitions to its reserved cleanup budget.
+                    raise
                 cleanup_error = None
                 stopped = []
                 try:
-                    live = snapshot()
-                    stopped = quarantine(identity, live, _docker, verified_ids)
-                    stopped_live = snapshot()
+                    live = observe()
+                    stopped = quarantine(identity, live, docker, verified_ids)
+                    stopped_live = observe()
                     require(not any((c.get("Config", {}).get("Labels") or {}).get(
                         "com.docker.compose.project") == identity["project"] and
                         c.get("State", {}).get("Running") is True
@@ -406,12 +452,14 @@ def provision(root, batch_id, subnet, initdb, *, _birth_issuer=None):
                     cleanup_error = type(error).__name__
                 finally:
                     try:
-                        _private_write(target / "failure.json", json.dumps({
-                            "state": "FAILED_QUARANTINE_ATTEMPTED", "batch_id": batch_id,
-                            "project": identity["project"], "volume": identity["volume"],
-                            "container_stop_confirmed": cleanup_error is None,
-                            "cleanup_error": cleanup_error,
-                        }, sort_keys=True).encode())
+                        if owned_files:profile._target_failure(cleanup_error is None)
+                        else:
+                            _private_write(target / "failure.json", json.dumps({
+                                "state": "FAILED_QUARANTINE_ATTEMPTED", "batch_id": batch_id,
+                                "project": identity["project"], "volume": identity["volume"],
+                                "container_stop_confirmed": cleanup_error is None,
+                                "cleanup_error": cleanup_error,
+                            }, sort_keys=True).encode())
                     except BaseException:
                         # A full or failed evidence disk cannot make PG usable.
                         # Preserve the original failure after the stop attempt.

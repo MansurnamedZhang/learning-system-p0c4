@@ -10,7 +10,7 @@
 | 源码包 | task6-worker-acceptance-v3-candidate.zip，SHA-256 f5f9290b1f39423b95f8eaf4f4094eb3ab43a31c545e21707713bd9c327e1f34；296 个源码文件 |
 | 包内清单 | SOURCE_MANIFEST.json，SHA-256 b0fb97892c65d31441b4e319aa702ffc78ab2b24df9d7fc2d141d742e2be43fc |
 | 最终隔离项目 | learning-system-p0c2-task6-v3-acceptance-ws6；启动前不存在同名项目、容器、网络或卷 |
-| 原始证据 | <local-user-home>/Documents/ubuntu_Seoul/tmp/t6f/p0c2-task6-worker-acceptance-v3-candidate-ws6/result.json；SHA-256 ccc49177f7d249a6d63136a7e4227dc1af6938511add802b2d1413ce04e2ab44 |
+| 原始证据 | <user-home>/Documents/ubuntu_Seoul/tmp/t6f/p0c2-task6-worker-acceptance-v3-candidate-ws6/result.json；SHA-256 ccc49177f7d249a6d63136a7e4227dc1af6938511add802b2d1413ce04e2ab44 |
 | 工具与镜像 | Rust 1.97.0；Rust 测试镜像 sha256:8b4ffdfaa1ec6bb0a12527f00936513238453b83affc7d65faa4a2db04a9b8a1；PostgreSQL 18.6 镜像 sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d |
 | Worker 二进制 | 从冻结源码离线编译后导出的单文件，0755，SHA-256 f276cf08d6481b8c27563e7029726b2f6f2ea8d43c6391d362886533171cea6f |
 
@@ -42,6 +42,6 @@ ws1–ws5 均为验收运行器的前置或清理错误，不能作为通过证�
 
 独立全分支静态审查未发现新的 P0/P1。仍有两个可信 runtime 边界：共享 runtime 凭据可绕过 Rust 字节复核直接调用数据库完成函数；持有当前 token 的内部代码还可调用通用 succeed 函数，把资产任务标为成功而不写 asset_integrity_result。现有 Worker 正常路径只调用原子结果函数，隔离故障链验证了该路径；未来应收紧通用完成权限或按任务类型加数据库约束。首个处理器只覆盖 v3 Figure/Attachment 的精确块资产使用，不自动处理仅登记或仅关联资源版本的资产，也不做完整媒体解析、恶意文件扫描或预览生成。
 
-服务器时钟另有生产前门槛：只读补证 <local-user-home>/Documents/ubuntu_Seoul/tmp/t6f/task6-clock-skew-readonly.json（SHA-256 24a70b7a5c948f29f5fac7bacf00fda4204b38a6c27581f8b011dbc2bc6c6a60）显示服务器 UTC 比本机快约 8 小时 11 分 32.626 秒，NTP=yes 但 NTPSynchronized=no。此次租约判断全由同一隔离 PostgreSQL 的 clock_timestamp() 完成，功能测试结论不因此撤销；生产部署前必须修复时间同步并另验绝对时间依赖。
+服务器时钟另有生产前门槛：只读补证 <user-home>/Documents/ubuntu_Seoul/tmp/t6f/task6-clock-skew-readonly.json（SHA-256 24a70b7a5c948f29f5fac7bacf00fda4204b38a6c27581f8b011dbc2bc6c6a60）显示服务器 UTC 比本机快约 8 小时 11 分 32.626 秒，NTP=yes 但 NTPSynchronized=no。此次租约判断全由同一隔离 PostgreSQL 的 clock_timestamp() 完成，功能测试结论不因此撤销；生产部署前必须修复时间同步并另验绝对时间依赖。
 
 C3 融合快照交换、C4 完整备份恢复、P1 HTTP/前端、生产部署仍未实施或验收；P0-C 整体尚未完成。此分支保留在隔离工作树，未推送、合并或部署生产。

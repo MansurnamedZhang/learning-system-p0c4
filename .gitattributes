@@ -3,6 +3,8 @@
 *.toml text eol=lf
 *.lock text eol=lf
 *.sql text eol=lf
+crates/learning-backup/tests/fixtures/c4-controlled-import/pg18-fixture.sql.in text eol=lf
+crates/learning-backup/tests/fixtures/c4-full-schema/pg18-schema.sql.in text eol=lf
 *.sh text eol=lf
 *.yaml text eol=lf
 crates/learning-worker/examples/c3/attention.pdf binary

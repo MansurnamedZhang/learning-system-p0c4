@@ -35,7 +35,7 @@
 
 隐私 RED 包 `6e1027ae0b50535c1696633f19436ed0e9c78f37a3d68ae166165c26ebd54b9f`，失败日志 `e4b8038091b840917b11f1c2d05796b0df3ad2de8652f6782f7c6e77d536689e`；修复后 targeted GREEN 包 `d568c6858c465b6a7fc82a3c6fbf5dcea22d14ed519545d9e690a1cb90e48185`，日志 `f98294c085efd399aa451ba393da41cd4aa3a01e2cf3f571bb535e5d674a6e81`。
 
-每批包含源文件清单、运行前后逐文件哈希、完整命令、实际退出码、日志摘要和 runtime 角色身份。宿主证据在 `<local-user-home>/Documents/ubuntu_Seoul/learning-system-p0b2/evidence/`；本项目独立复核副本在 `artifacts/p0b2/`，不纳入源码仓库。`.runtime/audit_b2.py` 重新计算日志及 ZIP 内文件摘要，并确认旧迁移、Cargo.lock、旧正文规范未改变。未将密码、DSN 或课程原件打包。
+每批包含源文件清单、运行前后逐文件哈希、完整命令、实际退出码、日志摘要和 runtime 角色身份。宿主证据在 `<user-home>/Documents/ubuntu_Seoul/learning-system-p0b2/evidence/`；本项目独立复核副本在 `artifacts/p0b2/`，不纳入源码仓库。`.runtime/audit_b2.py` 重新计算日志及 ZIP 内文件摘要，并确认旧迁移、Cargo.lock、旧正文规范未改变。未将密码、DSN 或课程原件打包。
 
 ## 验证环境与边界
 

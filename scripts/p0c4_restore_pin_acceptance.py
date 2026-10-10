@@ -8,6 +8,7 @@ The isolated PG18 volume remains quarantined after its exact container is stoppe
 import argparse
 import contextlib
 import hashlib
+import ipaddress
 import importlib.util
 import io
 import json
@@ -15,7 +16,10 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import subprocess
 import sys
+import tempfile
+import time
 import uuid
 import zipfile
 
@@ -31,6 +35,37 @@ INITDB = "deploy/p0c4_restore_initdb.sh"
 REQUIRED = {ENTRY, HELPER, PROVISIONER, ISSUER, PIN, PREPARE, INITDB}
 PASSED = "PIN_CANDIDATE_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
 FAILED = "PIN_CANDIDATE_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+BOUND_PASSED = "BOUND_TARGET_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
+BOUND_FAILED = "BOUND_TARGET_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+GUARD_PASSED = "BOUND_TARGET_GUARD_READ_ONLY_SINGLE_HOST_PG18_PASSED_QUARANTINED_NOT_RESTORE"
+GUARD_FAILED = "BOUND_TARGET_GUARD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+SESSION_PASSED = "FOCUSED_SQL_SESSION_GATES_PASSED_NOT_FULL_ENDPOINT_ACCEPTANCE_READ_ONLY_NOT_RESTORE"
+SESSION_FAILED = "SQL_SESSION_BINDING_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+CLONE_FAILED = "SAME_ID_WRONG_ENDPOINT_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+CLONE_PASSED = "SAME_ID_WRONG_ENDPOINT_REJECTED_READ_ONLY_NOT_RESTORE"
+CHILD_PASSED = "CHILD_SAME_GUARD_RESTART_REJECTED_READ_ONLY_NOT_RESTORE"
+CHILD_FAILED = "CHILD_READ_ONLY_FAILED_QUARANTINED_NOT_RESTORE_NOT_PIN"
+CHILD_CHECKPOINTS = (
+    "FIRST_ATTESTATION", "RESTART_BEGIN", "RESTART_COMPLETED", "REJECTION_BEGIN",
+    "REJECTION_OBSERVED", "REASON_ACCEPTED", "ISOLATION_STOPPED",
+    "GUARD_REUSE_REJECTED", "FINAL_SNAPSHOT", "FINAL_ASSERTIONS_PASSED",
+)
+CHILD_REASON_CODES = (
+    "Session", "Identity", "Protocol", "Version", "Deadline", "StdoutLimit",
+    "StderrLimit", "Exit", "Stderr", "Io", "Unusable",
+)
+CLONE_PHASES = frozenset({
+    "not-started", "primary-recheck", "replication-contract",
+    "compose-resources", "setup-helper", "basebackup-copy", "backup-verify",
+    "copy-evidence-check",
+    "clone-start", "clone-evidence-check", "post-clone-primary-recheck",
+    "wrong-endpoint-probe", "post-probe-primary-recheck", "exact-id-stop",
+    "complete",
+})
+CLONE_PASSFILE = "/run/secrets/replication.pgpass"
+CLONE_DATA = "/var/lib/postgresql/18/docker"
+CLONE_RUNTIME_ROOT = Path("/run")
+BUILDER_IMAGE_ID = "sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b"
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 MAX_ARCHIVE = 32 * 1024 * 1024
@@ -41,6 +76,74 @@ MAX_INSPECTION = 256 * 1024
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def _child_step(diagnostics, phase):
+    if diagnostics is None:
+        return None
+    require(phase in ("PREFLIGHT_COMPILE", "PREFLIGHT_LIST", "LIVE_COMPILE",
+                      "LIVE_EXECUTE", "LIVE_OUTPUT_VALIDATE"),
+            "unapproved child diagnostic phase")
+    step = {"phase": phase, "reason": "UNKNOWN", "exit_code": None, "checks": {}}
+    diagnostics["steps"].append(step)
+    return step
+
+
+def _child_process_fact(step, reason, exit_code=None):
+    if step is None:
+        return
+    require(reason in ("UNKNOWN", "COMPLETE", "EXIT_NONZERO", "TIMEOUT", "IO",
+                       "STDOUT_LIMIT", "STDERR_LIMIT", "OUTPUT_LIMIT",
+                       "ARTIFACT_INVALID", "OUTPUT_INVALID", "BINARY_CHANGED"),
+            "unapproved child diagnostic reason")
+    require(exit_code is None or (type(exit_code) is int and
+                                 -(2 ** 31) <= exit_code < 2 ** 31),
+            "invalid child process exit status")
+    step.update(reason=reason, exit_code=exit_code)
+
+
+def _child_observations(output, test_name):
+    """Retain only fixed observations; duplicate counts saturate at two."""
+    prefix = rb"(?m)^(?:test " + re.escape(test_name.encode()) + rb" \.\.\. )?"
+    def count(marker):
+        return min(2, len(re.findall(prefix + re.escape(marker) + rb"\r?$", output)))
+    reasons = re.findall(
+        prefix + rb"CHILD_DIAG_(FIRST|RESTART|REJECTION)_FAILURE_(" +
+        b"|".join(code.encode() for code in CHILD_REASON_CODES) + rb")\r?$", output)
+    isolation = re.findall(
+        prefix + rb"CHILD_DIAG_(?:FIRST|REJECTION)_ISOLATION_(STOPPED|UNCONFIRMED_UNUSABLE)\r?$",
+        output)
+    return {
+        "first_attestation_count": count(b"CHILD_READ_ONLY_ATTESTED_NOT_RESTORE"),
+        "restart_rejection_count": count(CHILD_PASSED.encode()),
+        "stopped_reuse_count": count(b"CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED"),
+        "restart_reason_count": min(2, len(re.findall(
+            rb"(?m)^CHILD_RESTART_FAILURE_(Session|Identity)\r?$", output))),
+        "running_one_test_count": min(2, output.splitlines().count(b"running 1 test")),
+        "passing_one_test_count": min(2, len(re.findall(
+            rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output))),
+        "selected_test_seen": ("test " + test_name + " ... ").encode() in output,
+        "checkpoint_counts": {code: count(("CHILD_DIAG_CHECKPOINT_" + code).encode())
+                              for code in CHILD_CHECKPOINTS},
+        "child_reason": reasons[0][1].decode() if len(reasons) == 1 else "UNKNOWN",
+        "child_failure_phase": reasons[0][0].decode() if len(reasons) == 1 else "UNKNOWN",
+        "child_isolation": isolation[0].decode() if len(isolation) == 1 else "UNKNOWN",
+    }
+
+
+def _child_exception_type(error):
+    # Exception class names are not a trusted diagnostic channel either.
+    for kind in (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired,
+                 KeyboardInterrupt, SystemExit):
+        if type(error) is kind:
+            return kind.__name__
+    return "UNKNOWN"
+
+
+def _mark_clone_phase(result, value):
+    require(type(value) is str and value in CLONE_PHASES,
+            "unapproved clone phase")
+    result["clone_phase"] = value
 
 
 def digest(data):
@@ -233,6 +336,1072 @@ def _load(source, name, relative):
     return module
 
 
+def _builder_artifact(stdout, build):
+    """Select only the reviewed crate's Linux library test executable."""
+    binaries = []
+    for line in stdout.splitlines():
+        row = json.loads(line)
+        if (row.get("reason") == "compiler-artifact" and
+                row.get("manifest_path") ==
+                "/reviewed/crates/learning-backup/Cargo.toml" and
+                row.get("target", {}).get("name") == "learning_backup" and
+                row.get("target", {}).get("kind") == ["lib"] and
+                row.get("profile", {}).get("test") is True):
+            binaries.append(row.get("executable"))
+    require(len(binaries) == 1 and type(binaries[0]) is str and
+            re.fullmatch(r"/target/debug/deps/learning_backup-[0-9a-f]+",
+                         binaries[0]),
+            "exact Linux bound probe test executable absent")
+    binary = build / "debug" / "deps" / Path(binaries[0]).name
+    _trusted_path(binary, file=True)
+    meta = os.lstat(binary)
+    require(stat.S_IMODE(meta.st_mode) & 0o111 != 0 and meta.st_nlink == 1 and
+            binary == binary.resolve(strict=True),
+            "bound probe binary unsafe")
+    return binary
+
+
+def _run_bounded(command, *, cwd=None, env=None, timeout=60, limit=16 * 1024 * 1024,
+                 diagnostic=None):
+    """Bound subprocess output in private temporary files, never in a pipe."""
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        try:
+            process = subprocess.run(command, cwd=cwd, env=env, stdout=stdout,
+                                     stderr=stderr, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired:
+            _child_process_fact(diagnostic, "TIMEOUT")
+            raise
+        except OSError:
+            _child_process_fact(diagnostic, "IO")
+            raise
+        finally:
+            if diagnostic is not None:
+                diagnostic["checks"].update(stdout_present=stdout.tell() > 0,
+                                            stderr_present=stderr.tell() > 0)
+        _child_process_fact(diagnostic,
+                            "COMPLETE" if process.returncode == 0 else "EXIT_NONZERO",
+                            process.returncode)
+        if stdout.tell() > limit or stderr.tell() > limit:
+            reason = ("OUTPUT_LIMIT" if stdout.tell() > limit and stderr.tell() > limit else
+                      "STDOUT_LIMIT" if stdout.tell() > limit else "STDERR_LIMIT")
+            _child_process_fact(diagnostic, reason, process.returncode)
+        require(stdout.tell() <= limit and stderr.tell() <= limit,
+                "bound probe command output exceeded limit")
+        stdout.seek(0)
+        stderr.seek(0)
+        return subprocess.CompletedProcess(command, process.returncode,
+                                           stdout.read(), stderr.read())
+
+
+def _probe_docker(args, *, timeout=60):
+    return _run_bounded(
+        ["/usr/bin/docker", *args], timeout=timeout,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/root",
+             "DOCKER_HOST": "unix:///var/run/docker.sock"})
+
+
+def _admit_clone_pair(provisioner, primary, primary_subnet, clone,
+                      clone_subnet, before):
+    """Admit both new projects against the same precreation daemon snapshot."""
+    require(all(primary[key] != clone[key] for key in
+                ("project", "network", "volume", "database")),
+            "clone and primary identities must be distinct")
+    try:
+        left = ipaddress.ip_network(primary_subnet, strict=True)
+        right = ipaddress.ip_network(clone_subnet, strict=True)
+    except ValueError as error:
+        raise ValueError("clone subnet invalid") from error
+    require(left.version == right.version == 4 and not left.overlaps(right),
+            "clone and primary subnets overlap")
+    provisioner.admit_fresh(primary, primary_subnet, before)
+    provisioner.admit_fresh(clone, clone_subnet, before)
+    return True
+
+
+def _effective_replication_hba(rows):
+    """Evaluate the first HBA record that could accept postgres at IPv4 loopback."""
+    require(type(rows) is list, "physical replication HBA rows unavailable")
+    previous = 0
+    for rule in rows:
+        require(type(rule) is dict and type(rule.get("rule_number")) is int and
+                rule["rule_number"] > previous and rule.get("error") is None,
+                "physical replication HBA order or parse differs")
+        previous = rule["rule_number"]
+        if rule.get("type") not in ("host", "hostssl", "hostnossl") or \
+                "replication" not in (rule.get("database") or []):
+            continue
+        users = rule.get("user_name")
+        require(type(users) is list and all(type(u) is str for u in users),
+                "physical replication HBA user unreadable")
+        # Group, regex and @file membership cannot be disproved from this view.
+        if not any(u in ("all", "postgres") or u.startswith(("+", "/", "@"))
+                   for u in users):
+            continue
+        address, mask = rule.get("address"), rule.get("netmask")
+        try:
+            network = ipaddress.ip_network((address, mask), strict=False)
+        except (ValueError, TypeError):
+            # Hostnames and special HBA addresses may match loopback.
+            network = None
+        if network is not None and ipaddress.ip_address("127.0.0.1") not in network:
+            continue
+        require(rule.get("type") == "host" and
+                rule.get("database") == ["replication"] and
+                users in (["postgres"], ["all"]) and
+                address == "127.0.0.1" and mask == "255.255.255.255" and
+                not rule.get("options") and
+                rule.get("auth_method") in ("trust", "scram-sha-256"),
+                "first effective physical replication HBA rule is not exact loopback")
+        return rule["auth_method"]
+    raise ValueError("physical replication HBA rule unavailable")
+
+
+def _check_replication_contract(container_id):
+    """Admit only the first effective exact loopback physical-replication rule."""
+    require(type(container_id) is str and HEX64.fullmatch(container_id),
+            "exact primary container required")
+    sql = """SELECT CASE WHEN current_setting('server_version_num')::int >= 180000
+AND current_setting('server_version_num')::int < 190000
+AND current_setting('wal_level') IN ('replica', 'logical')
+AND current_setting('max_wal_senders')::int >= 2
+AND EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'postgres'
+            AND rolsuper AND rolreplication)
+AND pg_catalog.pg_conf_load_time() >=
+    (pg_catalog.pg_stat_file(current_setting('hba_file'))).modification
+AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_hba_file_rules
+                WHERE error IS NOT NULL OR file_name IS NULL
+                   OR file_name <> current_setting('hba_file'))
+THEN (SELECT COALESCE(json_agg(row_to_json(r) ORDER BY r.rule_number),
+                      '[]'::json)::text
+      FROM pg_catalog.pg_hba_file_rules r
+      WHERE r.type IN ('host', 'hostssl', 'hostnossl')
+        AND r.database @> ARRAY['replication']::text[])
+ELSE 'REJECT' END;"""
+    row = _probe_docker(["exec", "--user", "postgres", container_id,
+                         "psql", "-XAt", "-v", "ON_ERROR_STOP=1",
+                         "--dbname", "postgres", "-c", sql])
+    require(row.returncode == 0 and 0 < len(row.stdout) <= 1024 * 1024 and
+            row.stdout != b"REJECT\n",
+            "pinned PG18 replication permission or HBA contract unverified")
+    try:
+        return _effective_replication_hba(json.loads(row.stdout))
+    except (ValueError, TypeError, json.JSONDecodeError) as error:
+        raise ValueError("pinned PG18 physical replication HBA unverified") from error
+
+
+def _verify_clone_helper(facts, helper_id, image, primary_id, volume,
+                         passfile=None, *, batch_id, uid, gid, image_id,
+                         kind):
+    """Check the stopped helper before starting any copy or verification."""
+    cap_add = facts.get("HostConfig", {}).get("CapAdd")
+    require(kind in ("setup", "copy", "verify") and
+            _canonical_v4(batch_id) and
+            type(helper_id) is str and HEX64.fullmatch(helper_id) and
+            facts.get("Id") == helper_id and
+            facts.get("Image") == image_id and
+            facts.get("Name") ==
+                f"/knowweave-c4-clone-{batch_id}-{kind}" and
+            facts.get("Config", {}).get("Image") == image and
+            facts.get("HostConfig", {}).get("NetworkMode") ==
+            ("container:" + primary_id if kind == "copy" else "none") and
+            (facts.get("Config", {}).get("Labels") or {}).get(
+                "com.knowweave.clone.batch") == batch_id and
+            facts.get("Config", {}).get("User") ==
+                ("0:0" if kind == "setup" else f"{uid}:{gid}") and
+            facts.get("Config", {}).get("Entrypoint") == ["/bin/sh"] and
+            facts.get("HostConfig", {}).get("CapDrop") == ["ALL"] and
+            (cap_add in (["CHOWN"], ["CAP_CHOWN"]) if kind == "setup"
+             else cap_add is None) and
+            facts.get("HostConfig", {}).get("SecurityOpt") ==
+                ["no-new-privileges"] and
+            facts.get("HostConfig", {}).get("Privileged") is False,
+            "clone helper identity or network differs")
+    mounts = facts.get("Mounts") or []
+    expected = {"/var/lib/postgresql": ("volume", volume,
+                                         kind != "verify")}
+    if passfile:
+        expected[CLONE_PASSFILE] = ("bind", str(passfile), False)
+    require(len(mounts) == len(expected) and
+            {item.get("Destination") for item in mounts} == set(expected),
+            "clone helper mount topology differs")
+    for item in mounts:
+        kind, source, write = expected[item["Destination"]]
+        require(item.get("Type") == kind and item.get("RW") is write and
+                item.get("Name" if kind == "volume" else "Source") == source,
+                "clone helper mount identity differs")
+    env = facts.get("Config", {}).get("Env") or []
+    require(all(not value.startswith(("PGPASSWORD=", "POSTGRES_PASSWORD="))
+                for value in env) and
+            (f"PGPASSFILE={CLONE_PASSFILE}" in env if passfile else
+             not any(value.startswith("PGPASSFILE=") for value in env)),
+            "clone helper secret environment differs")
+    return True
+
+
+def _stop_clone_pair(acceptance, provisioner, primary, primary_id,
+                     clone, clone_id):
+    """Attempt both exact-ID stops even if the first one fails."""
+    outcome = {"confirmed": False, "volume_retained": False,
+               "containers": []}
+    failures = []
+    for identity, container_id in ((clone, clone_id), (primary, primary_id)):
+        if not container_id:
+            failures.append("MissingExactId")
+            continue
+        try:
+            stopped = acceptance.stop_verified_pg(provisioner, identity,
+                                                   container_id)
+            require(stopped.get("confirmed") is True and
+                    stopped.get("volume_retained") is True,
+                    "exact PG stop or volume retention unconfirmed")
+            outcome["containers"].append(container_id)
+        except BaseException as error:
+            failures.append(type(error).__name__)
+    outcome["confirmed"] = not failures
+    outcome["volume_retained"] = not failures
+    if failures:
+        outcome["failure_types"] = failures
+    return outcome
+
+
+def _clone_quarantine_evidence(provisioner, primary, primary_id, clone,
+                               clone_id):
+    live = provisioner.snapshot()
+    def stopped(container_id):
+        if not container_id:
+            return False
+        matches = [c for c in live["containers"] if c.get("Id") == container_id]
+        return len(matches) == 1 and matches[0].get("State", {}).get(
+            "Running") is False
+    def retained(identity):
+        matches = [v for v in live["volumes"] if
+                   v.get("Name") == identity["volume"]]
+        return len(matches) == 1 and (matches[0].get("Labels") or {}).get(
+            "com.docker.compose.project") == identity["project"]
+    return {"primary_stopped": stopped(primary_id),
+            "clone_stopped": stopped(clone_id),
+            "primary_volume_retained": retained(primary),
+            "clone_volume_retained": retained(clone)}
+
+
+def _require_runtime_tmpfs():
+    """Never put a replication passfile on a persistent /run filesystem."""
+    _trusted_path(CLONE_RUNTIME_ROOT)
+    with Path("/proc/self/mountinfo").open("r", encoding="ascii") as stream:
+        entries = [line.strip().split(" - ", 1) for line in stream]
+    require(any(len(parts) == 2 and
+                len(parts[0].split()) >= 5 and
+                parts[0].split()[4] == str(CLONE_RUNTIME_ROOT) and
+                parts[1].split()[0] == "tmpfs" for parts in entries),
+            "root-private replication passfile requires /run tmpfs")
+
+
+def _read_clone_secret(path, uid):
+    _require_private_dir(path.parent)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                 os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        meta = os.fstat(stream.fileno())
+        require(stat.S_ISREG(meta.st_mode) and meta.st_uid == uid and
+                stat.S_IMODE(meta.st_mode) == 0o600 and meta.st_nlink == 1 and
+                meta.st_size == 65, "new-batch postgres secret metadata differs")
+        value = stream.read(66)
+    require(re.fullmatch(rb"[0-9a-f]{64}\n", value) is not None,
+            "new-batch postgres secret format differs")
+    return value[:-1]
+
+
+@contextlib.contextmanager
+def _clone_passfile(batch, secret_path, uid, gid):
+    _require_private_dir(batch)
+    require(_canonical_v4(batch.name), "fresh clone runtime batch invalid")
+    _require_runtime_tmpfs()
+    runtime = CLONE_RUNTIME_ROOT / ("knowweave-c4-clone-" + batch.name)
+    _private_dir(runtime)
+    passfile = runtime / "replication.pgpass"
+    try:
+        password = _read_clone_secret(secret_path, uid)
+        _private_write(passfile,
+                       b"127.0.0.1:5432:*:postgres:" + password + b"\n")
+        os.chown(passfile, uid, gid)
+        require(stat.S_IMODE(os.lstat(passfile).st_mode) == 0o600 and
+                os.lstat(passfile).st_uid == uid,
+                "replication passfile permissions differ")
+        yield passfile
+    finally:
+        if os.path.lexists(passfile):
+            os.unlink(passfile)
+            _sync_dir(runtime)
+        os.rmdir(runtime)
+        _sync_dir(CLONE_RUNTIME_ROOT)
+
+
+def _clone_backup_command(primary_id, volume, passfile, image, batch_id,
+                          uid, gid):
+    require(HEX64.fullmatch(primary_id) and _canonical_v4(batch_id),
+            "clone helper identity invalid")
+    command = ["create", "--pull=never",
+            "--name", f"knowweave-c4-clone-{batch_id}-copy",
+            "--label", f"com.knowweave.clone.batch={batch_id}",
+            "--network", f"container:{primary_id}",
+            "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+            "--user", f"{uid}:{gid}",
+            "--mount", f"type=volume,src={volume},dst=/var/lib/postgresql,volume-nocopy"]
+    if passfile is not None:
+        command.extend(["--mount",
+                        f"type=bind,src={passfile},dst={CLONE_PASSFILE},readonly",
+                        "--env", f"PGPASSFILE={CLONE_PASSFILE}"])
+    command.extend(["--entrypoint", "/bin/sh", image, "-ec",
+            f"test -d {CLONE_DATA} && test -z \"$(ls -A {CLONE_DATA})\"; "
+            f"exec pg_basebackup -D {CLONE_DATA} "
+            "-F plain -X stream --no-password -h 127.0.0.1 -p 5432 -U postgres"])
+    return command
+
+
+def _clone_setup_command(volume, image, batch_id, uid, gid):
+    return ["create", "--pull=never",
+            "--name", f"knowweave-c4-clone-{batch_id}-setup",
+            "--label", f"com.knowweave.clone.batch={batch_id}",
+            "--network", "none", "--cap-drop", "ALL", "--cap-add", "CHOWN",
+            "--security-opt", "no-new-privileges", "--user", "0:0",
+            "--mount", f"type=volume,src={volume},dst=/var/lib/postgresql,volume-nocopy",
+            "--entrypoint", "/bin/sh", image, "-ec",
+            f"mkdir -p {CLONE_DATA}; chmod 0700 {CLONE_DATA}; "
+            f"entries=\"$(ls -A {CLONE_DATA})\"; test -z \"$entries\"; "
+            f"chown {uid}:{gid} /var/lib/postgresql/18 {CLONE_DATA}"]
+
+
+def _clone_verify_command(primary_id, volume, image, batch_id, uid, gid):
+    return ["create", "--pull=never",
+            "--name", f"knowweave-c4-clone-{batch_id}-verify",
+            "--label", f"com.knowweave.clone.batch={batch_id}",
+            "--network", "none", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges", "--user", f"{uid}:{gid}",
+            "--mount", f"type=volume,src={volume},dst=/var/lib/postgresql,readonly",
+            "--entrypoint", "/bin/sh", image, "-ec",
+            f"pg_verifybackup {CLONE_DATA}; test ! -e {CLONE_DATA}/standby.signal; "
+            f"test ! -e {CLONE_DATA}/recovery.signal; "
+            f"test \"$(cat {CLONE_DATA}/PG_VERSION)\" = 18"]
+
+
+def _run_clone_helper(command, image, primary_id, volume, passfile=None, *,
+                      batch_id, uid, gid, image_id, kind):
+    name = f"knowweave-c4-clone-{batch_id}-{kind}"
+    require(command[:1] == ["create"] and
+            any(command[i:i + 2] == ["--name", name]
+                for i in range(len(command) - 1)),
+            "clone helper creation name differs")
+    try:
+        created = _probe_docker(command)
+        require(created.returncode == 0, "pinned clone helper creation failed")
+        helper_id = created.stdout.decode("ascii").strip()
+        require(HEX64.fullmatch(helper_id), "clone helper ID invalid")
+    except BaseException as error:
+        # Docker may have created the container before its CLI failed. Resolve
+        # the deterministic name and remove only a fully verified exact ID.
+        error.clone_helper_cleanup = "UNCONFIRMED"
+        try:
+            recovered = _probe_docker(["container", "inspect", name])
+            if recovered.returncode == 0:
+                facts = json.loads(recovered.stdout)
+                require(type(facts) is list and len(facts) == 1,
+                        "ambiguous helper inspect shape differs")
+                recovered_id = facts[0].get("Id")
+                _verify_clone_helper(facts[0], recovered_id, image,
+                                     primary_id, volume, passfile,
+                                     batch_id=batch_id, uid=uid, gid=gid,
+                                     image_id=image_id, kind=kind)
+                removed = _probe_docker(["container", "rm", "-f", recovered_id])
+                if removed.returncode == 0:
+                    error.clone_helper_cleanup = "EXACT_ID_REMOVED"
+        except BaseException:
+            pass
+        raise
+    try:
+        inspected = _probe_docker(["container", "inspect", helper_id])
+        require(inspected.returncode == 0, "clone helper inspect failed")
+        facts = json.loads(inspected.stdout)
+        require(type(facts) is list and len(facts) == 1,
+                "clone helper inspect shape differs")
+        _verify_clone_helper(facts[0], helper_id, image, primary_id, volume,
+                             passfile, batch_id=batch_id, uid=uid, gid=gid,
+                             image_id=image_id, kind=kind)
+        started = _probe_docker(["start", "--attach", helper_id], timeout=1200)
+        final = _probe_docker(["container", "inspect", helper_id])
+        require(final.returncode == 0, "clone helper final inspect failed")
+        state = json.loads(final.stdout)
+        require(type(state) is list and len(state) == 1 and
+                state[0].get("State", {}).get("Running") is False and
+                state[0].get("State", {}).get("ExitCode") == 0 and
+                started.returncode == 0,
+                "physical clone helper failed")
+        _verify_clone_helper(state[0], helper_id, image, primary_id, volume,
+                             passfile, batch_id=batch_id, uid=uid, gid=gid,
+                             image_id=image_id, kind=kind)
+    finally:
+        try:
+            removed = _probe_docker(["container", "rm", "-f", helper_id])
+            require(removed.returncode == 0, "clone helper cleanup unconfirmed")
+        except BaseException as cleanup_error:
+            cleanup_error.clone_helper_cleanup = "UNCONFIRMED"
+            raise
+    return True
+
+
+def _create_clone_resources(provisioner, batch, clone, subnet, before):
+    provisioner.admit_fresh(clone, subnet, provisioner.snapshot())
+    uid, gid = provisioner._postgres_uid()
+    require(type(uid) is int and type(gid) is int and uid > 0 and gid > 0,
+            "pinned image postgres UID unavailable")
+    image = provisioner._inspect("image", [clone["image"]])
+    require(type(image) is list and len(image) == 1 and
+            type(image[0].get("Id")) is str and
+            image[0]["Id"].startswith("sha256:") and
+            HEX64.fullmatch(image[0]["Id"][7:]) and
+            any(value.endswith("@" + clone["image"].split("@", 1)[1])
+                for value in image[0].get("RepoDigests") or []),
+            "pinned PG18 clone image unavailable")
+    # Compose owns the complete second project. `create` leaves PG stopped;
+    # helpers fill its empty no-copy volume before exact-ID start.
+    document = {"name": clone["project"],
+        "services": {"pg": {"image": clone["image"],
+            "pull_policy": "never", "user": f"{uid}:{gid}",
+            "command": ["postgres"], "restart": "no",
+            "cap_drop": ["ALL"], "security_opt": ["no-new-privileges"],
+            "environment": {"PGDATA": CLONE_DATA},
+            "volumes": [{"type": "volume", "source": clone["volume"],
+                         "target": "/var/lib/postgresql",
+                         "volume": {"nocopy": True}}],
+            "networks": ["test"]}},
+        "networks": {"test": {"name": clone["network"], "internal": True,
+            "ipam": {"config": [{"subnet": subnet}]}}},
+        "volumes": {clone["volume"]: {"name": clone["volume"]}}}
+    compose_path = batch / "clone-compose.json"
+    _private_write(compose_path, _json_bytes(document))
+    prefix = ["compose", "-f", str(compose_path), "-p", clone["project"]]
+    config = _probe_docker(prefix + ["config", "-q"])
+    require(config.returncode == 0, "clone Compose configuration invalid")
+    precreate = provisioner.snapshot()
+    require(precreate["daemon_id"] == before["daemon_id"],
+            "Docker daemon changed before clone Compose creation")
+    provisioner.admit_fresh(clone, subnet, precreate)
+    created = _probe_docker(prefix + ["create", "--no-build", "--pull",
+                                     "never", "--no-recreate", "pg"])
+    require(created.returncode == 0, "clone Compose project creation failed")
+    live = provisioner.snapshot()
+    require(live["daemon_id"] == before["daemon_id"],
+            "Docker daemon changed during clone Compose creation")
+    project_containers = [c for c in live["containers"] if
+        (c.get("Config", {}).get("Labels") or {}).get(
+            "com.docker.compose.project") == clone["project"]]
+    require(len(project_containers) == 1,
+            "clone Compose project container count differs")
+    network_matches = [n for n in live["networks"] if
+                       n.get("Name") == clone["network"]]
+    require(len(network_matches) == 1,
+            "clone Compose network count differs")
+    network_id = network_matches[0].get("Id")
+    require(type(network_id) is str and HEX64.fullmatch(network_id),
+            "clone Compose network ID invalid")
+    networks = network_matches
+    volumes = [v for v in live["volumes"] if v.get("Name") == clone["volume"]]
+    project_networks = [n for n in live["networks"] if
+                        (n.get("Labels") or {}).get(
+                            "com.docker.compose.project") == clone["project"]]
+    project_volumes = [v for v in live["volumes"] if
+                       (v.get("Labels") or {}).get(
+                           "com.docker.compose.project") == clone["project"]]
+    # Verify the fields without assuming Docker's gateway choice.
+    require(len(networks) == len(volumes) == 1 and
+            len(project_networks) == len(project_volumes) == 1 and
+            project_networks[0] == networks[0] and
+            project_volumes[0] == volumes[0] and
+            networks[0].get("Name") == clone["network"] and
+            networks[0].get("Internal") is True and
+            len((networks[0].get("IPAM") or {}).get("Config") or []) == 1 and
+            networks[0]["IPAM"]["Config"][0].get("Subnet") == subnet and
+            (networks[0].get("Labels") or {}).get(
+                "com.docker.compose.project") == clone["project"] and
+            (volumes[0].get("Labels") or {}).get(
+                "com.docker.compose.project") == clone["project"] and
+            volumes[0].get("Driver") == "local" and
+            volumes[0].get("Scope") == "local" and
+            volumes[0].get("Options") in (None, {}) and
+            type(volumes[0].get("Mountpoint")) is str and
+            volumes[0]["Mountpoint"].startswith("/") and
+            volumes[0]["Name"] not in
+                {v.get("Name") for v in before["volumes"]} and
+            network_id not in {n.get("Id") for n in before["networks"]},
+            "new clone network or volume identity differs")
+    pg = project_containers[0]
+    require(pg.get("Id") not in {c.get("Id") for c in precreate["containers"]}
+            and pg.get("State", {}).get("Status") == "created",
+            "clone PG started before physical copy")
+    clone_id = _verify_clone_pg(
+        pg, clone, None, network_id, volumes[0]["Mountpoint"],
+        running=False, image_id=image[0]["Id"], uid=uid, gid=gid)
+    return {"network_id": network_id, "volume_name": clone["volume"],
+            "volume_mountpoint": volumes[0].get("Mountpoint"),
+            "image_id": image[0]["Id"], "container_id": clone_id,
+            "postgres_uid": uid, "postgres_gid": gid,
+            "compose_project_created": True}
+
+
+def _copy_primary_volume(provisioner, batch, target, primary_id, clone,
+                         resources, auth_method, *, phase=None):
+    require(resources["volume_name"] == clone["volume"],
+            "clone copy destination changed")
+    uid, gid = resources["postgres_uid"], resources["postgres_gid"]
+    require(type(uid) is int and type(gid) is int and uid > 0 and gid > 0,
+            "pinned image postgres UID unavailable")
+    setup = _clone_setup_command(clone["volume"], clone["image"],
+                                  batch.name, uid, gid)
+    if phase is not None:
+        phase("setup-helper")
+    _run_clone_helper(setup, clone["image"], primary_id, clone["volume"],
+                      batch_id=batch.name, uid=uid, gid=gid,
+                      image_id=resources["image_id"], kind="setup")
+    require(auth_method in ("trust", "scram-sha-256"),
+            "unverified replication authentication")
+    if phase is not None:
+        phase("basebackup-copy")
+    passfile_context = (_clone_passfile(
+        batch, target / "secrets" / "postgres_password", uid, gid)
+        if auth_method == "scram-sha-256" else contextlib.nullcontext(None))
+    with passfile_context as passfile:
+        command = _clone_backup_command(primary_id, clone["volume"], passfile,
+                                         clone["image"], batch.name, uid, gid)
+        _run_clone_helper(command, clone["image"], primary_id,
+                          clone["volume"], passfile, batch_id=batch.name,
+                          uid=uid, gid=gid, image_id=resources["image_id"],
+                          kind="copy")
+    verify = _clone_verify_command(primary_id, clone["volume"],
+                                    clone["image"], batch.name, uid, gid)
+    if phase is not None:
+        phase("backup-verify")
+    _run_clone_helper(verify, clone["image"], primary_id, clone["volume"],
+                      batch_id=batch.name, uid=uid, gid=gid,
+                      image_id=resources["image_id"], kind="verify")
+    return {"backup_verified": True, "no_standby": True,
+            "pgdata": CLONE_DATA, "passfile_removed": True,
+            "passfile_state": ("NOT_CREATED" if auth_method == "trust" else
+                               "REMOVED_FROM_TMPFS"),
+            "postgres_uid": uid, "postgres_gid": gid,
+            "replication_auth": ("EXACT_LOOPBACK_TRUST" if auth_method == "trust"
+                                 else "EXACT_LOOPBACK_SCRAM_PASSFILE")}
+
+
+def _verify_clone_pg(facts, clone, primary_id, network_id, mountpoint,
+                     *, running, image_id, uid, gid):
+    pg_id = facts.get("Id")
+    labels = facts.get("Config", {}).get("Labels") or {}
+    require(type(pg_id) is str and HEX64.fullmatch(pg_id) and
+            pg_id != primary_id and
+            facts.get("Name") == "/" + clone["project"] + "-pg-1" and
+            labels.get("com.docker.compose.project") == clone["project"] and
+            labels.get("com.docker.compose.service") == "pg" and
+            facts.get("Config", {}).get("Image") == clone["image"] and
+            facts.get("Config", {}).get("Cmd") == ["postgres"] and
+            facts.get("Image") == image_id and
+            facts.get("Config", {}).get("User") == f"{uid}:{gid}" and
+            facts.get("HostConfig", {}).get("NetworkMode") == clone["network"] and
+            facts.get("HostConfig", {}).get("CapDrop") == ["ALL"] and
+            facts.get("HostConfig", {}).get("SecurityOpt") ==
+                ["no-new-privileges"] and
+            facts.get("HostConfig", {}).get("Privileged") is False and
+            not any((facts.get("HostConfig", {}).get("PortBindings") or
+                     {}).values()) and
+            facts.get("State", {}).get("Running") is running,
+            "copied PG exact identity differs")
+    mounts = facts.get("Mounts") or []
+    require(len(mounts) == 1 and mounts[0].get("Type") == "volume" and
+            mounts[0].get("Name") == clone["volume"] and
+            mounts[0].get("Source") == mountpoint and
+            mounts[0].get("Destination") == "/var/lib/postgresql" and
+            mounts[0].get("RW") is True,
+            "copied PG volume mount differs")
+    env = facts.get("Config", {}).get("Env") or []
+    require("PGDATA=" + CLONE_DATA in env and
+            not any(value.startswith(("PGPASSWORD=", "POSTGRES_PASSWORD="))
+                    for value in env),
+            "copied PG environment differs")
+    if running:
+        networks = (facts.get("NetworkSettings") or {}).get("Networks") or {}
+        require(set(networks) == {clone["network"]} and
+                networks[clone["network"]].get("NetworkID") == network_id and
+                not any(((facts.get("NetworkSettings") or {}).get("Ports") or
+                         {}).values()),
+                "copied PG network attachment differs")
+    return pg_id
+
+
+def _start_clone_pg(provisioner, clone, resources, primary_id, birth,
+                    database, uid, gid):
+    require(type(database) is str and re.fullmatch(
+        r"learning_restore_c4_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
+        r"[89ab][0-9a-f]{3}-[0-9a-f]{12}", database),
+        "dedicated primary database name invalid")
+    clone_id = resources["container_id"]
+    require(type(clone_id) is str and HEX64.fullmatch(clone_id) and
+            resources.get("compose_project_created") is True,
+            "copied PG Compose identity unavailable")
+    inspected = _probe_docker(["container", "inspect", clone_id])
+    require(inspected.returncode == 0, "copied PG inspect failed")
+    facts = json.loads(inspected.stdout)
+    require(type(facts) is list and len(facts) == 1,
+            "copied PG inspect shape differs")
+    _verify_clone_pg(facts[0], clone, primary_id, resources["network_id"],
+                     resources["volume_mountpoint"], running=False,
+                     image_id=resources["image_id"], uid=uid, gid=gid)
+    require(facts[0].get("State", {}).get("Status") == "created",
+            "copied PG started before backup verified")
+    started = _probe_docker(["start", clone_id])
+    require(started.returncode == 0 and
+            started.stdout == (clone_id + "\n").encode(),
+            "copied PG start failed")
+    ready = False
+    for _ in range(30):
+        probe = _probe_docker(["exec", "--user", "postgres", clone_id,
+                               "pg_isready", "-h", "127.0.0.1", "-U",
+                               "postgres", "-d", database])
+        if probe.returncode == 0:
+            ready = True
+            break
+        time.sleep(2)
+    require(ready, "copied PG18 did not become ready")
+    inspected = _probe_docker(["container", "inspect", clone_id])
+    require(inspected.returncode == 0, "live copied PG inspect failed")
+    facts = json.loads(inspected.stdout)
+    require(type(facts) is list and len(facts) == 1,
+            "live copied PG inspect shape differs")
+    _verify_clone_pg(facts[0], clone, primary_id, resources["network_id"],
+                     resources["volume_mountpoint"], running=True,
+                     image_id=resources["image_id"], uid=uid, gid=gid)
+    sql = ("SELECT (pg_catalog.pg_control_system()).system_identifier::text "
+           "|| '|' || d.oid::text FROM pg_catalog.pg_database d "
+           "WHERE d.datname = current_database() AND NOT pg_is_in_recovery() "
+           "AND current_setting('server_version_num')::int >= 180000 "
+           "AND current_setting('server_version_num')::int < 190000")
+    row = _probe_docker(["exec", "--user", "postgres", clone_id, "psql",
+                         "-XAt", "-v", "ON_ERROR_STOP=1", "--dbname",
+                         database, "-c", sql])
+    expected = (str(birth["pg_system_identifier"]) + "|" +
+                str(birth["database_oid"]) + "\n").encode()
+    require(row.returncode == 0 and row.stdout == expected,
+            "copied PG18 physical system or database identity differs")
+    return {"container_id": clone_id, "network_id": resources["network_id"],
+            "volume_name": clone["volume"], "volume_retained": True,
+            "same_system_identifier": True, "same_database_oid": True}
+
+
+def _prepare_physical_clone(provisioner, batch, target, primary_id, clone,
+                            subnet, before, birth, database, *, phase=None):
+    if phase is not None:
+        phase("replication-contract")
+    auth_method = _check_replication_contract(primary_id)
+    require(auth_method in ("trust", "scram-sha-256"),
+            "replication authentication unverified")
+    if phase is not None:
+        phase("compose-resources")
+    resources = _create_clone_resources(provisioner, batch, clone, subnet, before)
+    copied = _copy_primary_volume(provisioner, batch, target, primary_id,
+                                  clone, resources, auth_method,
+                                  **({"phase": phase} if phase is not None else {}))
+    if phase is not None:
+        phase("copy-evidence-check")
+    require(copied.get("backup_verified") is True and
+            copied.get("no_standby") is True and
+            copied.get("pgdata") == CLONE_DATA and
+            copied.get("passfile_removed") is True and
+            copied.get("passfile_state") ==
+                ("NOT_CREATED" if auth_method == "trust" else
+                 "REMOVED_FROM_TMPFS") and
+            copied.get("replication_auth") ==
+                ("EXACT_LOOPBACK_TRUST" if auth_method == "trust" else
+                 "EXACT_LOOPBACK_SCRAM_PASSFILE") and
+            type(copied.get("postgres_uid")) is int and
+            type(copied.get("postgres_gid")) is int and
+            copied["postgres_uid"] > 0 and copied["postgres_gid"] > 0,
+            "physical clone verification incomplete")
+    if phase is not None:
+        phase("clone-start")
+    started = _start_clone_pg(provisioner, clone, resources, primary_id,
+                              birth, database, copied["postgres_uid"],
+                              copied["postgres_gid"])
+    return {**resources, **copied, **started}
+
+
+def _primary_still_pinned(provisioner, acceptance, identity, subnet, before,
+                          state, success, target, initdb, started_at):
+    observed = acceptance._independent_docker_gate(
+        provisioner, identity, subnet, before, state, success, target, initdb)
+    require(observed.get("container_id") == success["container_id"],
+            "primary exact Docker ID changed during clone")
+    live = provisioner.snapshot()
+    matches = [c for c in live["containers"] if
+               c.get("Id") == success["container_id"]]
+    require(len(matches) == 1 and
+            matches[0].get("State", {}).get("Running") is True and
+            matches[0].get("State", {}).get("StartedAt") == started_at,
+            "primary PG restarted during clone")
+    return True
+
+
+def _sealed_primary_started_at(acceptance, target, inspection, success):
+    """Read only the issuer birth-time start covered by the pin digest."""
+    payload = acceptance._private_read_diagnostic(
+        target / "birth-evidence.json", limit=4096)
+    require(type(payload) is bytes and
+            digest(payload) == inspection.get("birth_evidence_sha256"),
+            "sealed primary birth evidence hash differs")
+    evidence = acceptance._unique_json(payload)
+    require(type(evidence) is dict and
+            evidence.get("container_id") == success["container_id"] and
+            type(evidence.get("container_started_at")) is str and
+            evidence["container_started_at"],
+            "sealed primary birth start differs")
+    return evidence["container_started_at"]
+
+
+def _find_owned_clone_pg(provisioner, clone, before):
+    """Recover only the one new, fully attributed clone ID for failure stop."""
+    live = provisioner.snapshot()
+    prior = {c.get("Id") for c in before["containers"]}
+    matches = [c for c in live["containers"] if
+               (c.get("Config", {}).get("Labels") or {}).get(
+                   "com.docker.compose.project") == clone["project"]]
+    require(len(matches) <= 1, "extra clone project container")
+    if not matches:
+        return None
+    c = matches[0]
+    ident = c.get("Id")
+    require(type(ident) is str and HEX64.fullmatch(ident) and ident not in prior and
+            (c.get("Config", {}).get("Labels") or {}).get(
+                "com.docker.compose.service") == "pg" and
+            c.get("Config", {}).get("Image") == clone["image"] and
+            len(c.get("Mounts") or []) == 1 and
+            c["Mounts"][0].get("Type") == "volume" and
+            c["Mounts"][0].get("Name") == clone["volume"] and
+            c["Mounts"][0].get("Destination") == "/var/lib/postgresql",
+            "clone failure container cannot be attributed")
+    return ident
+
+
+def _run_clone_negative_probe(source, batch, target, primary, clone,
+                              birth_sha256, primary_id, clone_id,
+                              clone_network_id, clone_subnet):
+    """Run exactly the ignored live second-endpoint test with public IDs only."""
+    require(all(type(value) is str and HEX64.fullmatch(value) for value in
+                (birth_sha256, primary_id, clone_id, clone_network_id)) and
+            primary_id != clone_id and
+            all(type(clone.get(key)) is str and clone[key] for key in
+                ("project", "network", "volume")) and
+            primary["project"] != clone["project"] and
+            primary["network"] != clone["network"] and
+            primary["database"].startswith("learning_restore_c4_") and
+            type(clone_subnet) is str and clone_subnet,
+            "wrong-endpoint probe identities invalid")
+    binary, binary_sha = _compile_bound_probe(
+        source, batch, "probe-live-build", birth_sha256)
+    test_name = ("restore_preflight::target_binding::tests::"
+                 "live_read_only_same_id_wrong_endpoint_negative")
+    env = {"HOME": "/root", "PATH": "/usr/bin:/bin",
+           "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT": str(target / "destination"),
+           "KNOWWEAVE_C4_PROBE_CONTROL_ROOT": str(target / "control"),
+           "KNOWWEAVE_C4_PROBE_ASSET_ROOT": str(target / "assets"),
+           "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE": primary["database"],
+           "KNOWWEAVE_C4_PRIMARY_CONTAINER_ID": primary_id,
+           "KNOWWEAVE_C4_CLONE_CONTAINER_ID": clone_id,
+           "KNOWWEAVE_C4_CLONE_NETWORK_ID": clone_network_id,
+           "KNOWWEAVE_C4_CLONE_NETWORK_NAME": clone["network"],
+           "KNOWWEAVE_C4_CLONE_PROJECT": clone["project"],
+           "KNOWWEAVE_C4_CLONE_VOLUME_NAME": clone["volume"],
+           "KNOWWEAVE_C4_CLONE_SUBNET": clone_subnet}
+    require(_file_digest(binary) == binary_sha,
+            "wrong-endpoint binary changed before execution")
+    process = _run_bounded(
+        [str(binary), test_name, "--exact", "--ignored", "--nocapture"],
+        cwd=source, env=env, timeout=240)
+    output = process.stdout + b"\n" + process.stderr
+    marker = CLONE_PASSED.encode()
+    lines = output.splitlines()
+    test_prefix = ("test " + test_name + " ... ").encode()
+    test_lines = [(index, line) for index, line in enumerate(lines) if
+                  line.startswith(b"test ") and b" ... " in line]
+    parallel = (len(test_lines) == 1 and test_lines[0][1] ==
+                test_prefix + b"ok" and lines.count(marker) == 1 and
+                lines.count(b"ok") == 0 and
+                lines.index(marker) < test_lines[0][0])
+    serial = (len(test_lines) == 1 and test_lines[0][1] ==
+              test_prefix + marker and test_lines[0][0] + 1 < len(lines) and
+              lines[test_lines[0][0] + 1] == b"ok" and
+              lines.count(b"ok") == 1)
+    result_lines = [line for line in lines if line.startswith(b"test result:")]
+    require(process.returncode == 0 and
+            _file_digest(binary) == binary_sha and
+            (parallel or serial) and
+            output.count(marker) == 1 and
+            lines.count(b"running 1 test") == 1 and
+            len(result_lines) == 1 and
+            re.fullmatch(
+                rb"test result: ok\. 1 passed; 0 failed; 0 ignored; "
+                rb"0 measured; \d+ filtered out;(?: finished in \d+(?:\.\d+)?s)?",
+                result_lines[0]) is not None,
+            "exact one-test wrong-endpoint negative absent")
+    return {"state": CLONE_PASSED, "birth_sha256": birth_sha256,
+            "binary_sha256": binary_sha, "builder_image_id": BUILDER_IMAGE_ID,
+            "exit_code": process.returncode, "primary_container_id": primary_id,
+            "clone_container_id": clone_id, "clone_network_id": clone_network_id}
+
+
+def _builder_identity(batch, stage):
+    require(_canonical_v4(batch.name) and stage in
+            ("preflight", "live"), "bound builder batch identity invalid")
+    return (f"knowweave-c4-bound-{batch.name}-{stage}",
+            f"com.knowweave.bound-probe.batch={batch.name}")
+
+
+def _builder_container_ids(label):
+    row = _probe_docker(["container", "ls", "-aq", "--no-trunc",
+                         "--filter", f"label={label}"])
+    require(row.returncode == 0, "bound builder inventory failed")
+    ids = row.stdout.decode("ascii").splitlines()
+    require(all(HEX64.fullmatch(value) for value in ids),
+            "bound builder inventory invalid")
+    return ids
+
+
+def _cleanup_builder(batch, stage, *, expected_id=None):
+    name, label = _builder_identity(batch, stage)
+    require(expected_id is None or
+            (type(expected_id) is str and HEX64.fullmatch(expected_id)),
+            "bound builder expected ID invalid")
+    ids = _builder_container_ids(label)
+    require(len(ids) <= 1, "extra bound builder container")
+    # The expectation must enter this actual inspect/remove recipe: an outer
+    # inventory check cannot bind a later label lookup to the observed builder.
+    require(expected_id is None or ids in ([], [expected_id]),
+            "bound builder cleanup captured ID differs")
+    if not ids:
+        return
+    container_id = expected_id if expected_id is not None else ids[0]
+    row = _probe_docker(["container", "inspect", container_id])
+    require(row.returncode == 0, "bound builder inspect failed")
+    facts = json.loads(row.stdout)
+    require(type(facts) is list and len(facts) == 1 and
+            facts[0].get("Id") == container_id and
+            facts[0].get("Name") == "/" + name and
+            facts[0].get("Image") == BUILDER_IMAGE_ID and
+            facts[0].get("Config", {}).get("Labels", {}).get(
+                "com.knowweave.bound-probe.batch") == batch.name,
+            "bound builder cleanup identity differs")
+    removed = _probe_docker(["container", "rm", "-f", container_id])
+    require(removed.returncode == 0 and not _builder_container_ids(label),
+            "bound builder cleanup unconfirmed")
+
+
+def _compile_bound_probe(source, batch, build_name, birth_sha256, *, diagnostics=None,_controlled_cache=None):
+    if _controlled_cache is not None:
+        from p0c4_completion.controlled_fixture import ControlledFixtureContext
+        require(type(_controlled_cache) is ControlledFixtureContext,'controlled cache requires exact internal context')
+    diagnostic = _child_step(diagnostics, "PREFLIGHT_COMPILE" if
+                             build_name == "probe-preflight-build" else "LIVE_COMPILE")
+    require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
+            "bound probe compile digest invalid")
+    build = batch / build_name
+    _private_dir(build)
+    stage = "preflight" if build_name == "probe-preflight-build" else "live"
+    require(build_name in ("probe-preflight-build", "probe-live-build"),
+            "bound probe build stage invalid")
+    name, label = _builder_identity(batch, stage)
+    require(not _builder_container_ids(label),
+            "prior bound builder container remains")
+    command = ["/usr/bin/docker", "run", "--rm", "--pull", "never",
+               "--name", name, "--label", label,
+               "--network", "none", "--cap-drop", "ALL",
+               "--security-opt", "no-new-privileges", "--user", "0:0",
+               "--workdir", "/reviewed", "--tmpfs", "/tmp:rw,nosuid,nodev,size=1g",
+               "--mount", f"type=bind,src={source},dst=/reviewed,readonly",
+               "--mount", f"type=bind,src={build},dst=/target",
+               "--env", "CARGO_TARGET_DIR=/target",
+               "--env", "CARGO_NET_OFFLINE=true",
+               "--env", "RUSTUP_AUTO_INSTALL=0",
+               "--env", "CARGO_TERM_COLOR=never",
+               "--env", f"KNOWWEAVE_C4_TARGET_BIRTH_SHA256={birth_sha256}",
+               "--entrypoint", "/bin/sh", BUILDER_IMAGE_ID, "-ec",
+               "cargo test --locked --offline -p learning-backup --lib --no-run --message-format=json"]
+    if _controlled_cache is not None:
+        command=_controlled_cache._adapt_builder_command(command,source,batch,build_name,birth_sha256)
+    try:
+        process = _run_bounded(
+            command, timeout=7200,
+            env={"PATH": "/usr/bin:/bin", "HOME": "/root",
+                 "DOCKER_HOST": "unix:///var/run/docker.sock"},
+            **({"diagnostic": diagnostic} if diagnostic is not None else {}))
+    finally:
+        if diagnostic is not None:
+            diagnostic["checks"]["builder_cleanup_confirmed"] = False
+        _cleanup_builder(batch, stage)
+        if diagnostic is not None:
+            diagnostic["checks"]["builder_cleanup_confirmed"] = True
+    require(process.returncode == 0,
+            "offline pinned builder failed")
+    _child_process_fact(diagnostic, "ARTIFACT_INVALID", process.returncode)
+    if _controlled_cache is not None:
+        binary,sha=_controlled_cache._finish_compile(build,process.stdout)
+    else:
+        binary = _builder_artifact(process.stdout, build)
+        sha=_file_digest(binary)
+    _child_process_fact(diagnostic, "COMPLETE", process.returncode)
+    return binary, sha
+
+
+def _preflight_probe_builder(source, batch, *, guard=False, session=False,
+                             clone=False, child=False, diagnostics=None):
+    """Prove the pinned offline Linux toolchain is ready before PG birth."""
+    _trusted_path(Path("/usr/bin/docker"), file=True)
+    image = _probe_docker(["image", "inspect", BUILDER_IMAGE_ID,
+                           "--format", "{{.Id}}"])
+    require(image.returncode == 0 and image.stdout ==
+            (BUILDER_IMAGE_ID + "\n").encode(),
+            "pinned offline builder image unavailable")
+    binary, placeholder_sha = _compile_bound_probe(
+        source, batch, "probe-preflight-build", "0" * 64,
+        **({"diagnostics": diagnostics} if child and diagnostics is not None else {}))
+    diagnostic = _child_step(diagnostics if child else None, "PREFLIGHT_LIST")
+    listing = _run_bounded(
+        [str(binary), "--list"], cwd=source,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/root"},
+        timeout=60, **({"diagnostic": diagnostic} if diagnostic is not None else {}))
+    expected = (b"restore_preflight::target_binding::tests::"
+                b"live_read_only_bound_target_probe: test")
+    if child:
+        expected = (b"restore_preflight::target_binding::tests::"
+                    b"live_read_only_child_restart_rejection: test")
+    elif clone:
+        expected = (b"restore_preflight::target_binding::tests::"
+                    b"live_read_only_same_id_wrong_endpoint_negative: test")
+    elif session:
+        expected = (b"restore_preflight::target_binding::tests::"
+                    b"live_read_only_sql_session_binding: test")
+    elif guard:
+        expected = (b"restore_preflight::target_binding::tests::"
+                    b"live_read_only_bound_target_guard: test")
+    if guard or session or clone or child:
+        if diagnostic is not None:
+            diagnostic["checks"]["exact_test_listing_count"] = min(
+                2, listing.stdout.splitlines().count(expected))
+            if listing.returncode == 0:
+                _child_process_fact(diagnostic, "OUTPUT_INVALID", listing.returncode)
+        require(listing.stdout.splitlines().count(expected) == 1,
+                "exact Linux read-only test absent")
+    require(listing.returncode == 0 and expected in listing.stdout and
+            _file_digest(binary) == placeholder_sha,
+            "host cannot execute pinned builder test binary")
+    _child_process_fact(diagnostic, "COMPLETE", listing.returncode)
+    return {"builder_image_id": BUILDER_IMAGE_ID,
+            "placeholder_binary_sha256": placeholder_sha,
+            "host_test_listing_confirmed": True}
+
+
+def _run_bound_probe(source, batch, target, database, birth_sha256, *, guard=False,
+                     session=False, child=False, diagnostics=None):
+    """Rebuild with sealed birth digest, then execute on the Linux host."""
+    require(type(birth_sha256) is str and HEX64.fullmatch(birth_sha256),
+            "sealed birth digest required for bound probe")
+    binary, binary_sha = _compile_bound_probe(
+        source, batch, "probe-live-build", birth_sha256,
+        **({"diagnostics": diagnostics} if child and diagnostics is not None else {}))
+    diagnostic = _child_step(diagnostics if child else None, "LIVE_EXECUTE")
+    test_name = ("restore_preflight::target_binding::tests::"
+                 "live_read_only_bound_target_probe")
+    if child:
+        test_name = ("restore_preflight::target_binding::tests::"
+                     "live_read_only_child_restart_rejection")
+    elif session:
+        test_name = ("restore_preflight::target_binding::tests::"
+                     "live_read_only_sql_session_binding")
+    elif guard:
+        test_name = ("restore_preflight::target_binding::tests::"
+                     "live_read_only_bound_target_guard")
+    env = {"HOME": "/root", "PATH": "/usr/bin:/bin",
+           "KNOWWEAVE_C4_PROBE_DESTINATION_ROOT": str(target / "destination"),
+           "KNOWWEAVE_C4_PROBE_CONTROL_ROOT": str(target / "control"),
+           "KNOWWEAVE_C4_PROBE_ASSET_ROOT": str(target / "assets"),
+           "KNOWWEAVE_C4_PROBE_EXPECTED_DATABASE": database}
+    unchanged = _file_digest(binary) == binary_sha
+    if diagnostic is not None:
+        diagnostic["checks"]["binary_unchanged_before"] = unchanged
+        if not unchanged:
+            _child_process_fact(diagnostic, "BINARY_CHANGED")
+    require(unchanged,
+            "bound probe binary changed before execution")
+    process = _run_bounded(
+        [str(binary), test_name, "--exact", "--ignored", "--nocapture"],
+        cwd=source, env=env, timeout=180,
+        **({"diagnostic": diagnostic} if diagnostic is not None else {}))
+    output = process.stdout + b"\n" + process.stderr
+    marker = (CHILD_PASSED if child else
+              "SQL_SESSION_BINDING_READ_ONLY_PG18_PASSED_NOT_RESTORE" if session else
+              "BOUND_TARGET_GUARD_READ_ONLY_PG18_PASSED_NOT_RESTORE" if guard else
+              "BOUND_TARGET_READ_ONLY_PG18_PASSED_NOT_RESTORE")
+    if child:
+        if diagnostic is not None:
+            diagnostic["checks"].update(_child_observations(output, test_name))
+            _child_process_fact(diagnostic,
+                                "COMPLETE" if process.returncode == 0 else "EXIT_NONZERO",
+                                process.returncode)
+        require(process.returncode == 0, "child test process failed")
+        validation = _child_step(diagnostics, "LIVE_OUTPUT_VALIDATE")
+        if validation is not None:
+            validation["checks"].update(diagnostic["checks"])
+            _child_process_fact(validation, "OUTPUT_INVALID", process.returncode)
+        first = b"CHILD_READ_ONLY_ATTESTED_NOT_RESTORE"
+        isolation = b"CHILD_RESTART_ISOLATION_STOPPED_GUARD_REUSE_REJECTED"
+        first_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
+                      rb" \.\.\. )?" + first + rb"\r?$")
+        marker_line = rb"(?m)^" + re.escape(marker.encode()) + rb"\r?$"
+        isolation_line = rb"(?m)^" + isolation + rb"\r?$"
+        reasons = re.findall(rb"(?m)^CHILD_RESTART_FAILURE_(Session|Identity)\r?$", output)
+        require(len(re.findall(first_line, output)) == 1 and
+                len(re.findall(marker_line, output)) == 1 and
+                len(re.findall(isolation_line, output)) == 1 and
+                output.count(first) == 1 and output.count(marker.encode()) == 1 and
+                output.count(isolation) == 1 and len(reasons) == 1 and
+                output.splitlines().count(b"running 1 test") == 1 and
+                len(re.findall(rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output)) == 1 and
+                ("test " + test_name + " ... ").encode() in output,
+                "exact child restart rejection and isolation absent")
+    elif guard or session:
+        marker_line = (rb"(?m)^(?:test " + re.escape(test_name.encode()) +
+                       rb" \.\.\. )?" + marker.encode() + rb"\r?$")
+        require(len(re.findall(marker_line, output)) == 1 and
+                output.count(marker.encode()) == 1 and
+                output.splitlines().count(b"running 1 test") == 1 and
+                len(re.findall(rb"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored;", output)) == 1 and
+                ("test " + test_name + " ... ").encode() in output,
+                "exact one-test read-only success absent")
+    unchanged = _file_digest(binary) == binary_sha
+    if child and validation is not None:
+        validation["checks"]["binary_unchanged_after"] = unchanged
+        if not unchanged:
+            _child_process_fact(validation, "BINARY_CHANGED", process.returncode)
+    require(unchanged and process.returncode == 0 and
+            marker.encode() in output and
+            b"test result: ok. 1 passed; 0 failed; 0 ignored;" in output,
+            "read-only bound probe failed")
+    if child:
+        _child_process_fact(validation, "COMPLETE", process.returncode)
+    result = {"state": marker,
+            "birth_sha256": birth_sha256, "binary_sha256": binary_sha,
+            "builder_image_id": BUILDER_IMAGE_ID, "exit_code": process.returncode}
+    if child:
+        result.update(first_attestation=first.decode(), restart_rejection=marker,
+                      reason=reasons[0].decode(), isolation="STOPPED",
+                      guard_reuse_rejected=True)
+    return result
+
+
 def extract_and_load(manifest, package, batch):
     source = batch / "source"
     _private_dir(source)
@@ -322,8 +1491,32 @@ def _run_batch(args, manifest, package, batch):
               "target_condition": "NO_TARGET_CREATED",
               "target_reuse_permitted": False,
               "stop": {"confirmed": False}, "failure_type": None}
+    bound_probe = getattr(args, "bound_probe", False)
+    bound_guard = getattr(args, "bound_guard", False)
+    sql_session = getattr(args, "sql_session_binding", False)
+    clone_mode = getattr(args, "sql_session_clone_negative", False)
+    child_mode = getattr(args, "child_read_only_restart", False)
+    require(sum((bound_probe, bound_guard, sql_session, clone_mode, child_mode)) <= 1,
+            "bound modes are mutually exclusive")
+    if child_mode:
+        result["status"] = CHILD_FAILED
+        result["child_isolation"] = "UNCONFIRMED_UNUSABLE"
+        result["child_diagnostics"] = {"format_version": 1, "steps": []}
+    elif clone_mode:
+        result["status"] = CLONE_FAILED
+        result["clone_batch_id"] = args.clone_batch_id
+        result["clone_subnet"] = args.clone_subnet
+        result["clone_phase"] = "not-started"
+    elif sql_session:
+        result["status"] = SESSION_FAILED
+    elif bound_guard:
+        result["status"] = GUARD_FAILED
+    elif bound_probe:
+        result["status"] = BOUND_FAILED
     provisioner = acceptance = identity = initdb = before = None
+    clone_identity = None
     confirmed_id = None
+    clone_id = None
     issuer_started = False
     _private_write(evidence / "attempt.json", _json_bytes({
         "state": "PIN_ONLY_ATTEMPT_NOT_RESTORE_AUTHORITY",
@@ -332,14 +1525,40 @@ def _run_batch(args, manifest, package, batch):
         "runner_sha256": args.runner_sha256,
         "source_commit": args.source_commit}))
     try:
+        if clone_mode:
+            require(not os.path.lexists(batch.parent / args.clone_batch_id),
+                    "clone identity already used by an acceptance batch")
         (provisioner, acceptance, pin, prepare, initdb,
          result["source_before_sha256"]) = extract_and_load(
              manifest, package, batch)
+        if bound_probe or bound_guard or sql_session or clone_mode or child_mode:
+            result["stage"] = "offline-builder-preflight"
+            options = ({"child": True, "diagnostics": result["child_diagnostics"]} if child_mode else
+                       {"clone": True} if clone_mode else
+                       {"session": True} if sql_session else
+                       {"guard": True} if bound_guard else {})
+            key = ("child_toolchain_preflight" if child_mode else
+                   "clone_toolchain_preflight" if clone_mode else
+                   "session_toolchain_preflight" if sql_session else
+                   "guard_toolchain_preflight" if bound_guard else
+                   "probe_toolchain_preflight")
+            result[key] = _preflight_probe_builder(source, batch, **options)
+            require(source_digest(source, manifest) ==
+                    result["source_before_sha256"],
+                    "reviewed source changed during builder preflight")
         identity = provisioner.identity_for(args.batch_id)
         result.update(project=identity["project"], volume=identity["volume"])
+        if clone_mode:
+            clone_identity = provisioner.identity_for(args.clone_batch_id)
+            result.update(clone_project=clone_identity["project"],
+                          clone_volume=clone_identity["volume"])
         result["stage"] = "fresh-admission"
         before = provisioner.snapshot()
-        provisioner.admit_fresh(identity, args.subnet, before)
+        if clone_mode:
+            _admit_clone_pair(provisioner, identity, args.subnet,
+                              clone_identity, args.clone_subnet, before)
+        else:
+            provisioner.admit_fresh(identity, args.subnet, before)
         result["stage"] = "precreation"
         precreation_sha = prepare.prepare(control, args.batch_id,
                                          args.subnet, initdb)
@@ -407,14 +1626,91 @@ def _run_batch(args, manifest, package, batch):
         require(acceptance._private_read_diagnostic(
                     inspection_path, limit=MAX_INSPECTION) == inspection_bytes,
                 "pin inspection record differs after write")
+        if clone_mode:
+            primary_started_at = _sealed_primary_started_at(
+                acceptance, target, inspection, success)
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
         result["stage"] = "source-reinspection"
         result["source_after_sha256"] = source_digest(source, manifest)
         require(result["source_after_sha256"] ==
                 result["source_before_sha256"],
                 "reviewed source changed during run")
+        if clone_mode:
+            result["stage"] = "physical-clone-preparation"
+            _mark_clone_phase(result, "primary-recheck")
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
+            result["clone"] = _prepare_physical_clone(
+                provisioner, batch, target, confirmed_id, clone_identity,
+                args.clone_subnet, before, birth, identity["database"],
+                phase=lambda value: _mark_clone_phase(result, value))
+            _mark_clone_phase(result, "clone-evidence-check")
+            clone_id = result["clone"]["container_id"]
+            require(type(clone_id) is str and HEX64.fullmatch(clone_id) and
+                    clone_id != confirmed_id and
+                    result["clone"].get("backup_verified") is True and
+                    result["clone"].get("no_standby") is True and
+                    result["clone"].get("volume_retained") is True,
+                    "physical clone preparation evidence incomplete")
+            _mark_clone_phase(result, "post-clone-primary-recheck")
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
+            result["primary_started_at_unchanged"] = True
+            result["stage"] = "same-id-wrong-endpoint-read-only"
+            _mark_clone_phase(result, "wrong-endpoint-probe")
+            result["same_id_wrong_endpoint"] = _run_clone_negative_probe(
+                source, batch, target, identity, clone_identity,
+                success["birth_sha256"], confirmed_id, clone_id,
+                result["clone"]["network_id"], args.clone_subnet)
+            require(type(result["same_id_wrong_endpoint"]) is dict and
+                    result["same_id_wrong_endpoint"].get("state") ==
+                    CLONE_PASSED,
+                    "distinct wrong-endpoint negative marker absent")
+            _mark_clone_phase(result, "post-probe-primary-recheck")
+            _primary_still_pinned(provisioner, acceptance, identity,
+                                  args.subnet, before, state, success,
+                                  target, initdb, primary_started_at)
+        if bound_probe or bound_guard or sql_session or child_mode:
+            result["stage"] = ("read-only-child-restart" if child_mode else
+                               "read-only-sql-session" if sql_session else
+                               "read-only-bound-guard" if bound_guard else
+                               "read-only-bound-probe")
+            key = ("child_read_only" if child_mode else
+                   "sql_session_binding" if sql_session else
+                   "bound_guard" if bound_guard else "bound_probe")
+            result[key] = _run_bound_probe(
+                source, batch, target, identity["database"],
+                success["birth_sha256"], **options)
+            if child_mode:
+                require(type(result[key]) is dict and
+                        result[key].get("state") == CHILD_PASSED and
+                        result[key].get("birth_sha256") == success["birth_sha256"] and
+                        result[key].get("first_attestation") ==
+                        "CHILD_READ_ONLY_ATTESTED_NOT_RESTORE" and
+                        result[key].get("restart_rejection") == CHILD_PASSED and
+                        result[key].get("reason") in ("Session", "Identity") and
+                        result[key].get("isolation") == "STOPPED" and
+                        result[key].get("guard_reuse_rejected") is True and
+                        result[key].get("exit_code") == 0,
+                        "child restart rejection evidence incomplete")
         result["stage"] = "exact-id-stop"
-        result["stop"] = acceptance.stop_verified_pg(
-            provisioner, identity, confirmed_id)
+        if clone_mode:
+            _mark_clone_phase(result, "exact-id-stop")
+            result["stop"] = _stop_clone_pair(
+                acceptance, provisioner, identity, confirmed_id,
+                clone_identity, clone_id)
+            result["quarantine"] = _clone_quarantine_evidence(
+                provisioner, identity, confirmed_id, clone_identity,
+                clone_id)
+            require(all(result["quarantine"].values()),
+                    "exact clone quarantine evidence differs")
+        else:
+            result["stop"] = acceptance.stop_verified_pg(
+                provisioner, identity, confirmed_id)
         require(result["stop"].get("confirmed") is True and
                 result["stop"].get("volume_retained") is True,
                 "exact PG stop or quarantine unconfirmed")
@@ -430,10 +1726,23 @@ def _run_batch(args, manifest, package, batch):
         result.update(candidate)
         result["inspection_record_sha256"] = digest(inspection_bytes)
         result["inspection_record_file"] = inspection_path.name
-        result["target_condition"] = "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE"
-        result["status"] = PASSED
+        result["target_condition"] = ("CHILD_RESTART_STOPPED_QUARANTINED_NOT_RESTORE"
+                                      if child_mode else
+                                      "CLEAN_STOPPED_QUARANTINED_NOT_RESTORE")
+        if child_mode:
+            result["child_isolation"] = "STOPPED"
+        if clone_mode:
+            _mark_clone_phase(result, "complete")
+        result["status"] = (CHILD_PASSED if child_mode else
+                            CLONE_PASSED if clone_mode else
+                            SESSION_PASSED if sql_session else
+                            GUARD_PASSED if bound_guard else
+                            BOUND_PASSED if bound_probe else PASSED)
     except BaseException as error:
-        result["failure_type"] = type(error).__name__
+        result["failure_type"] = (_child_exception_type(error) if child_mode else
+                                  type(error).__name__)
+        if not child_mode and getattr(error, "clone_helper_cleanup", None) is not None:
+            result["clone_helper_cleanup"] = error.clone_helper_cleanup
         if issuer_started and identity is not None and acceptance is not None:
             try:
                 result["issuer_diagnostic"] = acceptance.read_issuer_diagnostic(
@@ -442,7 +1751,18 @@ def _run_batch(args, manifest, package, batch):
                 result["issuer_diagnostic"] = {"status": "UNAVAILABLE"}
         if provisioner is not None and acceptance is not None and identity is not None:
             try:
-                if confirmed_id:
+                if clone_mode and confirmed_id and clone_identity is not None:
+                    if clone_id is None:
+                        try:
+                            clone_id = _find_owned_clone_pg(provisioner,
+                                                            clone_identity, before)
+                        except BaseException as lookup_error:
+                            result["clone_stop_lookup_failure_type"] = type(
+                                lookup_error).__name__
+                    result["stop"] = _stop_clone_pair(
+                        acceptance, provisioner, identity, confirmed_id,
+                        clone_identity, clone_id)
+                elif confirmed_id:
                     result["stop"] = acceptance.stop_verified_pg(
                         provisioner, identity, confirmed_id)
                 elif issuer_started:
@@ -452,27 +1772,54 @@ def _run_batch(args, manifest, package, batch):
                         args.subnet, before, initdb)
             except BaseException as stop_error:
                 result["stop"] = {"confirmed": False,
-                                  "failure_type": type(stop_error).__name__}
+                                  "failure_type": (_child_exception_type(stop_error) if child_mode else
+                                                   type(stop_error).__name__)}
+        if clone_mode and provisioner is not None and identity is not None and \
+                clone_identity is not None:
+            try:
+                result["quarantine"] = _clone_quarantine_evidence(
+                    provisioner, identity, confirmed_id, clone_identity,
+                    clone_id)
+            except BaseException as quarantine_error:
+                result["quarantine"] = {
+                    "state": "UNVERIFIED",
+                    "failure_type": type(quarantine_error).__name__}
         if source.exists():
             try:
                 result["source_after_sha256"] = source_digest(source, manifest)
             except BaseException:
                 pass
+        if child_mode:
+            result["child_isolation"] = ("STOPPED" if
+                result["stop"].get("confirmed") is True else
+                "UNCONFIRMED_UNUSABLE")
     payload = _json_bytes(result)
     _publish_result(evidence, payload)
     summary = {"status": result["status"], "result_sha256": digest(payload),
                "evidence": str(evidence), "not_restore": True}
-    if result["status"] == PASSED:
+    if result["status"] in (PASSED, BOUND_PASSED, GUARD_PASSED,
+                            SESSION_PASSED, CLONE_PASSED, CHILD_PASSED):
         summary.update(birth_sha256=result["birth_sha256"],
                        inspection_evidence_sha256=result[
                            "inspection_evidence_sha256"])
     print(json.dumps(summary, sort_keys=True), flush=True)
-    return (0 if result["status"] == PASSED else 1), result
+    return (0 if result["status"] in (PASSED, BOUND_PASSED, GUARD_PASSED,
+                                      SESSION_PASSED, CLONE_PASSED, CHILD_PASSED) else 1), result
 
 
 def run(args):
     require(os.geteuid() == 0 and _canonical_v4(args.batch_id),
             "root and new UUIDv4 required")
+    clone_mode = getattr(args, "sql_session_clone_negative", False)
+    if clone_mode:
+        require(_canonical_v4(getattr(args, "clone_batch_id", None)) and
+                args.clone_batch_id != args.batch_id and
+                type(getattr(args, "clone_subnet", None)) is str and args.clone_subnet,
+                "second new UUIDv4 and subnet required")
+    else:
+        require(getattr(args, "clone_batch_id", None) is None and
+                getattr(args, "clone_subnet", None) is None,
+                "clone options require clone mode")
     archive = args.archive.absolute()
     manifest, package = verify_archive(
         archive, args.archive_sha256, args.manifest_sha256,
@@ -504,6 +1851,19 @@ def main(argv=None):
     parser.add_argument("--runner-sha256", required=True)
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--subnet", required=True)
+    parser.add_argument("--clone-batch-id")
+    parser.add_argument("--clone-subnet")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--bound-probe", action="store_true",
+                        help="opt-in pinned offline builder preflight and read-only Rust bound probe before exact PG stop")
+    modes.add_argument("--bound-guard", action="store_true",
+                       help="opt-in internal guard lock-lifetime check on a new isolated PG18 target before exact stop")
+    modes.add_argument("--sql-session-binding", action="store_true",
+                       help="opt-in root-private SQLx session proof on a new isolated PG18 target before exact stop")
+    modes.add_argument("--sql-session-clone-negative", action="store_true",
+                       help="opt-in two-project physical clone preparation for a distinct read-only wrong-endpoint gate")
+    modes.add_argument("--child-read-only-restart", action="store_true",
+                       help="opt-in one-project read-only child proof and same-guard restart rejection")
     try:
         args = parser.parse_args(argv)
     except SystemExit as error:
@@ -512,6 +1872,14 @@ def main(argv=None):
         print("PIN_CANDIDATE_ACCEPTANCE_ADMISSION_REJECTED", flush=True)
         return 1
     try:
+        if args.sql_session_clone_negative:
+            require(_canonical_v4(args.clone_batch_id) and
+                    args.clone_batch_id != args.batch_id and
+                    type(args.clone_subnet) is str and args.clone_subnet,
+                    "second new UUIDv4 and subnet required")
+        else:
+            require(args.clone_batch_id is None and args.clone_subnet is None,
+                    "clone options require clone mode")
         return run(args)
     except BaseException:
         print("PIN_CANDIDATE_ACCEPTANCE_ADMISSION_REJECTED", flush=True)

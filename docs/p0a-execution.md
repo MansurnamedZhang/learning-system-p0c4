@@ -1,4 +1,4 @@
-# SDD ledger — plan: <local-workspace>/docs/superpowers/plans/2026-09-17-p0a-block-revision-core.md
+# SDD ledger — plan: <workspace>/docs/superpowers/plans/2026-09-17-p0a-block-revision-core.md
 
 2026-09-19: User explicitly requested “开始实施落地”. Scope P0-A; no API/frontend/production deployment.
 Baseline: 239a3ba; retained trial scaffold, core 5/5 tests passed; DB methods are placeholders and not accepted.

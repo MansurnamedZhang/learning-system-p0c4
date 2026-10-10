@@ -34,13 +34,13 @@
 
 本地 core stdout SHA-256 `2961412987bbe57fe063cc2aab5d23f568b1a968481d0dd67c58563e4d8bba14`；root Clippy stderr `090faf0c4a8863cbdddd9b4fdd9909b75a94dee9fb482870f4aff8b4c7929790`；fixture Clippy stderr `dfc43c64a538cf95a14c8baa6ca5b9f40b26dc0580dcb063d11481ba257b6f38`。每个命令 stdout/stderr/exit 独立保存在任务 scratch `task-8-local`；本地没有 PostgreSQL DSN，集成测试不能 skip，也没有在本地宣称通过。
 
-本地 DB pure8 stdout SHA-256 `9273346d8b627157de3c961c144cc78f942fe50b985ee7655270d43725e51cc0`。Linux `b3-task8-validation1` 宿主 focused stdout `be729cb9db88cfd7a6c473e09c0f53eafb0cc51b113394aa1c514fb182b039ff`，full stdout `c2c0e01f51581f769f31fb050b746862644397b16113d1b1b1211935725c79f2`；源包为上表227文件的 `e560181f…`，两轮均完成四次真实旧程序 bootstrap。原始证据目录为 `<local-user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/b3-task8-validation1/`。
+本地 DB pure8 stdout SHA-256 `9273346d8b627157de3c961c144cc78f942fe50b985ee7655270d43725e51cc0`。Linux `b3-task8-validation1` 宿主 focused stdout `be729cb9db88cfd7a6c473e09c0f53eafb0cc51b113394aa1c514fb182b039ff`，full stdout `c2c0e01f51581f769f31fb050b746862644397b16113d1b1b1211935725c79f2`；源包为上表227文件的 `e560181f…`，两轮均完成四次真实旧程序 bootstrap。原始证据目录为 `<user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/b3-task8-validation1/`。
 
-首次 Compose 外部执行者创建的 secret 文件为0600、host-user所有，PG容器 UID 不能读取，角色密码为空，p0a登录失败。环境故障不算产品 RED，不算缺凭据跳过，更不能计成 workspace通过；build0/up101/stop0及失败卷全部保留。只修正外部权限为 secret 父目录0700、文件0444（Docker挂载保持只读、主机父目录限制其他用户进入），不打印凭据内容。新项目 `learning-system-p0b3-test2` 和新卷重试同一源码；已通过的宿主字节不变，无需机械重复。
+首次 Compose 外部执行者创建的 secret 文件为0600、hans所有，PG容器 UID 不能读取，角色密码为空，p0a登录失败。环境故障不算产品 RED，不算缺凭据跳过，更不能计成 workspace通过；build0/up101/stop0及失败卷全部保留。只修正外部权限为 secret 父目录0700、文件0444（Docker挂载保持只读、主机父目录限制其他用户进入），不打印凭据内容。新项目 `learning-system-p0b3-test2` 和新卷重试同一源码；已通过的宿主字节不变，无需机械重复。
 
 ### 全新 Compose 的最终证据
 
-原始目录 `<local-user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/b3-task8-compose2/`。controller逐项核对227源文件运行前后均一致、43份记录hash全部匹配；与宿主使用相同 `e560181f41ccbc0fb5f18f0dcd8a1b0950dfa2dfd6494ccda20a6b3093c80ead` 源包。config/build/up/stop全部0、四旧程序bootstrap全部0，workspace222通过/0失败/0 ignored，48份摘要。
+原始目录 `<user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/b3-task8-compose2/`。controller逐项核对227源文件运行前后均一致、43份记录hash全部匹配；与宿主使用相同 `e560181f41ccbc0fb5f18f0dcd8a1b0950dfa2dfd6494ccda20a6b3093c80ead` 源包。config/build/up/stop全部0、四旧程序bootstrap全部0，workspace222通过/0失败/0 ignored，48份摘要。
 
 | 证据 | SHA-256 |
 |---|---|
@@ -53,7 +53,7 @@
 
 测试镜像 `sha256:f9ee9945628f7e1056e66b0e35082ac0052040a2b9c85f33db0cc7590d662664`；PostgreSQL固定镜像 `postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d` 不变。成功项目PG/test均Exited(0)，PG2CPU/4GiB、test4CPU/4GiB、internal网络和无宿主端口已核验。
 
-最终只额外停止 `learning-system-p0b3-pg-1`（exit0），全部B3容器退出。五卷保留：baseline pgdata、失败项目test_pg/test_evidence、成功test2项目test_pg/test_evidence。最终状态证据在 `<local-user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/b3-final-stop/` 的 `containers.json`、`retained-volumes.json`、`evidence-sha256.json` 和stop日志；旧B2/dev未触碰。失败Compose、成功Compose和宿主证据均未删除。
+最终只额外停止 `learning-system-p0b3-pg-1`（exit0），全部B3容器退出。五卷保留：baseline pgdata、失败项目test_pg/test_evidence、成功test2项目test_pg/test_evidence。最终状态证据在 `<user-home>/Documents/ubuntu_Seoul/learning-system-p0b3/evidence/b3-final-stop/` 的 `containers.json`、`retained-volumes.json`、`evidence-sha256.json` 和stop日志；旧B2/dev未触碰。失败Compose、成功Compose和宿主证据均未删除。
 
 ## 升级协议和可复现命令
 

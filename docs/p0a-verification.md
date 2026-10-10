@@ -40,7 +40,7 @@
 | p0a-business-green-20260919.zip | 9924a97c1ed1c5273bfe58701294719ecc98d1312606396080bfc3dbb0480437 |
 | p0a-pinned-final-20260919.zip | f46fb20a2167628e745122bdde9c795f18da3c01f4fb731130a1b43d1d3902d5 |
 
-本地包位于 `.runtime/`（不入 Git）。服务器回传原始日志和 JSON 位于 `<local-user-home>/Documents/ubuntu_Seoul/learning-system-p0/evidence/`。报告区分测试进程真实退出码与外层证据脚本退出码；RED 测试为 101，即使归档脚本为 0 也不记成通过。
+本地包位于 `.runtime/`（不入 Git）。服务器回传原始日志和 JSON 位于 `<user-home>/Documents/ubuntu_Seoul/learning-system-p0/evidence/`。报告区分测试进程真实退出码与外层证据脚本退出码；RED 测试为 101，即使归档脚本为 0 也不记成通过。
 
 经本任务独立核验后的副本存入 `artifacts/p0a/`，不含测试凭据。宿主 GREEN 的 tests.log SHA-256 为 `c037951cc77433b405e1f7ededa7d03a4e50e23c2cca838522b8390d54468c57`；首轮 Compose GREEN 的 up.log 为 `4ffede36556552d7861873271a4b4466c673acc22e92a1ec42b020b8a3ee626b`。
 

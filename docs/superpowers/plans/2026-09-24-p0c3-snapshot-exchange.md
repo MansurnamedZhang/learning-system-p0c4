@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust 1.97、edition 2024、serde/serde_json、SHA-256、sqlx 0.8.6/PostgreSQL、现有 `FsAssetStore`、Tokio、Docker Compose 隔离验收。首版交换格式是**普通目录**；不接受 ZIP/TAR 输入，压缩输入一律 `InvalidPackage`，所以不存在解压路径或压缩比绕过。后续压缩传输须单独版本化设计。
 
-**Spec:** [已批准的 C3 详细规格](../specs/2026-09-24-p0c3-snapshot-exchange-design.md)；上位 [P0-C 总设计](../../../../../docs/superpowers/specs/2026-09-23-p0c-assets-jobs-portability-design.md) C3 节。
+**Spec:** [已批准的 C3 详细规格](../specs/2026-09-24-p0c3-snapshot-exchange-design.md)；上位 P0-C 总设计（私有或未公开参考） C3 节。
 
 ## Global Constraints
 

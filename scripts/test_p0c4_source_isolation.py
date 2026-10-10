@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from subprocess import CompletedProcess
 
-from p0c4_source_isolation import IsolationError, assess_project, probe_runtime_denied, manager_environment, validate_admin_endpoint, _daemon_preflight, _atomic_private_file, _private_capture, _publish_manager_logs, redact_log
+from scripts.p0c4_source_isolation import IsolationError, assess_project, probe_runtime_denied, manager_environment, validate_admin_endpoint, _daemon_preflight, _atomic_private_file, _private_capture, _publish_manager_logs, redact_log
 
 
 PROJECT = "learning-system-p0c4-test-1234"
@@ -37,6 +37,63 @@ def network():
 
 
 class ProjectInspectionTests(unittest.TestCase):
+    def test_installed_native_producer_rejects_healthcheck_and_post_sample_drift(self):
+        from scripts import p0c4_source_isolation as source
+        import copy,json
+        cid='a'*64;nid='b'*64;iid='sha256:'+'c'*64
+        pg=container('pg',running=True);pg['Id']=cid
+        pg['Config']['Image']=source.MANAGER_IMAGE
+        pg['State'].update(Pid=42,Status='running',OOMKilled=False,StartedAt='epoch')
+        pg.update(Image=iid,RestartCount=0)
+        pg['NetworkSettings']['Networks']={PROJECT+'_test':dict(NetworkID=nid)}
+        pg['Mounts']=[dict(Type='volume',Name=name,Source='/volumes/'+name,Destination=target,RW=rw) for name,target,rw in (
+            ('pg','/var/lib/postgresql',True),('source','/var/lib/knowweave-source',True),('build','/target',False),('registry','/var/lib/knowweave-c4/registry',True))]
+        pg['Mounts'] += [dict(Type='bind',Source='/root/'+name,Destination=target,RW=False) for name,target in (
+            ('init','/docker-entrypoint-initdb.d/10-lifecycle.sh'),('pg','/run/secrets/postgres_password'),('admin','/run/secrets/admin_password'))]
+        net=network();net['Containers']={cid:{}}
+        sample='\n'.join(['pid:[123]','mnt:[124]','1 (postgres) S '+'0 '*18+'55 0','/usr/lib/postgresql/18/bin/postgres','1|2','3|4|999','d'*64+'  /usr/lib/postgresql/18/bin/pg_dump','pg_dump (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+1)'])+'\n'
+        def observe(before,after):
+            observations=iter((before,after))
+            def docker(*args):
+                if args==('info','--format','{{.ID}}'):return 'daemon\n'
+                if args==('container','inspect',cid):return json.dumps([next(observations)])
+                if args==('network','inspect',nid):return json.dumps([net])
+                if args==('image','inspect',iid):return json.dumps([dict(Id=iid,RepoDigests=['postgres@'+source.MANAGER_IMAGE.split('@')[1]])])
+                self.assertEqual(args,('exec','--user','999:999',cid,'/usr/bin/env','-i','LC_ALL=C','/bin/sh','-ec',source.SOURCE_NATIVE_SAMPLER))
+                return sample
+            return source.observe_source_endpoint(cid,PROJECT,'11111111-1111-4111-8111-111111111111',docker=docker)
+        self.assertEqual(observe(pg,pg)['native']['postmaster_start_ticks'],55)
+        drift=copy.deepcopy(pg);drift['State']['Pid']=43
+        with self.assertRaises(IsolationError):observe(pg,drift)
+        health=copy.deepcopy(pg);health['Config']['Healthcheck']={'Test':['CMD','psql']}
+        with self.assertRaises(IsolationError):observe(health,health)
+
+    def test_native_sampler_requires_actual_pid1_namespace_epoch_socket_owner_and_18_6(self):
+        from scripts import p0c4_source_isolation as source
+        rows=['pid:[123]','mnt:[124]','1 (postgres) S '+'0 '*18+'55 0','/usr/lib/postgresql/18/bin/postgres','1|2','3|4|999','a'*64+'  /usr/lib/postgresql/18/bin/pg_dump','pg_dump (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+1)']
+        actual=source._source_native_sample('\n'.join(rows)+'\n')
+        self.assertEqual(actual['native'],dict(pid_namespace='pid:[123]',mount_namespace='mnt:[124]',postmaster_start_ticks=55,data_dev=1,data_ino=2,socket_dev=3,socket_ino=4))
+        for index,value in ((0,'pid:[0]'),(1,'pid:[124]'),(2,'1 (postgres) Z '+'0 '*18+'55 0'),(3,'/bin/sh'),(5,'3|4|0'),(7,'pg_dump (PostgreSQL) 18.7 (Debian 18.7-1.pgdg12+1)')):
+            bad=rows.copy();bad[index]=value
+            with self.subTest(index=index),self.assertRaises(IsolationError):source._source_native_sample('\n'.join(bad)+'\n')
+
+    def test_native_source_mounts_accept_exact_seven_and_reject_extra_or_writable_secret(self):
+        from scripts import p0c4_source_isolation as source
+        validate=getattr(source,'_source_mount_projection',None)
+        self.assertIsNotNone(validate,'shipping native source mount verifier is missing')
+        mounts=[dict(Type='volume',Name=name,Source='/var/lib/docker/volumes/'+name+'/_data',Destination=target,RW=rw) for name,target,rw in (
+            ('pg','/var/lib/postgresql',True),('source','/var/lib/knowweave-source',True),('build','/target',False),('registry','/var/lib/knowweave-c4/registry',True))]
+        mounts += [dict(Type='bind',Source='/root/case/'+name,Destination=target,RW=False) for name,target in (
+            ('initdb.sh','/docker-entrypoint-initdb.d/10-lifecycle.sh'),('postgres_password','/run/secrets/postgres_password'),('admin_password','/run/secrets/admin_password'))]
+        self.assertEqual(len(validate(mounts)),7)
+        import copy
+        for bad in (mounts+[mounts[0]],mounts[:-1]):
+            with self.assertRaises(IsolationError):validate(bad)
+        bad=copy.deepcopy(mounts);bad[-1]['RW']=True
+        with self.assertRaises(IsolationError):validate(bad)
+        bad=copy.deepcopy(mounts);bad[1]['Source']='/root/../other'
+        with self.assertRaises(IsolationError):validate(bad)
+
     def test_only_postgres_may_run_and_network_must_be_internal(self):
         facts = assess_project(
             PROJECT,
@@ -87,7 +144,7 @@ class ProjectInspectionTests(unittest.TestCase):
         with self.assertRaises(IsolationError):
             assess_project(PROJECT, [pg], [network()])
 
-    @patch("p0c4_source_isolation.subprocess.run")
+    @patch("scripts.p0c4_source_isolation.subprocess.run")
     def test_runtime_probe_accepts_only_database_connect_denial(self, run):
         run.return_value = CompletedProcess([], 2, "", "FATAL: permission denied for database \"x\"")
         probe_runtime_denied("pg-id", "learning_backup_c4_task3_1234")
@@ -126,14 +183,14 @@ class ProjectInspectionTests(unittest.TestCase):
         with self.assertRaises(IsolationError):
             validate_admin_endpoint("postgres://learning_admin:secret@pg:5432/other?application_name=knowweave_c4_manager", db)
 
-    @patch("p0c4_source_isolation.subprocess.run")
+    @patch("scripts.p0c4_source_isolation.subprocess.run")
     def test_daemon_identity_must_be_available(self, run):
         run.return_value = CompletedProcess([], 1, "", "daemon unavailable")
         with self.assertRaises(IsolationError):
             _daemon_preflight()
         self.assertEqual(run.call_count, 1)
 
-    @patch("p0c4_source_isolation._rename_noreplace")
+    @patch("scripts.p0c4_source_isolation._rename_noreplace")
     def test_evidence_file_is_fully_written_before_no_replace_publication(self, rename):
         import os
         import tempfile
@@ -157,7 +214,7 @@ class ProjectInspectionTests(unittest.TestCase):
         self.assertEqual(redact_log(raw, [b"postgres://learning_admin:secret@pg/db", b"secret"]),
                          b"[REDACTED] [REDACTED] harmless")
 
-    @patch("p0c4_source_isolation._rename_noreplace")
+    @patch("scripts.p0c4_source_isolation._rename_noreplace")
     def test_manager_logs_are_retained_privately_and_redacted_for_evidence(self, rename):
         import os
         import tempfile
@@ -182,3 +239,11 @@ class ProjectInspectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompletionProjectTests(unittest.TestCase):
+    def test_fixed_completion_pattern_preserves_legacy_admission(self):
+        from scripts.p0c4_source_isolation import accepted_project
+        self.assertTrue(accepted_project(PROJECT))
+        self.assertTrue(accepted_project('kwc4c-'+'a'*32))
+        for value in ('kwc4c-'+'A'*32,'kwc4c-'+'a'*31,'kwc4c-'+'a'*32+'/x','kwc4c-',None):self.assertFalse(accepted_project(value))

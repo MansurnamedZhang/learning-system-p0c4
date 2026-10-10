@@ -84,6 +84,8 @@ impl VerifiedBlob {
 pub struct FsAssetStore {
     assets_root: PathBuf,
     staging_root: PathBuf,
+    #[cfg(target_os = "linux")]
+    held_roots: std::sync::Arc<(Dir, Dir)>,
 }
 
 impl FsAssetStore {
@@ -154,9 +156,129 @@ impl FsAssetStore {
         fs::create_dir_all(&assets_root)?;
         fs::create_dir_all(&staging_root)?;
         Ok(Self {
+            #[cfg(target_os = "linux")]
+            held_roots: std::sync::Arc::new((
+                Dir::open_owned_root(&fs::canonicalize(&assets_root)?)?,
+                Dir::open_owned_root(&fs::canonicalize(&staging_root)?)?,
+            )),
             assets_root,
             staging_root,
         })
+    }
+    /// Original handles retained at construction; enrollment is independently checked.
+    #[cfg(target_os = "linux")]
+    pub fn backup_root_handles(
+        &self,
+    ) -> Result<(crate::backup_fs::BackupDir, crate::backup_fs::BackupDir), AssetIoError> {
+        Ok((
+            crate::backup_fs::BackupDir::from_held(self.held_roots.0.try_clone()?),
+            crate::backup_fs::BackupDir::from_held(self.held_roots.1.try_clone()?),
+        ))
+    }
+    pub fn backup_assets_path(&self) -> &Path {
+        &self.assets_root
+    }
+    pub fn backup_staging_path(&self) -> &Path {
+        &self.staging_root
+    }
+    /// Management dry-run using retained no-follow roots and a shared entry cap.
+    /// This is still a report, never unlink authority.
+    #[cfg(target_os = "linux")]
+    pub fn reconcile_registered_dry_run(
+        &self,
+        protected: &HashSet<String>,
+        older_than: SystemTime,
+        maximum: usize,
+    ) -> Result<ReconcileReport, AssetIoError> {
+        use crate::backup_fs::{BackupDir, BackupEntryKind};
+        let (assets, staging) = self.backup_root_handles()?;
+        let mut remaining = maximum;
+        fn names(dir: &BackupDir, remaining: &mut usize) -> Result<Vec<String>, AssetIoError> {
+            let list = dir.list_bounded(*remaining)?;
+            *remaining = remaining
+                .checked_sub(list.len())
+                .ok_or(AssetIoError::SizeOverflow)?;
+            Ok(list)
+        }
+        fn candidate(
+            dir: &BackupDir,
+            name: &str,
+            key: String,
+            protected: &HashSet<String>,
+            older_than: SystemTime,
+            out: &mut Vec<ReconcileCandidate>,
+        ) -> Result<(), AssetIoError> {
+            if protected.contains(&key) {
+                return Ok(());
+            }
+            if dir.kind(name)? != BackupEntryKind::File {
+                return Err(AssetIoError::InvalidMetadata);
+            }
+            let m = dir.open_file(name)?.metadata()?;
+            if m.modified()? < older_than {
+                out.push(ReconcileCandidate {
+                    path: key,
+                    modified_at: m.modified()?,
+                    size_bytes: m.len(),
+                });
+            }
+            Ok(())
+        }
+        let mut candidates = Vec::new();
+        for root_name in names(&assets, &mut remaining)? {
+            if root_name == "sha256" {
+                let digests = assets.open_dir(&root_name)?;
+                for prefix in names(&digests, &mut remaining)? {
+                    if prefix.len() != 2
+                        || !prefix
+                            .bytes()
+                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                    {
+                        return Err(AssetIoError::InvalidMetadata);
+                    }
+                    let dir = digests.open_dir(&prefix)?;
+                    for name in names(&dir, &mut remaining)? {
+                        let key = format!("sha256/{prefix}/{name}");
+                        if !valid_digest_key(&key) {
+                            return Err(AssetIoError::InvalidMetadata);
+                        }
+                        candidate(&dir, &name, key, protected, older_than, &mut candidates)?;
+                    }
+                }
+            } else if root_name == ".finalizing" {
+                let dir = assets.open_dir(&root_name)?;
+                for name in names(&dir, &mut remaining)? {
+                    if pending_upload_id(&name).is_none() {
+                        return Err(AssetIoError::InvalidMetadata);
+                    }
+                    candidate(
+                        &dir,
+                        &name,
+                        format!(".finalizing/{name}"),
+                        protected,
+                        older_than,
+                        &mut candidates,
+                    )?;
+                }
+            } else {
+                return Err(AssetIoError::InvalidMetadata);
+            }
+        }
+        for name in names(&staging, &mut remaining)? {
+            if stage_upload_id(&name).is_none() {
+                return Err(AssetIoError::InvalidMetadata);
+            }
+            candidate(
+                &staging,
+                &name,
+                format!("staging/{name}"),
+                protected,
+                older_than,
+                &mut candidates,
+            )?;
+        }
+        candidates.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(ReconcileReport { candidates })
     }
 
     /// Stage original bytes before publishing an immutable digest object.

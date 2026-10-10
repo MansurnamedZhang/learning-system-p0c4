@@ -6,13 +6,6 @@ use crate::{AssetRow, BackupError, BackupPlan, MigrationRecord, SourceIdentity};
 use learning_assets::FsAssetStore;
 use serde::Deserialize;
 use std::collections::BTreeSet;
-#[cfg(target_os = "linux")]
-use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom},
-    path::Path,
-    process::{Command, Stdio},
-};
 use uuid::Uuid;
 
 /// A strict restore command for a freshly created C4 target database. The
@@ -62,71 +55,6 @@ impl PgRestoreSpec {
             "--username=learning_admin".into(),
             format!("--dbname={}", self.database),
         ]
-    }
-
-    /// Execute from an already verified, no-follow archive handle. Exposed
-    /// only inside this crate to the locked post-preflight executor.
-    #[cfg(target_os = "linux")]
-    pub(crate) fn run_from_open_file(
-        &self,
-        executable: &Path,
-        pgpassfile: &Path,
-        archive: &mut File,
-    ) -> Result<(), BackupError> {
-        use std::os::unix::fs::{MetadataExt, PermissionsExt};
-        let binary = std::fs::symlink_metadata(executable)?;
-        let pass = std::fs::symlink_metadata(pgpassfile)?;
-        if !executable.is_absolute()
-            || !binary.file_type().is_file()
-            || binary.uid() != 0
-            || binary.permissions().mode() & 0o022 != 0
-            || !pgpassfile.is_absolute()
-            || !pass.file_type().is_file()
-            || pass.uid() != unsafe { libc::geteuid() }
-            || pass.permissions().mode() & 0o077 != 0
-        {
-            return Err(BackupError::Invalid(
-                "trusted pg_restore or private password file",
-            ));
-        }
-        let archive_meta = archive.metadata()?;
-        if !archive_meta.is_file() || archive_meta.nlink() != 1 || archive_meta.len() <= 5 {
-            return Err(BackupError::Invalid("restore archive handle"));
-        }
-        archive.seek(SeekFrom::Start(0))?;
-        let mut magic = [0; 5];
-        archive.read_exact(&mut magic)?;
-        if &magic != b"PGDMP" {
-            return Err(BackupError::Invalid("restore archive format"));
-        }
-        archive.seek(SeekFrom::Start(0))?;
-        let version = Command::new(executable)
-            .arg("--version")
-            .env_clear()
-            .env("LC_ALL", "C")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .output()?;
-        if !version.status.success()
-            || !String::from_utf8_lossy(&version.stdout).contains("(PostgreSQL) 18.")
-        {
-            return Err(BackupError::Invalid("pg_restore 18 required"));
-        }
-        let status = Command::new(executable)
-            .args(self.args())
-            .env_clear()
-            .env("LC_ALL", "C")
-            .env("PGPASSFILE", pgpassfile)
-            .env("PGAPPNAME", "knowweave_c4_pg_restore")
-            .env("PGCONNECT_TIMEOUT", "10")
-            .stdin(Stdio::from(archive.try_clone()?))
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?;
-        if !status.success() {
-            return Err(BackupError::Invalid("pg_restore failed"));
-        }
-        Ok(())
     }
 }
 
@@ -329,6 +257,9 @@ pub enum JobRecoveryAction {
 pub fn classify_restored_job(job: &RestoredJob) -> Result<JobRecoveryAction, BackupError> {
     if !(0..=3).contains(&job.attempt_count) {
         return Err(BackupError::Invalid("job attempt count"));
+    }
+    if matches!(job.status.as_str(), "queued" | "snapshot_queued") && job.checkpoint_present {
+        return Err(BackupError::Invalid("queued job has checkpoint"));
     }
     if matches!(job.status.as_str(), "retry_wait" | "snapshot_retry_wait")
         && !(1..3).contains(&job.attempt_count)

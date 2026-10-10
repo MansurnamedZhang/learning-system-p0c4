@@ -1,6 +1,6 @@
 # P0-B4 验证记录
 
-状态：`P0_B4_VERIFIED / NOT_PRODUCTION`。本记录区分已运行结果和外部生产边界。所有专项包均由源码白名单封装，Linux 独立新 PostgreSQL 数据库执行，普通 admin/runtime 无 SUPERUSER/BYPASSRLS，PG 限 2 CPU/4 GiB、测试容器 4 CPU/4 GiB，内部网络且无宿主端口。根任务逐项复核包内源文件及原始证据 SHA；证据镜像位于 `<local-user-home>/Documents/ubuntu_Seoul/learning-system-p0b4/evidence/`，服务器原件位于 `<server-user-home>/experiments/learning-system-p0b4/evidence/`。各批次的真实 stdout/stderr 与失败记录须按目录读取，下面的计数不是替代原始日志。
+状态：`P0_B4_VERIFIED / NOT_PRODUCTION`。本记录区分已运行结果和外部生产边界。所有专项包均由源码白名单封装，Linux 独立新 PostgreSQL 数据库执行，普通 admin/runtime 无 SUPERUSER/BYPASSRLS，PG 限 2 CPU/4 GiB、测试容器 4 CPU/4 GiB，内部网络且无宿主端口。根任务逐项复核包内源文件及原始证据 SHA；证据镜像位于 `<user-home>/Documents/ubuntu_Seoul/learning-system-p0b4/evidence/`，服务器原件位于 `<server-user-home>/experiments/learning-system-p0b4/evidence/`。各批次的真实 stdout/stderr 与失败记录须按目录读取，下面的计数不是替代原始日志。
 
 ## 源码与阶段身份
 

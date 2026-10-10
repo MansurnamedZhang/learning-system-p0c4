@@ -1,45 +1,44 @@
-//! Clean-target preflight and its locked database-import boundary. An opaque
+//! Clean-target preflight and its locked read-only boundary. An opaque
 //! `CompleteBackup` is mandatory; a path or `SealedBackup` cannot bypass it.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 use crate::FileRecord;
 #[cfg(target_os = "linux")]
-use crate::PgRestoreSpec;
-#[cfg(target_os = "linux")]
-use crate::{
-    AssetRow, MigrationRecord, RestoreEnvironment, RestoreTargetFacts, open_complete_backup,
-    validate_role_recipe,
-};
+use crate::{AssetRow, open_complete_backup, validate_role_recipe};
 use crate::{BackupError, BackupManifestV1, BackupPlan, CompleteBackup};
+#[cfg(any(target_os = "linux", test))]
+use crate::{MigrationRecord, RestoreEnvironment, RestoreTargetFacts};
 #[cfg(target_os = "linux")]
 use learning_assets::backup_fs::BackupDir;
 #[cfg(any(target_os = "linux", test))]
 use learning_assets::backup_fs::BackupEntryKind;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 use learning_db::MIGRATOR;
 #[cfg(any(target_os = "linux", test))]
 use serde::{Deserialize, Serialize};
 #[cfg(any(target_os = "linux", test))]
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
-#[cfg(target_os = "linux")]
-use sqlx::Row;
 #[cfg(any(target_os = "linux", test))]
-use std::io::{Read, Seek, SeekFrom};
+use sqlx::{PgConnection, Postgres, Row, Transaction};
+#[cfg(any(target_os = "linux", test))]
+use std::io::Read;
+#[cfg(test)]
+use std::io::{Seek, SeekFrom};
+#[cfg(any(target_os = "linux", test))]
+use std::path::Path;
 #[cfg(target_os = "linux")]
 use std::{
     fs::File,
-    io::Write,
-    os::fd::AsRawFd,
     os::unix::fs::{MetadataExt, PermissionsExt},
 };
 use std::{
     io,
-    path::{Component, Path, PathBuf},
+    path::{Component, PathBuf},
 };
 
 #[cfg(any(target_os = "linux", test))]
-#[allow(dead_code)] // Staged internal probe; not yet part of the restore lock lifetime.
-mod target_binding;
+#[allow(dead_code)] // Standalone probe and staged continuation remain internal.
+pub(crate) mod target_binding;
 
 #[cfg(any(target_os = "linux", test))]
 #[derive(Debug, Default)]
@@ -420,40 +419,17 @@ impl RestorePreflightConfig {
     }
 }
 
-/// Holds the exclusive management lock until dropped. Preflight performs no
-/// target data write. The database stage consumes this value and retains the
-/// lock for later asset import, data closure and acceptance work.
+/// Holds the global creation and exclusive target locks until dropped.
+/// Preflight performs no target data write. The guard and SQL transaction stay
+/// alive for the internal read-only child endpoint proof.
 #[derive(Debug)]
 pub struct RestorePreflight {
     manifest: BackupManifestV1,
     plan: BackupPlan,
     #[cfg(target_os = "linux")]
-    destination_root: PathBuf,
+    bound_target: target_binding::BoundTargetGuard<File, Option<File>>,
     #[cfg(target_os = "linux")]
-    trust_path: PathBuf,
-    #[cfg(target_os = "linux")]
-    receipt_sha256: String,
-    #[cfg(target_os = "linux")]
-    restore_spec: PgRestoreSpec,
-    #[cfg(target_os = "linux")]
-    expected_database: String,
-    #[cfg(target_os = "linux")]
-    control: BackupDir,
-    #[cfg(target_os = "linux")]
-    _lock: File,
-}
-
-/// Internal staging result: database import completed, but the target is still
-/// private and unusable. This is not a public restore or admission API.
-/// This opaque continuation retains the same exclusive lock. Asset import,
-/// source-lease invalidation, closure checks and admission remain unimplemented.
-#[derive(Debug)]
-#[allow(dead_code)] // Staged internal continuation; external restore is not yet admitted.
-pub(crate) struct RestoreDatabaseImported {
-    manifest: BackupManifestV1,
-    plan: BackupPlan,
-    #[cfg(target_os = "linux")]
-    _lock: File,
+    sql_session: target_binding::LockChallenge<Transaction<'static, Postgres>>,
 }
 
 impl RestorePreflight {
@@ -464,91 +440,25 @@ impl RestorePreflight {
         &self.plan
     }
 
-    /// Consume the locked, read-only preflight for one database import attempt.
-    /// The target remains quarantined whether pg_restore succeeds or fails;
-    /// asset import, closure checks and service admission are separate gates.
-    /// No archive path, database name or PostgreSQL flag comes from the caller.
-    /// Before this is exposed, the child connection must be bound to the
-    /// preflight-observed PG/Docker identity and executable/credential paths
-    /// must be pinned against replacement between check and exec.
-    #[allow(dead_code)] // No external write API until live endpoint binding is proven.
-    pub(crate) fn restore_database(
-        self,
-        executable: &Path,
-        private_pgpass: &Path,
-    ) -> Result<RestoreDatabaseImported, BackupError> {
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (self, executable, private_pgpass);
-            Err(BackupError::Io(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "database restore requires Linux",
-            )))
-        }
-        #[cfg(target_os = "linux")]
-        {
-            self.restore_database_linux(executable, private_pgpass)
-        }
-    }
-
+    /// Borrow both live guards for the staged read-only child proof.
     #[cfg(target_os = "linux")]
-    #[allow(dead_code)] // Kept behind the crate boundary pending Linux endpoint proof.
-    fn restore_database_linux(
-        self,
-        executable: &Path,
-        private_pgpass: &Path,
-    ) -> Result<RestoreDatabaseImported, BackupError> {
-        // `self` retains the exclusive preflight lock through the child exit.
-        // Recheck the complete receipt and all package bytes against the exact
-        // receipt observed by preflight before opening the dump for execution.
-        let checked = open_complete_backup(
-            &self.destination_root,
-            &self.trust_path,
-            self.manifest.backup_id,
-        )?;
-        if checked.receipt_sha256() != self.receipt_sha256
-            || checked.manifest_sha256() != self.manifest.canonical_sha256()?
-        {
-            return Err(BackupError::Invalid(
-                "complete receipt changed before restore",
-            ));
-        }
-        let dump_record = self
-            .manifest
-            .files
-            .iter()
-            .find(|record| record.path == "database.dump")
-            .ok_or(BackupError::Invalid("restore dump absent"))?;
-        let destination = BackupDir::open_trusted_private_root(&self.destination_root)?;
-        let package = destination.open_dir(&format!("{}.sealed", self.manifest.backup_id))?;
-        let mut archive = package.open_file("database.dump")?;
-        if archive.metadata()?.len() != dump_record.size {
-            return Err(BackupError::Invalid("restore dump size changed"));
-        }
-        verify_dump_reader(&mut archive, dump_record)?;
-        let attempt_name = restore_attempt_name(&self.expected_database)?;
-        let attempt_bytes = restore_attempt_bytes(
-            &self.expected_database,
-            self.manifest.backup_id,
-            &self.receipt_sha256,
-        )?;
-        let mut attempt = self.control.create_file(&attempt_name)?;
-        attempt.write_all(&attempt_bytes)?;
-        attempt.sync_all()?;
-        self.control.sync()?;
-        // Even if pg_restore fails or the process dies, the durable marker
-        // blocks another clean-target preflight for this database.
-        self.restore_spec
-            .run_from_open_file(executable, private_pgpass, &mut archive)?;
-        Ok(RestoreDatabaseImported {
-            manifest: self.manifest,
-            plan: self.plan,
-            _lock: self._lock,
-        })
+    #[allow(dead_code)] // Task 2 adds the bounded child runner.
+    fn exact_child_target(
+        &self,
+    ) -> Result<
+        target_binding::ExactRestoreChildTarget<
+            '_,
+            File,
+            Option<File>,
+            Transaction<'static, Postgres>,
+        >,
+        BackupError,
+    > {
+        target_binding::ExactRestoreChildTarget::bind(&self.bound_target, &self.sql_session)
     }
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 #[derive(Serialize)]
 struct RestoreAttemptMarker<'a> {
     format_version: u32,
@@ -573,7 +483,7 @@ fn restore_attempt_name(database: &str) -> Result<String, BackupError> {
     Ok(format!("{database}.restore.attempt"))
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 fn restore_attempt_bytes(
     database: &str,
     backup_id: uuid::Uuid,
@@ -604,7 +514,7 @@ fn reject_existing_attempt(entry: io::Result<BackupEntryKind>) -> Result<(), Bac
 /// Stream from the handle that will become pg_restore's stdin. This catches a
 /// changed name/byte sequence after preflight without copying the archive to
 /// an untrusted path or treating a caller-supplied path as authority.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(test)]
 fn verify_dump_reader<R: Read + Seek>(
     reader: &mut R,
     record: &FileRecord,
@@ -673,6 +583,41 @@ struct AssetIndex {
     assets: Vec<AssetRow>,
 }
 
+#[cfg(any(target_os = "linux", test))]
+async fn begin_sql_session(
+    admin: &PgPool,
+) -> Result<
+    (
+        target_binding::LockChallenge<Transaction<'static, Postgres>>,
+        i32,
+        u64,
+    ),
+    BackupError,
+> {
+    let keys = target_binding::ChallengeKeys::random()?;
+    let mut transaction = admin.begin().await?;
+    for key in keys.values() {
+        sqlx::query("SELECT pg_catalog.pg_advisory_xact_lock($1)")
+            .bind(key)
+            .execute(&mut *transaction)
+            .await?;
+    }
+    let row = sqlx::query(
+        "SELECT pg_catalog.pg_backend_pid() AS backend_pid, d.oid::bigint AS database_oid \
+         FROM pg_catalog.pg_database d WHERE d.datname=pg_catalog.current_database()",
+    )
+    .fetch_one(&mut *transaction)
+    .await?;
+    let backend_pid = row.try_get("backend_pid")?;
+    let database_oid =
+        u64::try_from(row.try_get::<i64, _>("database_oid")?).map_err(|_| BackupError::Overflow)?;
+    Ok((
+        target_binding::LockChallenge::new(keys, transaction),
+        backend_pid,
+        database_oid,
+    ))
+}
+
 #[cfg(target_os = "linux")]
 async fn preflight_linux(
     complete: &CompleteBackup,
@@ -684,6 +629,9 @@ async fn preflight_linux(
             "root-owned restore controller required",
         ));
     }
+    // Acquire the existing global creation lock before any target lock can
+    // be created. The guard owns both locks and the original Docker/PG facts.
+    let bound_target = target_binding::acquire_for_restore(config)?;
     let lock_root = BackupDir::open_trusted_private_root(&config.control_root)?;
     let _trust_parent = BackupDir::open_trusted_private_root(
         config
@@ -691,25 +639,6 @@ async fn preflight_linux(
             .parent()
             .ok_or(BackupError::Invalid("verifier trust parent"))?,
     )?;
-    let lock_name = format!("{}.restore.lock", config.expected_database);
-    let lock = match lock_root.create_file(&lock_name) {
-        Ok(file) => {
-            file.sync_all()?;
-            lock_root.sync()?;
-            file
-        }
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            lock_root.open_file(&lock_name)?
-        }
-        Err(error) => return Err(error.into()),
-    };
-    let meta = lock.metadata()?;
-    if meta.uid() != 0 || meta.permissions().mode() & 0o777 != 0o600 {
-        return Err(BackupError::Invalid("private restore lock"));
-    }
-    if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-        return Err(BackupError::Invalid("restore target is already locked"));
-    }
     reject_existing_attempt(lock_root.kind(&restore_attempt_name(&config.expected_database)?))?;
     let checked = open_complete_backup(
         &config.destination_root,
@@ -751,35 +680,35 @@ async fn preflight_linux(
     }
     let roles = read_limited(&package, "roles.json", 16 * 1024)?;
     validate_role_recipe(&roles)?;
-    observed_build_and_pg(admin, &config.expected_database)
+    let options = admin.connect_options();
+    if options.get_username() != "learning_admin"
+        || options.get_database() != Some(config.expected_database.as_str())
+    {
+        return Err(BackupError::Invalid("restore database endpoint or role"));
+    }
+    // Every clean-target SQL query below shares this one physical connection.
+    // The observer sees its transaction locks through the exact Docker target.
+    let (challenge, backend_pid, database_oid) = begin_sql_session(admin).await?;
+    let mut sql_session = bound_target.verify_sql_session(challenge, backend_pid, database_oid)?;
+    observed_build_and_pg(sql_session.lease_mut())
         .await?
         .validate(&manifest.source)?;
     let assets = BackupDir::open_trusted_private_root(&config.asset_root)?;
-    let facts = target_facts(admin, assets.list()?.len()).await?;
+    let facts = target_facts(sql_session.lease_mut(), assets.list()?.len()).await?;
     facts.validate()?;
-    verify_target_birth(admin, config, &lock_root, &assets).await?;
-    let options = admin.connect_options();
-    let restore_spec = PgRestoreSpec::new(
-        &config.expected_database,
-        options.get_host(),
-        options.get_port(),
-    )?;
+    verify_target_birth(sql_session.lease_mut(), config, &lock_root, &assets).await?;
+    let sql_session = bound_target.verify_sql_session(sql_session, backend_pid, database_oid)?;
     Ok(RestorePreflight {
         manifest,
         plan,
-        destination_root: config.destination_root.clone(),
-        trust_path: config.trust_path.clone(),
-        receipt_sha256: checked.receipt_sha256().to_owned(),
-        restore_spec,
-        expected_database: config.expected_database.clone(),
-        control: lock_root,
-        _lock: lock,
+        bound_target,
+        sql_session,
     })
 }
 
 #[cfg(target_os = "linux")]
 async fn verify_target_birth(
-    admin: &PgPool,
+    conn: &mut PgConnection,
     config: &RestorePreflightConfig,
     control: &BackupDir,
     assets: &BackupDir,
@@ -789,6 +718,32 @@ async fn verify_target_birth(
     let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(BackupError::Invalid(
         "target birth digest is not build-pinned",
     ))?;
+    verify_birth_with_pin(conn, config, control, assets, pinned).await
+}
+
+#[cfg(all(test, target_os = "linux"))]
+async fn verify_import_source_birth(
+    conn: &mut PgConnection,
+    config: &RestorePreflightConfig,
+    control: &BackupDir,
+    assets: &BackupDir,
+) -> Result<(), BackupError> {
+    let pinned = option_env!("KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256").ok_or(
+        BackupError::Invalid("fixture source birth is not build-pinned"),
+    )?;
+    verify_birth_with_pin(conn, config, control, assets, pinned).await
+}
+
+// Both pins enter this complete verifier. Production still obtains its sole
+// pin from KNOWWEAVE_C4_TARGET_BIRTH_SHA256, never configuration/caller input.
+#[cfg(target_os = "linux")]
+async fn verify_birth_with_pin(
+    conn: &mut PgConnection,
+    config: &RestorePreflightConfig,
+    control: &BackupDir,
+    assets: &BackupDir,
+    pinned: &str,
+) -> Result<(), BackupError> {
     let name = format!("{}.birth.json", config.expected_database);
     let file = control.open_file(&name)?;
     let meta = file.metadata()?;
@@ -800,8 +755,8 @@ async fn verify_target_birth(
     let birth = parse_pinned_birth(&bytes, pinned)?;
     // The birth file can survive an interrupted publication. Bind it to the
     // final success seal and the original quarantined creation record, under
-    // the same exclusive control lock. A later driver still must re-inspect
-    // the live Docker mount before using the build-pinned candidate.
+    // the same exclusive control lock. The retained bound-target guard also
+    // re-inspects the live Docker identity around this preflight.
     let target_path = config
         .control_root
         .parent()
@@ -830,13 +785,13 @@ async fn verify_target_birth(
          FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs \
          WHERE d.datname=pg_catalog.current_database()",
     )
-    .fetch_one(admin)
+    .fetch_one(&mut *conn)
     .await?;
     let database_oid =
         u64::try_from(row.try_get::<i64, _>("database_oid")?).map_err(|_| BackupError::Overflow)?;
     let (control_dev, control_ino) = control.identity()?;
     let (asset_dev, asset_ino) = assets.identity()?;
-    let public_schema = observed_public_schema(admin).await?;
+    let public_schema = observed_public_schema(conn).await?;
     let live = ObservedTargetBirth {
         database_oid,
         pg_system_identifier: row.try_get("system_identifier")?,
@@ -871,8 +826,10 @@ fn read_private_target_file(
     Ok(bytes)
 }
 
-#[cfg(target_os = "linux")]
-async fn observed_public_schema(admin: &PgPool) -> Result<(PublicSchemaState, bool), BackupError> {
+#[cfg(any(target_os = "linux", test))]
+async fn observed_public_schema(
+    conn: &mut PgConnection,
+) -> Result<(PublicSchemaState, bool), BackupError> {
     let row = sqlx::query(
         "SELECT n.nspowner::bigint AS owner_oid, \
          pg_catalog.pg_get_userbyid(n.nspowner)::text AS owner_name, \
@@ -885,7 +842,7 @@ async fn observed_public_schema(admin: &PgPool) -> Result<(PublicSchemaState, bo
             COALESCE(n.nspacl,pg_catalog.acldefault('n',n.nspowner))) a) AS acl \
          FROM pg_catalog.pg_namespace n WHERE n.nspname='public'",
     )
-    .fetch_one(admin)
+    .fetch_one(&mut *conn)
     .await?;
     let sqlx::types::Json(mut acl): sqlx::types::Json<Vec<SchemaAclEntry>> = row.try_get("acl")?;
     acl.sort();
@@ -913,17 +870,10 @@ fn read_limited(dir: &BackupDir, name: &str, max: u64) -> Result<Vec<u8>, Backup
     Ok(bytes)
 }
 
-#[cfg(target_os = "linux")]
-async fn observed_build_and_pg(
-    admin: &PgPool,
-    database: &str,
-) -> Result<RestoreEnvironment, BackupError> {
-    let options = admin.connect_options();
-    if options.get_username() != "learning_admin" || options.get_database() != Some(database) {
-        return Err(BackupError::Invalid("restore database endpoint or role"));
-    }
+#[cfg(any(target_os = "linux", test))]
+async fn observed_build_and_pg(conn: &mut PgConnection) -> Result<RestoreEnvironment, BackupError> {
     let version: String = sqlx::query_scalar("SHOW server_version_num")
-        .fetch_one(admin)
+        .fetch_one(&mut *conn)
         .await?;
     let postgres_major = version
         .parse::<u32>()
@@ -951,12 +901,11 @@ async fn observed_build_and_pg(
     })
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 async fn target_facts(
-    admin: &PgPool,
+    conn: &mut PgConnection,
     asset_entries: usize,
 ) -> Result<RestoreTargetFacts, BackupError> {
-    let mut conn = admin.acquire().await?;
     let row = sqlx::query(
         "SELECT current_user::text AS current_role,session_user::text AS session_role, \
          (pg_catalog.pg_get_userbyid(d.datdba)='learning_admin') AS admin_owner, \
@@ -1046,6 +995,92 @@ async fn target_facts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sqlx_preflight_query_boundary_borrows_one_connection() {
+        fn assert_queries_take_one_connection(
+            challenge: &mut target_binding::LockChallenge<Transaction<'static, Postgres>>,
+        ) {
+            let conn: &mut PgConnection = challenge.lease_mut();
+            drop(observed_build_and_pg(conn));
+            drop(target_facts(conn, 0));
+            drop(observed_public_schema(conn));
+        }
+        let _ = begin_sql_session;
+        let _ = assert_queries_take_one_connection;
+    }
+
+    // Requires a disposable PostgreSQL 18 database. Task 3 runs the separate
+    // exact-container acceptance gate; this only checks SQLx transaction life.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    #[ignore = "requires a fresh isolated PostgreSQL 18 test database"]
+    async fn sqlx_challenge_keeps_one_backend_and_releases_transaction_locks_on_drop() {
+        use sqlx::postgres::PgPoolOptions;
+        let url = std::env::var("KNOWWEAVE_C4_SQL_SESSION_TEST_URL")
+            .expect("fresh isolated PostgreSQL 18 test URL required");
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect(&url)
+            .await
+            .unwrap();
+        let options = pool.connect_options();
+        let database = options
+            .get_database()
+            .expect("explicit test database required");
+        let batch = database
+            .strip_prefix("learning_restore_c4_")
+            .expect("isolated C4 database required");
+        let id = uuid::Uuid::parse_str(batch).unwrap();
+        assert_eq!(id.get_version_num(), 4);
+        assert_eq!(id.to_string(), batch);
+        let version: String = sqlx::query_scalar("SHOW server_version_num")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(version.parse::<u32>().unwrap() / 10_000, 18);
+        let (mut challenge, pid, oid) = begin_sql_session(&pool).await.unwrap();
+        assert!(pid > 0 && oid > 0);
+        for _ in 0..2 {
+            let conn: &mut PgConnection = challenge.lease_mut();
+            let observed: i32 = sqlx::query_scalar("SELECT pg_catalog.pg_backend_pid()")
+                .fetch_one(conn)
+                .await
+                .unwrap();
+            assert_eq!(observed, pid);
+        }
+        let held: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pg_catalog.pg_locks WHERE pid=$1 \
+             AND database::bigint=$2 AND locktype='advisory' \
+             AND mode='ExclusiveLock' AND granted",
+        )
+        .bind(pid)
+        .bind(i64::try_from(oid).unwrap())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(held, 2);
+        drop(challenge);
+        // SQLx schedules rollback on Drop; release is eventual, not immediate.
+        let mut released = false;
+        for _ in 0..50 {
+            let held: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM pg_catalog.pg_locks WHERE pid=$1 \
+                 AND database::bigint=$2 AND locktype='advisory' AND granted",
+            )
+            .bind(pid)
+            .bind(i64::try_from(oid).unwrap())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            if held == 0 {
+                released = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        assert!(released, "transaction locks remained after rollback");
+    }
 
     #[test]
     fn durable_attempt_record_is_target_bound_and_contains_no_endpoint_or_secret() {

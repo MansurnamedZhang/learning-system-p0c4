@@ -22,7 +22,8 @@ AdmissionError = target_provisioner.AdmissionError
 require = target_provisioner.require
 EVIDENCE_KEYS = {
     "state", "project", "batch_id", "docker_daemon_id", "container_id",
-    "network_id", "volume_name", "volume_mountpoint", "volume_mount_dev",
+    "network_id", "volume_name", "container_started_at",
+    "volume_mountpoint", "volume_mount_dev",
     "volume_mount_ino", "image_id", "destination_dev", "destination_ino",
     "control_dev", "control_ino", "asset_dev", "asset_ino", "birth_sha256",
 }
@@ -206,7 +207,9 @@ def inspect_live(identity, state, success, evidence, birth, target, initdb):
     acceptance.verify_live_mount_inode(volume["Mountpoint"], success)
     require(pg["Image"] == success["image_id"] and
             network["Id"] == success["network_id"] and
-            volume["Name"] == success["pg_volume_name"],
+            volume["Name"] == success["pg_volume_name"] and
+            pg.get("State", {}).get("StartedAt") ==
+            evidence["container_started_at"],
             "Docker differs from issuance seal")
     issuer_facts = issuer.probe_pg_facts(identity, pg["Id"])
     issuer.validate_pg_facts(issuer_facts)
@@ -215,8 +218,11 @@ def inspect_live(identity, state, success, evidence, birth, target, initdb):
     # Reinspect after SQL to reject an object swap during the check.
     again = target_provisioner.snapshot()
     again["images"] = target_provisioner._inspect("image", [identity["image"]])
-    acceptance.validate_live_docker(
+    again_pg, _, _ = acceptance.validate_live_docker(
         identity, state["subnet"], expected, again, state, target, initdb)
+    require(again_pg.get("State", {}).get("StartedAt") ==
+            evidence["container_started_at"],
+            "Docker restarted during pin check")
     projection = _docker_projection(live, identity)
     require(projection == _docker_projection(again, identity),
             "Docker changed during pin check")
@@ -275,6 +281,7 @@ def _docker_projection(live, identity):
                        "Labels": safe_labels(c.get("Config", {}).get("Labels"))},
             "State": {"Running": c.get("State", {}).get("Running"),
                       "Status": c.get("State", {}).get("Status"),
+                      "StartedAt": c.get("State", {}).get("StartedAt"),
                       "HealthStatus": c.get("State", {}).get(
                           "Health", {}).get("Status")},
             "HostConfig": {key: c.get("HostConfig", {}).get(key) for key in

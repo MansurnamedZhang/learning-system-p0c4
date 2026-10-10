@@ -1,0 +1,28 @@
+flowchart TB
+    write["真实 v3 块写入<br/>Figure / Attachment · request_id 幂等<br/>【已验收】"]
+    tx["同一业务事务<br/>BlockRevision + block_asset_use · 同时写 job_outbox<br/>【已验收】"]
+    outbox["job_outbox 持久事件<br/>actor + 精确 BlockRef · 处理器版本 / 稳定业务键<br/>【已验收】"]
+    handler["资产完整性处理器<br/>按原 actor 重验当前授权 · 核对大小与 SHA-256<br/>【已验收】"]
+    lease["Worker 原子领取租约<br/>数据库时间 + 新 token · attempt / lease_until<br/>【已验收】"]
+    job["原子转投为唯一 job<br/>事件与作业一一收敛 · 重复 / 并发转投不增任务<br/>【已验收】"]
+    complete["带 token 的原子完成<br/>写 asset_integrity_result · 同事务标记 succeeded<br/>【已验收】"]
+    takeover["进程终止后的接管<br/>真实 SIGKILL → 租约到期 · 第二 Worker 领取新 token<br/>【已验收】"]
+    terminal["取消 / 撤权 / 有限失败<br/>cancelled / failed / retry_wait · 失败不撤销已发布原文<br/>【已验收】"]
+    result["唯一、版本化结果<br/>重复运行不增结果 · 保留输入与输出摘要<br/>【已验收】"]
+    fence["拒绝旧 Worker 写入<br/>renew / checkpoint · succeed / fail 均拒绝<br/>【已验收】"]
+    old["旧 outbox_event 独立<br/>只处理 composition_released · 不是 C2 作业输入<br/>【上下文】"]
+    write -- "校验后提交" --> tx
+    tx -- "原子持久化" --> outbox
+    outbox -- "事务转投" --> job
+    job -- "领取" --> lease
+    lease -- "精确输入" --> handler
+    handler -- "处理成功" --> complete
+    complete -- "提交结果" --> result
+    lease -- "进程丢失" --> takeover
+    takeover -- "新租约使旧 token 失效" --> fence
+    lease -- "受控终止 / 重试" --> terminal
+    class write,tx,outbox,handler,lease,job,complete,takeover,terminal,result,fence done
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362

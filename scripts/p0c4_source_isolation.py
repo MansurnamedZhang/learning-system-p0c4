@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import stat
 import subprocess
@@ -83,8 +84,11 @@ def _inspect_project(project):
     return containers, networks
 
 
+def accepted_project(project):
+    return type(project) is str and (project.startswith("learning-system-p0c4-") or re.fullmatch(r"kwc4c-[0-9a-f]{32}",project) is not None)
+
 def assess_project(project, containers, networks, allowed_manager_name=None):
-    if not project.startswith("learning-system-p0c4-") or not containers or len(networks) != 1:
+    if not accepted_project(project) or not containers or len(networks) != 1:
         raise IsolationError("project identity or network count")
     network = networks[0]
     if network.get("Labels", {}).get("com.docker.compose.project") != project or network.get("Internal") is not True:
@@ -130,6 +134,109 @@ def assess_project(project, containers, networks, allowed_manager_name=None):
         "containers": sorted(sanitized, key=lambda c: c["service"]),
         "network": {"name": network.get("Name"), "internal": True, "project": project},
     }
+
+
+def _source_mount_projection(mounts):
+    expected={'/var/lib/postgresql':('volume',True),'/var/lib/knowweave-source':('volume',True),'/target':('volume',False),
+              '/var/lib/knowweave-c4/registry':('volume',True),'/docker-entrypoint-initdb.d/10-lifecycle.sh':('bind',False),
+              '/run/secrets/postgres_password':('bind',False),'/run/secrets/admin_password':('bind',False)}
+    if type(mounts) is not list or len(mounts)!=7:raise IsolationError('native source requires exact seven mounts')
+    seen=set();rows=[]
+    for row in mounts:
+        destination=row.get('Destination');source=row.get('Source')
+        if destination not in expected or destination in seen or (row.get('Type'),row.get('RW'))!=expected[destination]:
+            raise IsolationError('native source mount topology differs')
+        if type(source) is not str or not source.startswith('/') or any(part in ('','.','..') for part in source[1:].split('/')) or '\x00' in source:
+            raise IsolationError('native source mount path differs')
+        if row['Type']=='volume' and (type(row.get('Name')) is not str or not re.fullmatch('[A-Za-z0-9_.-]+',row['Name'])):
+            raise IsolationError('native source volume identity differs')
+        seen.add(destination);rows.append(dict(destination=destination,source=source,kind=row['Type'],rw=row['RW'],name=row.get('Name','')))
+    return sorted(rows,key=lambda row:row['destination'])
+
+
+SOURCE_NATIVE_SAMPLER=r'''set -eu
+readlink /proc/1/ns/pid
+readlink /proc/1/ns/mnt
+cat /proc/1/stat
+readlink /proc/1/exe
+stat -c '%d|%i' /var/lib/postgresql
+test -S /var/run/postgresql/.s.PGSQL.5432
+stat -c '%d|%i|%u' /var/run/postgresql/.s.PGSQL.5432
+test -f /usr/lib/postgresql/18/bin/pg_dump
+test ! -L /usr/lib/postgresql/18/bin/pg_dump
+sha256sum /usr/lib/postgresql/18/bin/pg_dump
+/usr/lib/postgresql/18/bin/pg_dump --version
+'''
+
+def _source_native_sample(raw):
+    if type(raw) is not str or len(raw)>8192 or not raw.endswith('\n') or '\r' in raw:raise IsolationError('native source sample framing')
+    rows=raw.splitlines()
+    if len(rows)!=8 or not re.fullmatch(r'pid:\[[1-9][0-9]*\]',rows[0]) or not re.fullmatch(r'mnt:\[[1-9][0-9]*\]',rows[1]) or rows[3]!='/usr/lib/postgresql/18/bin/postgres':
+        raise IsolationError('native source postmaster namespace')
+    match=re.fullmatch(r'1 \(postgres\) ([A-Za-z]) (.*)',rows[2])
+    if match is None or match[1] in ('Z','X','x'):raise IsolationError('native source postmaster state')
+    numbers=match[2].split()
+    if len(numbers)<19 or not re.fullmatch('[1-9][0-9]*',numbers[18]):raise IsolationError('native source postmaster epoch')
+    if not re.fullmatch(r'[1-9][0-9]*\|[1-9][0-9]*',rows[4]) or not re.fullmatch(r'[1-9][0-9]*\|[1-9][0-9]*\|999',rows[5]):raise IsolationError('native source socket/storage identity')
+    tool=re.fullmatch(r'([0-9a-f]{64})  /usr/lib/postgresql/18/bin/pg_dump',rows[6])
+    if tool is None or not re.fullmatch(r'pg_dump \(PostgreSQL\) 18\.6 \(Debian 18\.6-[1-9][0-9]{0,5}\.pgdg12\+[1-9][0-9]{0,5}\)',rows[7]):raise IsolationError('native source PG18.6 tool identity')
+    data_dev,data_ino=map(int,rows[4].split('|'));socket_dev,socket_ino,_=map(int,rows[5].split('|'))
+    return dict(native=dict(pid_namespace=rows[0],mount_namespace=rows[1],postmaster_start_ticks=int(numbers[18]),data_dev=data_dev,data_ino=data_ino,socket_dev=socket_dev,socket_ino=socket_ino),pg_dump_sha256=tool[1],pg_dump_version=rows[7])
+
+
+def observe_source_endpoint(container_id,project,epoch,*,docker=None):
+    return _observe_source_endpoint(container_id,project,epoch,docker=docker)
+
+
+def _observe_full_rehearsal_endpoint(context,epoch,*,docker=None):
+    if __package__:
+        from .p0c4_completion.full_import import FullRehearsalContext
+    else:
+        from p0c4_completion.full_import import FullRehearsalContext
+    if type(context) is not FullRehearsalContext:raise IsolationError('fixed full rehearsal context required')
+    profile=context._profile_observation()
+    return _observe_source_endpoint(profile['source_container_id'],'kwc4c-'+profile['source_case_id'].replace('-',''),epoch,docker=docker,_full_context=context)
+
+
+def _observe_source_endpoint(container_id,project,epoch,*,docker=None,_full_context=None):
+    """Installed root producer for the fixed same-PG-namespace capability.
+
+    Internal transport injection reuses the controller's bounded/owned runner;
+    neither installed CLI nor Rust API accepts commands, SQL, paths or pins.
+    """
+    if not re.fullmatch('[0-9a-f]{64}',container_id) or not accepted_project(project) or str(uuid.UUID(epoch))!=epoch or uuid.UUID(epoch).version!=4:
+        raise IsolationError('native source producer identity')
+    call=docker or _docker
+    def inspect(kind,identity):
+        raw=call(kind,'inspect',identity)
+        if len(raw)>1024**2:raise IsolationError('native source Docker observation size')
+        rows=json.loads(raw)
+        if type(rows) is not list or len(rows)!=1 or type(rows[0]) is not dict:raise IsolationError('native source Docker observation count')
+        return rows[0]
+    daemon=call('info','--format','{{.ID}}').strip()
+    if not daemon or len(daemon)>128 or not daemon.isascii():raise IsolationError('native source Docker daemon identity')
+    before=inspect('container',container_id)
+    attachments=before.get('NetworkSettings',{}).get('Networks',{})
+    if len(attachments)!=1:raise IsolationError('native source single network required')
+    network_id=next(iter(attachments.values())).get('NetworkID','')
+    if not re.fullmatch('[0-9a-f]{64}',network_id):raise IsolationError('native source network identity')
+    network=inspect('network',network_id)
+    assess_project(project,[before],[network])
+    if before['Config'].get('Healthcheck') is not None:
+        raise IsolationError('native source healthcheck is not admitted')
+    if before.get('Id')!=container_id or before['Config'].get('Image')!=MANAGER_IMAGE or before['State'].get('Pid',0)<=0 or before['State'].get('Status')!='running' or before['State'].get('OOMKilled') is not False or set(network.get('Containers',{}))!={container_id}:
+        raise IsolationError('native source exact running container')
+    project_mounts=_source_mount_projection if _full_context is None else _full_context._source_mount_projection
+    mounts=project_mounts(before.get('Mounts'))
+    image=inspect('image',before['Image']);digest=MANAGER_IMAGE.split('@',1)[1]
+    if image.get('Id')!=before['Image'] or not any(type(value) is str and value.endswith('@'+digest) for value in image.get('RepoDigests',[])):
+        raise IsolationError('native source pinned image')
+    sampled=_source_native_sample(call('exec','--user','999:999',container_id,'/usr/bin/env','-i','LC_ALL=C','/bin/sh','-ec',SOURCE_NATIVE_SAMPLER))
+    after=inspect('container',container_id)
+    def projection(row):return (row['Id'],row['Image'],row['State']['Pid'],row['State']['StartedAt'],row['RestartCount'],row['State']['Running'],row['Config'].get('Healthcheck'),project_mounts(row['Mounts']),row['NetworkSettings']['Networks'])
+    if projection(after)!=projection(before) or call('info','--format','{{.ID}}').strip()!=daemon:raise IsolationError('native source changed during observation')
+    return dict(format_version=1,capability='source_native_endpoint_v1' if _full_context is None else 'source_native_full_rehearsal_v1',epoch=epoch,project=project,container_id=container_id,image_id=before['Image'],image_digest=digest,daemon_id=daemon,network_id=network_id,
+                mounts_sha256=hashlib.sha256(json.dumps(mounts,sort_keys=True,separators=(',',':')).encode()).hexdigest(),**sampled)
 
 
 def _private_root(path):
@@ -343,7 +450,7 @@ def run(args):
     if (backup_id != args.backup_id or db_marker == args.database
             or str(uuid.UUID(db_marker)) != db_marker):
         raise IsolationError("dedicated UUID backup/database required")
-    if not args.project.startswith("learning-system-p0c4-") or not args.manager or not Path(args.manager[0]).is_absolute():
+    if not accepted_project(args.project) or not args.manager or not Path(args.manager[0]).is_absolute():
         raise IsolationError("exact isolated project and absolute manager executable required")
     _trusted_executable(args.manager[0])
     root = Path(args.private_root)
@@ -360,6 +467,10 @@ def run(args):
         containers, networks = _stop_business(args.project, before)
         facts = assess_project(args.project, containers, networks)
         pg = next(c for c in containers if c["Config"]["Labels"]["com.docker.compose.service"] == "pg")
+        # This installed producer now issues the same fixed native capability
+        # as the completion controller. The old separate-manager executor will
+        # fail the Rust namespace check; it receives no fallback capture route.
+        facts['source_endpoint']=observe_source_endpoint(pg['Id'],args.project,backup_id)
         evidence = json.dumps(facts, sort_keys=True, separators=(",", ":")).encode()
         evidence_name = f"inspection-{backup_id}.json"
         _atomic_private_file(root / evidence_name, evidence)
