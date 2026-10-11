@@ -18,6 +18,12 @@ import time
 import uuid
 import zipfile
 
+# Filled only from Root's actual fixed-image path observation and adoption.
+# An unadopted source is intentionally not operational; no caller can set it.
+_ACTOR_INTERPRETER=dict(path='/usr/bin/python3.11',sha256='6d972cf21be56fe3c947ab6ba257ff8d08c342dd2714442986791bd9a6dfabfe',bytes=6834488,uid=0,gid=0,mode=0o755,nlink=1)
+_ACTOR_INTERPRETER_ADOPTION_SHA256='fd6ad3d733e17838ee408daf43c51c82267ffdf15cc7ebe80d97785a96b2ae2e'
+_ACTOR_ENV=['PYTHONDONTWRITEBYTECODE=1','PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin','RUSTUP_HOME=/usr/local/rustup','CARGO_HOME=/usr/local/cargo','RUST_VERSION=1.97.0','CARGO_TARGET_DIR=/app/target']
+
 _TOKEN=object()
 _RUNTIME_ADMITTED=object()
 _BUILDER='sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b'
@@ -182,17 +188,241 @@ def _outer_projection(facts,suite):
     _require(len(mounts)==5 and {(m.get('Destination'),m.get('Type'),m.get('Source'),m.get('RW')) for m in mounts}==expected and next(m for m in mounts if m['Type']=='volume').get('Name')==Path(suite).parent.name,'CONTROLLED_OUTER_EXACT_MOUNTS')
     return dict(container_id=facts['Id'],image_id=_BUILDER,mounts=[dict(type=m['Type'],source=m['Source'],destination=m['Destination'],writable=m['RW']) for m in mounts],host_network=True,readonly_rootfs=True)
 
-def _measure_outer(runner,suite):
-    # Docker's private UTS hostname is the default short immutable CID. This
-    # fixed recipe deliberately provides no caller hostname/CID selector.
-    fd=os.open('/etc/hostname',os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+def _actor_ns(fd):
+    meta=os.fstat(fd)
+    _require(stat.S_ISREG(meta.st_mode) and meta.st_ino>0,'CONTROLLED_ACTOR_NAMESPACE_FD')
+    return dict(dev=meta.st_dev,ino=meta.st_ino)
+
+def _actor_proc(name,cap):
+    fd=os.open('/proc/1/'+name,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
     try:
-        meta=os.fstat(fd);raw=os.read(fd,65)
-        _require(stat.S_ISREG(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022 and len(raw)==meta.st_size and re.fullmatch(b'[0-9a-f]{12}\n',raw) is not None,'CONTROLLED_OUTER_DEFAULT_HOSTNAME')
+        raw=os.read(fd,cap+1)
+        _require(0<len(raw)<=cap,'CONTROLLED_ACTOR_PID1_CAP')
+        return raw
     finally:os.close(fd)
-    prefix=raw.decode().strip();row=runner.inspect('container',prefix)
-    _require(row.get('Id','').startswith(prefix),'CONTROLLED_OUTER_CURRENT_CID')
-    return _outer_projection(row,suite)
+
+def _actor_pid1():
+    raw=_actor_proc('stat',4096).decode('ascii')
+    match=re.fullmatch(r'1 \((.*)\) ([A-Za-z]) (.*)\n',raw)
+    _require(match is not None and match[2] not in ('Z','X','x'),'CONTROLLED_ACTOR_PID1_STAT')
+    fields=match[3].split()
+    _require(len(fields)>=19 and re.fullmatch('[1-9][0-9]*',fields[18]) is not None,'CONTROLLED_ACTOR_PID1_TICK')
+    status=_actor_proc('status',8192).decode('ascii');uids=re.findall(r'^Uid:\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*$',status,re.M)
+    _require(len(uids)==1,'CONTROLLED_ACTOR_PID1_UID')
+    cmd=_actor_proc('cmdline',4096)
+    _require(cmd.endswith(b'\0'),'CONTROLLED_ACTOR_PID1_CMDLINE')
+    return dict(starttime=int(fields[18]),uids=list(map(int,uids[0])),cmdline=cmd[:-1].decode('ascii').split('\0'))
+
+class _ActorHeld:
+    """Live observations only: never native creation or restore authority."""
+    def __reduce_ex__(self,protocol):raise TypeError('actor namespace/executable observations are process-local')
+    def __init__(self,suite):
+        self.suite=Path(suite);self.fds=[];self.closed=False
+        try:
+            # Proc namespace magic links must be followed to the nsfs object.
+            for path in ('/proc/self/ns/pid','/proc/self/ns/mnt','/proc/1/ns/pid','/proc/1/ns/mnt'):
+                self.fds.append(os.open(path,os.O_RDONLY|os.O_CLOEXEC))
+            self.fds.append(os.open(self.suite,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC))
+            self.fds.append(os.open('/proc/self/exe',os.O_RDONLY|os.O_CLOEXEC))
+            self.original=[_actor_ns(fd) for fd in self.fds[:4]]
+            _require(self.original[0]==self.original[2] and self.original[1]==self.original[3],'CONTROLLED_ACTOR_PID1_NAMESPACE_MISMATCH')
+            self.root=self._root(os.fstat(self.fds[4]))
+            self.exe=self._exe(os.fstat(self.fds[5]))
+        except BaseException:self.close();raise
+    @staticmethod
+    def _root(meta):
+        _require(stat.S_ISDIR(meta.st_mode) and meta.st_uid==0 and stat.S_IMODE(meta.st_mode)==0o700,'CONTROLLED_ACTOR_SUITE_FD')
+        return dict(dev=meta.st_dev,ino=meta.st_ino,uid=meta.st_uid,mode=stat.S_IMODE(meta.st_mode))
+    @staticmethod
+    def _exe(meta):
+        _require(stat.S_ISREG(meta.st_mode),'CONTROLLED_ACTOR_EXE_FD')
+        return meta.st_dev,meta.st_ino,meta.st_size,meta.st_uid,meta.st_gid,meta.st_mode,meta.st_nlink,meta.st_mtime_ns,meta.st_ctime_ns
+    def sample(self):
+        _require(not self.closed and len(self.fds)==6,'CONTROLLED_ACTOR_FD_NOT_HELD')
+        now=[_actor_ns(fd) for fd in self.fds[:4]]
+        current=[]
+        for path in ('/proc/self/ns/pid','/proc/self/ns/mnt','/proc/1/ns/pid','/proc/1/ns/mnt'):
+            meta=os.stat(path);current.append(dict(dev=meta.st_dev,ino=meta.st_ino))
+        _require(now==self.original==current and self._root(os.fstat(self.fds[4]))==self.root==self._root(os.lstat(self.suite)) and self._exe(os.fstat(self.fds[5]))==self.exe==self._exe(os.stat('/proc/self/exe')),'CONTROLLED_ACTOR_HELD_CHANGED')
+        if _ACTOR_INTERPRETER is not None:_require(self._exe(os.stat(_ACTOR_INTERPRETER['path']))==self.exe,'CONTROLLED_ACTOR_EXE_PATH_CHANGED')
+        first=_actor_pid1();second=_actor_pid1()
+        _require(first==second,'CONTROLLED_ACTOR_PID1_CHANGED')
+        return dict(format_version=1,capability='controlled_actor_live_observation_v1',pidns=now[0],mntns=now[1],pid1=dict(first,pidns=now[2],mntns=now[3]),suite=self.root)
+    def close(self):
+        for fd in self.fds:os.close(fd)
+        self.fds=[];self.closed=True
+
+def _actor_sample_shape(value):
+    _require(type(value) is dict and set(value)=={'format_version','capability','pidns','mntns','pid1','suite'} and type(value['format_version']) is int and value['format_version']==1 and value['capability']=='controlled_actor_live_observation_v1','CONTROLLED_ACTOR_SAMPLE_FIELDS')
+    pid=value['pid1'];root=value['suite']
+    _require(type(pid) is dict and set(pid)=={'starttime','uids','cmdline','pidns','mntns'} and type(pid['starttime']) is int and pid['starttime']>0 and type(pid['uids']) is list and len(pid['uids'])==4 and all(type(u) is int and u==0 for u in pid['uids']) and pid['cmdline']==['python3','-c','import time; time.sleep(86400)'],'CONTROLLED_ACTOR_PID1_IDENTITY')
+    for ns in (value['pidns'],value['mntns'],pid['pidns'],pid['mntns']):
+        _require(type(ns) is dict and set(ns)=={'dev','ino'} and all(type(v) is int for v in ns.values()) and ns['dev']>=0 and ns['ino']>0,'CONTROLLED_ACTOR_SAMPLE_NAMESPACE')
+    _require(value['pidns']==pid['pidns'] and value['mntns']==pid['mntns'] and type(root) is dict and set(root)=={'dev','ino','uid','mode'} and all(type(v) is int for v in root.values()) and root['dev']>=0 and root['ino']>0 and root['uid']==0 and root['mode']==0o700,'CONTROLLED_ACTOR_SAMPLE_SUITE')
+    return value
+
+def _actor_validate_sample(raw,original):
+    _require(type(raw) is bytes and 0<len(raw)<=4096 and raw.endswith(b'\n') and len(raw.splitlines())==1,'CONTROLLED_ACTOR_CANONICAL_OUTPUT')
+    try:value=json.loads(raw,object_pairs_hook=_pairs)
+    except (ValueError,UnicodeError):raise ControlledRejected('CONTROLLED_ACTOR_JSON') from None
+    _actor_sample_shape(value);_actor_sample_shape(original)
+    _require(raw==_canonical(value)+b'\n' and value==original,'CONTROLLED_ACTOR_CALLER_MISMATCH')
+    return value
+
+def _actor_candidate(raw):
+    _require(type(raw) is bytes and len(raw)<=512 and re.fullmatch(b'[0-9a-f]{64}\n',raw) is not None,'CONTROLLED_ACTOR_EXACT_ONE_CANDIDATE')
+    return raw.decode().strip()
+
+def _actor_interpreter():
+    value=_ACTOR_INTERPRETER
+    _require(value is not None,'CONTROLLED_ACTOR_INTERPRETER_NOT_ADOPTED')
+    _require(type(value) is dict and set(value)=={'path','sha256','bytes','uid','gid','mode','nlink'} and type(value['path']) is str and value['path'].startswith('/') and len(value['path'])<=4096 and Path(value['path']).resolve(strict=True)==Path(value['path']) and type(value['sha256']) is str and re.fullmatch('[0-9a-f]{64}',value['sha256']) is not None and all(type(value[k]) is int for k in ('bytes','uid','gid','mode','nlink')) and value['uid']==value['gid']==0 and value['nlink']==1 and 0<value['bytes']<=32*1024**2 and value['mode']&0o111 and not value['mode']&0o022,'CONTROLLED_ACTOR_INTERPRETER_PIN')
+    fd=os.open(value['path'],os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+    try:
+        m=os.fstat(fd);_require(stat.S_ISREG(m.st_mode) and (m.st_uid,m.st_gid,stat.S_IMODE(m.st_mode),m.st_size,m.st_nlink)==(value['uid'],value['gid'],value['mode'],value['bytes'],value['nlink']),'CONTROLLED_ACTOR_INTERPRETER_METADATA')
+        h=hashlib.sha256();count=0
+        while True:
+            raw=os.read(fd,65536)
+            if not raw:break
+            count+=len(raw);_require(count<=value['bytes'],'CONTROLLED_ACTOR_INTERPRETER_GREW');h.update(raw)
+        signature=lambda n:(n.st_dev,n.st_ino,n.st_size,n.st_mtime_ns,n.st_ctime_ns,n.st_mode,n.st_uid,n.st_gid)
+        _require(count==value['bytes'] and h.hexdigest()==value['sha256'] and signature(m)==signature(os.fstat(fd))==signature(os.lstat(value['path'])),'CONTROLLED_ACTOR_INTERPRETER_CHANGED')
+    finally:os.close(fd)
+    return value['path']
+
+def _actor_diagnostic_program(suite):
+    # Root's fixed diagnostic factory alone uses this exact -c; arbitrary -c
+    # command text never becomes a recognised main ProcessConfig.
+    source=str(Path(suite)/'current11/bootstrap/scripts')
+    return "import sys\nsys.dont_write_bytecode=True\nsys.path.insert(0,"+repr(source)+")\nfrom p0c4_completion import controlled_fixture as f\nf._actor_diagnostic()\n"
+
+def _actor_main_contract(suite):
+    adapter=str(Path(suite)/'current11/adapter.py')
+    if sys.argv in ([adapter,'--fixed-prepare-plan'],[adapter,'--fixed-success']):return 'python3',['-B','-u',*sys.argv]
+    _require(sys.argv==['-c'],'CONTROLLED_ACTOR_FIXED_MAIN_ONLY')
+    return _actor_interpreter(),['-I','-S','-B','-u','-c',_actor_diagnostic_program(suite)]
+
+def _actor_validate_main(value,eid,cid,expected):
+    keys={'ID','Running','ExitCode','ProcessConfig','OpenStdin','OpenStdout','OpenStderr','CanRemove','ContainerID','DetachKeys','Pid'}
+    _require(type(value) is dict and set(value)==keys and value['ID']==eid and value['ContainerID']==cid and value['Running'] is True and value['ExitCode'] is None and value['OpenStdin'] is False and value['OpenStdout'] is True and value['OpenStderr'] is True and value['CanRemove'] is False and value['DetachKeys']=='' and type(value['Pid']) is int and value['Pid']>0,'CONTROLLED_ACTOR_MAIN_EXEC_IDENTITY')
+    c=value['ProcessConfig']
+    _require(type(c) is dict and set(c)=={'privileged','user','tty','entrypoint','arguments'} and c['privileged'] is False and c['tty'] is False and c['user']=='0:0' and c['entrypoint']==expected[0] and c['arguments']==expected[1],'CONTROLLED_ACTOR_SEALED_MAIN_ARGV')
+    return value
+
+def _actor_get_wire(eid,cid,expected,seconds):
+    """One fixed GET; unsafe daemon bytes never reach saved stdout/stderr."""
+    import socket
+    _require(re.fullmatch('[0-9a-f]{64}',eid) is not None and re.fullmatch('[0-9a-f]{64}',cid) is not None,'CONTROLLED_ACTOR_MAIN_ID')
+    deadline=time.monotonic()+seconds;wire=bytearray()
+    with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
+        client.settimeout(seconds);client.connect('/var/run/docker.sock')
+        client.sendall(('GET /exec/'+eid+'/json HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\nConnection: close\r\n\r\n').encode())
+        while True:
+            remaining=deadline-time.monotonic();_require(remaining>0,'CONTROLLED_ACTOR_GET_DEADLINE');client.settimeout(remaining)
+            raw=client.recv(min(4096,8193-len(wire)))
+            if not raw:break
+            wire.extend(raw);_require(len(wire)<=8192,'CONTROLLED_ACTOR_GET_BYTES')
+    header,marker,body=bytes(wire).partition(b'\r\n\r\n')
+    _require(marker and len(header)<=4096,'CONTROLLED_ACTOR_GET_HEADER')
+    lines=header.split(b'\r\n');_require(lines[0] in (b'HTTP/1.1 200 OK',b'HTTP/1.0 200 OK') and len(lines)<=32,'CONTROLLED_ACTOR_GET_STATUS')
+    headers={}
+    for line in lines[1:]:
+        key,colon,value=line.partition(b':');key=key.lower()
+        _require(colon and key not in headers,'CONTROLLED_ACTOR_GET_HEADERS');headers[key]=value.strip()
+    _require(headers.get(b'content-type')==b'application/json' and not headers.get(b'content-encoding'),'CONTROLLED_ACTOR_GET_JSON_ONLY')
+    if b'transfer-encoding' in headers:
+        _require(headers[b'transfer-encoding']==b'chunked' and b'content-length' not in headers,'CONTROLLED_ACTOR_GET_FRAMING')
+        decoded=bytearray()
+        while True:
+            size,sep,rest=body.partition(b'\r\n');_require(sep and re.fullmatch(b'[0-9a-fA-F]{1,4}',size) is not None,'CONTROLLED_ACTOR_GET_CHUNK')
+            count=int(size,16)
+            if count==0:_require(rest==b'\r\n','CONTROLLED_ACTOR_GET_TRAILER');break
+            _require(len(rest)>=count+2 and rest[count:count+2]==b'\r\n','CONTROLLED_ACTOR_GET_CHUNK_BYTES');decoded.extend(rest[:count]);body=rest[count+2:]
+        body=bytes(decoded)
+    else:
+        length=headers.get(b'content-length',b'')
+        _require(re.fullmatch(b'[0-9]{1,4}',length) is not None and int(length)==len(body),'CONTROLLED_ACTOR_GET_LENGTH')
+    value=json.loads(body,object_pairs_hook=_pairs);_actor_validate_main(value,eid,cid,expected)
+    return value
+
+def _actor_program(names):
+    # Only fixed stdlib and explicit already-sealed function/class definitions.
+    import ast
+    raw=Path(__file__).read_bytes();tree=ast.parse(raw)
+    selected=[node for node in tree.body if isinstance(node,(ast.FunctionDef,ast.ClassDef)) and node.name in names]
+    _require({node.name for node in selected}==set(names),'CONTROLLED_ACTOR_PROGRAM_CLOSURE')
+    return "import os,sys,stat,hashlib,json,re,time\nfrom pathlib import Path\nclass ControlledRejected(RuntimeError):pass\n"+'\n'.join(ast.get_source_segment(raw.decode(),node) for node in selected)+'\n'
+
+def _actor_sampler_program(suite):
+    names=('_require','_canonical','_digest','_actor_ns','_actor_proc','_actor_pid1','_ActorHeld','_actor_sample_shape','_actor_interpreter')
+    program=_actor_program(names)+'_ACTOR_INTERPRETER='+repr(_ACTOR_INTERPRETER)+'\n'
+    return program+"try:\n _require(sys.flags.isolated==1 and sys.flags.no_site==1 and sys.flags.ignore_environment==1 and sys.dont_write_bytecode is True and 'site' not in sys.modules,'CONTROLLED_ACTOR_STARTUP')\n _actor_interpreter()\n held=_ActorHeld(Path("+repr(str(suite))+"))\n try:\n  value=held.sample();_actor_sample_shape(value);_require(value==held.sample(),'CONTROLLED_ACTOR_SAMPLE_CHANGED')\n  raw=_canonical(value)+b'\\n';_require(len(raw)<=4096,'CONTROLLED_ACTOR_SAMPLE_CAP');sys.stdout.buffer.write(raw);sys.stdout.buffer.flush()\n finally:held.close()\nexcept Exception:\n try:sys.stderr.write('CONTROLLED_ACTOR_SAMPLER_UNKNOWN\\n');sys.stderr.flush()\n except OSError:pass\n raise SystemExit(1)\n"
+
+def _actor_remaining(deadline):
+    remaining=deadline-time.monotonic();_require(remaining>0,'CONTROLLED_ACTOR_TOTAL_DEADLINE');return min(3,remaining)
+
+def _actor_rpc(runner,argv,deadline):
+    # Both accepted callers mint real admission Runner/OwnedRunner. Their run
+    # returns only after complete EOF and wait/reap with no timeout reason.
+    code,out,err=runner.run(argv,timeout=_actor_remaining(deadline))
+    _require(type(code) is int and code==0 and type(out) is bytes and type(err) is bytes and err==b'' and len(out)<=2*1024**2,'CONTROLLED_ACTOR_RPC_NOT_CONFIRMED')
+    _actor_remaining(deadline)
+    return out
+
+def _actor_main_get(runner,eid,cid,expected,deadline):
+    interpreter=_actor_interpreter();seconds=_actor_remaining(deadline)*0.8
+    program=_actor_program(('_require','_canonical','_pairs','_actor_validate_main','_actor_get_wire'))
+    program+="try:\n value=_actor_get_wire("+repr(eid)+','+repr(cid)+','+repr(expected)+','+repr(seconds)+")\n sys.stdout.buffer.write(_canonical(value));sys.stdout.buffer.flush()\nexcept Exception:\n try:sys.stderr.write('CONTROLLED_ACTOR_MAIN_GET_UNKNOWN\\n');sys.stderr.flush()\n except OSError:pass\n raise SystemExit(1)\n"
+    raw=_actor_rpc(runner,[interpreter,'-I','-S','-B','-u','-c',program],deadline)
+    _require(0<len(raw)<=8192,'CONTROLLED_ACTOR_MAIN_OUTPUT_CAP')
+    value=json.loads(raw,object_pairs_hook=_pairs);_require(raw==_canonical(value),'CONTROLLED_ACTOR_MAIN_OUTPUT_CANONICAL')
+    return _actor_validate_main(value,eid,cid,expected)
+
+def _actor_live(facts,suite):
+    _require(type(facts) is dict and all(type(facts.get(k)) is dict for k in ('Config','HostConfig','State')) and type(facts.get('Mounts')) is list and all(type(m) is dict and type(m.get('RW')) is bool for m in facts['Mounts']),'CONTROLLED_ACTOR_LIVE_TYPES')
+    projection=_outer_projection(facts,suite);host=facts['HostConfig'];config=facts['Config'];state=facts['State']
+    _require(config.get('Env')==_ACTOR_ENV,'CONTROLLED_ACTOR_FIXED_ENV')
+    _require(type(facts.get('Name')) is str and re.fullmatch('/kwc4c-control-[0-9a-f]{32}',facts['Name']) is not None and config.get('Entrypoint')==['python3'] and config.get('Cmd')==['-c','import time; time.sleep(86400)'] and config.get('Labels')=={'knowweave.c4.ops':'completion-prep','org.opencontainers.image.source':'https://github.com/rust-lang/docker-rust'} and host.get('SecurityOpt')==['no-new-privileges'] and all(type(host.get(k)) is int for k in ('Memory','NanoCpus','PidsLimit')) and host.get('Memory')==2*1024**3 and host.get('NanoCpus')==2*10**9 and host.get('PidsLimit')==256,'CONTROLLED_ACTOR_FIXED_RECIPE')
+    _require(state.get('Status')=='running' and type(state.get('Pid')) is int and state['Pid']>0 and type(state.get('StartedAt')) is str and re.fullmatch('[0-9TZ:.+-]{1,64}',state['StartedAt']) is not None and state['StartedAt']!='0001-01-01T00:00:00Z' and type(facts.get('RestartCount')) is int and facts['RestartCount']==0 and all(state.get(k) is False for k in ('Paused','Restarting','OOMKilled','Dead')) and state.get('Error')=='','CONTROLLED_ACTOR_LIVE_PIN')
+    ids=facts.get('ExecIDs');ids=[] if ids is None else ids
+    _require(type(ids) is list and len(ids)<=1 and all(type(e) is str and re.fullmatch('[0-9a-f]{64}',e) for e in ids),'CONTROLLED_ACTOR_MAIN_EXEC_SET')
+    return dict(projection=projection,name=facts['Name'],pid=state['Pid'],started_at=state['StartedAt'],restart_count=facts['RestartCount'],execids=list(ids))
+
+def _measure_outer(runner,suite):
+    deadline=time.monotonic()+15;interpreter=_actor_interpreter();_actor_remaining(deadline);suite=Path(suite)
+    _require(re.fullmatch('/var/lib/docker/volumes/kwc4c-suite-[0-9a-f]{32}/_data',str(suite)) is not None,'CONTROLLED_ACTOR_SUITE_TOPOLOGY')
+    expected=_actor_main_contract(suite);held=_ActorHeld(suite)
+    try:
+        original=held.sample();_actor_sample_shape(original)
+        inventory=['/usr/bin/docker','ps','-q','--no-trunc','--filter','label=knowweave.c4.ops=completion-prep','--filter','volume='+suite.parent.name,'--filter','status=running']
+        cid=_actor_candidate(_actor_rpc(runner,inventory,deadline))
+        def inspect():
+            raw=_actor_rpc(runner,['/usr/bin/docker','container','inspect',cid],deadline)
+            rows=json.loads(raw,object_pairs_hook=_pairs);_require(type(rows) is list and len(rows)==1 and rows[0].get('Id')==cid,'CONTROLLED_ACTOR_INSPECT_CID');return _actor_live(rows[0],suite)
+        before=inspect();main=None
+        if before['execids']:main=_actor_main_get(runner,before['execids'][0],cid,expected,deadline)
+        raw=_actor_rpc(runner,['/usr/bin/docker','exec',cid,interpreter,'-I','-S','-B','-u','-c',_actor_sampler_program(suite)],deadline)
+        sample=_actor_validate_sample(raw,original)
+        after=inspect();_require(after==before,'CONTROLLED_ACTOR_LIVE_OR_EXEC_DRIFT')
+        if main is not None:_require(_actor_main_get(runner,before['execids'][0],cid,expected,deadline)==main,'CONTROLLED_ACTOR_MAIN_DRIFT')
+        _require(_actor_candidate(_actor_rpc(runner,inventory,deadline))==cid,'CONTROLLED_ACTOR_CANDIDATE_CHANGED')
+        _require(held.sample()==original,'CONTROLLED_ACTOR_HELD_FINAL_CHANGED');_actor_remaining(deadline)
+        return dict(before['projection'],current_actor_observation=sample,sampler_confirmed=True,creation_authority=False)
+    finally:held.close()
+
+def _actor_diagnostic():
+    # A separate fixed Root diagnostic -c entry, never an added module CLI.
+    match=re.fullmatch(r'(/var/lib/docker/volumes/kwc4c-suite-[0-9a-f]{32}/_data)/current11/bootstrap',str(Path(__file__).resolve().parents[2]))
+    _require(match is not None,'CONTROLLED_ACTOR_DIAGNOSTIC_SOURCE')
+    suite=Path(match[1]);record,_=_read_install(suite);_require(record['builder']==_BUILDER,'CONTROLLED_ACTOR_DIAGNOSTIC_IMAGE')
+    from p0c4_completion import resources
+    import p0c4_source_admission_gate_acceptance as admission
+    resources.require_host_namespace()
+    # Root packet preinstalls the private diagnostic evidence directory only.
+    logs=suite/'current11/actor-diagnostic-logs';meta=os.lstat(logs)
+    _require(stat.S_ISDIR(meta.st_mode) and meta.st_uid==0 and stat.S_IMODE(meta.st_mode)==0o700,'CONTROLLED_ACTOR_DIAGNOSTIC_LOGS')
+    value=_measure_outer(admission.Runner(logs),suite)
+    sys.stdout.buffer.write(_canonical(dict(scope='ZERO_PG_CURRENT_ACTOR_OBSERVATION_NOT_AUTHORITY',observation=value,native_cases=0,pg_cases=0,plan_created=False))+b'\n');sys.stdout.buffer.flush()
 
 def _measure_cache(path,held_fd):
     """Observe the original owned cache through no-follow directory fds."""

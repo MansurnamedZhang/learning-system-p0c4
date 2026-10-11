@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "date": "2026-10-11",
-  "source_commit": "0b6f2a59a25b4a09bf9e30c085d079d4b0d7b399",
-  "previous_public_commit": "0ab5a2ffcb5fbd34c633db660f2ce9c2f455f109",
-  "source_archive_sha256": "a582c341302824adce417c92bc1e6b8d77c73096af4de2346135451149ea616b",
-  "source_manifest_sha256": "d92444d70bd4423e43b2c907e0e84f1c761422f4602c335fc2176b9eb684f20e",
-  "source_file_count": 539,
+  "source_commit": "2805bda173d767876c155e203938144a1936b872",
+  "previous_public_commit": "e88215b60e7305a60af52290f625750a9c638a86",
+  "source_archive_sha256": "f8dae8ca0dcf54540dd5209ee9098a5662af57c85ae371835e09c63f4dd6ee5e",
+  "source_manifest_sha256": "6f5919c1f277c5cbacb0dd1a3e58d3ef7ee9fa5bb726ca9d738e803db8cf54cc",
+  "source_file_count": 540,
   "excluded_source_files": [
     "docs/architecture/KnowWeave架构设计.html.qa.json"
   ],
@@ -49,8 +49,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112660,
-      "sha256": "9c5f8736b511c43dd24d1dd71837a4946cdb356ce2ba7fda8245f347034ac888",
+      "bytes": 112850,
+      "sha256": "a1f16d4cd591ecad50fa0fb8bfab08d25a88d5b00fe4844b8db239699e3ca155",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,7 +64,7 @@
     {
       "path": "README.md",
       "bytes": 3613,
-      "sha256": "88057967e1425ff9a1b62f244582f1f64d8490f7842d85c10c6ff81ce0989fe7",
+      "sha256": "02e3c5321eb6bd3d3b9c070e7f844ef632a61bdfaa2f0814b9c94b9946cfeeed",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2688,8 +2688,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45244,
-      "sha256": "5e8f6b199ac51f99a72cbc9dbe1ead82e4c65f44b3bd1e2aa764f084d237881e",
+      "bytes": 45529,
+      "sha256": "7f0e6dc5b085b3c17023615e79cd0b14e54ce39cf8cbe8392203a01cffb5ae97",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2709,8 +2709,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 4489,
-      "sha256": "b98dc1420669ed7b266aa6359614545de4e4b854533c1a6d94fe158764c4d8b9",
+      "bytes": 4572,
+      "sha256": "e798be19f33cf4f626ba0ad9ad9c307eaf4f10c002be6920abd971cd80df4ebd",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3360,8 +3360,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 1781,
-      "sha256": "362f8014791a0a06b2d62a140d3dcd601781a9feab58ac8f8322f283c98559f6",
+      "bytes": 1826,
+      "sha256": "afc9d815a137c4d2e91dabe227ab3c9ca9c79337992f2f5144aba2b4f52c4d9c",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3409,8 +3409,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 3268,
-      "sha256": "9eb44a4d44d2851f6dec0677a1b1bd919e516c96f8e92f71a20ee00f4aa06e44",
+      "bytes": 3709,
+      "sha256": "c7a52290d316c19d0bd66df6749cf243ed00efb7efbb82bd7644c97382de2107",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3549,9 +3549,9 @@
     },
     {
       "path": "scripts/p0c4_completion/controlled_fixture.py",
-      "bytes": 67444,
-      "sha256": "d62fc645e909bef1bb483a9f860d4ee6fecbbb00fe284f7d01c9e6959a45527a",
-      "source_blob_sha256": "d62fc645e909bef1bb483a9f860d4ee6fecbbb00fe284f7d01c9e6959a45527a",
+      "bytes": 87252,
+      "sha256": "284f8ce761b4088bf70d19c3e1d1e9e041b5e796a4e8856f4a02af6c998766ad",
+      "source_blob_sha256": "284f8ce761b4088bf70d19c3e1d1e9e041b5e796a4e8856f4a02af6c998766ad",
       "source_bytes_preserved": true
     },
     {
@@ -3790,6 +3790,13 @@
       "bytes": 15272,
       "sha256": "d73af2705ab9c4fbbd54220655783bd42da5bfcb2014e506ca8e5a5ae0ea5e1e",
       "source_blob_sha256": "d73af2705ab9c4fbbd54220655783bd42da5bfcb2014e506ca8e5a5ae0ea5e1e",
+      "source_bytes_preserved": true
+    },
+    {
+      "path": "scripts/test_p0c4_controlled_actor.py",
+      "bytes": 14025,
+      "sha256": "3a414d22b2ccf8ebc3bad6f343c9e26ae49bf8ec90fd68218d51c95ae480d4e9",
+      "source_blob_sha256": "3a414d22b2ccf8ebc3bad6f343c9e26ae49bf8ec90fd68218d51c95ae480d4e9",
       "source_bytes_preserved": true
     },
     {
