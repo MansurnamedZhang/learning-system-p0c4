@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-12",
   "source_commit": "b4a1434f36972432fa6792190d73ce31a47c0962",
-  "previous_public_commit": "051d1f1fc688376ad51cbf347ce7f4df936b4051",
+  "previous_public_commit": "f83fdeee91090af9d2bf62749c3ebce602d95d65",
   "source_archive_sha256": "12bd31fb2bed4225bb5fdfdd3f0c522c9da2db1aeb25f0f0c77e812e19ab1765",
   "source_manifest_sha256": "63a42916d1cec3604b375cef2e0363273e863593441ff8aea2111cc9db5d727e",
   "source_file_count": 540,
@@ -49,8 +49,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 113817,
-      "sha256": "8490d2b770d66af65e60bc204dd128ed6cf1e10cd13e2fdb8b248e7b991fcdd0",
+      "bytes": 112569,
+      "sha256": "bfbec21a4ea05781118100574aff7631f9f5419bc9f5f7ab0dc8356d6a744ba5",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3613,
-      "sha256": "91ee1656f26a9e3b7a31cb786ad65ce1c2730aaadb67e063b0f06f02c15f3aa3",
+      "bytes": 3609,
+      "sha256": "781d2f7817530e7c66e98176b6f47b31a66696aaa11ba32ec4cb6781020b2745",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2688,8 +2688,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 46899,
-      "sha256": "5ea45c4b73fd12fd9c7c1d62e0084c45a6407c5b6d0306187b3b2387b6d69ece",
+      "bytes": 45074,
+      "sha256": "7faef32607a23e69bf57052248c18b422f81654b8cd5db95f05f9f65022295e0",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2709,8 +2709,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 6622,
-      "sha256": "5959de9d32f6850195b09ab129ccad999f1c6688ff43d312349437a4256f4660",
+      "bytes": 7172,
+      "sha256": "12e502823fe637b6d890c4aed634f33c2fdcc2c290bda9777ab2f57051d70469",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3409,8 +3409,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 7677,
-      "sha256": "5ecaf433a2d17c8409d33a66d12c5cad73387d2f2ac92580eaa6af2f740508ac",
+      "bytes": 1560,
+      "sha256": "e6e0f23a4c9341c2afc69687e654093c1c06e052d5d4ad982d3dbc81bd720307",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
