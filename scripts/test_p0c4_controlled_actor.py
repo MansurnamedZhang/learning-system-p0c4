@@ -176,4 +176,19 @@ class ActorContracts(unittest.TestCase):
   for bad in (good+b'extra',good.replace(b'200 OK',b'404 Missing'),good.replace(b'Content-Length:',b'Unknown-Length:'),b'x'*8193,chunked[:-2]):
    with patch.object(socket,'socket',return_value=Wire(bad)),self.assertRaises((f.ControlledRejected,ValueError)):f._actor_get_wire(eid,cid,expected,1)
 
+class FixedSubnetSelectionContracts(unittest.TestCase):
+ """Pure sealed allocator contracts; no Docker/route input injection/runtime."""
+ def test_original_pool_empty_preserves_original_first_two(self):
+  self.assertEqual(f._choose_subnets([]),['172.29.0.0/24','172.29.1.0/24'])
+ def test_actual_old_whole_primary_pool_uses_only_fixed_fallback(self):
+  self.assertEqual(f._choose_subnets(['172.29.0.0/16']),['10.252.0.0/24','10.252.1.0/24'])
+ def test_both_fixed_pools_occupied_refuse(self):
+  with self.assertRaisesRegex(f.ControlledRejected,'FRESH_SUBNET_CAPACITY'):
+   f._choose_subnets(['172.29.0.0/16','10.252.0.0/16'])
+ def test_only_one_candidate_is_insufficient_for_two_roles(self):
+  occupied=['172.29.0.0/16']+[f'10.252.{i}.0/24' for i in range(255)]
+  with self.assertRaisesRegex(f.ControlledRejected,'FRESH_SUBNET_CAPACITY'):f._choose_subnets(occupied)
+ def test_routes_exclude_fallback_candidates_without_pool_override(self):
+  self.assertEqual(f._choose_subnets(['172.29.0.0/16','10.252.0.0/23']),['10.252.2.0/24','10.252.3.0/24'])
+
 if __name__=='__main__':unittest.main(verbosity=2)

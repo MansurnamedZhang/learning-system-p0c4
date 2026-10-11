@@ -105,7 +105,7 @@ def _choose_subnets(occupied):
     _require(type(occupied) is list and all(type(value) is str for value in occupied),'CONTROLLED_OBSERVED_SUBNETS')
     try:existing=[ipaddress.ip_network(value,strict=False) for value in occupied if value!='default']
     except (ValueError,TypeError):raise ControlledRejected('CONTROLLED_OBSERVED_SUBNETS') from None
-    candidates=[str(value) for value in ipaddress.ip_network('172.29.0.0/16').subnets(new_prefix=24) if not any(other.version==4 and value.overlaps(other) for other in existing)]
+    candidates=[str(value) for pool in ('172.29.0.0/16','10.252.0.0/16') for value in ipaddress.ip_network(pool).subnets(new_prefix=24) if not any(other.version==4 and value.overlaps(other) for other in existing)]
     _require(len(candidates)>=2,'CONTROLLED_FRESH_SUBNET_CAPACITY')
     return candidates[:2]
 
