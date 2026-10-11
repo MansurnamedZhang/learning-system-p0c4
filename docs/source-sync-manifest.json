@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-11",
   "source_commit": "b4a1434f36972432fa6792190d73ce31a47c0962",
-  "previous_public_commit": "00ed51adb0666f228056de89e188edde43bb6885",
+  "previous_public_commit": "7c2d469875ae8e7a7689d32a1519dec3bfb6739b",
   "source_archive_sha256": "12bd31fb2bed4225bb5fdfdd3f0c522c9da2db1aeb25f0f0c77e812e19ab1765",
   "source_manifest_sha256": "63a42916d1cec3604b375cef2e0363273e863593441ff8aea2111cc9db5d727e",
   "source_file_count": 540,
@@ -2709,8 +2709,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 5313,
-      "sha256": "3028d55455ca41c2fa414ff5782240296b694dc542e308576afa23d65aa2b155",
+      "bytes": 5890,
+      "sha256": "9606f5ea42b4cf2d789b7883c306ca3a21e0459a87ca33a4e2557c086ea0dad9",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3409,8 +3409,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 6368,
-      "sha256": "548ecb7d185cae6b9b5cfe0211bb7c833a38590cfc9b60254bfad0c33628e9d6",
+      "bytes": 6945,
+      "sha256": "309a0e0ecc7847d8d7370ed2e62f1b15ea0f950c8ee17021f97237b2f5bf7520",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
