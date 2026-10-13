@@ -100,6 +100,49 @@ def _controlled_configuration(value):
     except (ValueError,TypeError):raise FsRejected('FS_POLICY') from None
     return value
 
+def _controlled_initdb_digest(c):
+    """Stable read of the fixed runtime0444/source0400 pair, never a file service."""
+    _controlled_configuration(c)
+    source=Path(c['source_root'])
+    _require(sys.platform=='linux' and os.geteuid()==0 and source==source.resolve(strict=True) and source==Path(__file__).resolve().parents[2])
+    def signature(meta):
+        return (meta.st_dev,meta.st_ino,meta.st_mode,meta.st_uid,meta.st_gid,meta.st_nlink,meta.st_size,meta.st_mtime_ns,meta.st_ctime_ns)
+    held=[];files=[];digests=[]
+    flags=os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC
+    try:
+        for path,mode in ((Path(c['case_root'])/'initdb.sh',0o444),
+                          (source/'deploy'/'p0c4_restore_initdb.sh',0o400)):
+            _require(path==path.resolve(strict=True))
+            parent=None
+            for ancestor in reversed(path.parents):
+                name=str(ancestor) if parent is None else ancestor.name
+                named=os.stat(name,dir_fd=parent,follow_symlinks=False)
+                _require(stat.S_ISDIR(named.st_mode) and named.st_uid==0 and not named.st_mode&0o022)
+                handle=os.open(name,flags|os.O_DIRECTORY,dir_fd=parent)
+                expected=signature(named);held.append((ancestor,parent,name,handle,expected))
+                _require(signature(os.fstat(handle))==expected);parent=handle
+            named=os.stat(path.name,dir_fd=parent,follow_symlinks=False)
+            _require(stat.S_ISREG(named.st_mode) and named.st_uid==0 and named.st_nlink==1 and stat.S_IMODE(named.st_mode)==mode and 0<named.st_size<=_CAP)
+            fd=os.open(path.name,flags,dir_fd=parent)
+            expected=signature(named);files.append((fd,parent,path.name,expected))
+            _require(signature(os.fstat(fd))==expected)
+            raw=bytearray()
+            while len(raw)<=_CAP:
+                chunk=os.read(fd,min(65536,_CAP+1-len(raw)))
+                if not chunk:break
+                raw.extend(chunk)
+            _require(len(raw)==named.st_size)
+            digests.append(hashlib.sha256(raw).hexdigest())
+        for fd,parent,name,expected in files:
+            _require(signature(os.fstat(fd))==expected and signature(os.stat(name,dir_fd=parent,follow_symlinks=False))==expected)
+        for ancestor,parent,name,handle,expected in held:
+            _require(signature(os.fstat(handle))==expected and signature(os.stat(name,dir_fd=parent,follow_symlinks=False))==expected and signature(os.lstat(ancestor))==expected)
+        _require(digests[0]==digests[1])
+        return digests[0]
+    finally:
+        for fd,_,_,_ in reversed(files):os.close(fd)
+        for _,_,_,handle,_ in reversed(held):os.close(handle)
+
 def _extend_secret_document(document,target):
     pg=document['services']['pg'];keys=('postgres_password','admin_password')
     _require(pg.pop('secrets')==list(keys) and document.pop('secrets')=={key:{'file':str(target/'secrets'/key)} for key in keys})
@@ -194,7 +237,7 @@ class _NativeOwner:
         import p0c4_restore_target_pin as pin_reader
         if self._recipe is _CONTROLLED_RECIPE:
             provisioner._trusted_root(root)
-            _require(pin_reader._initdb_digest(initdb)==pin_reader._initdb_digest(reviewed))
+            _require(pin_reader._initdb_digest(initdb)==_controlled_initdb_digest(c))
         os.chmod(root,0o700);(root/'targets').mkdir(mode=0o700)
         provisioner._sync_directory(root)
         provisioner._trusted_initdb(initdb)

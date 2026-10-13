@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-12。当前状态：C4 补验中 · Task3单机已核对 · Task5当前0/11，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`b4a1434f36972432fa6792190d73ce31a47c0962`。现场验收源码与当前 WIP 不混用。
+更新：2026-10-13。当前状态：C4 补验中 · Task3单机已核对 · Task5当前0/11，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`b4a1434f36972432fa6792190d73ce31a47c0962`。现场验收源码与当前 WIP 不混用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。2026-10-12：Task3单机补验与收尾完成。Task2观察器修正已独立审查及本地3项通过，当前组合仍0/8，待新套件、新计划与实际补验。Task5 b4安装、正常计划及595项计划读回已独立核对；首个真实success调用产生UnconfirmedIsolation失败记录，未取得Rust用例执行证明，当前十一门仍0/11。原执行owner保留，后续用例暂停，等待定位并处置未确认隔离。历史九门9/9分别保留。Task6–9及整个P0-C4继续开放，未签发CompleteBackup。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。2026-10-13：Task3单机补验与收尾完成。Task2观察器修正已复审，新安装候选已接入完整失败保留基线，当前八项仍0/8，待新套件、新计划和实际补验。Task5已确认controlled来源0400与运行副本0444的读取合同冲突，最小修正经独立代码复审并提交；新增14项真实本机Linux合同测试及6项受影响owner测试通过，当前十一现场门仍0/11。旧失败批次与证据保留，后续使用新套件、新计划。历史九门9/9单独保留。Task6–9及整个P0-C4继续开放，未签发CompleteBackup。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -63,11 +63,11 @@ flowchart LR
 
 任务编号依据 [2026-10-04 补齐计划](superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-2026-10-12：Task3单机补验与收尾完成。Task2观察器修正已独立审查及本地3项通过，当前组合仍0/8，待新套件、新计划与实际补验。Task5 b4安装、正常计划及595项计划读回已独立核对；首个真实success调用产生UnconfirmedIsolation失败记录，未取得Rust用例执行证明，当前十一门仍0/11。原执行owner保留，后续用例暂停，等待定位并处置未确认隔离。历史九门9/9分别保留。Task6–9及整个P0-C4继续开放，未签发CompleteBackup。
+2026-10-13：Task3单机补验与收尾完成。Task2观察器修正已复审，新安装候选已接入完整失败保留基线，当前八项仍0/8，待新套件、新计划和实际补验。Task5已确认controlled来源0400与运行副本0444的读取合同冲突，最小修正经独立代码复审并提交；新增14项真实本机Linux合同测试及6项受影响owner测试通过，当前十一现场门仍0/11。旧失败批次与证据保留，后续使用新套件、新计划。历史九门9/9单独保留。Task6–9及整个P0-C4继续开放，未签发CompleteBackup。
 
 接入有界外部归并排序与同一目标COPY，完成合法作业状态迁移、旧token失效、未知副作用持久隔离及恢复收据。外部快照证据的版本化协议仍是待审方案，不能改写v1证明或用缺文件推导无副作用。随后执行Task6实际Linux/PG五门与独立审查、Task7 Attention整链、Task8当前回归/四套旧版升级/整分支审查。Task9缺真实独立存储与密钥托管，整体C4仍未完成。
 
-Task5实际result原件为7996字节，SHA-256 2d492481bb5629cacd7d3a1356c227239bc4452ce18edf79e7c9d9e0db5443e3；status为CONTROLLED_FIXTURE_IMPORT_UNCONFIRMED_UNUSABLE_NOT_FULL_RESTORE，reason为UnconfirmedIsolation、retry_allowed为false、源码未变。实际result已记录预编译完成及11个测试名称列举，builds.preflight.exit_code=0是--list --ignored命令退出码，不是Cargo compile退出码或用例通过。已进入source owner-helper阶段，source的container_id、birth与inspection摘要仍为null；helper记录removed=false；该精确helper的实际协议回复为setup/seq0/ok=false/FS_POLICY，实际状态exited1、Pid0、无Exec且非OOM。具体触发哪一条setup检查仍未知。body_dispatched=false、unusable=true，exact_test_exit_code=null；Cargo build-finished事件为true，compile独立退出码仍UNKNOWN。只读诊断未修改服务器资源，原owner继续保留，不重放旧计划，不将诊断或列举计为通过。
+Task5旧实机result仍为UnconfirmedIsolation、retry_allowed=false，Rust body未派发，exact_test_exit_code=null；helper实际setup/seq0回复FS_POLICY并退出1。只读观察核对母体固定sleep86400自然退出0和helper退出1，两者Pid0、无Exec，完整旧资源保护合同保持；它不能恢复原外层CLI输出、EOF或reap，原外层结算仍UNKNOWN。源码修正只在controlled setup稳定读取固定source0400/runtime0444，公共运行读取gate及普通full444合同保持；本机相关151例仍有5项失败，同解释器原b4复现，整套未全绿。代码审查、局部测试、安装和列举均不计当前现场通过数；旧计划与once不重用，原修复预算5/5不重置。
 
 ```mermaid
 flowchart LR
@@ -75,7 +75,7 @@ flowchart LR
     C4T2["Task 2<br/>精确源端绑定与捕获监督<br/>观察器修正复审通过，新批次补验中"]
     C4T3["Task 3<br/>保留校验与完成收据<br/>单机补验收尾完成，Task9开放"]
     C4T4["Task 4<br/>全量模式与有界 COPY 数据<br/>内容三门已验收"]
-    C4T5["Task 5<br/>受控整库导入与原件恢复<br/>首门隔离未确认，原owner保留"]
+    C4T5["Task 5<br/>受控整库导入与原件恢复<br/>来源读取修正已复审，待新实机批次"]
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>本地基础通过，现场门待验"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>未开始"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>未开始"]
@@ -102,7 +102,7 @@ flowchart LR
 | Task 2 · 精确源端绑定与捕获监督 | 观察器修正复审通过，新批次补验中 | 源捕获绑定实际容器、命名空间、套接字和已准入会话；错误端点须在日志、ACL 与 dump 变更前拒绝。 不可变d4包缺失source-dump-failure真实1/0/0、独立verify、1414份原件/466组进程记录、5次namespace/22组关联RPC、14字段证明/二进制/读取器原件均已采纳。前后旧PG/源PG/失败读取器保持。历史b6a/E8分列；正常正例UNKNOWN与当前组合回归仍开放，整个Task2未关闭。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | 首门隔离未确认，原owner保留 | b4安装、正常计划及595项读回已独立核对；首个真实success产生UnconfirmedIsolation，当前0/11。原执行owner保留，后续用例暂停，先定位并处置隔离问题。其余10项接线设计已整理，尚未实施或执行。 实际result原件7996字节、retry_allowed=false、source_unchanged=true、exact_test_exit_code=null。预编译及11项测试名称列举已完成；列表命令exit0不代表Cargo退出或用例通过。失败已进入source owner-helper阶段，尚未取得source PG/birth身份，helper removed=false，实际setup协议返回FS_POLICY并退出1；body未派发、context不可用。具体setup检查根因仍未知。只读诊断未改服务器资源，不重放旧计划或重置修复预算；历史九门9/9分别保留。 |
+| Task 5 · 受控整库导入与原件恢复 | 来源读取修正已复审，待新实机批次 | controlled来源0400/runtime0444读取冲突已作最小修正并独立复审；新本机14项合同与6项受影响owner通过。当前十一现场门仍0/11，须新套件、新计划先跑真实success，再完成其余10项。 旧实机FS_POLICY/UnconfirmedIsolation记录和资源保留，Rust body未派发；母体自然退出0、helper退出1不产生用例信用，原外层CLI结算UNKNOWN。相关151例仍有5项失败且原b4复现；整套未全绿。公共运行gate/普通full444不变，旧once/plan与修复预算不重置；历史九门9/9分别保留。 |
 | Task 6 · 作业归一化与恢复资格校验 | 本地基础通过，现场门待验 | 全表数据比对、旧租约/token 失效、未知副作用持久隔离、恢复收据；全部成立后才可判定可用。 WIP d4b97df：64张表数据观察基础及queued策略修复，本地87+12=99项通过，其中新增17项。真实目标COPY/外部排序与作业SQL未接入；独立审查、Linux/PG五门未完成。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6独立审查尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |
@@ -393,7 +393,7 @@ flowchart TB
 - C3 Task 1–7 已完成分项与整关隔离验收：Task 7 在全新 Compose 项目通过完整 workspace、四套旧版升级、真实 Worker SIGKILL/租约接管、双端往返和四组失败注入。独立 root 只读审计核验 602 份证据文件、341 个源码文件、301 项镜像输入；状态为 P0_C3_VERIFIED / NOT_PRODUCTION。
 - C3 输入为精确 ReadingViewRevision、模式和原件选项；当前授权求闭包，作业结束与交付时再次检查。已下载的文件无法被服务器远程撤回。
 - 无损交换以版本化 JSON 与 manifest 为准；HTML/Markdown 是阅读副本。导入同 ID 同字节幂等复用，不同字节拒绝。
-- 2026-10-12：Task3单机补验与收尾完成。Task2观察器修正已独立审查及本地3项通过，当前组合仍0/8，待新套件、新计划与实际补验。Task5 b4安装、正常计划及595项计划读回已独立核对；首个真实success调用产生UnconfirmedIsolation失败记录，未取得Rust用例执行证明，当前十一门仍0/11。原执行owner保留，后续用例暂停，等待定位并处置未确认隔离。历史九门9/9分别保留。Task6–9及整个P0-C4继续开放，未签发CompleteBackup。
+- 2026-10-13：Task3单机补验与收尾完成。Task2观察器修正已复审，新安装候选已接入完整失败保留基线，当前八项仍0/8，待新套件、新计划和实际补验。Task5已确认controlled来源0400与运行副本0444的读取合同冲突，最小修正经独立代码复审并提交；新增14项真实本机Linux合同测试及6项受影响owner测试通过，当前十一现场门仍0/11。旧失败批次与证据保留，后续使用新套件、新计划。历史九门9/9单独保留。Task6–9及整个P0-C4继续开放，未签发CompleteBackup。
 - 接入有界外部归并排序与同一目标COPY，完成合法作业状态迁移、旧token失效、未知副作用持久隔离及恢复收据。外部快照证据的版本化协议仍是待审方案，不能改写v1证明或用缺文件推导无副作用。随后执行Task6实际Linux/PG五门与独立审查、Task7 Attention整链、Task8当前回归/四套旧版升级/整分支审查。Task9缺真实独立存储与密钥托管，整体C4仍未完成。
 - 早期 C4 源端、Linux 封存/单机传输、目标准入与精确子进程只读子门记录保留；历史受控小型 dump 计划中的 Task6 只覆盖固定合成夹具，与当前九任务计划的 Task6 作业恢复不同。历史维护三门、准入五门、绑定四门及两项回归分别绑定原源码/批次，不能累计为当前源码组合通过数。
 - 当前 Task5 九门覆盖完整导入、提交前 EOF、取消、提交结果未知、错误数据库路由、坏输入、坏角色、脏目标与损坏原件；错误路由门不是同身份物理克隆门。Task6 的 99 项是本地测试；真实目标 COPY、作业归一化、恢复资格与新 Linux/PG 门尚待完成。

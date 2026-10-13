@@ -552,7 +552,7 @@ class NativeOwnerTests(unittest.TestCase):
             path = src / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes((self.repo / name).read_bytes())
-            path.chmod(0o444 if name.startswith('deploy/') else 0o400)
+            path.chmod(0o400)
         for path in sorted(suite.rglob('*')):
             if path.is_dir():path.chmod(0o700)
         suite.chmod(0o700)

@@ -1,6 +1,255 @@
 """Fixed helper protocol tests; portable tests are not Linux authority evidence."""
 import unittest
 import uuid
+import os
+import sys
+from contextlib import contextmanager
+
+
+@unittest.skipUnless(sys.platform=='linux' and getattr(os,'geteuid',lambda:1)()==0,
+                     'actual root Linux initdb contract; portable skips give no authority')
+class SetupInitdbContractTests(unittest.TestCase):
+    @contextmanager
+    def fixture(self,full=False):
+        import importlib.util,tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+        names=('p0c4_restore_target','p0c4_restore_target_pin_prepare',
+               'p0c4_restore_target_pin','p0c4_restore_target_birth','p0c4_restore_birth_acceptance')
+        previous={name:sys.modules.get(name) for name in names};previous_path=list(sys.path)
+        owners=[]
+        with tempfile.TemporaryDirectory(prefix='kwc4-setup-contract-',dir='/root') as directory:
+            base=Path(directory);batch,source_id,target_id=(str(uuid.uuid4()) for _ in range(3))
+            suite=base/'volumes'/('kwc4c-suite-'+uuid.uuid4().hex)/'_data'
+            case=suite/'batches'/('batch-'+batch)/source_id if full else suite/'controlled-import/batches'/batch
+            source=suite/'source' if full else case/'source'
+            repo=Path(__file__).resolve().parents[1]
+            files=('scripts/p0c4_completion/full_target_fs.py',*(('scripts/'+name+'.py') for name in names),
+                   'deploy/p0c4_restore_initdb.sh','deploy/p0c4_full_restore_initdb.sh')
+            for name in files:
+                path=source/name;path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes((repo/name).read_bytes());path.chmod(0o444 if full else 0o400)
+            for path in source.rglob('*'):
+                if path.is_dir():path.chmod(0o755 if full else 0o700)
+            source.chmod(0o755 if full else 0o700)
+            case.mkdir(mode=0o700,parents=True,exist_ok=True)
+            runtime=case/'full-profile/initdb.sh' if full else case/'initdb.sh'
+            runtime.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+            reviewed=source/'deploy'/('p0c4_full_restore_initdb.sh' if full else 'p0c4_restore_initdb.sh')
+            runtime.write_bytes(reviewed.read_bytes());runtime.chmod(0o444)
+            roots={'target':base/'volumes'/('learning-system-p0c4-restore-'+target_id+'_control')/'_data'} if full else {role:case/(role+'-control') for role in ('source','target')}
+            for root in roots.values():root.mkdir(mode=0o700,parents=True)
+            config=dict(batch_id=batch,source_case_id=source_id,target_case_id=target_id,
+                        subnet='172.30.241.0/24',root=str(roots['target' if full else 'source']),
+                        suite_root=str(suite),source_root=str(source),case_root=str(case))
+            if not full:config['role']='source'
+            spec=importlib.util.spec_from_file_location('setup_contract_native',source/files[0])
+            native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native)
+            for name in names:sys.modules.pop(name,None)
+            sys.path.insert(0,str(source/'scripts'))
+            try:
+                yield SimpleNamespace(native=native,config=config,roots=roots,source=source,
+                                      reviewed=reviewed,runtime=runtime,owners=owners,full=full)
+            finally:
+                for owner in reversed(owners):owner.close()
+                sys.path[:]=previous_path
+                for name,old in previous.items():
+                    if old is None:sys.modules.pop(name,None)
+                    else:sys.modules[name]=old
+
+    def setup_reply(self,f,role='source'):
+        owner=f.native._NativeOwner() if f.full else f.native._new_controlled_owner()
+        f.owners.append(owner);config=dict(f.config)
+        if not f.full:config.update(role=role,root=str(f.roots[role]))
+        protocol=f.native._Protocol(f.native._TOKEN,str(uuid.uuid4()),owner)
+        reply=protocol.handle(dict(session=protocol._nonce,seq=0,op='setup',value=config))
+        return owner,reply
+
+    def assert_rejected(self,f):
+        before=set(os.listdir('/proc/self/fd'))
+        owner,reply=self.setup_reply(f,'target' if f.full else 'source')
+        self.assertFalse(reply['ok'],reply);self.assertIn(reply['code'],('FS_POLICY','FS_UNREACHABLE'))
+        self.assertIsNone(owner.config);self.assertIsNone(owner.root_fd);self.assertIsNone(owner.lock)
+        self.assertEqual(set(os.listdir('/proc/self/fd')),before,'rejected reader leaked native FDs')
+        if not f.full:
+            for root in f.roots.values():self.assertEqual(list(root.iterdir()),[])
+
+    @contextmanager
+    def mutate_at_read(self,f,path,mutation):
+        from unittest.mock import patch
+        original=os.read;identity=(path.stat().st_dev,path.stat().st_ino);hits=[]
+        def read(fd,count):
+            data=original(fd,count);meta=os.fstat(fd)
+            if not hits and (meta.st_dev,meta.st_ino)==identity:
+                hits.append(True);mutation()
+            return data
+        with patch.object(f.native.os,'read',side_effect=read):yield hits
+
+    def test_controlled_source_0400_runtime_0444_reaches_both_held_setups(self):
+        import fcntl,stat
+        with self.fixture() as f:
+            before=f.reviewed.read_bytes()
+            for role in ('source','target'):
+                owner,reply=self.setup_reply(f,role)
+                self.assertTrue(reply['ok'],reply)
+                self.assertEqual(set(reply['value']),{'root','lock_held'})
+                self.assertIs(reply['value']['lock_held'],True)
+                held=os.fstat(owner.root_fd);named=f.roots[role].stat()
+                self.assertEqual((held.st_dev,held.st_ino),(named.st_dev,named.st_ino))
+                self.assertEqual(reply['value']['root']['ino'],held.st_ino)
+                with (f.roots[role]/'.restore-target.lock').open('rb') as other:
+                    with self.assertRaises(BlockingIOError):fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            self.assertEqual(f.reviewed.read_bytes(),before)
+            self.assertEqual(stat.S_IMODE(f.reviewed.stat().st_mode),0o400)
+            self.assertEqual(stat.S_IMODE(f.runtime.stat().st_mode),0o444)
+
+    def test_controlled_source_0444_is_rejected_even_with_equal_bytes(self):
+        with self.fixture() as f:
+            f.reviewed.chmod(0o444);self.assert_rejected(f)
+
+    def test_full_source_0444_and_runtime_0444_keep_actual_legacy_setup(self):
+        with self.fixture(full=True) as f:
+            owner,reply=self.setup_reply(f,'target');self.assertTrue(reply['ok'],reply)
+            self.assertIsNotNone(owner.root_fd)
+            self.assertTrue((f.roots['target']/'targets').is_dir())
+
+    def test_full_source_0400_and_runtime_0400_are_each_rejected(self):
+        for selected in ('reviewed','runtime'):
+            with self.subTest(selected=selected),self.fixture(full=True) as f:
+                getattr(f,selected).chmod(0o400);self.assert_rejected(f)
+
+    def test_old_public_runtime_gates_keep_exact_0444(self):
+        with self.fixture() as f:
+            import p0c4_restore_target as target
+            import p0c4_restore_target_pin as pin
+            for mode in (0o400,0o440,0o644):
+                with self.subTest(mode=oct(mode)):
+                    f.runtime.chmod(mode)
+                    with self.assertRaises(target.AdmissionError):target._trusted_initdb(f.runtime)
+                    with self.assertRaises(target.AdmissionError):pin._initdb_digest(f.runtime)
+            f.runtime.chmod(0o444);target._trusted_initdb(f.runtime)
+            import hashlib
+            self.assertEqual(pin._initdb_digest(f.runtime),hashlib.sha256(f.runtime.read_bytes()).hexdigest())
+
+    def test_pair_rejects_wrong_mode_owner_links_and_special_files(self):
+        import signal,time
+        for selected in ('reviewed','runtime'):
+            for fault in ('mode','writable','owner','links','symlink','fifo','directory'):
+                with self.subTest(selected=selected,fault=fault),self.fixture() as f:
+                    path=getattr(f,selected)
+                    if fault=='mode':path.chmod(0o444 if selected=='reviewed' else 0o400)
+                    elif fault=='writable':path.chmod(0o600)
+                    elif fault=='owner':os.chown(path,999,999)
+                    elif fault=='links':os.link(path,path.with_name('extra-hardlink'))
+                    elif fault=='symlink':
+                        saved=path.with_name('retained-file');path.rename(saved);path.symlink_to(saved)
+                    elif fault=='directory':path.unlink();path.mkdir(mode=0o400)
+                    else:path.unlink();os.mkfifo(path,0o400)
+                    old=signal.signal(signal.SIGALRM,lambda *args:(_ for _ in ()).throw(AssertionError('FIFO open blocked')))
+                    started=time.monotonic();signal.alarm(2)
+                    try:self.assert_rejected(f)
+                    finally:signal.alarm(0);signal.signal(signal.SIGALRM,old)
+                    self.assertLess(time.monotonic()-started,1,'special file reader blocked')
+
+    def test_pair_rejects_untrusted_ancestors(self):
+        for selected in ('reviewed','runtime'):
+            for fault in ('mode','owner','symlink'):
+                with self.subTest(selected=selected,fault=fault),self.fixture() as f:
+                    parent=getattr(f,selected).parent
+                    if fault=='mode':parent.chmod(0o777)
+                    elif fault=='owner':os.chown(parent,999,999)
+                    else:
+                        saved=parent.with_name(parent.name+'-retained');parent.rename(saved);parent.symlink_to(saved,target_is_directory=True)
+                    self.assert_rejected(f)
+
+    def test_same_size_different_content_is_rejected(self):
+        with self.fixture() as f:
+            content=f.reviewed.read_bytes();f.reviewed.write_bytes(b'X'+content[1:])
+            self.assert_rejected(f)
+
+    def test_reader_uses_actual_nonblocking_cloexec_nofollow_fds(self):
+        import fcntl
+        from unittest.mock import patch
+        with self.fixture() as f:
+            original=os.open;seen={}
+            identities={path.stat().st_ino:name for name,path in (('source',f.reviewed),('runtime',f.runtime))}
+            def opened(*args,**kwargs):
+                fd=original(*args,**kwargs);meta=os.fstat(fd)
+                if meta.st_ino in identities:
+                    name=identities[meta.st_ino];seen.setdefault(name,[]).append(args[1])
+                    self.assertTrue(fcntl.fcntl(fd,fcntl.F_GETFL)&os.O_NONBLOCK)
+                    self.assertTrue(fcntl.fcntl(fd,fcntl.F_GETFD)&fcntl.FD_CLOEXEC)
+                    self.assertTrue(args[1]&os.O_NOFOLLOW)
+                return fd
+            with patch.object(f.native.os,'open',side_effect=opened):
+                _,reply=self.setup_reply(f);self.assertTrue(reply['ok'],reply)
+            self.assertEqual(set(seen),{'source','runtime'})
+            self.assertEqual(len(seen['runtime']),2,'legacy runtime gate plus stable runtime read')
+
+    def test_reader_reads_full_fd_with_short_chunks_and_original_1mib_boundary(self):
+        from unittest.mock import patch
+        with self.fixture() as f:
+            content=b'A'*(1024*1024);f.reviewed.write_bytes(content);f.runtime.write_bytes(content)
+            original=os.read
+            with patch.object(f.native.os,'read',side_effect=lambda fd,count:original(fd,min(count,8191))):
+                _,reply=self.setup_reply(f);self.assertTrue(reply['ok'],reply)
+
+    def test_empty_over_cap_and_short_read_are_rejected(self):
+        from unittest.mock import patch
+        for content in (b'',b'A'*(1024*1024+1)):
+            with self.subTest(size=len(content)),self.fixture() as f:
+                f.reviewed.write_bytes(content);self.assert_rejected(f)
+        with self.fixture() as f,patch.object(f.native.os,'read',return_value=b''):
+            self.assert_rejected(f)
+
+    def test_fd_and_named_file_mutations_reject_without_leaking_fds(self):
+        for selected in ('reviewed','runtime'):
+            for fault in ('mode','owner','gid','links','size','same-size-content','mtime','replacement'):
+                with self.subTest(selected=selected,fault=fault),self.fixture() as f:
+                    path=getattr(f,selected);meta=path.stat();raw=path.read_bytes()
+                    def mutate():
+                        if fault=='mode':path.chmod(0o600)
+                        elif fault=='owner':os.chown(path,999,meta.st_gid)
+                        elif fault=='gid':os.chown(path,0,999)
+                        elif fault=='links':os.link(path,path.with_name('late-hardlink'))
+                        elif fault=='size':path.write_bytes(raw+b'X')
+                        elif fault=='mtime':os.utime(path,ns=(meta.st_atime_ns,meta.st_mtime_ns+1000000000))
+                        elif fault=='same-size-content':
+                            path.write_bytes(b'X'+raw[1:]);os.utime(path,ns=(meta.st_atime_ns,meta.st_mtime_ns))
+                        else:
+                            path.rename(path.with_name('retained-file'));path.write_bytes(raw);path.chmod(meta.st_mode&0o777)
+                    with self.mutate_at_read(f,path,mutate) as hits:self.assert_rejected(f)
+                    self.assertEqual(hits,[True],'did not reach real FD read mutation')
+
+    def test_source_ancestor_changes_and_runtime_change_after_its_read_reject(self):
+        for fault in ('ancestor-mode','ancestor-replacement','runtime-after-read'):
+            with self.subTest(fault=fault),self.fixture() as f:
+                def mutate():
+                    if fault=='ancestor-mode':f.reviewed.parent.chmod(0o777)
+                    elif fault=='ancestor-replacement':
+                        parent=f.reviewed.parent;parent.rename(parent.with_name('retained-deploy'))
+                        parent.mkdir(mode=0o700);f.reviewed.write_bytes(f.runtime.read_bytes());f.reviewed.chmod(0o400)
+                    else:f.runtime.write_bytes(b'X'+f.runtime.read_bytes()[1:])
+                with self.mutate_at_read(f,f.reviewed,mutate) as hits:self.assert_rejected(f)
+                self.assertEqual(hits,[True],'did not reach real source FD read mutation')
+
+    def test_old_runtime_digest_must_match_second_stable_runtime_read(self):
+        from unittest.mock import patch
+        with self.fixture() as f:
+            original=os.fdopen;identity=f.runtime.stat().st_ino;changed=[]
+            def fdopen(fd,*args,**kwargs):
+                stream=original(fd,*args,**kwargs)
+                if os.fstat(fd).st_ino!=identity:return stream
+                class Drift:
+                    def __enter__(self):stream.__enter__();return self
+                    def __exit__(self,*args):return stream.__exit__(*args)
+                    def read(self,*args):
+                        data=stream.read(*args);raw=b'X'+data[1:]
+                        f.runtime.write_bytes(raw);f.reviewed.write_bytes(raw);changed.append(True)
+                        return data
+                return Drift()
+            with patch.object(f.native.os,'fdopen',side_effect=fdopen):self.assert_rejected(f)
+            self.assertEqual(changed,[True],'old runtime gate did not perform real original read')
 
 class ProtocolTests(unittest.TestCase):
     def protocol(self):

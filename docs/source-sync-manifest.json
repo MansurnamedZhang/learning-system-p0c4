@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "date": "2026-10-12",
-  "source_commit": "b4a1434f36972432fa6792190d73ce31a47c0962",
-  "previous_public_commit": "97679348e3d6a3cb1ceefca4c62b02c2c0a03113",
-  "source_archive_sha256": "12bd31fb2bed4225bb5fdfdd3f0c522c9da2db1aeb25f0f0c77e812e19ab1765",
-  "source_manifest_sha256": "63a42916d1cec3604b375cef2e0363273e863593441ff8aea2111cc9db5d727e",
+  "date": "2026-10-13",
+  "source_commit": "1856b20550fdf12100f910f62223ddf4d43c6afd",
+  "previous_public_commit": "150c6b2489070b6474b366a22793e290ee7a6e99",
+  "source_archive_sha256": "804f25901af6fac51f2d95ca84e8cb14ba4115972866ba15403dc53c810b627d",
+  "source_manifest_sha256": "7d8970f4906af1102fb4446c75a8d7de155af403946770336ee8b89a858da3ab",
   "source_file_count": 540,
   "excluded_source_files": [
     "docs/architecture/KnowWeave架构设计.html.qa.json"
@@ -49,8 +49,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112803,
-      "sha256": "f475917fd458347b4e8130ea7814d782f7b5c263ed6dfa8dc7ec020bc18e428c",
+      "bytes": 112438,
+      "sha256": "c4789029378798db58c66ab8a2295924c9a06d4f77af675d2a815640120ea152",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2688,8 +2688,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45148,
-      "sha256": "f43550ec2a14cb427ba3cb5373cbaf8a019c1373be43824cb7e428f9a6752428",
+      "bytes": 44841,
+      "sha256": "f873662693806537dd01ce9595bc0740a74c3bcdd3b99ed3b800bb35485f6786",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2709,8 +2709,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 4546,
-      "sha256": "2b130621bfc951d53ddad6d0cc8ed48a9d946b2462c46f0e0581d3009e341b9e",
+      "bytes": 4524,
+      "sha256": "7c5b5f3340d679ff2f230c8177aba6f24aec13459d68adddd89c675738d49604",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3409,8 +3409,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 1938,
-      "sha256": "2be0c9dce4fb3275e4aeb1e0a25845c396f279b6c2762096997135682c38d679",
+      "bytes": 1832,
+      "sha256": "50919bc81393973de325d203c2043238f76edb7f30c23890f803e61ebce01b26",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3570,9 +3570,9 @@
     },
     {
       "path": "scripts/p0c4_completion/full_target_fs.py",
-      "bytes": 27848,
-      "sha256": "63dd0907821979c0385a9a59addb143c234f51b12676fffaae241abd7d6a39a1",
-      "source_blob_sha256": "63dd0907821979c0385a9a59addb143c234f51b12676fffaae241abd7d6a39a1",
+      "bytes": 30535,
+      "sha256": "eb5c2eb7f00e9f3424549498d5f8b2495664c7206e9e804ff77cb8f01c142fe9",
+      "source_blob_sha256": "eb5c2eb7f00e9f3424549498d5f8b2495664c7206e9e804ff77cb8f01c142fe9",
       "source_bytes_preserved": true
     },
     {
@@ -3801,9 +3801,9 @@
     },
     {
       "path": "scripts/test_p0c4_controlled_fixture_context.py",
-      "bytes": 43393,
-      "sha256": "49b0800d417ec4405f071a8ae000fbf4a4c83ec9e4fcad0f0e3e07feb89250e4",
-      "source_blob_sha256": "49b0800d417ec4405f071a8ae000fbf4a4c83ec9e4fcad0f0e3e07feb89250e4",
+      "bytes": 43352,
+      "sha256": "09335d96fe5343c5ea9bfaa8643aba7549bc2a3a2229be5ef24322d598852b7b",
+      "source_blob_sha256": "09335d96fe5343c5ea9bfaa8643aba7549bc2a3a2229be5ef24322d598852b7b",
       "source_bytes_preserved": true
     },
     {
@@ -3843,9 +3843,9 @@
     },
     {
       "path": "scripts/test_p0c4_full_target_fs.py",
-      "bytes": 36417,
-      "sha256": "a484238c7d84c9041739e3914ccfe1c2019398f4e66159688d182e0a0b67e091",
-      "source_blob_sha256": "a484238c7d84c9041739e3914ccfe1c2019398f4e66159688d182e0a0b67e091",
+      "bytes": 51642,
+      "sha256": "2e87b91e37b3a57a03f6e383613b38c82cd7900dd8e37705b354763b396d71d9",
+      "source_blob_sha256": "2e87b91e37b3a57a03f6e383613b38c82cd7900dd8e37705b354763b396d71d9",
       "source_bytes_preserved": true
     },
     {
@@ -3975,5 +3975,5 @@
       "source_bytes_preserved": true
     }
   ],
-  "progress_as_of": "2026-10-11"
+  "progress_as_of": "2026-10-13"
 }
