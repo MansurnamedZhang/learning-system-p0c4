@@ -86,6 +86,8 @@ FS_TESTS = (
     ('learning-backup','source::lifecycle_tests::strict_scan_joins_journal_sidecar_and_retained_staging_without_inference'),
     ('learning-backup','source::lifecycle_tests::abandonment_terminal_scan_resyncs_child_and_rechecks_before_clearing_attempt'))
 LIMIT = 2*1024**2
+RAW_LOG_FILE_LIMIT = 8192
+RAW_INDEX_BYTES_LIMIT = LIMIT
 MAX_REQUESTS = 16
 LEGACY_TEST = 'source::binding_tests::matching_bound_recovery_recloses_without_finishing'
 PHASE_LIMITS={'SETUP':7200,'LIVE':1200,'CLEANUP':180}
@@ -326,7 +328,7 @@ def log_capacity(logs,additional=0):
         names={p.name for p in logs.iterdir()};count=len(names)
         promised=set().union(*state.get('work',{}).values(),*state.get('child_files',{}).values())
         cleanup=3*sum(len(v) for v in state.get('cleanup',{}).values())
-        require(count+len(promised-names)+additional+3*state['archives']+state['ledgers']+state['pending']+cleanup<=8192,'NAMESPACE_LOG_CAPACITY')
+        require(count+len(promised-names)+additional+3*state['archives']+state['ledgers']+state['pending']+cleanup<=RAW_LOG_FILE_LIMIT,'NAMESPACE_LOG_CAPACITY')
         return count
 
 
@@ -2030,7 +2032,7 @@ class NamespaceAudits:
     def capacity(self):
         logs=self.runner.runner.logs;count=sum(1 for _ in logs.iterdir())
         available=min(256-len(self.audits),512-self.state['audits'],
-                      (8192-count-3*self.state['archives']-self.state['ledgers'])//12)
+                      (RAW_LOG_FILE_LIMIT-count-3*self.state['archives']-self.state['ledgers'])//12)
         require(available>0,'NAMESPACE_AUDIT_CAPACITY');log_capacity(logs,12)
 
     def guard(self,container):
@@ -3026,11 +3028,11 @@ def expected_raw_logs(runner,result):
 
 
 def raw_log_records(logs,expected,budget):
-    require(type(expected) is set and len(expected)<=4096 and all(re.fullmatch(r'(?:[0-9]{4,}|child-[0-9a-f]{32})\.(?:stdout|stderr|process\.json|teardown\.json)|namespace-audits-[0-9a-f-]{36}\.json',name) for name in expected),'RAW_KNOWN_LOG_NAMES')
+    require(type(expected) is set and len(expected)<=RAW_LOG_FILE_LIMIT and all(re.fullmatch(r'(?:[0-9]{4,}|child-[0-9a-f]{32})\.(?:stdout|stderr|process\.json|teardown\.json)|namespace-audits-[0-9a-f-]{36}\.json',name) for name in expected),'RAW_KNOWN_LOG_NAMES')
     entries=[]
     with os.scandir(logs) as scan:
         for entry in scan:
-            require(len(entries)<4096,'RAW_ENTRY_CAP');entries.append(entry.name)
+            require(len(entries)<RAW_LOG_FILE_LIMIT,'RAW_ENTRY_CAP');entries.append(entry.name)
     require(set(entries)==expected,'RAW_INVENTORY')
     rows=[]
     for name in sorted(expected):
@@ -3039,7 +3041,7 @@ def raw_log_records(logs,expected,budget):
         except OSError as error:raise GateError('RAW_PRIVATE_FILE') from error
         try:
             before=os.fstat(fd)
-            require(stat.S_ISREG(before.st_mode) and before.st_uid==os.geteuid() and stat.S_IMODE(before.st_mode)==0o600 and before.st_nlink==1 and before.st_size<=LIMIT,'RAW_PRIVATE_FILE')
+            require(stat.S_ISREG(before.st_mode) and before.st_uid==os.geteuid() and stat.S_IMODE(before.st_mode)==0o600 and before.st_nlink==1 and before.st_size<=LIMIT and 0<before.st_dev<=2**64-1 and 0<before.st_ino<=2**64-1,'RAW_PRIVATE_FILE')
             require(budget[0]+before.st_size<=536870912,'RAW_SCAN_BYTES');budget[0]+=before.st_size
             value=hashlib.sha256();size=0
             while size<before.st_size:
@@ -3067,12 +3069,12 @@ def publish_raw_index(batch,runner,result,*,budget=None):
     require(raw_log_records(runner.logs,expected,budget)==files,'RAW_CHANGED')
     require(raw_log_records(runner.logs,expected,budget)==files,'RAW_INDEX_READBACK')
     value=dict(format_version=1,capability='c4_source_raw_index_v1',files=files,scan_bytes=budget[0]-scan_start);raw=canonical(value)
-    require(len(raw)<=512*1024,'RAW_INDEX_BYTES')
+    require(len(raw)<=RAW_INDEX_BYTES_LIMIT,'RAW_INDEX_BYTES')
     evidence=batch/'evidence';temporary='.raw-index-'+str(uuid.uuid4());new_private(evidence/temporary,raw)
     fd=os.open(evidence,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
     try:rename_no_replace(fd,temporary,fd,'raw-index.json')
     finally:os.close(fd)
-    readback,_=private_read(evidence/'raw-index.json',512*1024,uid=os.geteuid())
+    readback,_=private_read(evidence/'raw-index.json',RAW_INDEX_BYTES_LIMIT,uid=os.geteuid())
     require(readback==raw,'RAW_INDEX_READBACK')
     return dict(path='evidence/raw-index.json',size=len(raw),sha256=digest(raw))
 

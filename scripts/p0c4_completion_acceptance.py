@@ -331,7 +331,7 @@ def _verify_envelope(root,receipt,*,raw_budget=None,reserve_recheck=False):
     for key in ('plan_sha256','registry_provisioning_sha256','source_archive_sha256','source_manifest_sha256','application_build_sha256','binary_sha256'):
         require(type(receipt[key]) is str and registry.HEX64.fullmatch(receipt[key]),'RESULT_DIGEST')
     require(all(registry.integer(receipt[k],0,100000) for k in ('passed','failed','ignored')) and registry.integer(receipt['test_exit'],-255,255) and receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,'FAILED_UNUSABLE','UNCONFIRMED_UNUSABLE'),'RESULT_STATUS')
-    evidence.validate_ref(receipt['driver_result'],32*1024**2);evidence.validate_ref(receipt['raw_index'],512*1024)
+    evidence.validate_ref(receipt['driver_result'],32*1024**2);evidence.validate_ref(receipt['raw_index'],driver.RAW_INDEX_BYTES_LIMIT)
     plan_raw=private_read(root/'case-plan.json',65536);plan=validate_plan(registry.parse_record(plan_raw),receipt['case_name'])
     require(digest(plan_raw)==receipt['plan_sha256'] and all(receipt[k]==plan[k] for k in ('batch_id','case_id','case_name')) and receipt['test_name']==ALL_CASE_TESTS[receipt['case_name']],'RESULT_PLAN_LINK')
     source=plan['source']
@@ -386,8 +386,8 @@ def _verify_raw_evidence(root,receipt,nested,raw_budget,reserve_recheck):
         require(observation.get('capability')=='c4_host_routes_v1' and registry.integer(observation.get('route_count'),0,4096) and len(observation.get('routes',[]))==observation['route_count'],'RESULT_NATIVE_ROUTE_SCHEMA')
         raw_routes=relative_ref(batch,observation['raw_file'],1024*1024)
         require(digest(raw_routes)==observation['raw_sha256'] and len(raw_routes)==observation['scan_bytes'],'RESULT_NATIVE_ROUTE_HASH')
-    index=registry.parse_record(relative_ref(root,receipt['raw_index'],512*1024));require(set(index)=={'format_version','capability','files','scan_bytes'} and type(index['format_version']) is int and index['format_version']==1 and index['capability']=='c4_source_raw_index_v1' and type(index['files']) is list and len(index['files'])<=4096,'RESULT_RAW_INDEX_SCHEMA')
-    require(all(type(r) is dict and set(r)=={'path','size','sha256','dev','ino'} and type(r['path']) is str and r['path'].startswith('logs/') and len(r['path'].split('/'))==2 and registry.integer(r['size'],0,driver.LIMIT) and type(r['sha256']) is str and registry.HEX64.fullmatch(r['sha256']) and registry.integer(r['dev'],1) and registry.integer(r['ino'],1) for r in index['files']),'RESULT_RAW_INDEX_ENTRY')
+    index=registry.parse_record(relative_ref(root,receipt['raw_index'],driver.RAW_INDEX_BYTES_LIMIT));require(set(index)=={'format_version','capability','files','scan_bytes'} and type(index['format_version']) is int and index['format_version']==1 and index['capability']=='c4_source_raw_index_v1' and type(index['files']) is list and len(index['files'])<=driver.RAW_LOG_FILE_LIMIT,'RESULT_RAW_INDEX_SCHEMA')
+    require(all(type(r) is dict and set(r)=={'path','size','sha256','dev','ino'} and type(r['path']) is str and r['path'].startswith('logs/') and len(r['path'].split('/'))==2 and registry.integer(r['size'],0,driver.LIMIT) and type(r['sha256']) is str and registry.HEX64.fullmatch(r['sha256']) and registry.integer(r['dev'],1,2**64-1) and registry.integer(r['ino'],1,2**64-1) for r in index['files']),'RESULT_RAW_INDEX_ENTRY')
     logs=(root/receipt['raw_index']['path']).parent/'logs';expected={Path(r['path']).name for r in index['files']}
     require(registry.integer(index['scan_bytes'],0,536870912) and index['scan_bytes']==3*sum(r['size'] for r in index['files']),'RESULT_RAW_INDEX_SCAN_BYTES')
     require(len(expected)==len(index['files']) and driver.raw_log_records(logs,expected,raw_budget if raw_budget is not None else [0])==index['files'],'RESULT_RAW_LOG_HASHES')

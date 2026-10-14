@@ -359,6 +359,11 @@ class CompletionTests(unittest.TestCase):
         with patch.object(runner,'private_read',side_effect=lambda path,cap:reads[Path(path).name]),patch.object(runner,'relative_ref',side_effect=lambda root,ref,cap:runner.canonical(nested if ref['path'].endswith('/result.json') else index)),patch.object(runner.driver,'raw_log_records',return_value=[]):
             return runner._verify_envelope(Path('/root/case'),receipt,raw_budget=budget)
 
+    def test_envelope_reference_accepts_raw_index_above_old_subcap(self):
+        plan,issuer,nested,receipt=self.envelope()
+        receipt['raw_index']['size']=512*1024+1
+        self.assertEqual(self.check_envelope(plan,issuer,nested,receipt),receipt)
+
     def timed_envelope(self):
         fixture=self.envelope();case=fixture[2]['cases'][0]
         # Actual producer, including both history entries seen in the failed
@@ -556,6 +561,66 @@ class CompletionTests(unittest.TestCase):
             with patch.object(runner.driver,'expected_raw_logs',return_value={'0001.stdout'}),patch.object(runner.driver,'raw_log_records',side_effect=scan),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda *a,**kw:(written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
                 runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=budget)
             self.assertEqual(seen,[12,16,20]);self.assertEqual(runner.registry.parse_record(written[0])['scan_bytes'],12)
+        finally:runner.driver.LOG_RESERVATIONS.pop(str(logs),None)
+
+    def test_publisher_and_verifier_accept_observed_4403_logs_with_one_shared_bound(self):
+        from types import SimpleNamespace
+        logs=Path('/root/case/logs');batch=logs.parent
+        names={f'{number:04d}.stdout' for number in range(1,4404)}
+        files=[dict(path='logs/'+name,size=0,sha256='a'*64,dev=1,ino=number)
+               for number,name in enumerate(sorted(names),1)]
+        owned=SimpleNamespace(logs=logs,ownership=SimpleNamespace(children=[]))
+        written=[];read_caps=[]
+        runner.driver.LOG_RESERVATIONS[str(logs)]=dict(
+            producer_identities={name:(1,number) for number,name in enumerate(sorted(names),1)})
+        try:
+            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda path,cap,**kw:(read_caps.append(cap) or written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
+                ref=runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=[0])
+            self.assertGreater(len(written[0]),512*1024)
+            self.assertLessEqual(len(written[0]),2*1024**2)
+            self.assertEqual(len(runner.registry.parse_record(written[0])['files']),4403)
+            self.assertEqual(read_caps,[2*1024**2])
+
+            receipt=dict(driver_result=dict(path='evidence/result.json'),raw_index=ref)
+            nested=dict(host_route_observations=[]);verify_caps=[]
+            def relative(root,actual_ref,cap):
+                verify_caps.append(cap);return written[0]
+            with patch.object(runner,'relative_ref',side_effect=relative),patch.object(runner.driver,'raw_log_records',return_value=files) as consumer:
+                runner._verify_raw_evidence(Path('/root/case'),receipt,nested,[0],False)
+            self.assertEqual(verify_caps,[2*1024**2])
+            consumer.assert_called_once()
+        finally:runner.driver.LOG_RESERVATIONS.pop(str(logs),None)
+
+    def test_verifier_rejects_8193_log_records_before_raw_consumer(self):
+        files=[dict(path=f'logs/{number:04d}.stdout',size=0,sha256='a'*64,dev=1,ino=number)
+               for number in range(1,8194)]
+        index=runner.canonical(dict(format_version=1,capability='c4_source_raw_index_v1',files=files,scan_bytes=0))
+        receipt=dict(
+            driver_result=dict(path='evidence/result.json',size=1,sha256='b'*64),
+            raw_index=dict(path='evidence/raw-index.json',size=len(index),sha256=runner.digest(index)))
+        with patch.object(runner,'relative_ref',return_value=index),patch.object(runner.driver,'raw_log_records') as consumer:
+            with self.assertRaisesRegex(runner.CompletionError,'RESULT_RAW_INDEX_SCHEMA'):
+                runner._verify_raw_evidence(Path('/root/case'),receipt,dict(host_route_observations=[]),[0],False)
+            consumer.assert_not_called()
+
+    def test_publisher_serializes_8192_maximum_fixed_log_rows_below_two_mib(self):
+        from types import SimpleNamespace
+        logs=Path('/root/case/logs');batch=logs.parent
+        names={f'namespace-audits-00000000-0000-4000-8000-{number:012x}.json'
+               for number in range(1,8193)}
+        maximum=2**64-1
+        files=[dict(path='logs/'+name,size=runner.driver.LIMIT,sha256='f'*64,
+                    dev=maximum,ino=maximum-number)
+               for number,name in enumerate(sorted(names),1)]
+        owned=SimpleNamespace(logs=logs,ownership=SimpleNamespace(children=[]));written=[]
+        runner.driver.LOG_RESERVATIONS[str(logs)]=dict(
+            producer_identities={name:(maximum,maximum-number)
+                                 for number,name in enumerate(sorted(names),1)})
+        try:
+            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda *a,**kw:(written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
+                runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=[0])
+            self.assertEqual(len(runner.registry.parse_record(written[0])['files']),8192)
+            self.assertLessEqual(len(written[0]),2*1024**2)
         finally:runner.driver.LOG_RESERVATIONS.pop(str(logs),None)
 
     def test_late_raw_recheck_capacity_is_refused_before_pass_publication(self):

@@ -1512,6 +1512,30 @@ class RegistryFixtureAdaptationTests(unittest.TestCase):
             with self.assertRaisesRegex(driver.GateError,'RAW_PRIVATE_FILE'):driver.raw_log_records(logs,expected,[0])
             (logs/name).unlink();outside.unlink()
 
+    def test_raw_reader_accepts_4097_known_logs_and_rejects_8193_before_io(self):
+        import stat
+        from types import SimpleNamespace
+        names={f'{number:04d}.stdout' for number in range(1,4098)}
+        ordered=sorted(names);opened=[]
+        class Scan:
+            def __init__(self,values):self.values=values
+            def __enter__(self):return iter(SimpleNamespace(name=name) for name in self.values)
+            def __exit__(self,*args):return False
+        def open_log(path,flags):
+            opened.append(Path(path).name);return len(opened)
+        def metadata(fd):
+            return SimpleNamespace(st_dev=1,st_ino=fd,st_uid=0,st_mode=stat.S_IFREG|0o600,
+                                   st_nlink=1,st_size=0,st_mtime_ns=1,st_ctime_ns=1)
+        with patch.object(driver.os,'scandir',return_value=Scan(ordered)),patch.object(driver.os,'open',side_effect=open_log),patch.object(driver.os,'fstat',side_effect=metadata),patch.object(driver.os,'fsync'),patch.object(driver.os,'close'),patch.object(driver.os,'geteuid',return_value=0,create=True):
+            rows=driver.raw_log_records(Path('/private/logs'),names,[0])
+        self.assertEqual(len(rows),4097)
+        self.assertEqual(opened,ordered)
+
+        with patch.object(driver.os,'scandir') as scan,patch.object(driver.os,'open') as raw_open:
+            with self.assertRaisesRegex(driver.GateError,'RAW_KNOWN_LOG_NAMES'):
+                driver.raw_log_records(Path('/private/logs'),{f'{number:04d}.stdout' for number in range(1,8194)},[0])
+            scan.assert_not_called();raw_open.assert_not_called()
+
     def test_exact_completion_project_patterns(self):
         from scripts.p0c4_source_isolation import accepted_project
         self.assertTrue(accepted_project('kwc4c-'+'a'*32))
