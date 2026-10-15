@@ -4,7 +4,9 @@
 #[tokio::test]
 #[ignore = "fresh Root enrolled source and independently pinned held target"]
 async fn recovery_invalidates_unexpired_and_expired_source_tokens() {
-    crate::restore_preflight::target_binding::controlled_import::full::recovery_tests::leases().await.unwrap();
+    crate::restore_preflight::target_binding::controlled_import::full::recovery_tests::leases()
+        .await
+        .unwrap();
 }
 use super::*;
 use crate::FileRecord;

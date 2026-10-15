@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "date": "2026-10-15",
-  "source_commit": "49528e1e6ab1a2bbe44d5023332a7728ac163df0",
-  "previous_public_commit": "0bc2ca33f2c11c44cfa55da91ea664f1ade3220a",
-  "source_archive_sha256": "a84bbee7a13b98f0dcc074f663df4c8a0e702b45faee057d2339cf60ab4bd33f",
-  "source_manifest_sha256": "db259caf7cd5cb21f2826556e932f3a78487d2c51cf7a7c72afe3d768023b8fc",
+  "source_commit": "c342254ab545834ed8c29bd1a47c812fe22ef3e4",
+  "previous_public_commit": "9407885a6b0b93da091afe72712071e3345accc1",
+  "source_archive_sha256": "54435731a560e8cfb310de3c956e6878a818276422c4728d2ee168936711336e",
+  "source_manifest_sha256": "af2d05fd0b53781c57d0eb0de6943e270371f885a9e3ab75822850aa2e3c6d63",
   "source_file_count": 541,
   "excluded_source_files": [
     ".artifacts/.gitignore",
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 113552,
-      "sha256": "f746a5a4eccbf1a9a710ea2c0abf89e85baf13925298254fb78116aeb0507f22",
+      "bytes": 115321,
+      "sha256": "82a3ec1c6070d216558d39fe5b1e7d08313b39c97c5f13849bc731d69ba37de8",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3919,
-      "sha256": "088900445dd5d5d755d87092867b746b8aa47c3cb849a9bc64dd3321604e4495",
+      "bytes": 4103,
+      "sha256": "d35094e900575795879d0c9274cb3c8da12505078e1f0bdea3d848753dbf1738",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -302,9 +302,9 @@
     },
     {
       "path": "crates/learning-backup/src/full_restore/live_tests.rs",
-      "bytes": 10078,
-      "sha256": "e89f5f2053dae919ee5992eef3d5a65460b63da243ce3c442a3ca226d681019f",
-      "source_blob_sha256": "e89f5f2053dae919ee5992eef3d5a65460b63da243ce3c442a3ca226d681019f",
+      "bytes": 10096,
+      "sha256": "f404dcbbae9fa75320beb78464d647772b37499a7e5f7ed332715730e9f61416",
+      "source_blob_sha256": "f404dcbbae9fa75320beb78464d647772b37499a7e5f7ed332715730e9f61416",
       "source_bytes_preserved": true
     },
     {
@@ -337,9 +337,9 @@
     },
     {
       "path": "crates/learning-backup/src/full_restore/rehearsal_diagnostic.rs",
-      "bytes": 28153,
-      "sha256": "b60e0738a3453c664bf4620188112d4fabd34f464fdbc29cacb2bdb18e6cc484",
-      "source_blob_sha256": "b60e0738a3453c664bf4620188112d4fabd34f464fdbc29cacb2bdb18e6cc484",
+      "bytes": 28200,
+      "sha256": "7fac73f6465bccb23310cb3036a0c67990504879583f4bbb47e53bb0ee968d3b",
+      "source_blob_sha256": "7fac73f6465bccb23310cb3036a0c67990504879583f4bbb47e53bb0ee968d3b",
       "source_bytes_preserved": true
     },
     {
@@ -2689,8 +2689,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 46135,
-      "sha256": "18338af7854e2f7edf9dee6fd6e7f2e33000fcfe981bfdf57dae1c2ba3e2441c",
+      "bytes": 48038,
+      "sha256": "882e295198bc280bca10a685328cc93267facc01d2be001e35eb06fc10d66393",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -2710,8 +2710,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 15230,
-      "sha256": "2e3e5963bb4ee7784e5ff5419832d1f1b8c1abfd9860af7acacb3ba38dcd2861",
+      "bytes": 16666,
+      "sha256": "cc917875b118fbf35b43b33eadde007e5bedb2dc8b194c62affbf772e3f3b3fe",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3361,8 +3361,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 1803,
-      "sha256": "6e68f64e438de9e673f16813c69b71f4544a9b943d2e834f1bc7c9c3e3157cd8",
+      "bytes": 1922,
+      "sha256": "7545e6b6d96239ad247486bdbe2a114a801511a9df8656a133385d163c12c24a",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3410,8 +3410,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 10672,
-      "sha256": "b68566710bf88e68955f59e25ec2c782e3bacde7ede0fa440beedaaa5054ce48",
+      "bytes": 11892,
+      "sha256": "547b05530b4f3fad4df9326132c2414459fb1689dffe90fdae2f161563ffcde2",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3550,9 +3550,9 @@
     },
     {
       "path": "scripts/p0c4_completion/controlled_fixture.py",
-      "bytes": 87287,
-      "sha256": "1546c61bc41956fb8b35a3c446cdd2776f84c77ec7486b12311e05132aff49f7",
-      "source_blob_sha256": "1546c61bc41956fb8b35a3c446cdd2776f84c77ec7486b12311e05132aff49f7",
+      "bytes": 87479,
+      "sha256": "42bf5ece76bd675fb216469e1585016d00cdbd9c1dc5bda4405a55cf6087745a",
+      "source_blob_sha256": "42bf5ece76bd675fb216469e1585016d00cdbd9c1dc5bda4405a55cf6087745a",
       "source_bytes_preserved": true
     },
     {
@@ -3802,9 +3802,9 @@
     },
     {
       "path": "scripts/test_p0c4_controlled_fixture_context.py",
-      "bytes": 43352,
-      "sha256": "09335d96fe5343c5ea9bfaa8643aba7549bc2a3a2229be5ef24322d598852b7b",
-      "source_blob_sha256": "09335d96fe5343c5ea9bfaa8643aba7549bc2a3a2229be5ef24322d598852b7b",
+      "bytes": 49064,
+      "sha256": "ef31a5c5c44106a6a9656578e8472e9cdf03f2480961404c83f84a9388e747ed",
+      "source_blob_sha256": "ef31a5c5c44106a6a9656578e8472e9cdf03f2480961404c83f84a9388e747ed",
       "source_bytes_preserved": true
     },
     {

@@ -879,7 +879,9 @@ class ControlledFixtureContext:
         meta=value['roots']['target_pg']['identity']
         measured=value['roots']['target_pg']
         _require(type(measured) is dict and set(measured)=={'identity','tree_sha256','entries','bytes'} and type(measured['tree_sha256']) is str and re.fullmatch('[0-9a-f]{64}',measured['tree_sha256']) is not None and type(measured['entries']) is int and 0<=measured['entries']<=100010 and type(measured['bytes']) is int and 0<=measured['bytes']<2**64,'CONTROLLED_PG_MEASUREMENT_SHAPE')
-        _require(set(meta)=={'path','dev','ino','uid','gid','mode'} and meta['path']==row['Mountpoint'] and all(type(meta[k]) is int and 0<meta[k]<2**64 for k in ('dev','ino')) and meta['uid']==meta['gid']==999 and type(meta['mode']) is int and not meta['mode']&0o022,'CONTROLLED_PG_REAL_INODE')
+        # The nocopy Docker volume root is root-owned; PG18's 18/docker PGDATA
+        # is below it. Birth binds this measured mountpoint, not the PGDATA leaf.
+        _require(set(meta)=={'path','dev','ino','uid','gid','mode'} and meta['path']==row['Mountpoint'] and all(type(meta[k]) is int and 0<meta[k]<2**64 for k in ('dev','ino')) and all(type(meta[k]) is int and meta[k]==0 for k in ('uid','gid')) and type(meta['mode']) is int and meta['mode']==0o755,'CONTROLLED_PG_REAL_INODE')
         side['record']['pg_root_measurement']=value
         return meta['dev'],meta['ino']
 

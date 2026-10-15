@@ -111,7 +111,9 @@ impl Failure {
                     "full target isolation unconfirmed" => "ISOLATION_UNCONFIRMED",
                     "full writer observation missing" => "OBSERVATION_MISSING",
                     "full rehearsal report" => "REPORT_INVALID",
-                    "RECOVERY_SOURCE_LEASES_SURVIVED_IMPORT" => "RECOVERY_SOURCE_LEASES_SURVIVED_IMPORT",
+                    "RECOVERY_SOURCE_LEASES_SURVIVED_IMPORT" => {
+                        "RECOVERY_SOURCE_LEASES_SURVIVED_IMPORT"
+                    }
                     "full body target stop unconfirmed" => "STOP_INSPECTION_UNCONFIRMED",
                     "full schema contract" => "SCHEMA_CONTRACT_REJECTED",
                     "fixed PG18 decoder" => "FIXED_DECODER_REJECTED",

@@ -461,6 +461,93 @@ class MaterializationTests(unittest.TestCase):
             with self.assertRaises(fixture.ControlledRejected):method(self.build,changed,'a'*64,'b'*64)
 
 
+class PgBirthMeasurementTests(unittest.TestCase):
+    """The pinned PG18 nocopy volume root is not its 18/docker PGDATA leaf."""
+    def setUp(self):
+        self.source='e937207f-e29a-43d7-a64d-a66bf8617144'
+        self.target='d6a70c69-e7c7-42f3-8852-bcd1cee1abfd'
+        self.project='learning-system-p0c4-restore-'+self.source
+        self.volume=self.project+'_pg'
+        self.path='/var/lib/docker/volumes/'+self.volume+'/_data'
+        self.ids=dict(container_id='a'*64,volume_name=self.volume,volume_mountpoint=self.path)
+        self.volume_row=dict(Name=self.volume,Mountpoint=self.path,Driver='local',Scope='local',
+            Options=None,Labels={'com.docker.compose.project':self.project})
+        # Metadata from the failed 49528e1 run's 0308.stdout (SHA ff59cb58...842c6).
+        # Its fixed RO helper exited 0. No source data or credentials are copied.
+        self.measured=dict(phase='birth',source_case_id=self.target,target_case_id=self.source,
+            roots=dict(target_pg=dict(identity=dict(path=self.path,dev=64512,ino=6435204,
+                uid=0,gid=0,mode=0o755),tree_sha256='5da9f7458c8a19a83a4652b3958c9555c82db795881c2b50201e58af00b84827',
+                entries=1302,bytes=48336861)))
+        self.record={}
+
+    def measure(self,value=None,volume=None):
+        from unittest.mock import patch
+        import p0c4_source_lifecycle_gate_acceptance as driver
+        from p0c4_completion import full_target_fs
+        row=self.volume_row if volume is None else volume
+        side=dict(role='source',case_id=self.source,identity=dict(volume=self.volume,project=self.project),record=self.record)
+        expected_mounts=[('volume',self.volume,self.path,True)]
+        expected_command=['python3','-I','-u','-c',full_target_fs.MEASURE_PROGRAM]
+        requested=[];checked=[]
+        def inspect(kind,name):
+            self.assertEqual((kind,name),('volume',self.volume));return row
+        def current(identity,cid):
+            self.assertEqual((identity,cid),(side['identity'],self.ids['container_id']));checked.append(True)
+        context=SimpleNamespace(_current=lambda:side,_require_current_container=current,
+            _runner=SimpleNamespace(inspect=inspect),_plan=dict(source_case_id=self.source,target_case_id=self.target),
+            _h=object(),_binding=object(),_result={},_images={fixture._BUILDER:object()})
+        def helper(*args,**kwargs):
+            mounts,command=args[-2:]
+            self.assertEqual(mounts,expected_mounts);self.assertEqual(command,expected_command)
+            self.assertTrue(kwargs['interactive'])
+            profile=kwargs['_full_profile'];profile._request(mounts,command,True,False,None)
+            self.assertEqual(profile._args(['--user=0:0']),['--user=999:999'])
+            def run(*,stdin,timeout):
+                self.assertEqual(timeout,30)
+                request=json.loads(stdin);requested.append(request)
+                self.assertEqual(request,dict(phase='birth',source_case_id=self.target,target_case_id=self.source,
+                    roots=dict(target_pg=dict(name=self.volume,path=self.path))))
+                return 0,fixture._canonical(self.measured if value is None else value)+b'\n',b''
+            return SimpleNamespace(run=run)
+        with patch.object(driver,'HelperContainer',side_effect=helper):
+            result=fixture.ControlledFixtureContext._measure_birth_pg(context,self.ids)
+        self.assertEqual(checked,[True]);self.assertEqual(len(requested),1)
+        return result
+
+    def test_actual_nocopy_root_is_accepted_without_changing_helper_or_birth_inode(self):
+        self.assertEqual(self.measure(),(64512,6435204))
+        self.assertEqual(self.record['pg_root_measurement'],self.measured)
+
+    def test_root_owner_is_exact_integer_root_not_pgdata_user(self):
+        for field in ('uid','gid'):
+            for owner in (999,1,-1,False,True,0.0,'0',None):
+                value=json.loads(json.dumps(self.measured));value['roots']['target_pg']['identity'][field]=owner
+                with self.subTest(field=field,owner=owner),self.assertRaises(fixture.ControlledRejected):self.measure(value)
+        self.assertNotIn('pg_root_measurement',self.record)
+
+    def test_root_mode_is_exact_nocopy_directory_mode(self):
+        for mode in (0o700,0o750,0o775,0o777,0o1755,0,-1,False,493.0,'493'):
+            value=json.loads(json.dumps(self.measured));value['roots']['target_pg']['identity']['mode']=mode
+            with self.subTest(mode=mode),self.assertRaises(fixture.ControlledRejected):self.measure(value)
+        self.assertNotIn('pg_root_measurement',self.record)
+
+    def test_path_inode_role_tree_and_budget_binding_remain_required(self):
+        import copy
+        for mutation in ('leaf-path','foreign-path','dev','ino','bool-dev','role','extra-root','tree','entries','bytes'):
+            value=copy.deepcopy(self.measured);measured=value['roots']['target_pg'];meta=measured['identity']
+            if mutation=='leaf-path':meta['path']+='/18/docker'
+            elif mutation=='foreign-path':meta['path']=self.path.replace(self.source,self.target)
+            elif mutation in ('dev','ino'):meta[mutation]=0
+            elif mutation=='bool-dev':meta['dev']=True
+            elif mutation=='role':value['target_case_id']=self.target
+            elif mutation=='extra-root':value['roots']['source_pg']=measured
+            elif mutation=='tree':measured['tree_sha256']='invalid'
+            elif mutation=='entries':measured['entries']=100011
+            else:measured['bytes']=2**64
+            with self.subTest(mutation=mutation),self.assertRaises(fixture.ControlledRejected):self.measure(value)
+        self.assertNotIn('pg_root_measurement',self.record)
+
+
 class ConfigurationTests(unittest.TestCase):
     def fixture(self):
         batch, source, target = (str(uuid.uuid4()) for _ in range(3))
