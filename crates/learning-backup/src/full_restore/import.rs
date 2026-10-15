@@ -77,7 +77,8 @@ struct VerifiedPackage {
 }
 enum PackageAuthority {
     Complete {
-        _destination: crate::EnrolledDestination,
+        // Keep the destination lease owned until the containing package drops.
+        _destination: Box<crate::EnrolledDestination>,
         _proof: crate::CapturedSourceProof,
     },
     #[cfg(test)]
@@ -142,7 +143,7 @@ impl VerifiedPackage {
             plan,
             roles,
             authority: PackageAuthority::Complete {
-                _destination: destination,
+                _destination: Box::new(destination),
                 _proof: proof,
             },
         })
@@ -187,11 +188,10 @@ impl OwnedRestoreAdmission {
         .map_err(error)?;
         let roles_result=verify_roles(admitted.sql_session.lease_mut(), roles).await;
         #[cfg(test)]
-        if matches!(&roles_result, Err(BackupError::Invalid("full restore role recipe differs"))) {
-            if let Some(audit)=current_audit().filter(|a| a.stage==Boundary::Roles) {
+        if matches!(&roles_result, Err(BackupError::Invalid("full restore role recipe differs")))
+            && let Some(audit)=current_audit().filter(|a| a.stage==Boundary::Roles) {
                 audit.refusal(Boundary::Roles);
                 if audit.after(admitted.sql_session.lease_mut(), &config, &control, &assets).await.is_err() { audit.failed(); }
-            }
         }
         roles_result?;
         let birth = preflight::read_private_target_file(
@@ -1105,10 +1105,10 @@ impl CandidateIo for FullIo<'_> {
     }
     async fn quarantine(&mut self) -> bool {
         #[cfg(test)]
-        if let Some(audit) = current_audit().filter(|a| a.stage == Boundary::WriterRoute) {
-            if audit.after_target(self.target).await.is_err() {
-                audit.failed();
-            }
+        if let Some(audit) = current_audit().filter(|a| a.stage == Boundary::WriterRoute)
+            && audit.after_target(self.target).await.is_err()
+        {
+            audit.failed();
         }
         self.target.stop().await.is_ok()
     }
@@ -1284,350 +1284,6 @@ fn expected_catalog(roles: &[u8]) -> Result<serde_json::Value, BackupError> {
         target["connection_limit"] = source["connection_limit"].clone();
     }
     Ok(expected)
-}
-
-#[cfg(test)]
-mod catalog_context_tests {
-    use super::*;
-    use sqlx::{Connection, TransactionManager, postgres::PgConnectOptions};
-    use std::{io::Write, os::unix::fs::MetadataExt, path::Path, str::FromStr};
-
-    const EMPTY: &str = "SELECT (SELECT count(*) FROM pg_catalog.pg_class WHERE relnamespace='public'::pg_catalog.regnamespace)+(SELECT count(*) FROM pg_catalog.pg_proc WHERE pronamespace='public'::pg_catalog.regnamespace)+(SELECT count(*) FROM pg_catalog.pg_type WHERE typnamespace='public'::pg_catalog.regnamespace)";
-    const SETUP: &str = "CREATE TABLE public.c6_parent(id integer PRIMARY KEY); CREATE TABLE public.c6_child(id integer PRIMARY KEY,parent_id integer REFERENCES public.c6_parent(id)); CREATE FUNCTION public.c6_touch() RETURNS trigger LANGUAGE plpgsql AS $c6$ BEGIN RETURN NEW; END $c6$; CREATE TRIGGER c6_touch BEFORE INSERT ON public.c6_child FOR EACH ROW EXECUTE FUNCTION public.c6_touch(); GRANT SELECT ON public.c6_parent TO learning_runtime;";
-    const CLEANUP: &str =
-        "DROP TABLE public.c6_child; DROP TABLE public.c6_parent; DROP FUNCTION public.c6_touch();";
-
-    async fn fixture() -> (PgConnection, BackupDir, String) {
-        assert_eq!(
-            unsafe { libc::geteuid() },
-            0,
-            "C6 requires the fresh Root fixture"
-        );
-        let database = std::env::var("TEST_C4_C6_DATABASE").expect("C6 exact database missing");
-        let suffix = database
-            .strip_prefix("learning_catalog_c6_")
-            .expect("C6 dedicated namespace required");
-        let id = uuid::Uuid::parse_str(suffix).expect("C6 canonical UUID missing");
-        assert!(
-            id.get_version_num() == 4
-                && id.get_variant() == uuid::Variant::RFC4122
-                && id.to_string() == suffix
-        );
-        let dsn_path =
-            std::env::var("TEST_C4_C6_ADMIN_DSN_FILE").expect("C6 private DSN file missing");
-        let dsn_path = Path::new(&dsn_path);
-        assert!(dsn_path.is_absolute());
-        let parent = BackupDir::open_trusted_private_root(dsn_path.parent().unwrap())
-            .expect("C6 private credential directory required");
-        let file = parent
-            .open_file(dsn_path.file_name().unwrap().to_str().unwrap())
-            .expect("C6 no-follow DSN file required");
-        let meta = file.metadata().unwrap();
-        assert!(
-            meta.is_file()
-                && meta.uid() == 0
-                && meta.mode() & 0o7777 == 0o600
-                && meta.nlink() == 1
-                && meta.len() <= 16384
-        );
-        let mut raw = Vec::new();
-        file.take(16385).read_to_end(&mut raw).unwrap();
-        let dsn = std::str::from_utf8(&raw).unwrap_or_else(|_| panic!("C6 DSN encoding rejected"));
-        let options = PgConnectOptions::from_str(dsn.trim())
-            .unwrap_or_else(|_| panic!("C6 DSN grammar rejected"));
-        assert!(
-            options.get_database() == Some(database.as_str())
-                && options.get_username() == "learning_admin"
-                && options.get_socket().map(|p| p.as_path())
-                    == Some(Path::new("/var/run/postgresql")),
-            "C6 DSN identity/socket rejected"
-        );
-        let mut conn = PgConnection::connect_with(&options)
-            .await
-            .unwrap_or_else(|_| panic!("C6 private PG connection rejected"));
-        let identity: (String, String, String, i32) = sqlx::query_as("SELECT pg_catalog.current_database()::text,current_user::text,session_user::text,pg_catalog.current_setting('server_version_num')::integer").fetch_one(&mut conn).await.unwrap();
-        assert!(
-            identity.0 == database
-                && identity.1 == "learning_admin"
-                && identity.2 == "learning_admin"
-                && identity.3 == 180006,
-            "C6 server/database/session rejected"
-        );
-        let roles = serde_json::json!({"format_version":1,"roles":[
-            {"name":"learning_admin","login":true,"inherit":true,"superuser":false,"createdb":false,"createrole":false,"bypassrls":false,"replication":false,"connection_limit":-1},
-            {"name":"learning_auth_lock","login":false,"inherit":true,"superuser":false,"createdb":false,"createrole":false,"bypassrls":false,"replication":false,"connection_limit":-1},
-            {"name":"learning_runtime","login":true,"inherit":true,"superuser":false,"createdb":false,"createrole":false,"bypassrls":false,"replication":false,"connection_limit":-1}],
-            "memberships":[{"role":"learning_auth_lock","member":"learning_admin","inherit":false,"set":true,"admin":false}]});
-        verify_roles(&mut conn, &serde_json::to_vec(&roles).unwrap())
-            .await
-            .expect("C6 safe role recipe and runtime closure required");
-        let facts: (String, bool, bool, bool, bool) = sqlx::query_as("SELECT pg_catalog.pg_get_userbyid(nspowner)::text,pg_catalog.has_schema_privilege('learning_admin','public','CREATE'),pg_catalog.has_schema_privilege('learning_runtime','public','CREATE'),pg_catalog.has_function_privilege('learning_admin','pg_catalog.pg_control_system()','EXECUTE'),pg_catalog.has_function_privilege('learning_runtime','pg_catalog.pg_control_system()','EXECUTE') FROM pg_catalog.pg_namespace WHERE nspname='public'").fetch_one(&mut conn).await.unwrap();
-        assert!(
-            facts.0 == "pg_database_owner" && facts.1 && !facts.2 && facts.3 && !facts.4,
-            "C6 fixture privilege boundary rejected"
-        );
-        assert_eq!(
-            sqlx::query_scalar::<_, i64>(EMPTY)
-                .fetch_one(&mut conn)
-                .await
-                .unwrap(),
-            0,
-            "C6 fresh empty public required"
-        );
-        let proof_root =
-            std::env::var("TEST_C4_C6_PROOF_ROOT").expect("C6 fresh private proof root missing");
-        let proof = BackupDir::open_trusted_private_root(Path::new(&proof_root))
-            .expect("C6 Root-only no-follow proof directory required");
-        (conn, proof, database)
-    }
-
-    async fn path(conn: &mut PgConnection, value: &str) {
-        sqlx::query("SELECT pg_catalog.set_config('search_path',$1,true)")
-            .bind(value)
-            .execute(conn)
-            .await
-            .unwrap();
-    }
-    async fn setup(conn: &mut PgConnection) -> serde_json::Value {
-        sqlx::raw_sql(SETUP).execute(&mut *conn).await.unwrap();
-        path(conn, "pg_catalog,public").await;
-        sqlx::query_scalar(CATALOG_SQL)
-            .fetch_one(conn)
-            .await
-            .unwrap()
-    }
-    async fn identity(conn: &mut PgConnection) -> (i32, i64, String) {
-        sqlx::query_as("SELECT pg_catalog.pg_backend_pid(),(SELECT (EXTRACT(EPOCH FROM a.backend_start)*1000000)::bigint FROM pg_catalog.pg_stat_activity a WHERE a.pid=pg_catalog.pg_backend_pid()),pg_catalog.pg_current_xact_id()::text").fetch_one(conn).await.unwrap()
-    }
-    fn assertion(expected: &serde_json::Value) -> String {
-        writer_sql::assertion(
-            &format!(
-                "({})::jsonb='{}'::jsonb",
-                CATALOG_SQL.trim_end_matches(';'),
-                expected.to_string().replace('\'', "''")
-            ),
-            "CATALOG",
-        )
-    }
-    fn catalog_refusal(result: &Result<sqlx::postgres::PgQueryResult, sqlx::Error>) -> bool {
-        matches!(result, Err(sqlx::Error::Database(error)) if error.message() == "KW_C4_CATALOG")
-    }
-    fn proof(root: &BackupDir, name: &str, value: serde_json::Value) {
-        let bytes = serde_json::to_vec(&value).unwrap();
-        assert!(bytes.len() <= 4096);
-        let mut file = root
-            .create_file(name)
-            .expect("C6 create-new proof required");
-        file.write_all(&bytes).unwrap();
-        file.sync_all().unwrap();
-        root.sync().unwrap();
-    }
-
-    #[tokio::test]
-    #[ignore = "fresh Root PG18.6 C6 database/socket/credential/proof fixture required"]
-    async fn c6_writer_guard_restores_empty_path_and_keeps_strict_catalog() {
-        let (mut conn, root, database) = fixture().await;
-        let mut tx = conn.begin().await.unwrap();
-        let expected = setup(&mut tx).await;
-        path(&mut tx, "").await;
-        let before = identity(&mut tx).await;
-        let mut attempt = tx.begin().await.unwrap();
-        let result = sqlx::raw_sql(&catalog_context::guard(&assertion(&expected), ""))
-            .execute(&mut *attempt)
-            .await;
-        let normal_restore = if result.is_ok() {
-            Some(
-                sqlx::query_scalar::<_, String>("SELECT pg_catalog.current_setting('search_path')")
-                    .fetch_one(&mut *attempt)
-                    .await
-                    .unwrap()
-                    .is_empty(),
-            )
-        } else {
-            None
-        };
-        let original_refusal = catalog_refusal(&result);
-        attempt.rollback().await.unwrap();
-        let same_identity = before == identity(&mut tx).await;
-        let restored: String =
-            sqlx::query_scalar("SELECT pg_catalog.current_setting('search_path')")
-                .fetch_one(&mut *tx)
-                .await
-                .unwrap();
-        tx.rollback().await.unwrap();
-        let empty = sqlx::query_scalar::<_, i64>(EMPTY)
-            .fetch_one(&mut conn)
-            .await
-            .unwrap()
-            == 0;
-        proof(
-            &root,
-            "c6-writer.json",
-            serde_json::json!({"scope":"C6_ISOLATED_RENDER_TEST_NOT_AUTHORITY","database":database,"passed":result.is_ok(),"original_catalog_refusal":original_refusal,"normal_restore":normal_restore,"same_identity":same_identity,"rollback_restore":restored.is_empty(),"public_empty":empty}),
-        );
-        assert!(same_identity && restored.is_empty() && empty);
-        assert!(
-            result.is_ok() && normal_restore == Some(true),
-            "C6_WRITER_RENDER_CONTEXT_RED"
-        );
-    }
-
-    #[tokio::test]
-    #[ignore = "fresh Root PG18.6 C6 database/socket/credential/proof fixture required"]
-    async fn c6_readback_uses_same_render_context_and_restores_path() {
-        let (mut conn, root, database) = fixture().await;
-        let mut tx = conn.begin().await.unwrap();
-        let expected = setup(&mut tx).await;
-        path(&mut tx, "").await;
-        let before = identity(&mut tx).await;
-        let caller_depth = sqlx::postgres::PgTransactionManager::get_transaction_depth(&tx);
-        let actual = read_catalog(&mut tx).await.unwrap();
-        let caller_depth_retained =
-            caller_depth == sqlx::postgres::PgTransactionManager::get_transaction_depth(&tx);
-        let strict_equal = actual == expected;
-        let changed: Vec<&str> = [
-            "database",
-            "schemas",
-            "relations",
-            "column_acl",
-            "functions",
-            "roles",
-            "memberships",
-            "default_acl",
-            "constraints",
-            "triggers",
-        ]
-        .into_iter()
-        .filter(|key| actual[*key] != expected[*key])
-        .collect();
-        let same_identity = before == identity(&mut tx).await;
-        let restored: String =
-            sqlx::query_scalar("SELECT pg_catalog.current_setting('search_path')")
-                .fetch_one(&mut *tx)
-                .await
-                .unwrap();
-        tx.rollback().await.unwrap();
-        let rolled_back_fixture_empty = sqlx::query_scalar::<_, i64>(EMPTY)
-            .fetch_one(&mut conn)
-            .await
-            .unwrap()
-            == 0;
-        assert!(rolled_back_fixture_empty);
-        // Only this fresh isolated test database may persist a tiny fixture.
-        // The production reader must restore context without a caller TX too.
-        let original_path: String =
-            sqlx::query_scalar("SELECT pg_catalog.current_setting('search_path')")
-                .fetch_one(&mut conn)
-                .await
-                .unwrap();
-        let mut fixture_tx = conn.begin().await.unwrap();
-        let no_tx_expected = setup(&mut fixture_tx).await;
-        fixture_tx.commit().await.unwrap();
-        sqlx::query("SELECT pg_catalog.set_config('search_path','',false)")
-            .execute(&mut conn)
-            .await
-            .unwrap();
-        let no_tx_depth_before = sqlx::postgres::PgTransactionManager::get_transaction_depth(&conn);
-        let no_tx_actual = read_catalog(&mut conn).await;
-        let no_tx_strict_equal = no_tx_actual
-            .as_ref()
-            .is_ok_and(|actual| *actual == no_tx_expected);
-        let no_tx_depth_after = sqlx::postgres::PgTransactionManager::get_transaction_depth(&conn);
-        let no_tx_restored =
-            sqlx::query_scalar::<_, String>("SELECT pg_catalog.current_setting('search_path')")
-                .fetch_one(&mut conn)
-                .await
-                .is_ok_and(|path| path.is_empty());
-        let cleanup_ok = sqlx::raw_sql(CLEANUP).execute(&mut conn).await.is_ok();
-        let session_restore_ok =
-            sqlx::query("SELECT pg_catalog.set_config('search_path',$1,false)")
-                .bind(&original_path)
-                .execute(&mut conn)
-                .await
-                .is_ok();
-        let empty = sqlx::query_scalar::<_, i64>(EMPTY)
-            .fetch_one(&mut conn)
-            .await
-            .is_ok_and(|count| count == 0);
-        proof(
-            &root,
-            "c6-readback.json",
-            serde_json::json!({"scope":"C6_ISOLATED_RENDER_TEST_NOT_AUTHORITY","database":database,"strict_equal":strict_equal,"differing_keys":changed,"same_identity":same_identity,"path_restored":restored.is_empty(),"caller_depth_retained":caller_depth_retained,"public_empty":empty,"without_caller_tx":{"strict_equal":no_tx_strict_equal,"path_restored":no_tx_restored,"depth_before":no_tx_depth_before,"depth_after":no_tx_depth_after,"fixture_cleanup":cleanup_ok,"session_restore":session_restore_ok}}),
-        );
-        assert!(same_identity && restored.is_empty() && caller_depth_retained && empty);
-        assert!(
-            no_tx_strict_equal
-                && no_tx_restored
-                && no_tx_depth_before == 0
-                && no_tx_depth_after == 0
-                && cleanup_ok
-                && session_restore_ok,
-            "C6_NO_CALLER_TX_RENDER_CONTEXT_FAILED"
-        );
-        assert!(strict_equal, "C6_READBACK_RENDER_CONTEXT_RED");
-    }
-
-    #[tokio::test]
-    #[ignore = "fresh Root PG18.6 C6 database/socket/credential/proof fixture required"]
-    async fn c6_real_definition_and_acl_changes_still_reject() {
-        let (mut conn, root, database) = fixture().await;
-        let mut observed = Vec::new();
-        for (key, mutation) in [
-            (
-                "constraints",
-                "ALTER TABLE public.c6_child DROP CONSTRAINT c6_child_parent_id_fkey; ALTER TABLE public.c6_child ADD CONSTRAINT c6_child_parent_id_fkey FOREIGN KEY(parent_id) REFERENCES public.c6_parent(id) ON DELETE CASCADE;",
-            ),
-            (
-                "relations",
-                "REVOKE SELECT ON public.c6_parent FROM learning_runtime;",
-            ),
-            (
-                "triggers",
-                "ALTER TABLE public.c6_child DISABLE TRIGGER c6_touch;",
-            ),
-        ] {
-            let mut tx = conn.begin().await.unwrap();
-            let expected = setup(&mut tx).await;
-            sqlx::raw_sql(mutation).execute(&mut *tx).await.unwrap();
-            let actual: serde_json::Value = sqlx::query_scalar(CATALOG_SQL)
-                .fetch_one(&mut *tx)
-                .await
-                .unwrap();
-            let real_change = actual[key] != expected[key];
-            path(&mut tx, "").await;
-            let before = identity(&mut tx).await;
-            let mut attempt = tx.begin().await.unwrap();
-            let result = sqlx::raw_sql(&catalog_context::guard(&assertion(&expected), ""))
-                .execute(&mut *attempt)
-                .await;
-            let refused = catalog_refusal(&result);
-            attempt.rollback().await.unwrap();
-            let same_identity = before == identity(&mut tx).await;
-            tx.rollback().await.unwrap();
-            let empty = sqlx::query_scalar::<_, i64>(EMPTY)
-                .fetch_one(&mut conn)
-                .await
-                .unwrap()
-                == 0;
-            observed.push(serde_json::json!({"key":key,"real_change":real_change,"strict_refusal":refused,"same_identity":same_identity,"public_empty":empty}));
-        }
-        let passed = observed.iter().all(|row| {
-            [
-                "real_change",
-                "strict_refusal",
-                "same_identity",
-                "public_empty",
-            ]
-            .into_iter()
-            .all(|key| row[key] == true)
-        });
-        proof(
-            &root,
-            "c6-mutations.json",
-            serde_json::json!({"scope":"C6_ISOLATED_RENDER_TEST_NOT_AUTHORITY","database":database,"mutations":observed,"passed":passed}),
-        );
-        assert!(passed, "C6_REAL_MUTATION_STRICT_REFUSAL_FAILED");
-    }
 }
 
 #[cfg(test)]
@@ -2137,4 +1793,348 @@ pub fn verified_complete_role_recipe(backup_id: uuid::Uuid) -> Result<Vec<u8>, B
         return Err(BackupError::Capacity("verified role observation"));
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod catalog_context_tests {
+    use super::*;
+    use sqlx::{Connection, TransactionManager, postgres::PgConnectOptions};
+    use std::{io::Write, os::unix::fs::MetadataExt, path::Path, str::FromStr};
+
+    const EMPTY: &str = "SELECT (SELECT count(*) FROM pg_catalog.pg_class WHERE relnamespace='public'::pg_catalog.regnamespace)+(SELECT count(*) FROM pg_catalog.pg_proc WHERE pronamespace='public'::pg_catalog.regnamespace)+(SELECT count(*) FROM pg_catalog.pg_type WHERE typnamespace='public'::pg_catalog.regnamespace)";
+    const SETUP: &str = "CREATE TABLE public.c6_parent(id integer PRIMARY KEY); CREATE TABLE public.c6_child(id integer PRIMARY KEY,parent_id integer REFERENCES public.c6_parent(id)); CREATE FUNCTION public.c6_touch() RETURNS trigger LANGUAGE plpgsql AS $c6$ BEGIN RETURN NEW; END $c6$; CREATE TRIGGER c6_touch BEFORE INSERT ON public.c6_child FOR EACH ROW EXECUTE FUNCTION public.c6_touch(); GRANT SELECT ON public.c6_parent TO learning_runtime;";
+    const CLEANUP: &str =
+        "DROP TABLE public.c6_child; DROP TABLE public.c6_parent; DROP FUNCTION public.c6_touch();";
+
+    async fn fixture() -> (PgConnection, BackupDir, String) {
+        assert_eq!(
+            unsafe { libc::geteuid() },
+            0,
+            "C6 requires the fresh Root fixture"
+        );
+        let database = std::env::var("TEST_C4_C6_DATABASE").expect("C6 exact database missing");
+        let suffix = database
+            .strip_prefix("learning_catalog_c6_")
+            .expect("C6 dedicated namespace required");
+        let id = uuid::Uuid::parse_str(suffix).expect("C6 canonical UUID missing");
+        assert!(
+            id.get_version_num() == 4
+                && id.get_variant() == uuid::Variant::RFC4122
+                && id.to_string() == suffix
+        );
+        let dsn_path =
+            std::env::var("TEST_C4_C6_ADMIN_DSN_FILE").expect("C6 private DSN file missing");
+        let dsn_path = Path::new(&dsn_path);
+        assert!(dsn_path.is_absolute());
+        let parent = BackupDir::open_trusted_private_root(dsn_path.parent().unwrap())
+            .expect("C6 private credential directory required");
+        let file = parent
+            .open_file(dsn_path.file_name().unwrap().to_str().unwrap())
+            .expect("C6 no-follow DSN file required");
+        let meta = file.metadata().unwrap();
+        assert!(
+            meta.is_file()
+                && meta.uid() == 0
+                && meta.mode() & 0o7777 == 0o600
+                && meta.nlink() == 1
+                && meta.len() <= 16384
+        );
+        let mut raw = Vec::new();
+        file.take(16385).read_to_end(&mut raw).unwrap();
+        let dsn = std::str::from_utf8(&raw).unwrap_or_else(|_| panic!("C6 DSN encoding rejected"));
+        let options = PgConnectOptions::from_str(dsn.trim())
+            .unwrap_or_else(|_| panic!("C6 DSN grammar rejected"));
+        assert!(
+            options.get_database() == Some(database.as_str())
+                && options.get_username() == "learning_admin"
+                && options.get_socket().map(|p| p.as_path())
+                    == Some(Path::new("/var/run/postgresql")),
+            "C6 DSN identity/socket rejected"
+        );
+        let mut conn = PgConnection::connect_with(&options)
+            .await
+            .unwrap_or_else(|_| panic!("C6 private PG connection rejected"));
+        let identity: (String, String, String, i32) = sqlx::query_as("SELECT pg_catalog.current_database()::text,current_user::text,session_user::text,pg_catalog.current_setting('server_version_num')::integer").fetch_one(&mut conn).await.unwrap();
+        assert!(
+            identity.0 == database
+                && identity.1 == "learning_admin"
+                && identity.2 == "learning_admin"
+                && identity.3 == 180006,
+            "C6 server/database/session rejected"
+        );
+        let roles = serde_json::json!({"format_version":1,"roles":[
+            {"name":"learning_admin","login":true,"inherit":true,"superuser":false,"createdb":false,"createrole":false,"bypassrls":false,"replication":false,"connection_limit":-1},
+            {"name":"learning_auth_lock","login":false,"inherit":true,"superuser":false,"createdb":false,"createrole":false,"bypassrls":false,"replication":false,"connection_limit":-1},
+            {"name":"learning_runtime","login":true,"inherit":true,"superuser":false,"createdb":false,"createrole":false,"bypassrls":false,"replication":false,"connection_limit":-1}],
+            "memberships":[{"role":"learning_auth_lock","member":"learning_admin","inherit":false,"set":true,"admin":false}]});
+        verify_roles(&mut conn, &serde_json::to_vec(&roles).unwrap())
+            .await
+            .expect("C6 safe role recipe and runtime closure required");
+        let facts: (String, bool, bool, bool, bool) = sqlx::query_as("SELECT pg_catalog.pg_get_userbyid(nspowner)::text,pg_catalog.has_schema_privilege('learning_admin','public','CREATE'),pg_catalog.has_schema_privilege('learning_runtime','public','CREATE'),pg_catalog.has_function_privilege('learning_admin','pg_catalog.pg_control_system()','EXECUTE'),pg_catalog.has_function_privilege('learning_runtime','pg_catalog.pg_control_system()','EXECUTE') FROM pg_catalog.pg_namespace WHERE nspname='public'").fetch_one(&mut conn).await.unwrap();
+        assert!(
+            facts.0 == "pg_database_owner" && facts.1 && !facts.2 && facts.3 && !facts.4,
+            "C6 fixture privilege boundary rejected"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(EMPTY)
+                .fetch_one(&mut conn)
+                .await
+                .unwrap(),
+            0,
+            "C6 fresh empty public required"
+        );
+        let proof_root =
+            std::env::var("TEST_C4_C6_PROOF_ROOT").expect("C6 fresh private proof root missing");
+        let proof = BackupDir::open_trusted_private_root(Path::new(&proof_root))
+            .expect("C6 Root-only no-follow proof directory required");
+        (conn, proof, database)
+    }
+
+    async fn path(conn: &mut PgConnection, value: &str) {
+        sqlx::query("SELECT pg_catalog.set_config('search_path',$1,true)")
+            .bind(value)
+            .execute(conn)
+            .await
+            .unwrap();
+    }
+    async fn setup(conn: &mut PgConnection) -> serde_json::Value {
+        sqlx::raw_sql(SETUP).execute(&mut *conn).await.unwrap();
+        path(conn, "pg_catalog,public").await;
+        sqlx::query_scalar(CATALOG_SQL)
+            .fetch_one(conn)
+            .await
+            .unwrap()
+    }
+    async fn identity(conn: &mut PgConnection) -> (i32, i64, String) {
+        sqlx::query_as("SELECT pg_catalog.pg_backend_pid(),(SELECT (EXTRACT(EPOCH FROM a.backend_start)*1000000)::bigint FROM pg_catalog.pg_stat_activity a WHERE a.pid=pg_catalog.pg_backend_pid()),pg_catalog.pg_current_xact_id()::text").fetch_one(conn).await.unwrap()
+    }
+    fn assertion(expected: &serde_json::Value) -> String {
+        writer_sql::assertion(
+            &format!(
+                "({})::jsonb='{}'::jsonb",
+                CATALOG_SQL.trim_end_matches(';'),
+                expected.to_string().replace('\'', "''")
+            ),
+            "CATALOG",
+        )
+    }
+    fn catalog_refusal(result: &Result<sqlx::postgres::PgQueryResult, sqlx::Error>) -> bool {
+        matches!(result, Err(sqlx::Error::Database(error)) if error.message() == "KW_C4_CATALOG")
+    }
+    fn proof(root: &BackupDir, name: &str, value: serde_json::Value) {
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert!(bytes.len() <= 4096);
+        let mut file = root
+            .create_file(name)
+            .expect("C6 create-new proof required");
+        file.write_all(&bytes).unwrap();
+        file.sync_all().unwrap();
+        root.sync().unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "fresh Root PG18.6 C6 database/socket/credential/proof fixture required"]
+    async fn c6_writer_guard_restores_empty_path_and_keeps_strict_catalog() {
+        let (mut conn, root, database) = fixture().await;
+        let mut tx = conn.begin().await.unwrap();
+        let expected = setup(&mut tx).await;
+        path(&mut tx, "").await;
+        let before = identity(&mut tx).await;
+        let mut attempt = tx.begin().await.unwrap();
+        let result = sqlx::raw_sql(&catalog_context::guard(&assertion(&expected), ""))
+            .execute(&mut *attempt)
+            .await;
+        let normal_restore = if result.is_ok() {
+            Some(
+                sqlx::query_scalar::<_, String>("SELECT pg_catalog.current_setting('search_path')")
+                    .fetch_one(&mut *attempt)
+                    .await
+                    .unwrap()
+                    .is_empty(),
+            )
+        } else {
+            None
+        };
+        let original_refusal = catalog_refusal(&result);
+        attempt.rollback().await.unwrap();
+        let same_identity = before == identity(&mut tx).await;
+        let restored: String =
+            sqlx::query_scalar("SELECT pg_catalog.current_setting('search_path')")
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+        tx.rollback().await.unwrap();
+        let empty = sqlx::query_scalar::<_, i64>(EMPTY)
+            .fetch_one(&mut conn)
+            .await
+            .unwrap()
+            == 0;
+        proof(
+            &root,
+            "c6-writer.json",
+            serde_json::json!({"scope":"C6_ISOLATED_RENDER_TEST_NOT_AUTHORITY","database":database,"passed":result.is_ok(),"original_catalog_refusal":original_refusal,"normal_restore":normal_restore,"same_identity":same_identity,"rollback_restore":restored.is_empty(),"public_empty":empty}),
+        );
+        assert!(same_identity && restored.is_empty() && empty);
+        assert!(
+            result.is_ok() && normal_restore == Some(true),
+            "C6_WRITER_RENDER_CONTEXT_RED"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "fresh Root PG18.6 C6 database/socket/credential/proof fixture required"]
+    async fn c6_readback_uses_same_render_context_and_restores_path() {
+        let (mut conn, root, database) = fixture().await;
+        let mut tx = conn.begin().await.unwrap();
+        let expected = setup(&mut tx).await;
+        path(&mut tx, "").await;
+        let before = identity(&mut tx).await;
+        let caller_depth = sqlx::postgres::PgTransactionManager::get_transaction_depth(&tx);
+        let actual = read_catalog(&mut tx).await.unwrap();
+        let caller_depth_retained =
+            caller_depth == sqlx::postgres::PgTransactionManager::get_transaction_depth(&tx);
+        let strict_equal = actual == expected;
+        let changed: Vec<&str> = [
+            "database",
+            "schemas",
+            "relations",
+            "column_acl",
+            "functions",
+            "roles",
+            "memberships",
+            "default_acl",
+            "constraints",
+            "triggers",
+        ]
+        .into_iter()
+        .filter(|key| actual[*key] != expected[*key])
+        .collect();
+        let same_identity = before == identity(&mut tx).await;
+        let restored: String =
+            sqlx::query_scalar("SELECT pg_catalog.current_setting('search_path')")
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+        tx.rollback().await.unwrap();
+        let rolled_back_fixture_empty = sqlx::query_scalar::<_, i64>(EMPTY)
+            .fetch_one(&mut conn)
+            .await
+            .unwrap()
+            == 0;
+        assert!(rolled_back_fixture_empty);
+        // Only this fresh isolated test database may persist a tiny fixture.
+        // The production reader must restore context without a caller TX too.
+        let original_path: String =
+            sqlx::query_scalar("SELECT pg_catalog.current_setting('search_path')")
+                .fetch_one(&mut conn)
+                .await
+                .unwrap();
+        let mut fixture_tx = conn.begin().await.unwrap();
+        let no_tx_expected = setup(&mut fixture_tx).await;
+        fixture_tx.commit().await.unwrap();
+        sqlx::query("SELECT pg_catalog.set_config('search_path','',false)")
+            .execute(&mut conn)
+            .await
+            .unwrap();
+        let no_tx_depth_before = sqlx::postgres::PgTransactionManager::get_transaction_depth(&conn);
+        let no_tx_actual = read_catalog(&mut conn).await;
+        let no_tx_strict_equal = no_tx_actual
+            .as_ref()
+            .is_ok_and(|actual| *actual == no_tx_expected);
+        let no_tx_depth_after = sqlx::postgres::PgTransactionManager::get_transaction_depth(&conn);
+        let no_tx_restored =
+            sqlx::query_scalar::<_, String>("SELECT pg_catalog.current_setting('search_path')")
+                .fetch_one(&mut conn)
+                .await
+                .is_ok_and(|path| path.is_empty());
+        let cleanup_ok = sqlx::raw_sql(CLEANUP).execute(&mut conn).await.is_ok();
+        let session_restore_ok =
+            sqlx::query("SELECT pg_catalog.set_config('search_path',$1,false)")
+                .bind(&original_path)
+                .execute(&mut conn)
+                .await
+                .is_ok();
+        let empty = sqlx::query_scalar::<_, i64>(EMPTY)
+            .fetch_one(&mut conn)
+            .await
+            .is_ok_and(|count| count == 0);
+        proof(
+            &root,
+            "c6-readback.json",
+            serde_json::json!({"scope":"C6_ISOLATED_RENDER_TEST_NOT_AUTHORITY","database":database,"strict_equal":strict_equal,"differing_keys":changed,"same_identity":same_identity,"path_restored":restored.is_empty(),"caller_depth_retained":caller_depth_retained,"public_empty":empty,"without_caller_tx":{"strict_equal":no_tx_strict_equal,"path_restored":no_tx_restored,"depth_before":no_tx_depth_before,"depth_after":no_tx_depth_after,"fixture_cleanup":cleanup_ok,"session_restore":session_restore_ok}}),
+        );
+        assert!(same_identity && restored.is_empty() && caller_depth_retained && empty);
+        assert!(
+            no_tx_strict_equal
+                && no_tx_restored
+                && no_tx_depth_before == 0
+                && no_tx_depth_after == 0
+                && cleanup_ok
+                && session_restore_ok,
+            "C6_NO_CALLER_TX_RENDER_CONTEXT_FAILED"
+        );
+        assert!(strict_equal, "C6_READBACK_RENDER_CONTEXT_RED");
+    }
+
+    #[tokio::test]
+    #[ignore = "fresh Root PG18.6 C6 database/socket/credential/proof fixture required"]
+    async fn c6_real_definition_and_acl_changes_still_reject() {
+        let (mut conn, root, database) = fixture().await;
+        let mut observed = Vec::new();
+        for (key, mutation) in [
+            (
+                "constraints",
+                "ALTER TABLE public.c6_child DROP CONSTRAINT c6_child_parent_id_fkey; ALTER TABLE public.c6_child ADD CONSTRAINT c6_child_parent_id_fkey FOREIGN KEY(parent_id) REFERENCES public.c6_parent(id) ON DELETE CASCADE;",
+            ),
+            (
+                "relations",
+                "REVOKE SELECT ON public.c6_parent FROM learning_runtime;",
+            ),
+            (
+                "triggers",
+                "ALTER TABLE public.c6_child DISABLE TRIGGER c6_touch;",
+            ),
+        ] {
+            let mut tx = conn.begin().await.unwrap();
+            let expected = setup(&mut tx).await;
+            sqlx::raw_sql(mutation).execute(&mut *tx).await.unwrap();
+            let actual: serde_json::Value = sqlx::query_scalar(CATALOG_SQL)
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            let real_change = actual[key] != expected[key];
+            path(&mut tx, "").await;
+            let before = identity(&mut tx).await;
+            let mut attempt = tx.begin().await.unwrap();
+            let result = sqlx::raw_sql(&catalog_context::guard(&assertion(&expected), ""))
+                .execute(&mut *attempt)
+                .await;
+            let refused = catalog_refusal(&result);
+            attempt.rollback().await.unwrap();
+            let same_identity = before == identity(&mut tx).await;
+            tx.rollback().await.unwrap();
+            let empty = sqlx::query_scalar::<_, i64>(EMPTY)
+                .fetch_one(&mut conn)
+                .await
+                .unwrap()
+                == 0;
+            observed.push(serde_json::json!({"key":key,"real_change":real_change,"strict_refusal":refused,"same_identity":same_identity,"public_empty":empty}));
+        }
+        let passed = observed.iter().all(|row| {
+            [
+                "real_change",
+                "strict_refusal",
+                "same_identity",
+                "public_empty",
+            ]
+            .into_iter()
+            .all(|key| row[key] == true)
+        });
+        proof(
+            &root,
+            "c6-mutations.json",
+            serde_json::json!({"scope":"C6_ISOLATED_RENDER_TEST_NOT_AUTHORITY","database":database,"mutations":observed,"passed":passed}),
+        );
+        assert!(passed, "C6_REAL_MUTATION_STRICT_REFUSAL_FAILED");
+    }
 }

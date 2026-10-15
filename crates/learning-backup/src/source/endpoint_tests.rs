@@ -687,8 +687,7 @@ pub(in crate::source) mod diagnostic {
 
         fn panic_text(action: impl FnOnce()) -> String {
             let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(action))
-                .err()
-                .expect("early return must still fail");
+                .expect_err("early return must still fail");
             payload
                 .downcast_ref::<String>()
                 .cloned()
@@ -756,8 +755,10 @@ pub(in crate::source) mod diagnostic {
         }
         #[test]
         fn early_return_callback_failure_preserves_first_final_and_unknown_wait() {
-            let mut snapshot = Snapshot::default();
-            snapshot.callback_entered = true;
+            let mut snapshot = Snapshot {
+                callback_entered: true,
+                ..Snapshot::default()
+            };
             snapshot.comparisons(b"", b"a\0b\0c\0d\0e\0f\0g\0h\0", b"");
             snapshot.cleanup(ChildFailure::Identity);
             snapshot.cleanup(ChildFailure::Io);
@@ -890,10 +891,12 @@ pub(in crate::source) mod diagnostic {
     }
     #[test]
     fn diagnostic_unknown_wait_and_exit_are_not_promoted_by_pid_disappearance() {
-        let mut state = Snapshot::default();
-        state.pid = Some(42);
-        state.pid_start_unobserved = Some(true);
-        state.dropped = Some(true);
+        let state = Snapshot {
+            pid: Some(42),
+            pid_start_unobserved: Some(true),
+            dropped: Some(true),
+            ..Snapshot::default()
+        };
         let value: serde_json::Value =
             serde_json::from_slice(&state.bytes(uuid::Uuid::new_v4(), false, Some(0)).unwrap())
                 .unwrap();
@@ -959,10 +962,12 @@ pub(in crate::source) mod diagnostic {
         assert!(bounded(vec![b'x'; 4096]).is_ok());
         assert!(bounded(vec![b'x'; 4097]).is_err());
     }
+    type ShapeCase<'a> = (&'a [u8], usize, usize, usize, u8, &'a str);
+
     #[test]
     fn diagnostic_argv_shape_distinguishes_structure_without_accepting_nonexact_bytes() {
         let expected = b"a\0b\0c\0d\0e\0f\0g\0h\0";
-        let rows: &[(&[u8], usize, usize, usize, u8, &str)] = &[
+        let rows: &[ShapeCase<'_>] = &[
             (expected, 16, 8, 1, 255, "exact"),
             (b"", 0, 0, 0, 0, "empty"),
             (
@@ -1046,7 +1051,7 @@ pub(in crate::source) mod diagnostic {
     }
     #[test]
     fn diagnostic_environment_shape_requires_whole_fields_and_exact_multiplicity() {
-        let rows: &[(&[u8], usize, usize, usize, u8, &str)] = &[
+        let rows: &[ShapeCase<'_>] = &[
             (b"LC_ALL=C\0PGCONNECT_TIMEOUT=5\0", 29, 2, 1, 3, "exact"),
             (b"", 0, 0, 0, 0, "empty"),
             (
@@ -1190,9 +1195,11 @@ pub(in crate::source) mod diagnostic {
             ProcRead::Environment,
             ProcRead::StartTicks,
         ] {
-            let mut state = Snapshot::default();
-            state.failed_proc_read = Some(stage);
-            state.callback_entered = true;
+            let state = Snapshot {
+                failed_proc_read: Some(stage),
+                callback_entered: true,
+                ..Snapshot::default()
+            };
             let value: serde_json::Value =
                 serde_json::from_slice(&state.bytes(uuid::Uuid::new_v4(), false, None).unwrap())
                     .unwrap();
@@ -1676,6 +1683,15 @@ pub(super) mod faults {
             self.0.release.notify_one();
         }
     }
+    // Copied observations only; the endpoint keeps the original proof and guard.
+    pub(in crate::source) struct DumpObservation {
+        pub(in crate::source) backup_id: Uuid,
+        pub(in crate::source) epoch: Uuid,
+        pub(in crate::source) start: u64,
+        pub(in crate::source) backend: i32,
+        pub(in crate::source) oid: u64,
+        pub(in crate::source) keys: [i64; 2],
+    }
     pub(in crate::source) struct TestControl {
         trace: Arc<Trace>,
         active: bool,
@@ -1715,13 +1731,16 @@ pub(super) mod faults {
         pub(in crate::source) async fn before_dump(
             &mut self,
             proof: &BackupDir,
-            backup_id: Uuid,
-            epoch: Uuid,
-            start: u64,
-            backend: i32,
-            oid: u64,
-            keys: [i64; 2],
+            observation: DumpObservation,
         ) -> Result<(Duration, u64), BackupError> {
+            let DumpObservation {
+                backup_id,
+                epoch,
+                start,
+                backend,
+                oid,
+                keys,
+            } = observation;
             self.active = true;
             {
                 let mut state = self.trace.diagnostic.lock().unwrap();

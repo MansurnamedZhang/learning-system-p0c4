@@ -9,7 +9,7 @@ import io
 import shutil
 import stat
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import json
 import subprocess
 import time
@@ -45,12 +45,12 @@ class ContextPlanTests(unittest.TestCase):
         suite='/var/lib/docker/volumes/kwc4c-suite-'+uuid.uuid4().hex+'/_data'
         facts=dict(Id='a'*64,Image=fixture._BUILDER,Config=dict(User='0:0',Image=fixture._BUILDER),State=dict(Running=True),
             HostConfig=dict(NetworkMode='host',ReadonlyRootfs=True,Privileged=False,PidMode='',CapAdd=None,CapDrop=['ALL'],SecurityOpt=['no-new-privileges']),
-            Mounts=[dict(Type='volume',Name=Path(suite).parent.name,Source=suite,Destination=suite,RW=True),
+            Mounts=[dict(Type='volume',Name=PurePosixPath(suite).parent.name,Source=suite,Destination=suite,RW=True),
                 *[dict(Type='bind',Source=p,Destination=p,RW=False) for p in ('/usr/bin/docker','/usr/libexec/docker/cli-plugins/docker-compose','/var/run/docker.sock')],
                 dict(Type='bind',Source='/proc/1/ns/net',Destination='/run/knowweave-c4/host-netns',RW=False)])
         method=getattr(fixture,'_outer_projection',None)
         self.assertTrue(callable(method),'missing actual fixed outer capsule projection')
-        self.assertEqual(method(facts,Path(suite))['container_id'],'a'*64)
+        self.assertEqual(method(facts,PurePosixPath(suite))['container_id'],'a'*64)
         for mutation in ('extra','cap','tool','ancestor','rootfs','container-local-netns','alias-netns'):
             row=json.loads(json.dumps(facts))
             if mutation=='extra':row['Mounts'].append(dict(Type='bind',Source='/var',Destination='/var',RW=False))
@@ -60,7 +60,7 @@ class ContextPlanTests(unittest.TestCase):
             elif mutation=='rootfs':row['HostConfig']['ReadonlyRootfs']=False
             elif mutation=='container-local-netns':row['Mounts'][-1]['Source']='/run/knowweave-c4/host-netns'
             else:row['Mounts'][-1]['Source']='/proc/self/ns/net'
-            with self.subTest(mutation=mutation),self.assertRaises(fixture.ControlledRejected):method(row,Path(suite))
+            with self.subTest(mutation=mutation),self.assertRaises(fixture.ControlledRejected):method(row,PurePosixPath(suite))
 
     def test_fixed_subnets_avoid_actual_parser_rows_and_refuse_unknown_observations(self):
         import struct
@@ -70,7 +70,8 @@ class ContextPlanTests(unittest.TestCase):
         done=struct.pack('=IHHIIi',20,3,2,7,9,0)
         parser=resources.RouteParser(7,9);parser.feed(route+done)
         self.assertEqual(fixture._choose_subnets([r['dst'] for r in parser.finish()]),['172.29.1.0/24','172.29.2.0/24'])
-        for occupied in (['172.29.0.0/16'],['not-a-route'],[True]):
+        self.assertEqual(fixture._choose_subnets(['172.29.0.0/16']),['10.252.0.0/24','10.252.1.0/24'])
+        for occupied in (['172.29.0.0/16','10.252.0.0/16'],['not-a-route'],[True]):
             with self.subTest(occupied=occupied),self.assertRaises(fixture.ControlledRejected):fixture._choose_subnets(occupied)
 
     def test_closed_plan_is_only_metadata_and_rejects_other_cases_or_selectors(self):

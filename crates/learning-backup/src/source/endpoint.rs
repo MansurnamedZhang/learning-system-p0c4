@@ -541,12 +541,14 @@ mod linux {
                 control
                     .before_dump(
                         &self.isolation.root,
-                        self.backup_id,
-                        self.claim.epoch,
-                        self.claim.native.postmaster_start_ticks,
-                        self.backend,
-                        self.oid,
-                        self.keys.values(),
+                        crate::source::endpoint_tests::faults::DumpObservation {
+                            backup_id: self.backup_id,
+                            epoch: self.claim.epoch,
+                            start: self.claim.native.postmaster_start_ticks,
+                            backend: self.backend,
+                            oid: self.oid,
+                            keys: self.keys.values(),
+                        },
                     )
                     .await?
             } else {

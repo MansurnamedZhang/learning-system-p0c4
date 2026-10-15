@@ -406,16 +406,13 @@ async fn admit_owned_with_audit(
             if matches!(
                 error,
                 crate::BackupError::Invalid("dirty or available restore target")
-            ) {
-                if let Some(audit) = &audit {
-                    if audit
-                        .dirty_refusal(&facts, lease.lease_mut(), &config, &control, &assets)
-                        .await
-                        .is_err()
-                    {
-                        audit.failed();
-                    }
-                }
+            ) && let Some(audit) = &audit
+                && audit
+                    .dirty_refusal(&facts, lease.lease_mut(), &config, &control, &assets)
+                    .await
+                    .is_err()
+            {
+                audit.failed();
             }
             return Err(ImportFailure::Identity);
         }

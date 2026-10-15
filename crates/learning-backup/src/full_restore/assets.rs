@@ -31,39 +31,6 @@ pub(crate) fn copy_original(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn full_assets_copy_preserves_empty_and_binary_originals() {
-        for mut bytes in [b"".as_slice(), b"\0\\.\nSELECT 1;\xff".as_slice()] {
-            let record = FileRecord {
-                path: "assets/sha256/aa/original".into(),
-                size: bytes.len() as u64,
-                sha256: hex::encode(Sha256::digest(bytes)),
-            };
-            let expected = bytes;
-            let mut output = Vec::new();
-            copy_original(&mut bytes, &mut output, &record).unwrap();
-            assert_eq!(output, expected);
-        }
-    }
-    #[test]
-    fn full_assets_corruption_blocks_recovery_receipt() {
-        let record = FileRecord {
-            path: "assets/sha256/aa/original".into(),
-            size: 3,
-            sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into(),
-        };
-        for mut bytes in [b"ab".as_slice(), b"abcd", b"abd"] {
-            assert!(copy_original(&mut bytes, &mut Vec::new(), &record).is_err());
-        }
-        let mut exact = Vec::new();
-        copy_original(&mut b"abc".as_slice(), &mut exact, &record).unwrap();
-        assert_eq!(exact, b"abc");
-    }
-}
-
 #[cfg(target_os = "linux")]
 pub(crate) fn open_relative(
     root: &learning_assets::backup_fs::BackupDir,
@@ -164,4 +131,37 @@ pub(crate) fn verify_all(
         return Err(BackupError::Invalid("original byte set differs"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn full_assets_copy_preserves_empty_and_binary_originals() {
+        for mut bytes in [b"".as_slice(), b"\0\\.\nSELECT 1;\xff".as_slice()] {
+            let record = FileRecord {
+                path: "assets/sha256/aa/original".into(),
+                size: bytes.len() as u64,
+                sha256: hex::encode(Sha256::digest(bytes)),
+            };
+            let expected = bytes;
+            let mut output = Vec::new();
+            copy_original(&mut bytes, &mut output, &record).unwrap();
+            assert_eq!(output, expected);
+        }
+    }
+    #[test]
+    fn full_assets_corruption_blocks_recovery_receipt() {
+        let record = FileRecord {
+            path: "assets/sha256/aa/original".into(),
+            size: 3,
+            sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into(),
+        };
+        for mut bytes in [b"ab".as_slice(), b"abcd", b"abd"] {
+            assert!(copy_original(&mut bytes, &mut Vec::new(), &record).is_err());
+        }
+        let mut exact = Vec::new();
+        copy_original(&mut b"abc".as_slice(), &mut exact, &record).unwrap();
+        assert_eq!(exact, b"abc");
+    }
 }

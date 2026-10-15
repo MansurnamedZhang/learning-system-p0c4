@@ -24,7 +24,7 @@ macro_rules! dump_error {
 #[cfg(any(test, target_os = "linux"))]
 pub(crate) mod assets;
 mod copy;
-#[cfg(any(test, target_os = "linux"))]
+#[cfg(test)]
 mod data;
 #[cfg(all(test, target_os = "linux"))]
 mod live_tests;

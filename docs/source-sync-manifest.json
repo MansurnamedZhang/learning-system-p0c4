@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "date": "2026-10-15",
-  "source_commit": "c342254ab545834ed8c29bd1a47c812fe22ef3e4",
-  "previous_public_commit": "9407885a6b0b93da091afe72712071e3345accc1",
-  "source_archive_sha256": "54435731a560e8cfb310de3c956e6878a818276422c4728d2ee168936711336e",
-  "source_manifest_sha256": "af2d05fd0b53781c57d0eb0de6943e270371f885a9e3ab75822850aa2e3c6d63",
+  "source_commit": "0d5aaccbf3d7d2e6c88fbfdc329913cf33105699",
+  "previous_public_commit": "7a84849946d97766fc2af1482f058b337ce8c01f",
+  "source_archive_sha256": "a00f84b1c4d9a12d64dc7045bd7b88716622734a1fb07785b723e9cd539c628c",
+  "source_manifest_sha256": "d95bb653643bff099767c9320641e02c6d527596f96924bad33c0f4785c0d85a",
   "source_file_count": 541,
   "excluded_source_files": [
     ".artifacts/.gitignore",
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 115321,
-      "sha256": "82a3ec1c6070d216558d39fe5b1e7d08313b39c97c5f13849bc731d69ba37de8",
+      "bytes": 117370,
+      "sha256": "f9beedbe5355e9136483f7fd6bbd875ee13ce6d819bceb687787f108e0cb427e",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4103,
-      "sha256": "d35094e900575795879d0c9274cb3c8da12505078e1f0bdea3d848753dbf1738",
+      "bytes": 4208,
+      "sha256": "01f04592befc3d502f62c37ddc7398d926889aba90eebde50d1eafa6161cc4e7",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -240,8 +240,8 @@
     {
       "path": "crates/learning-backup/src/full_restore/assets.rs",
       "bytes": 5838,
-      "sha256": "1799fc8aa2e8b10c66662f09a18e5926baaeae298539d8cedc338c67456e5060",
-      "source_blob_sha256": "1799fc8aa2e8b10c66662f09a18e5926baaeae298539d8cedc338c67456e5060",
+      "sha256": "8ad3c11c9c7a3ccacd200e306428724c15488b9a6cd95b1c09b7990662db6add",
+      "source_blob_sha256": "8ad3c11c9c7a3ccacd200e306428724c15488b9a6cd95b1c09b7990662db6add",
       "source_bytes_preserved": true
     },
     {
@@ -295,9 +295,9 @@
     },
     {
       "path": "crates/learning-backup/src/full_restore/import.rs",
-      "bytes": 90370,
-      "sha256": "eaaae9f7d8efa824c4d456ba6f4990df541319944cd4d85d2fe8a2d0ca57fd2c",
-      "source_blob_sha256": "eaaae9f7d8efa824c4d456ba6f4990df541319944cd4d85d2fe8a2d0ca57fd2c",
+      "bytes": 90437,
+      "sha256": "ab86d453c5645340412715d98e652568845136b87d4092acf521e0e8a51072d5",
+      "source_blob_sha256": "ab86d453c5645340412715d98e652568845136b87d4092acf521e0e8a51072d5",
       "source_bytes_preserved": true
     },
     {
@@ -309,9 +309,9 @@
     },
     {
       "path": "crates/learning-backup/src/full_restore/mod.rs",
-      "bytes": 16030,
-      "sha256": "00aab0ffd89fe0e8c421eea9b18f18c1834517818f467aa7f9dec08bf3771464",
-      "source_blob_sha256": "00aab0ffd89fe0e8c421eea9b18f18c1834517818f467aa7f9dec08bf3771464",
+      "bytes": 16004,
+      "sha256": "9e650d3a4b576101dbd07abe43db55361d6011a124ebb33a9e679fb9bf1f59a4",
+      "source_blob_sha256": "9e650d3a4b576101dbd07abe43db55361d6011a124ebb33a9e679fb9bf1f59a4",
       "source_bytes_preserved": true
     },
     {
@@ -421,9 +421,9 @@
     },
     {
       "path": "crates/learning-backup/src/restore_preflight/target_binding/child_attestation/bounded_process.rs",
-      "bytes": 21053,
-      "sha256": "9df3ceff230ef8da67062bf68e340110dae16fb10f7f9122fb7a38366b6ff72a",
-      "source_blob_sha256": "9df3ceff230ef8da67062bf68e340110dae16fb10f7f9122fb7a38366b6ff72a",
+      "bytes": 21051,
+      "sha256": "4a3bd189e5a886a57b909990d6caa7fd35a17a3ef78deed03588537319ddc258",
+      "source_blob_sha256": "4a3bd189e5a886a57b909990d6caa7fd35a17a3ef78deed03588537319ddc258",
       "source_bytes_preserved": true
     },
     {
@@ -470,9 +470,9 @@
     },
     {
       "path": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import/linux.rs",
-      "bytes": 43604,
-      "sha256": "99f1fec6e415894d143aa88c8215d68b8da69433f649aba1e52d9727f78fa39e",
-      "source_blob_sha256": "99f1fec6e415894d143aa88c8215d68b8da69433f649aba1e52d9727f78fa39e",
+      "bytes": 43512,
+      "sha256": "eac03105872028e1c05634e49ec8526acf5e40d1c68893166290f71688a8c267",
+      "source_blob_sha256": "eac03105872028e1c05634e49ec8526acf5e40d1c68893166290f71688a8c267",
       "source_bytes_preserved": true
     },
     {
@@ -568,16 +568,16 @@
     },
     {
       "path": "crates/learning-backup/src/source/endpoint.rs",
-      "bytes": 31873,
-      "sha256": "b20176ff78ba6f326eebdcf69d084962822b1bcdebd0c2418ec9e760fe3692c6",
-      "source_blob_sha256": "b20176ff78ba6f326eebdcf69d084962822b1bcdebd0c2418ec9e760fe3692c6",
+      "bytes": 32050,
+      "sha256": "5669ba3583e56f070e9e97f9fe6ee2946e31a7476c7c33bd9f3ddc3a1652d089",
+      "source_blob_sha256": "5669ba3583e56f070e9e97f9fe6ee2946e31a7476c7c33bd9f3ddc3a1652d089",
       "source_bytes_preserved": true
     },
     {
       "path": "crates/learning-backup/src/source/endpoint_tests.rs",
-      "bytes": 92712,
-      "sha256": "fa602e2a634b6f54e82b7b2f34fe7ad448643b61715276049d690d82212b4ac3",
-      "source_blob_sha256": "fa602e2a634b6f54e82b7b2f34fe7ad448643b61715276049d690d82212b4ac3",
+      "bytes": 93300,
+      "sha256": "d258b5adf0a8bb6ac2efb2094ceec139c40009e9e512767f7ff177d9c2d55712",
+      "source_blob_sha256": "d258b5adf0a8bb6ac2efb2094ceec139c40009e9e512767f7ff177d9c2d55712",
       "source_bytes_preserved": true
     },
     {
@@ -2689,8 +2689,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 48038,
-      "sha256": "882e295198bc280bca10a685328cc93267facc01d2be001e35eb06fc10d66393",
+      "bytes": 50423,
+      "sha256": "9b0c3da80fc4fa0db960a1a7afd5fdfc281564eb57089d681d3af41e7abe76a5",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -2710,8 +2710,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 16666,
-      "sha256": "cc917875b118fbf35b43b33eadde007e5bedb2dc8b194c62affbf772e3f3b3fe",
+      "bytes": 17796,
+      "sha256": "1c9b5b35b2e7e1cc6052d03da809654fb991ec603d98f8e361a88e5fe29b7af1",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3361,8 +3361,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 1922,
-      "sha256": "7545e6b6d96239ad247486bdbe2a114a801511a9df8656a133385d163c12c24a",
+      "bytes": 2322,
+      "sha256": "0ab7767ea076f751c29d71be5f386ec0f73c4620a5125890eeb3c5538fd24487",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3410,8 +3410,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 11892,
-      "sha256": "547b05530b4f3fad4df9326132c2414459fb1689dffe90fdae2f161563ffcde2",
+      "bytes": 13752,
+      "sha256": "38d4c644ea8bba8d22c1af5559ed1c6f5731739f8bef785176b34a0e872107c9",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3802,9 +3802,9 @@
     },
     {
       "path": "scripts/test_p0c4_controlled_fixture_context.py",
-      "bytes": 49064,
-      "sha256": "ef31a5c5c44106a6a9656578e8472e9cdf03f2480961404c83f84a9388e747ed",
-      "source_blob_sha256": "ef31a5c5c44106a6a9656578e8472e9cdf03f2480961404c83f84a9388e747ed",
+      "bytes": 49225,
+      "sha256": "eed797bebc0f24600f5fab89fbb4061974c8eac0534f70bcd37ce87322961da9",
+      "source_blob_sha256": "eed797bebc0f24600f5fab89fbb4061974c8eac0534f70bcd37ce87322961da9",
       "source_bytes_preserved": true
     },
     {

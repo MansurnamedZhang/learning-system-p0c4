@@ -190,7 +190,7 @@ fn supervise_stream<G: CaptureGuard>(
         if outcome.is_err() {
             #[cfg(test)]
             guard
-                .cleanup(*outcome.as_ref().err().expect("checked error"))
+                .cleanup(*outcome.as_ref().expect_err("checked error"))
                 .await;
             let _ = child.start_kill();
             if child.wait().await.is_err() {
