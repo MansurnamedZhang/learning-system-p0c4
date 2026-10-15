@@ -55,6 +55,23 @@ def issuer_row():
 ZERO_TIME = '0001-01-01T00:00:00Z'
 STARTED_TIME = '2026-10-04T10:00:00.123456789Z'
 FINISHED_TIME = '2026-10-04T10:00:01.123456789Z'
+LIBRARY_OUTPUT = b'''running 428 tests
+test full_restore::dump_validation_diagnostic_tests::linux_actual_decode_entry_carries_observer_to_frozen_metadata_rejection ... ok
+test full_restore::dump_validation_diagnostic_tests::linux_actual_version_and_toc_run_retain_the_native_rejection_predicate ... ok
+test full_restore::spool::native_observation::first_version_files_are_private_exact_and_exclusive ... ok
+test full_restore::spool::tests::full_dump_spool_immutable_after_source_rewrite ... ok
+test result: ok. 348 passed; 0 failed; 80 ignored; 0 measured; 0 filtered out; finished in 0.1s
+'''
+LIBRARY_STDERR = b'''FULL_REHEARSAL_FAILURE kind=PRIMARY stage=PACKAGE class=INVALID code=FRESH_INDEX_DIFFERS
+FULL_REHEARSAL_FAILURE kind=SECONDARY stage=STOP_INSPECTION class=INVALID code=STOP_INSPECTION_UNCONFIRMED
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=REPORT class=INVALID code=REPORT_INVALID
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=INVALID code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=CAPACITY code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=IO code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=DATABASE code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=JSON code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=ASSET code=UNKNOWN
+'''
 
 
 def helper_facts(network='none', status='created'):
@@ -391,6 +408,180 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out;
         for call in calls.call_args_list:
             control = next(m for m in call.args[4] if m[2] == gate.SOURCE_ROOT)
             self.assertTrue(control[3], 'compiler and binary-copy helpers cannot mutate control')
+
+    def test_first_green_runs_full_root_library_in_pg18_after_retaining_binary(self):
+        ident = gate.identity()
+        artifact = {'reason': 'compiler-artifact', 'manifest_path': '/reviewed/crates/learning-backup/Cargo.toml',
+                    'target': {'name': 'learning_backup', 'kind': ['lib']}, 'profile': {'test': True},
+                    'executable': '/target/build/debug/deps/learning_backup-ab123'}
+        compiler = (json.dumps(artifact) + '\n' + json.dumps({'reason': 'build-finished', 'success': True})).encode()
+        builder = {'Id': helper.BUILDER, 'Config': {'Env': []}}
+        postgres = {'Id': 'sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d',
+                    'RepoDigests': ['postgres@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d'],
+                    'Config': {'Env': ['PG_MAJOR=18', 'PG_VERSION=18.6-1.pgdg12+2'],
+                               'Volumes': {'/var/lib/postgresql': {}}}}
+        record = {'identity': ident, 'issuer': {'binding_sha256': 'b' * 64}}
+        result, calls = {}, []
+
+        class Runner:
+            def inspect(self, kind, name):
+                if (kind, name) == ('image', helper.PG_IMAGE):
+                    return postgres
+                if (kind, name) == ('volume', 'build-volume'):
+                    return {'Mountpoint': '/docker/volumes/build-volume/_data'}
+                raise AssertionError((kind, name))
+
+        def execute(_helper, _runner, _result, image, mounts, volumes, command, **kwargs):
+            calls.append((image, mounts, volumes, command, kwargs))
+            if image is builder:
+                self.assertNotEqual(command, ['/bin/sh', '-ec', 'cargo test --locked --offline -p learning-backup --lib'],
+                                    'builder has no native PG18 client; compile the library without running it')
+                if '--message-format=json' in command[-1]:
+                    return 0, compiler, b''
+                if command[0] == 'python3':
+                    return 0, gate.canonical({'binary_sha256': 'a' * 64}), b''
+                if '--list' in command:
+                    return 0, ''.join(name + ': test\n' for name in gate.TESTS).encode(), b''
+                return 0, b'test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n', b''
+            self.assertIs(image, postgres)
+            self.assertIn('binary_sha256', record, 'only execute the retained compiled ELF')
+            self.assertEqual(mounts, [('bind', '/docker/volumes/build-volume/_data/retained/' + ident['case_id'],
+                                       '/learning-backup-test.elf', True)])
+            self.assertEqual(volumes, {})
+            self.assertEqual(command[0:2], ['/bin/sh', '-ec'])
+            self.assertIn('exec /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C HOME=/tmp TMPDIR=/tmp /learning-backup-test.elf --test-threads=1', command[2])
+            self.assertNotIn('--ignored', command[2])
+            self.assertNotIn('--exact', command[2])
+            self.assertEqual(kwargs, {'library_runtime': True, 'timeout': 7200})
+            return 0, LIBRARY_OUTPUT, LIBRARY_STDERR
+
+        with patch.object(gate, 'run_helper', side_effect=execute):
+            gate.compile_case(helper, Runner(), result, builder,
+                              gate.case_mounts(Path('/fresh/source'), 'build-volume', ident), {'/target': 'build-volume'},
+                              {'base_commit': '0' * 40}, 'c' * 64, record, True, 'green')
+        self.assertEqual(sum(image is postgres for image, *_ in calls), 1)
+        self.assertEqual(result['static_checks'][-1]['counts'],
+                         [{'passed': 348, 'failed': 0, 'ignored': 80, 'filtered': 0}])
+
+    def test_root_library_requires_all_four_actual_bodies_and_unfiltered_success(self):
+        counts = gate.parse_root_library(0, LIBRARY_OUTPUT, LIBRARY_STDERR)
+        self.assertEqual(counts, [{'passed': 348, 'failed': 0, 'ignored': 80, 'filtered': 0}])
+        for code, output, stderr in ((101, LIBRARY_OUTPUT, LIBRARY_STDERR), (0, LIBRARY_OUTPUT, b'warning'),
+                                     (0, LIBRARY_OUTPUT.replace(b'0 filtered out', b'1 filtered out'), LIBRARY_STDERR),
+                                     (0, LIBRARY_OUTPUT.replace(b' ... ok', b' ... ignored', 1), LIBRARY_STDERR),
+                                     (0, LIBRARY_OUTPUT.replace(b' ... ok', b' ... FAILED', 1), LIBRARY_STDERR),
+                                     (0, LIBRARY_OUTPUT + LIBRARY_OUTPUT, LIBRARY_STDERR),
+                                     (0, LIBRARY_OUTPUT.splitlines()[-1] + b'\n', LIBRARY_STDERR)):
+            with self.subTest(code=code, output=output, stderr=stderr), self.assertRaises(gate.GateError):
+                gate.parse_root_library(code, output, stderr)
+
+    def test_root_library_admits_only_exact_serial_negative_test_diagnostics(self):
+        try:
+            counts = gate.parse_root_library(0, LIBRARY_OUTPUT, LIBRARY_STDERR)
+        except gate.GateError as error:
+            self.fail('successful full lib emits nine intentional serial diagnostic-test lines: ' + str(error))
+        self.assertEqual(counts[0]['passed'], 348)
+        for stderr in (b'', LIBRARY_STDERR + b'warning\n', LIBRARY_STDERR + LIBRARY_STDERR,
+                       LIBRARY_STDERR.replace(b'code=REPORT_INVALID', b'code=UNKNOWN'),
+                       b'\n'.join(LIBRARY_STDERR.splitlines()[1:]) + b'\n',
+                       b'\n'.join(reversed(LIBRARY_STDERR.splitlines())) + b'\n'):
+            with self.subTest(stderr=stderr), self.assertRaises(gate.GateError):
+                gate.parse_root_library(0, LIBRARY_OUTPUT, stderr)
+
+    def test_pg18_library_helper_has_only_readonly_elf_and_private_tmpfs(self):
+        image = {'Id': 'sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d',
+                 'RepoDigests': ['postgres@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d'],
+                 'Config': {'Env': ['PG_MAJOR=18', 'PG_VERSION=18.6-1.pgdg12+2'], 'Labels': None,
+                            'Volumes': {'/var/lib/postgresql': {}}}}
+        mounts = [('bind', '/docker/volumes/build-volume/_data/retained/' + str(uuid.uuid4()),
+                   '/learning-backup-test.elf', True)]
+        command = ['/bin/sh', '-ec', gate.ROOT_LIBRARY_RUN, 'binding-library', 'a' * 64]
+
+        class Runner:
+            def __init__(self, change=None):
+                self.facts, _ = helper_facts()
+                self.facts['Image'] = self.facts['Config']['Image'] = image['Id']
+                self.facts['Config'].update(WorkingDir='/tmp', Env=image['Config']['Env'],
+                                           Entrypoint=['/bin/sh'], Cmd=command[1:],
+                                           Volumes={'/var/lib/postgresql': {}})
+                self.facts['HostConfig']['Tmpfs'] = {'/tmp': 'rw,nosuid,nodev,size=1g',
+                                                    '/var/lib/postgresql': 'rw,noexec,nosuid,nodev,size=4m,mode=0700'}
+                self.facts['HostConfig']['Mounts'] = [{'Type': 'bind', 'Source': mounts[0][1],
+                                                       'Target': '/learning-backup-test.elf', 'ReadOnly': True}]
+                self.facts['Mounts'] = [{'Type': 'bind', 'Source': mounts[0][1],
+                                         'Destination': '/learning-backup-test.elf', 'RW': False}]
+                self.change, self.actions = change, []
+
+            def docker(self, *args):
+                self.actions.append(args)
+                if args[0] == 'create':
+                    self.facts['Name'] = '/' + args[args.index('--name') + 1]
+                    self.facts['Config']['Labels'] = {'knowweave.source-binding.batch': 'fresh'}
+                    if self.change:
+                        self.change(self.facts)
+                    return self.facts['Id'].encode()
+                if args[0] == 'ps':
+                    return b''
+                if args[0] in ('stop', 'rm'):
+                    return self.facts['Id'].encode()
+                raise AssertionError(args)
+
+            def inspect(self, kind, name):
+                return copy.deepcopy(self.facts)
+
+            def run(self, args, **kwargs):
+                self.actions.append(tuple(args))
+                self.facts['State'].update(Status='exited', StartedAt=STARTED_TIME, FinishedAt=FINISHED_TIME)
+                return 0, LIBRARY_OUTPUT, LIBRARY_STDERR
+
+        runner = Runner()
+        result = {'batch_id': 'fresh'}
+        try:
+            outcome = gate.run_helper(helper, runner, result, image, mounts, {}, command, library_runtime=True)
+        except gate.GateError as error:
+            self.fail('genuine cached official RepoDigest must admit the fixed PG18 runtime: ' + str(error))
+        self.assertEqual(outcome, (0, LIBRARY_OUTPUT, LIBRARY_STDERR))
+        create = runner.actions[0]
+        for flag in ('--network=none', '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',
+                     '--user=0:0', '--workdir=/tmp', '--entrypoint=/bin/sh', '--cpus=4', '--memory=8g',
+                     '--memory-swap=8g', '--pids-limit=512', '--tmpfs=/tmp:rw,nosuid,nodev,size=1g',
+                     '--tmpfs=/var/lib/postgresql:rw,noexec,nosuid,nodev,size=4m,mode=0700'):
+            self.assertIn(flag, create)
+        self.assertEqual(create.count('--mount'), 1)
+        self.assertEqual(create[create.index('--mount') + 1],
+                         'type=bind,src=' + mounts[0][1] + ',dst=/learning-backup-test.elf,readonly')
+        self.assertNotIn('--env', create)
+        self.assertEqual(create[create.index(image['Id']) + 1:], tuple(command[1:]))
+        self.assertTrue(result['helpers'][0]['removed'])
+        changes = [lambda f: f['Config'].update(Volumes={}),
+                   lambda f: f['HostConfig']['Tmpfs'].pop('/var/lib/postgresql'),
+                   lambda f: f['HostConfig'].update(NetworkMode='host'),
+                   lambda f: f['Config'].update(Entrypoint=['docker-entrypoint.sh']),
+                   lambda f: f['Config'].update(Env=image['Config']['Env'] + ['PGPASSWORD=unsafe']),
+                   lambda f: f['Mounts'][0].update(RW=True),
+                   lambda f: f['Mounts'].append({'Type': 'volume', 'Source': '/docker/anonymous',
+                                               'Destination': '/var/lib/postgresql', 'RW': True})]
+        for change in changes:
+            rejected = Runner(change)
+            with self.subTest(change=change), self.assertRaises(gate.GateError):
+                gate.run_helper(helper, rejected, {'batch_id': 'fresh'}, image, mounts, {}, command, library_runtime=True)
+            self.assertFalse(any(a[0] == helper.DOCKER for a in rejected.actions), 'reject before start')
+        invalid = [(dict(image, RepoDigests=[]), mounts, command, {}),
+                   (dict(image, RepoDigests=['untrusted/postgres@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d']), mounts, command, {}),
+                   (dict(image, RepoDigests=['postgres@sha256:' + 'a' * 64]), mounts, command, {}),
+                   (dict(image, Id=helper.BUILDER), mounts, command, {}),
+                   (dict(image, Config={**image['Config'], 'Volumes': {'/unexpected': {}}}), mounts, command, {}),
+                   (dict(image, Config={**image['Config'], 'Env': ['PG_MAJOR=18', 'PG_VERSION=18.7']}), mounts, command, {}),
+                   (image, mounts + [('bind', '/source', '/reviewed', True)], command, {}),
+                   (image, mounts, command + ['--ignored'], {}),
+                   (image, mounts, command, {'env': {'PGPASSWORD': 'unsafe'}}),
+                   (image, mounts, command, {'network': 'host'})]
+        for bad_image, bad_mounts, bad_command, kwargs in invalid:
+            rejected = Runner()
+            with self.subTest(kwargs=kwargs, image=bad_image), self.assertRaises(gate.GateError):
+                gate.run_helper(helper, rejected, {'batch_id': 'fresh'}, bad_image, bad_mounts, {}, bad_command,
+                                library_runtime=True, **kwargs)
+            self.assertEqual(rejected.actions, [], 'invalid runtime profile must reject before create')
 
     def test_audit_and_runtime_mounts_keep_the_retained_binary_readonly(self):
         ident = gate.identity()

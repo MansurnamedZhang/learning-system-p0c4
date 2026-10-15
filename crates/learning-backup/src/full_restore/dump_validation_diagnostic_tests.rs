@@ -846,22 +846,31 @@ async fn linux_actual_decode_entry_carries_observer_to_frozen_metadata_rejection
         size: 5,
         sha256: "invalid".into(),
     };
-    let result = validate_full_dump_observed(
-        dump,
-        &SchemaContract::embedded().unwrap(),
-        &linux_root(),
-        observer,
-    )
-    .await;
+    let root = linux_root();
+    let result =
+        validate_full_dump_observed(dump, &SchemaContract::embedded().unwrap(), &root, observer)
+            .await;
     assert!(wait.drain().is_none());
-    assert!(matches!(
-        result,
-        Err(BackupError::Invalid("fixed PG18 decoder"))
-    ));
-    assert_eq!(
-        emitted(&diagnostic, result),
-        "FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=INVALID code=FIXED_DECODER_REJECTED__FROZEN_METADATA__FROZEN_METADATA\n"
-    );
+    if unsafe { libc::geteuid() } == 0 {
+        assert!(matches!(
+            result,
+            Err(BackupError::Invalid("fixed PG18 decoder"))
+        ));
+        assert_eq!(
+            emitted(&diagnostic, result),
+            "FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=INVALID code=FIXED_DECODER_REJECTED__FROZEN_METADATA__FROZEN_METADATA\n"
+        );
+    } else {
+        assert!(matches!(&result, Err(BackupError::Io(error))
+            if error.kind() == std::io::ErrorKind::InvalidInput
+                && error.raw_os_error().is_none()
+                && error.to_string() == "invalid snapshot filesystem entry"));
+        assert!(root.list().unwrap().is_empty());
+        assert_eq!(
+            emitted(&diagnostic, result),
+            "FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=IO code=UNKNOWN__DECODER_CLIENT__PRIVATE_DIRECTORY\n"
+        );
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -876,25 +885,36 @@ async fn linux_actual_version_and_toc_run_retain_the_native_rejection_predicate(
         size: raw.len() as u64,
         sha256: crate::digest(raw),
     };
-    let result = validate_full_dump_observed(
-        dump,
-        &SchemaContract::embedded().unwrap(),
-        &linux_root(),
-        observer,
-    )
-    .await;
-    let (receipt, stderr) = wait.drain().expect("actual first Version wait required");
-    assert_eq!(receipt["operation"], "Version");
-    assert_eq!(receipt["wait_completed"], true);
-    assert_eq!(receipt["predicate_status"]["success"], true);
-    assert_eq!(receipt["reap_status"]["success"], true);
-    assert!(stderr.is_empty());
-    assert!(matches!(
-        result,
-        Err(BackupError::Invalid("pg_restore decode exit"))
-    ));
-    assert_eq!(
-        emitted(&diagnostic, result),
-        "FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=INVALID code=DECODER_NATIVE_REJECTED__TOC_RUN__NATIVE_PREDICATE__TOC__WAIT_OBSERVED__NONZERO__STDERR_NONEMPTY\n"
-    );
+    let root = linux_root();
+    let result =
+        validate_full_dump_observed(dump, &SchemaContract::embedded().unwrap(), &root, observer)
+            .await;
+    let observed = wait.drain();
+    if unsafe { libc::geteuid() } == 0 {
+        let (receipt, stderr) = observed.expect("actual first Version wait required");
+        assert_eq!(receipt["operation"], "Version");
+        assert_eq!(receipt["wait_completed"], true);
+        assert_eq!(receipt["predicate_status"]["success"], true);
+        assert_eq!(receipt["reap_status"]["success"], true);
+        assert!(stderr.is_empty());
+        assert!(matches!(
+            result,
+            Err(BackupError::Invalid("pg_restore decode exit"))
+        ));
+        assert_eq!(
+            emitted(&diagnostic, result),
+            "FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=INVALID code=DECODER_NATIVE_REJECTED__TOC_RUN__NATIVE_PREDICATE__TOC__WAIT_OBSERVED__NONZERO__STDERR_NONEMPTY\n"
+        );
+    } else {
+        assert!(observed.is_none());
+        assert!(matches!(&result, Err(BackupError::Io(error))
+            if error.kind() == std::io::ErrorKind::InvalidInput
+                && error.raw_os_error().is_none()
+                && error.to_string() == "invalid snapshot filesystem entry"));
+        assert!(root.list().unwrap().is_empty());
+        assert_eq!(
+            emitted(&diagnostic, result),
+            "FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=IO code=UNKNOWN__DECODER_CLIENT__PRIVATE_DIRECTORY\n"
+        );
+    }
 }

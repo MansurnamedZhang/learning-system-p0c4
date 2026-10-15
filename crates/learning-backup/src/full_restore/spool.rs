@@ -451,32 +451,41 @@ pub(super) mod native_observation {
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
         let root = BackupDir::open_private_root(&path).unwrap();
         let observed = event(0, vec![0, 255, 10]);
-        persist_first(&root, Some(&observed)).unwrap();
-        let mut raw = Vec::new();
-        let mut file = root.open_file("first-version.stderr").unwrap();
-        file.read_to_end(&mut raw).unwrap();
-        assert_eq!(raw, [0, 255, 10]);
-        assert_eq!(file.metadata().unwrap().mode() & 0o777, 0o600);
-        let mut json = Vec::new();
-        root.open_file("first-version.json")
-            .unwrap()
-            .read_to_end(&mut json)
-            .unwrap();
-        assert_eq!(json, encode_first(Some(&observed)).unwrap());
-        assert!(persist_first(&root, Some(&event(1, Vec::new()))).is_err());
-        let missing = root.create_dir("missing").unwrap();
-        assert!(persist_first(&missing, None).is_err());
-        assert!(missing.open_file("first-version.stderr").is_err());
-        let mut json = Vec::new();
-        missing
-            .open_file("first-version.json")
-            .unwrap()
-            .read_to_end(&mut json)
-            .unwrap();
-        assert_eq!(
-            serde_json::from_slice::<serde_json::Value>(&json).unwrap()["observation"],
-            "NOT_OBSERVED"
-        );
+        let persisted = persist_first(&root, Some(&observed));
+        if unsafe { libc::geteuid() } == 0 {
+            persisted.unwrap();
+            let mut raw = Vec::new();
+            let mut file = root.open_file("first-version.stderr").unwrap();
+            file.read_to_end(&mut raw).unwrap();
+            assert_eq!(raw, [0, 255, 10]);
+            assert_eq!(file.metadata().unwrap().mode() & 0o777, 0o600);
+            let mut json = Vec::new();
+            root.open_file("first-version.json")
+                .unwrap()
+                .read_to_end(&mut json)
+                .unwrap();
+            assert_eq!(json, encode_first(Some(&observed)).unwrap());
+            assert!(persist_first(&root, Some(&event(1, Vec::new()))).is_err());
+            let missing = root.create_dir("missing").unwrap();
+            assert!(persist_first(&missing, None).is_err());
+            assert!(missing.open_file("first-version.stderr").is_err());
+            let mut json = Vec::new();
+            missing
+                .open_file("first-version.json")
+                .unwrap()
+                .read_to_end(&mut json)
+                .unwrap();
+            assert_eq!(
+                serde_json::from_slice::<serde_json::Value>(&json).unwrap()["observation"],
+                "NOT_OBSERVED"
+            );
+        } else {
+            assert!(matches!(persisted, Err(BackupError::Io(error))
+                if error.kind() == std::io::ErrorKind::InvalidInput
+                    && error.raw_os_error().is_none()
+                    && error.to_string() == "invalid snapshot filesystem entry"));
+            assert!(root.list().unwrap().is_empty());
+        }
     }
 
     #[test]
@@ -1391,15 +1400,28 @@ mod tests {
             size: 13,
             sha256: crate::digest(b"PGDMPoriginal"),
         };
-        let mut frozen = freeze_full_dump(&mut input, &expected, &root).unwrap();
-        source.seek(SeekFrom::Start(0)).unwrap();
-        source.write_all(b"PGDMPmodified").unwrap();
-        source.sync_all().unwrap();
-        let mut raw = Vec::new();
-        frozen.file.read_to_end(&mut raw).unwrap();
-        assert_eq!(raw, b"PGDMPoriginal");
-        assert_eq!(frozen.size, 13);
-        assert_eq!(frozen.sha256, expected.sha256);
-        assert!(freeze_full_dump(&mut input, &expected, &root).is_err());
+        let frozen = freeze_full_dump(&mut input, &expected, &root);
+        if unsafe { libc::geteuid() } == 0 {
+            let mut frozen = frozen.unwrap();
+            source.seek(SeekFrom::Start(0)).unwrap();
+            source.write_all(b"PGDMPmodified").unwrap();
+            source.sync_all().unwrap();
+            let mut raw = Vec::new();
+            frozen.file.read_to_end(&mut raw).unwrap();
+            assert_eq!(raw, b"PGDMPoriginal");
+            assert_eq!(frozen.size, 13);
+            assert_eq!(frozen.sha256, expected.sha256);
+            assert!(freeze_full_dump(&mut input, &expected, &root).is_err());
+        } else {
+            assert!(matches!(frozen, Err(BackupError::Io(error))
+                if error.kind() == std::io::ErrorKind::InvalidInput
+                    && error.raw_os_error().is_none()
+                    && error.to_string() == "invalid snapshot filesystem entry"));
+            assert_eq!(root.list().unwrap(), ["source"]);
+            assert_eq!(input.stream_position().unwrap(), 0);
+            let mut raw = Vec::new();
+            input.read_to_end(&mut raw).unwrap();
+            assert_eq!(raw, b"PGDMPoriginal");
+        }
     }
 }

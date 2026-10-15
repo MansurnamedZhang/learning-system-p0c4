@@ -31,6 +31,33 @@ ACL_ASSERTION = 'alternate root recovery must preserve runtime CONNECT ACL after
 REGRESSIONS = tuple('source::admission_tests::' + name for name in (
     'same_database_attempts_share_admission_and_other_database_is_independent',
     'single_connection_catalog_and_drain_share_admitted_backend'))
+ROOT_LIBRARY_TESTS = (
+    'full_restore::dump_validation_diagnostic_tests::linux_actual_decode_entry_carries_observer_to_frozen_metadata_rejection',
+    'full_restore::dump_validation_diagnostic_tests::linux_actual_version_and_toc_run_retain_the_native_rejection_predicate',
+    'full_restore::spool::native_observation::first_version_files_are_private_exact_and_exclusive',
+    'full_restore::spool::tests::full_dump_spool_immutable_after_source_rewrite',
+)
+# These three successful diagnostic tests write directly to stderr, outside
+# libtest capture. Their lexical order is fixed by --test-threads=1.
+ROOT_LIBRARY_STDERR = b'''FULL_REHEARSAL_FAILURE kind=PRIMARY stage=PACKAGE class=INVALID code=FRESH_INDEX_DIFFERS
+FULL_REHEARSAL_FAILURE kind=SECONDARY stage=STOP_INSPECTION class=INVALID code=STOP_INSPECTION_UNCONFIRMED
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=REPORT class=INVALID code=REPORT_INVALID
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=INVALID code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=CAPACITY code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=IO code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=DATABASE code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=JSON code=UNKNOWN
+FULL_REHEARSAL_FAILURE kind=PRIMARY stage=DUMP_VALIDATION class=ASSET code=UNKNOWN
+'''
+LIBRARY_PG_TMPFS = 'rw,noexec,nosuid,nodev,size=4m,mode=0700'
+ROOT_LIBRARY_RUN = r'''
+umask 077
+test "$(id -u)" = 0
+test "$(sha256sum /learning-backup-test.elf | cut -d ' ' -f 1)" = "$1"
+test "$(sha256sum /usr/lib/postgresql/18/bin/pg_restore | cut -d ' ' -f 1)" = eba5f8a8361918f873e273b1107dd727c19fc4269e8f98854ed5589555d668c6
+test "$(/usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /usr/lib/postgresql/18/bin/pg_restore --version)" = 'pg_restore (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+2)'
+exec /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C HOME=/tmp TMPDIR=/tmp /learning-backup-test.elf --test-threads=1
+'''
 
 
 class GateError(RuntimeError):
@@ -123,6 +150,18 @@ def parse_regression(output):
     return [{'passed': int(p), 'failed': 0, 'ignored': int(i), 'filtered': int(f)} for p, i, f in matches]
 
 
+def parse_root_library(code, output, stderr):
+    require(code == 0 and stderr == ROOT_LIBRARY_STDERR, 'ROOT_LIBRARY_EXIT')
+    text = output.decode()
+    counts = parse_regression(text)
+    require(len(counts) == 1 and counts[0]['filtered'] == 0 and counts[0]['passed'] > 0,
+            'ROOT_LIBRARY_UNFILTERED')
+    lines = text.splitlines()
+    require(all(lines.count('test ' + name + ' ... ok') == 1 for name in ROOT_LIBRARY_TESTS),
+            'ROOT_LIBRARY_FOUR_BODIES_REQUIRED')
+    return counts
+
+
 def discover_binary(output):
     artifacts = []
     finished = []
@@ -154,22 +193,33 @@ def validate_helper(helper, facts, expected):
     require(facts['Id'] == expected['id'] and HEX64.fullmatch(facts['Id']) and
             facts['Name'] == '/' + expected['name'] and facts['Image'] == expected['image'] and
             config['Image'] == expected['image'], 'HELPER_IDENTITY')
-    require(config['User'] == '0:0' and config['WorkingDir'] == '/reviewed' and
+    library_runtime = expected.get('library_runtime', False)
+    require(config['User'] == '0:0' and config['WorkingDir'] == ('/tmp' if library_runtime else '/reviewed') and
             config['Labels'] == expected['labels'] and config['Cmd'] == expected['cmd'] and
             config['Entrypoint'] == expected['entrypoint'] and
             helper.env_dict(config['Env']) == expected['env'] and config['OpenStdin'] == expected['stdin'], 'HELPER_CONFIG')
     require(host['Privileged'] is False and not host.get('CapAdd') and host.get('CapDrop') in
             (['ALL'], ['CAP_ALL']) and host['SecurityOpt'] in
             (['no-new-privileges'], ['no-new-privileges:true']), 'HELPER_SECURITY')
+    tmpfs = {'/tmp': 'rw,nosuid,nodev,size=1g'}
+    if library_runtime:
+        tmpfs['/var/lib/postgresql'] = LIBRARY_PG_TMPFS
+        require(config.get('Volumes') == {'/var/lib/postgresql': {}}, 'LIBRARY_IMAGE_VOLUMES')
     require(host['NanoCpus'] == 4 * 10**9 and host['Memory'] == 8 * 1024**3 and
             host['MemorySwap'] == host['Memory'] and host['PidsLimit'] == 512 and
-            host['ReadonlyRootfs'] is True and host['Tmpfs'] == {'/tmp': 'rw,nosuid,nodev,size=1g'}, 'HELPER_BUDGET')
+            host['ReadonlyRootfs'] is True and host['Tmpfs'] == tmpfs, 'HELPER_BUDGET')
     require(host.get('PidMode', '') == '' and host['IpcMode'] == 'private' and not any(host.get(key)
             for key in ('Binds', 'Devices', 'DeviceRequests', 'VolumesFrom', 'Links', 'ExtraHosts',
                         'AutoRemove', 'PortBindings', 'PublishAllPorts', 'UTSMode', 'CgroupnsMode')
             if key != 'CgroupnsMode') and host.get('CgroupnsMode', 'private') == 'private', 'HELPER_HOST_ACCESS')
-    require({(m['Type'], m['Source'], m['Destination'], m['RW']) for m in facts['Mounts']} == expected['mounts']
-            and len(facts['Mounts']) == len(expected['mounts']), 'HELPER_MOUNTS')
+    mounts = facts['Mounts']
+    if library_runtime:
+        temporary = [m for m in mounts if m['Type'] == 'tmpfs']
+        require(all(m['Destination'] in tmpfs and m['RW'] is True for m in temporary) and
+                len({m['Destination'] for m in temporary}) == len(temporary), 'LIBRARY_TMPFS_MOUNTS')
+        mounts = [m for m in mounts if m['Type'] != 'tmpfs']
+    require({(m['Type'], m['Source'], m['Destination'], m['RW']) for m in mounts} == expected['mounts']
+            and len(mounts) == len(expected['mounts']), 'HELPER_MOUNTS')
     for mount in facts['Mounts']:
         if mount['Type'] == 'volume':
             require(mount['Name'] == expected['volume_names'][mount['Destination']], 'HELPER_VOLUME_NAME')
@@ -262,18 +312,37 @@ def create_volume(helper, runner, name, labels):
 
 
 def run_helper(helper, runner, result, image, mounts, volume_names, command, *, env=None,
-               network='none', network_id=None, network_identity=None, stdin=None, timeout=180, allowed=(0,)):
+               network='none', network_id=None, network_identity=None, stdin=None, timeout=180, allowed=(0,),
+               library_runtime=False):
     name = 'knowweave-binding-helper-' + uuid.uuid4().hex
     labels = {**(image['Config'].get('Labels') or {}), 'knowweave.source-binding.batch': result['batch_id']}
     supplied = env or {}
     require(not any(key in supplied for key in ('PGPASSWORD', 'DATABASE_URL', 'ADMIN_DSN')), 'HELPER_SECRET_ENV')
+    if library_runtime:
+        image_env = helper.env_dict(image['Config']['Env'])
+        require(image['Id'] == helper.PG_IMAGE.split('@')[1] and
+                any(ref in ('postgres@' + image['Id'], 'docker.io/library/postgres@' + image['Id'])
+                    for ref in image.get('RepoDigests', [])) and
+                image['Config'].get('Volumes') == {'/var/lib/postgresql': {}} and
+                image_env.get('PG_MAJOR') == '18' and image_env.get('PG_VERSION') == '18.6-1.pgdg12+2',
+                'LIBRARY_PG18_IMAGE')
+        require(not any(key in image_env for key in ('PGPASSWORD', 'PGPASSFILE', 'PGHOST', 'PGPORT', 'PGUSER',
+                'PGDATABASE', 'PGSERVICE', 'PGSERVICEFILE', 'DATABASE_URL', 'ADMIN_DSN')), 'LIBRARY_IMAGE_SECRET_ENV')
+        require(network == 'none' and network_id is None and network_identity is None and
+                not supplied and stdin is None and allowed == (0,) and not volume_names and
+                len(mounts) == 1 and mounts[0][0] == 'bind' and mounts[0][2:] == ('/learning-backup-test.elf', True) and
+                len(command) == 5 and command[:4] == ['/bin/sh', '-ec', ROOT_LIBRARY_RUN, 'binding-library'] and
+                isinstance(command[4], str) and HEX64.fullmatch(command[4]), 'LIBRARY_FIXED_PROFILE')
     if network != 'none':
         require(type(network_identity) is dict and network_identity.get('id') == network_id and
                 network_identity.get('name') == network, 'HELPER_CASE_IDENTITY_REQUIRED')
         validate_case_network(runner.inspect('network', network_id), network_identity)
     args = ['create', '--name', name, '--pull=never', '--network=' + network, '--read-only', '--cap-drop=ALL',
             '--security-opt=no-new-privileges', '--cpus=4', '--memory=8g', '--memory-swap=8g', '--pids-limit=512',
-            '--tmpfs=/tmp:rw,nosuid,nodev,size=1g', '--user=0:0', '--workdir=/reviewed', '--entrypoint=' + command[0]]
+            '--tmpfs=/tmp:rw,nosuid,nodev,size=1g', '--user=0:0',
+            '--workdir=' + ('/tmp' if library_runtime else '/reviewed'), '--entrypoint=' + command[0]]
+    if library_runtime:
+        args += ['--tmpfs=/var/lib/postgresql:' + LIBRARY_PG_TMPFS]
     if stdin is not None:
         args += ['--interactive']
     for key, value in labels.items():
@@ -296,7 +365,7 @@ def run_helper(helper, runner, result, image, mounts, volume_names, command, *, 
     expected = {'id': container_id, 'name': name, 'image': image['Id'], 'labels': labels, 'cmd': command[1:],
                 'entrypoint': [command[0]], 'env': {**helper.env_dict(image['Config']['Env']), **supplied},
                 'mounts': expected_mounts, 'volume_names': volume_names, 'network': network,
-                'network_id': network_id, 'stdin': stdin is not None}
+                'network_id': network_id, 'stdin': stdin is not None, 'library_runtime': library_runtime}
     record = {'id': container_id, 'name': name, 'removed': False}
     result.setdefault('helpers', []).append(record)
     result['resource_creation_unknown'] = False
@@ -431,8 +500,7 @@ def compile_case(helper, runner, result, image, mounts, volumes, manifest, archi
     if first:
         checks = ['cargo fmt --all -- --check', 'cargo clippy --locked --offline -p learning-backup --all-targets -- -D warnings']
         if mode == 'green':
-            checks += ['cargo test --locked --offline -p learning-backup --lib',
-                       'cargo test --locked --offline -p learning-backup --test maintenance_contract --test maintenance_journal']
+            checks += ['cargo test --locked --offline -p learning-backup --test maintenance_contract --test maintenance_journal']
         for command in checks:
             code, stdout, stderr = run_helper(helper, runner, result, image, mounts, volumes,
                                                ['/bin/sh', '-ec', command], env=supplied, timeout=7200)
@@ -454,6 +522,19 @@ def compile_case(helper, runner, result, image, mounts, volumes, manifest, archi
     require(set(row) == {'binary_sha256'} and HEX64.fullmatch(row['binary_sha256']), 'BINARY_COPY_IDENTITY')
     record.update(binary=retained, binary_sha256=row['binary_sha256'], compiler_artifact=artifact,
                   compiler_stdout_sha256=compiler_sha256)
+    if first and mode == 'green':
+        runtime_image = runner.inspect('image', helper.PG_IMAGE)
+        # The daemon's verified build-volume mountpoint supplies only this retained ELF.
+        binary_source = runner.inspect('volume', volumes['/target'])['Mountpoint'] + '/retained/' + record['identity']['case_id']
+        code, stdout, stderr = run_helper(helper, runner, result, runtime_image,
+                                         [('bind', binary_source, '/learning-backup-test.elf', True)], {},
+                                         ['/bin/sh', '-ec', ROOT_LIBRARY_RUN, 'binding-library', record['binary_sha256']],
+                                         library_runtime=True, timeout=7200)
+        result.setdefault('static_checks', []).append({
+            'command': '/learning-backup-test.elf --test-threads=1', 'exit_code': code,
+            'stdout_sha256': digest(stdout), 'stderr_sha256': digest(stderr),
+            'classification': 'PURE_STATIC_NOT_LIVE_PG', 'runtime_image': runtime_image['Id'],
+            'counts': parse_root_library(code, stdout, stderr)})
     _, listing, stderr = run_helper(helper, runner, result, image, mounts, volumes, [retained, '--list', '--ignored'])
     require(stderr == b'', 'DISCOVERY_STDERR')
     names = [line.removesuffix(': test') for line in listing.decode().splitlines() if line.endswith(': test')]

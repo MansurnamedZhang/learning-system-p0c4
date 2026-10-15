@@ -16,7 +16,7 @@
 - No independent destination exists now. Do not operationally enable `independent-verifier` with a pretend off-host key, create CompleteBackup from a sealed pin, or claim `P0_C4_VERIFIED` before the external gate.
 - No new business migrations; new registry, protection and recovery records live in management-owned storage.
 - Normal restore accepts only CompleteBackup. Local full-chain capability is `#[cfg(test)]`, privately constructed from a fresh capture, has no caller bypass flag, and always quarantines the exact target.
-- Every remote case uses fresh canonical UUIDs, source/build/PG volumes, exact source/build inputs and an unused subnet on `172.16.240.13`. Never reuse/replay old fixtures, failed targets or historical test credit.
+- Every remote case uses fresh canonical UUIDs, source/build/PG volumes, exact source/build inputs and an unused subnet on `<test-server>`. Never reuse/replay old fixtures, failed targets or historical test credit.
 - Fixed offline builder: `sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b`; PG18.6: `sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d`.
 - Management records private 0700/0600; secrets remain in human-terminal/provisioner private files, never code, package, logs, evidence, argv or full DSNs.
 - Reconcile remains dry-run. Unknown/corrupt/stale storage authority withholds all candidates and blocks publication; no destructive GC is added.
