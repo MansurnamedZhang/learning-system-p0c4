@@ -107,6 +107,12 @@ def require(ok, token):
         raise GateError(token)
 
 
+def raw_evidence_limits(case_count):
+    """Fixed admitted schedules only; legacy all plus close has nine cases."""
+    require(type(case_count) is int and 1<=case_count<=9,'RAW_SCHEDULE_COUNT')
+    return RAW_LOG_FILE_LIMIT*case_count,RAW_INDEX_BYTES_LIMIT*case_count
+
+
 def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
@@ -325,10 +331,11 @@ LOG_RESERVATION_LOCK=threading.RLock()
 def log_capacity(logs,additional=0):
     with LOG_RESERVATION_LOCK:
         state=LOG_RESERVATIONS.get(str(logs),dict(archives=0,ledgers=0,pending=0,audits=0))
+        file_limit,_=raw_evidence_limits(state.get('case_count',1))
         names={p.name for p in logs.iterdir()};count=len(names)
         promised=set().union(*state.get('work',{}).values(),*state.get('child_files',{}).values())
         cleanup=3*sum(len(v) for v in state.get('cleanup',{}).values())
-        require(count+len(promised-names)+additional+3*state['archives']+state['ledgers']+state['pending']+cleanup<=RAW_LOG_FILE_LIMIT,'NAMESPACE_LOG_CAPACITY')
+        require(count+len(promised-names)+additional+3*state['archives']+state['ledgers']+state['pending']+cleanup<=file_limit,'NAMESPACE_LOG_CAPACITY')
         return count
 
 
@@ -2031,8 +2038,9 @@ class NamespaceAudits:
 
     def capacity(self):
         logs=self.runner.runner.logs;count=sum(1 for _ in logs.iterdir())
-        available=min(256-len(self.audits),512-self.state['audits'],
-                      (RAW_LOG_FILE_LIMIT-count-3*self.state['archives']-self.state['ledgers'])//12)
+        case_count=self.state.get('case_count',1);file_limit,_=raw_evidence_limits(case_count)
+        available=min(256-len(self.audits),512*case_count-self.state['audits'],
+                      (file_limit-count-3*self.state['archives']-self.state['ledgers'])//12)
         require(available>0,'NAMESPACE_AUDIT_CAPACITY');log_capacity(logs,12)
 
     def guard(self,container):
@@ -2992,8 +3000,10 @@ def completion_case_identity(case_id):
 
 
 def owned_log_runner(h,batch,result,ledger_count):
+    require(type(ledger_count) is int and 0<=ledger_count<=9,'RAW_LEDGER_COUNT')
     logs=batch/'evidence/logs'
-    LOG_RESERVATIONS[str(logs)]=dict(archives=0,ledgers=ledger_count,pending=0,audits=0)
+    # Zero-ledger controlled setup still owns one bounded evidence schedule.
+    LOG_RESERVATIONS[str(logs)]=dict(archives=0,ledgers=ledger_count,pending=0,audits=0,case_count=max(1,ledger_count))
     class OwnedRunner(h.Runner):
         def run(self,command,**kwargs):
             prefix=begin_log_rpc(self)
@@ -3027,12 +3037,13 @@ def expected_raw_logs(runner,result):
     return expected
 
 
-def raw_log_records(logs,expected,budget):
-    require(type(expected) is set and len(expected)<=RAW_LOG_FILE_LIMIT and all(re.fullmatch(r'(?:[0-9]{4,}|child-[0-9a-f]{32})\.(?:stdout|stderr|process\.json|teardown\.json)|namespace-audits-[0-9a-f-]{36}\.json',name) for name in expected),'RAW_KNOWN_LOG_NAMES')
+def raw_log_records(logs,expected,budget,*,case_count=1):
+    file_limit,_=raw_evidence_limits(case_count)
+    require(type(expected) is set and len(expected)<=file_limit and all(re.fullmatch(r'(?:[0-9]{4,}|child-[0-9a-f]{32})\.(?:stdout|stderr|process\.json|teardown\.json)|namespace-audits-[0-9a-f-]{36}\.json',name) for name in expected),'RAW_KNOWN_LOG_NAMES')
     entries=[]
     with os.scandir(logs) as scan:
         for entry in scan:
-            require(len(entries)<RAW_LOG_FILE_LIMIT,'RAW_ENTRY_CAP');entries.append(entry.name)
+            require(len(entries)<file_limit,'RAW_ENTRY_CAP');entries.append(entry.name)
     require(set(entries)==expected,'RAW_INVENTORY')
     rows=[]
     for name in sorted(expected):
@@ -3061,20 +3072,22 @@ def publish_raw_index(batch,runner,result,*,budget=None):
     try: from p0c4_storage_registry import rename_no_replace
     except ModuleNotFoundError: from scripts.p0c4_storage_registry import rename_no_replace
     expected=expected_raw_logs(runner,result);budget=budget if budget is not None else [0]
+    state=LOG_RESERVATIONS[str(runner.logs)];case_count=state.get('case_count',1)
+    _,index_limit=raw_evidence_limits(case_count)
     scan_start=budget[0]
-    files=raw_log_records(runner.logs,expected,budget)
-    identities=dict(LOG_RESERVATIONS[str(runner.logs)].get('producer_identities',{}))
+    files=raw_log_records(runner.logs,expected,budget,case_count=case_count)
+    identities=dict(state.get('producer_identities',{}))
     for child in runner.ownership.children:identities.update(child.log_identities)
     require(set(identities)==expected and all(identities[Path(row['path']).name]==(row['dev'],row['ino']) for row in files),'RAW_PRODUCER_IDENTITY')
-    require(raw_log_records(runner.logs,expected,budget)==files,'RAW_CHANGED')
-    require(raw_log_records(runner.logs,expected,budget)==files,'RAW_INDEX_READBACK')
+    require(raw_log_records(runner.logs,expected,budget,case_count=case_count)==files,'RAW_CHANGED')
+    require(raw_log_records(runner.logs,expected,budget,case_count=case_count)==files,'RAW_INDEX_READBACK')
     value=dict(format_version=1,capability='c4_source_raw_index_v1',files=files,scan_bytes=budget[0]-scan_start);raw=canonical(value)
-    require(len(raw)<=RAW_INDEX_BYTES_LIMIT,'RAW_INDEX_BYTES')
+    require(len(raw)<=index_limit,'RAW_INDEX_BYTES')
     evidence=batch/'evidence';temporary='.raw-index-'+str(uuid.uuid4());new_private(evidence/temporary,raw)
     fd=os.open(evidence,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
     try:rename_no_replace(fd,temporary,fd,'raw-index.json')
     finally:os.close(fd)
-    readback,_=private_read(evidence/'raw-index.json',RAW_INDEX_BYTES_LIMIT,uid=os.geteuid())
+    readback,_=private_read(evidence/'raw-index.json',index_limit,uid=os.geteuid())
     require(readback==raw,'RAW_INDEX_READBACK')
     return dict(path='evidence/raw-index.json',size=len(raw),sha256=digest(raw))
 
@@ -3082,6 +3095,7 @@ def main():
     args=parse_cli();result=dict(status='FAILED',cases=[],helpers=[],cleanup_verified=False);batch=None;h=None;b=None;runner=None
     try:
         schedule=admit_schedule(args)
+        raw_evidence_limits(len(schedule))
         if args.scope!='all':result['suite_leaf']=suite_leaf(args,schedule)
         require(sys.platform=='linux' and os.geteuid()!=0 and Path.home()==Path('/home/hans'),'ORDINARY_HANS_LINUX_REQUIRED')
         os.umask(0o077)
@@ -3110,7 +3124,7 @@ def main():
         if not args.legacy_close_subnet:result['legacy_close_regression']=dict(executed=False,reason='OPTIONAL_SEPARATE_SUBNET_NOT_SUPPLIED')
         source=batch/'source';b.extract_public_source(h,source,files)
         result['source_sha256_before']=b.source_digest(h,source,manifest)
-        LOG_RESERVATIONS[str(batch/'evidence/logs')]=dict(archives=0,ledgers=len(schedule),pending=0,audits=0)
+        LOG_RESERVATIONS[str(batch/'evidence/logs')]=dict(archives=0,ledgers=len(schedule),pending=0,audits=0,case_count=len(schedule))
         class BoundedLogRunner(h.Runner):
             def run(self,command,**kwargs):
                 prefix=begin_log_rpc(self)

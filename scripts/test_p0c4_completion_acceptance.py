@@ -6,6 +6,115 @@ from scripts import p0c4_completion_acceptance as runner
 from scripts.test_p0c4_storage_registry import receipt_fixture
 
 class CompletionTests(unittest.TestCase):
+    def test_eight_schedule_publishes_and_verifies_real_8201_logs(self):
+        import contextlib,os,stat,tempfile
+        from types import SimpleNamespace
+        class Runner:
+            counter=2731
+            def __init__(self,logs):self.logs=logs
+            def run(self,*args,**kwargs):raise AssertionError('no transport expected')
+        with tempfile.TemporaryDirectory() as directory:
+            batch=Path(directory);logs=batch/'evidence/logs';logs.mkdir(parents=True)
+            result=dict(cases=[dict(namespace_audits=dict(path=f'namespace-audits-00000000-0000-4000-8000-{n:012x}.json')) for n in range(1,9)],helpers=[])
+            owned=runner.driver.owned_log_runner(SimpleNamespace(Runner=Runner),batch,result,8)
+            names=runner.driver.expected_raw_logs(owned,result)
+            self.assertEqual(len(names),8201)
+            for name in names:(logs/name).write_bytes(name.encode())
+            state=runner.driver.LOG_RESERVATIONS[str(logs)]
+            state['producer_identities']={name:((logs/name).stat().st_dev,(logs/name).stat().st_ino) for name in names}
+            opened,closed,fstat=os.open,os.close,os.fstat
+            def open_file(path,flags,*args,**kwargs):
+                return -1 if Path(path)==batch/'evidence' else opened(path,flags,*args,**kwargs)
+            def metadata(fd):
+                value=fstat(fd)
+                return SimpleNamespace(**{key:getattr(value,key) for key in ('st_dev','st_ino','st_nlink','st_size','st_mtime_ns','st_ctime_ns')},st_uid=0,st_mode=stat.S_IFREG|0o600)
+            def relative(root,ref,cap):
+                runner.evidence.validate_ref(ref,cap);raw=(root/ref['path']).read_bytes()
+                self.assertEqual((len(raw),runner.digest(raw)),(ref['size'],ref['sha256']));return raw
+            # Real files, identities, reads, hashes and index bytes. Adapt only
+            # POSIX ownership/durability primitives for this portable unit test.
+            patches=[patch.object(runner.driver.os,'open',side_effect=open_file),patch.object(runner.driver.os,'close',side_effect=lambda fd:None if fd==-1 else closed(fd)),
+                patch.object(runner.driver.os,'fstat',side_effect=metadata),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'fsync'),
+                patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),
+                patch.object(runner.driver,'new_private',side_effect=lambda path,raw:path.write_bytes(raw)),
+                patch.object(runner.registry,'rename_no_replace',side_effect=lambda a,old,b,new:(batch/'evidence'/old).rename(batch/'evidence'/new)),
+                patch.object(runner,'relative_ref',side_effect=relative)]
+            try:
+                with contextlib.ExitStack() as stack:
+                    for item in patches:stack.enter_context(item)
+                    self.assertEqual(runner.driver.log_capacity(logs),8201)
+                    ref=runner.driver.publish_raw_index(batch,owned,result,budget=[0])
+                    receipt=dict(driver_result=dict(path='evidence/result.json'),raw_index=ref)
+                    runner._verify_raw_evidence(batch,receipt,{},[0],False,case_count=8)
+                    index=runner.registry.parse_record((batch/ref['path']).read_bytes())
+                    self.assertEqual(len(index['files']),8201)
+                    self.assertEqual(index['scan_bytes'],3*sum((logs/name).stat().st_size for name in names))
+                    with self.assertRaisesRegex(runner.driver.GateError,'RAW_KNOWN_LOG_NAMES'):
+                        runner.driver.raw_log_records(logs,set(sorted(names)[:8193]),[0])
+            finally:runner.driver.LOG_RESERVATIONS.pop(str(logs),None)
+
+    def test_eight_large_index_budget_comes_from_plan_not_completed_count(self):
+        from types import SimpleNamespace
+        plan,nested,receipt=self.lifecycle_envelope()
+        receipt['status']='FAILED_UNUSABLE';nested['cases']=nested['cases'][:5]
+        maximum=2**64-1
+        names={f'namespace-audits-00000000-0000-4000-8000-{n:012x}.json' for n in range(65536)}
+        files=[dict(path='logs/'+name,size=0,sha256='f'*64,dev=maximum,ino=maximum-n) for n,name in enumerate(sorted(names))]
+        batch=Path('/root/case/driver');logs=batch/'evidence/logs'
+        owned=SimpleNamespace(logs=logs,ownership=SimpleNamespace(children=[]));written=[];caps=[]
+        runner.driver.LOG_RESERVATIONS[str(logs)]=dict(case_count=8,producer_identities={Path(row['path']).name:(row['dev'],row['ino']) for row in files})
+        try:
+            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files) as producer,patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda path,cap,**kw:(caps.append(cap) or written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
+                ref=runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=[0])
+            self.assertGreater(len(written[0]),2*1024**2);self.assertLessEqual(len(written[0]),16*1024**2)
+            self.assertEqual(caps,[16*1024**2]);self.assertEqual([call.kwargs for call in producer.call_args_list],[dict(case_count=8)]*3)
+            receipt['raw_index']=dict(ref,path='driver/'+ref['path'])
+            def relative(root,ref,cap):
+                runner.evidence.validate_ref(ref,cap)
+                if ref['path'].endswith('/result.json'):return runner.canonical(nested)
+                caps.append(cap);return written[0]
+            with patch.object(runner,'private_read',return_value=runner.canonical(plan)),patch.object(runner,'relative_ref',side_effect=relative),patch.object(runner.driver,'raw_log_records',return_value=files) as consumer:
+                self.assertEqual(runner._verify_lifecycle_envelope(Path('/root/case'),receipt),receipt)
+                self.assertEqual(consumer.call_args.kwargs,dict(case_count=8))
+                self.assertEqual(caps,[16*1024**2,16*1024**2])
+                consumer.reset_mock();receipt['raw_index']['size']=16*1024**2+1
+                with self.assertRaisesRegex(runner.CompletionError,'RESULT_FILEREF'):
+                    runner._verify_lifecycle_envelope(Path('/root/case'),receipt)
+                consumer.assert_not_called()
+        finally:runner.driver.LOG_RESERVATIONS.pop(str(logs),None)
+
+    def test_public_json_cannot_override_raw_schedule_budget(self):
+        for plan in (self.envelope()[0],self.lifecycle_envelope()[0]):
+            for field,value in (('case_count',9),('raw_log_file_limit',73728),('raw_index_bytes_limit',18*1024**2)):
+                with self.subTest(case=plan['case_name'],field=field),self.assertRaises(runner.CompletionError):
+                    runner.validate_plan(dict(plan,**{field:value}),plan['case_name'])
+        files=[dict(path=f'logs/{n:04d}.stdout',size=0,sha256='a'*64,dev=1,ino=n) for n in range(1,8194)]
+        for case_count,count in ((1,8193),(8,65537)):
+            rows=files if count==8193 else [dict(files[0],path=f'logs/{n:04d}.stdout',ino=n) for n in range(1,count+1)]
+            raw=runner.canonical(dict(format_version=1,capability='c4_source_raw_index_v1',files=rows,scan_bytes=0))
+            receipt=dict(driver_result=dict(path='evidence/result.json'),raw_index=dict(path='evidence/raw-index.json',size=len(raw),sha256=runner.digest(raw)))
+            with patch.object(runner,'relative_ref',return_value=raw),patch.object(runner.driver,'raw_log_records') as consumer:
+                with self.assertRaisesRegex(runner.CompletionError,'RESULT_RAW_INDEX_SCHEMA'):
+                    runner._verify_raw_evidence(Path('/root/case'),receipt,dict(case_count=9,raw_log_file_limit=73728),[0],False,case_count=case_count)
+                consumer.assert_not_called()
+
+    def test_eight_schedule_retains_raw_file_and_aggregate_byte_caps(self):
+        import os,stat,tempfile
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            logs=Path(directory);(logs/'0001.stdout').write_bytes(b'1234')
+            metadata=SimpleNamespace(st_dev=1,st_ino=2,st_uid=0,st_mode=stat.S_IFREG|0o600,st_nlink=1,st_size=4,st_mtime_ns=1,st_ctime_ns=1)
+            read=os.read
+            with patch.object(runner.driver.os,'fstat',return_value=metadata),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'read',side_effect=read) as reads,patch.object(runner.driver.os,'fsync'):
+                budget=[536870908];runner.driver.raw_log_records(logs,{'0001.stdout'},budget,case_count=8)
+                self.assertEqual(budget,[536870912]);self.assertEqual(reads.call_count,1)
+                with self.assertRaisesRegex(runner.driver.GateError,'RAW_SCAN_BYTES'):
+                    runner.driver.raw_log_records(logs,{'0001.stdout'},budget,case_count=8)
+                metadata.st_size=2*1024**2+1
+                with self.assertRaisesRegex(runner.driver.GateError,'RAW_PRIVATE_FILE'):
+                    runner.driver.raw_log_records(logs,{'0001.stdout'},[0],case_count=8)
+                self.assertEqual(reads.call_count,1)
+
     def test_destination_pass_requires_actual_body_and_cleanup_receipt(self):
         plan,_,nested,receipt=self.envelope()
         row=copy.deepcopy(self.lifecycle_envelope()[1]['cases'][0]);issuer=row['issuer']['registry_provisioning']
@@ -525,7 +634,7 @@ class CompletionTests(unittest.TestCase):
 
     def test_same_run_raw_budget_is_forwarded_through_both_verifications(self):
         fixture=self.envelope();shared=[0];seen=[]
-        def observe(logs,expected,budget):seen.append(budget);budget[0]+=4;return []
+        def observe(logs,expected,budget,*,case_count=1):self.assertEqual(case_count,1);seen.append(budget);budget[0]+=4;return []
         # Keep the envelope fixture isolated from real private filesystem access.
         plan,issuer,nested,receipt=fixture
         reads={'case-plan.json':runner.canonical(plan),'registry-provisioning.json':runner.canonical(issuer)}
@@ -554,7 +663,8 @@ class CompletionTests(unittest.TestCase):
         from types import SimpleNamespace
         logs=Path('/root/case/logs');batch=logs.parent;owned=SimpleNamespace(logs=logs,ownership=SimpleNamespace(children=[]))
         files=[dict(path='logs/0001.stdout',size=4,sha256='a'*64,dev=1,ino=2)];seen=[];written=[];budget=[8]
-        def scan(path,expected,actual_budget):
+        def scan(path,expected,actual_budget,*,case_count=1):
+            self.assertEqual(case_count,1)
             self.assertIs(actual_budget,budget);budget[0]+=4;seen.append(budget[0]);return files
         runner.driver.LOG_RESERVATIONS[str(logs)]=dict(producer_identities={'0001.stdout':(1,2)})
         try:
@@ -628,7 +738,7 @@ class CompletionTests(unittest.TestCase):
         index=dict(format_version=1,capability='c4_source_raw_index_v1',files=files,scan_bytes=12)
         reads={'case-plan.json':runner.canonical(plan),'registry-provisioning.json':runner.canonical(issuer)}
         budget=[536870905]
-        def scan(logs,expected,actual):self.assertIs(actual,budget);actual[0]+=4;return files
+        def scan(logs,expected,actual,*,case_count=1):self.assertEqual(case_count,1);self.assertIs(actual,budget);actual[0]+=4;return files
         with patch.object(runner,'private_read',side_effect=lambda path,cap:reads[Path(path).name]),patch.object(runner,'relative_ref',side_effect=lambda root,ref,cap:runner.canonical(nested if ref['path'].endswith('/result.json') else index)),patch.object(runner.driver,'raw_log_records',side_effect=scan):
             with self.assertRaisesRegex(runner.CompletionError,'RESULT_RAW_RECHECK_CAPACITY'):runner._verify_envelope(Path('/root/case'),receipt,raw_budget=budget,reserve_recheck=True)
 

@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "date": "2026-10-13",
-  "source_commit": "1856b20550fdf12100f910f62223ddf4d43c6afd",
-  "previous_public_commit": "fee46e0253dead8bda10b4ef6907105fc4aedeee",
-  "source_archive_sha256": "804f25901af6fac51f2d95ca84e8cb14ba4115972866ba15403dc53c810b627d",
-  "source_manifest_sha256": "7d8970f4906af1102fb4446c75a8d7de155af403946770336ee8b89a858da3ab",
-  "source_file_count": 540,
+  "date": "2026-10-15",
+  "source_commit": "49528e1e6ab1a2bbe44d5023332a7728ac163df0",
+  "previous_public_commit": "b1a43e68d2a10ff471462fe1081d3502a911303d",
+  "source_archive_sha256": "a84bbee7a13b98f0dcc074f663df4c8a0e702b45faee057d2339cf60ab4bd33f",
+  "source_manifest_sha256": "db259caf7cd5cb21f2826556e932f3a78487d2c51cf7a7c72afe3d768023b8fc",
+  "source_file_count": 541,
   "excluded_source_files": [
+    ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
   ],
   "scope": "WORKING_SNAPSHOT_NOT_RELEASE_NOT_C4_ACCEPTANCE_NOT_PRODUCTION",
@@ -49,22 +50,22 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 113438,
-      "sha256": "b786ff61afa62d0e483410ea85bfceab157dd3ead74c4ace2cee198728911756",
+      "bytes": 113932,
+      "sha256": "3240e5f8be7e1d236b3591975da0e558ed203a0d3fe0fc5afa27e869b56ab556",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "KnowWeave架构设计.html",
       "bytes": 127048,
       "sha256": "2717c76802f45664f24b3390e146aa0e629b1668ba2c2c7d09ead08ac8ed2e60",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "README.md",
-      "bytes": 3609,
-      "sha256": "781d2f7817530e7c66e98176b6f47b31a66696aaa11ba32ec4cb6781020b2745",
+      "bytes": 3738,
+      "sha256": "7cb29d65dcd7297f267e6384efca9b505ffac305d1388e2abd94b67de1502304",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -588,9 +589,9 @@
     },
     {
       "path": "crates/learning-backup/src/source/lifecycle_tests.rs",
-      "bytes": 65016,
-      "sha256": "ab333c9a2c097683e3c30963d3212247abcede5444f5bb6b68ab3215ba490043",
-      "source_blob_sha256": "ab333c9a2c097683e3c30963d3212247abcede5444f5bb6b68ab3215ba490043",
+      "bytes": 68198,
+      "sha256": "0b3b9553fbd28b1250d772f51b0d79e8e248c2eb916d650197c260aac6c2e89b",
+      "source_blob_sha256": "0b3b9553fbd28b1250d772f51b0d79e8e248c2eb916d650197c260aac6c2e89b",
       "source_bytes_preserved": true
     },
     {
@@ -2688,17 +2689,17 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 46076,
-      "sha256": "eb6a58da99e9816f78750aabea77e54831321ef8d3c03522406e5c2b6da8b463",
+      "bytes": 46585,
+      "sha256": "fc100d541686e31cdfb386ef52e7571e8868111df2e3b21c8d349899b1c4fa4f",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/KnowWeave架构设计总览.md",
       "bytes": 1378,
       "sha256": "72bb4749b69dad973879833f40c81a3a5eaed1add6532c9db61f21894a46e472",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/P0-C4源端绑定与验收.md",
@@ -2709,24 +2710,24 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 4960,
-      "sha256": "4e35d620b2da4cafc3a7e3a0d65b9a8203bc30cbedce1c9771c3f5d66583c45b",
+      "bytes": 14822,
+      "sha256": "a502ea3934dc4aa29b207861d4be5391c14d0f67b1dbaf367c9c68cc9b79bcf5",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/PostgreSQL与Neo4j对比验证方案.md",
       "bytes": 18835,
       "sha256": "88cbaa807134075e1b8940a213a5faa14d54afbcfd697c79e79a459cbde77c0d",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/Rust与前端技术方案.md",
       "bytes": 5098,
       "sha256": "b85a6a7df989647a639b6ff858cf62cadfc7dba88372fd0aa4c53acf4ee73a01",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/architecture/01-overview.md",
@@ -2901,84 +2902,84 @@
       "bytes": 1949,
       "sha256": "ccbe9b6db64a32a066dea52766ecbc75860f914f425467ed8244bda9b0a67e42",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-crates.svg",
       "bytes": 8518,
       "sha256": "391529b539294eb963e69ceb847c77115aded93963a3b125364fcb6762b39ade",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-deployment.mmd",
       "bytes": 2115,
       "sha256": "0493bf624c73308dfd718b8689960ad8d1bf812418ef0f4df5bf90ecf507811c",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-deployment.svg",
       "bytes": 8666,
       "sha256": "a14eb2f1774724ee743b92db18441fa3361c49c628160e28539217516c559d17",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-domain.mmd",
       "bytes": 2565,
       "sha256": "8b6a5b591003ae4fdb786c104597f840a6aaaaa93db707a19b911d1449436c16",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-domain.svg",
       "bytes": 9639,
       "sha256": "3da24de13ab63e19189e3809720b5551d7e3f3eff3fe30e070cc86d29c087e7d",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-jobs.mmd",
       "bytes": 2193,
       "sha256": "ed6896aaa11016a61b0694e976033640a49d24c8637f1377f08bafd7e6bd9cf6",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-jobs.svg",
       "bytes": 8666,
       "sha256": "aee91c5aa013f5b19cec8ddb2be0f82c92e7e4ea519a8b67675f951c64ef293d",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-overview.mmd",
       "bytes": 2957,
       "sha256": "80bbb51753182ec66140461676bf3c63f2ee4ce6a9a20589bcf44380dedff0bb",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-overview.svg",
       "bytes": 11740,
       "sha256": "bcbd48e7d91af72a9bf1ce2f9ceda9cc6c75f2e01d439c510aea9f37cce17aeb",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-portability.mmd",
       "bytes": 2363,
       "sha256": "c6cf0906e8b7a83df1110b649743fe3d4e70028a095ff468db4329214059af7d",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/diagrams/knowweave-portability.svg",
       "bytes": 8977,
       "sha256": "5670e87f788c2251b12731d43f749ba00d4b744972226aa100b4c741602a7f44",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/p0a-execution.md",
@@ -3220,9 +3221,9 @@
     },
     {
       "path": "docs/p0c4-source-attempt-lifecycle.md",
-      "bytes": 14577,
-      "sha256": "b93a2f699a5f04fb2d80f1f4abd7078456e6fe8478ecad1500a8ab34aa13b124",
-      "source_blob_sha256": "b93a2f699a5f04fb2d80f1f4abd7078456e6fe8478ecad1500a8ab34aa13b124",
+      "bytes": 14830,
+      "sha256": "9d2885ba23069869d537a35477f437347fc529e26e4e6a79b1e3d46ac8e405be",
+      "source_blob_sha256": "9d2885ba23069869d537a35477f437347fc529e26e4e6a79b1e3d46ac8e405be",
       "source_bytes_preserved": true
     },
     {
@@ -3304,10 +3305,10 @@
     },
     {
       "path": "docs/superpowers/plans/2026-10-04-p0c4-completion.md",
-      "bytes": 64480,
-      "sha256": "dab8872178b188d4f0db09635a29355528dc70f907d6e2d213f848d520378fe6",
-      "source_blob_sha256": "52dde841ec73be4ab11fed4e85c0902fa3f05f4082c12e4ff0c491547b6a9f4b",
-      "source_bytes_preserved": false
+      "bytes": 64998,
+      "sha256": "e2ab0cf06d3b908917055a94f9dcd7195d074a3c1a48070b4f6db10d9113e006",
+      "source_blob_sha256": "e2ab0cf06d3b908917055a94f9dcd7195d074a3c1a48070b4f6db10d9113e006",
+      "source_bytes_preserved": true
     },
     {
       "path": "docs/superpowers/plans/2026-10-04-p0c4-source-attempt-lifecycle.md",
@@ -3360,59 +3361,59 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 1826,
-      "sha256": "1546a4f5b45d6f800306e850c8792ae23acb4c8888971b33d59113cdd9fabf85",
+      "bytes": 1803,
+      "sha256": "6e68f64e438de9e673f16813c69b71f4544a9b943d2e834f1bc7c9c3e3157cd8",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/内容分块与存储规范.md",
       "bytes": 36703,
       "sha256": "4d4c78d2b456d6d8d84be894749ff6e6e3828b211df5dc0034ad484aaf926806",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/学习系统设计方案.md",
       "bytes": 26199,
       "sha256": "8fb06aaa3095f692aa194a673813054e195cdd184dde3b2a12436c49be2102d9",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/数据库选型实验审阅与首版决策.md",
       "bytes": 11309,
       "sha256": "ca0b562638a7e89b3e5225b9df4b88fe4937e9885ab389f28c756601d2f2fa9c",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/服务器部署与数据恢复设计.md",
       "bytes": 23259,
       "sha256": "8f1932841730460d705fb701d1c89b99b2c61e4542b444c7ec3a9eee50438f8e",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/设计批准与实施路线.md",
       "bytes": 28299,
       "sha256": "219168a649720d402dacabcff52a23c845fcd7a794ca44a64ae107a7463e57f8",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/连续阅读与思考块设计.md",
       "bytes": 27249,
       "sha256": "7e48cd2e728d0358cf5df82aacaafdba6916f02ffc7d74f00e581cc3acb6407c",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 2185,
-      "sha256": "d3d578b678a3a94f041ee27daf70241da1be58a6f86586b4adf1019442d25cba",
+      "bytes": 10207,
+      "sha256": "0537dc1d1dce74b8cafa6ee2fa5b665106ac0bb69e4fd8095256e691f98ec417",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false
     },
     {
       "path": "migrations/0001_content_core.sql",
@@ -3612,9 +3613,9 @@
     },
     {
       "path": "scripts/p0c4_completion_acceptance.py",
-      "bytes": 41023,
-      "sha256": "69f8f49e2bf1e8d4dc42f619c1d790c5fbe5eacf13b1a0d2efff8e3ed5c763ed",
-      "source_blob_sha256": "69f8f49e2bf1e8d4dc42f619c1d790c5fbe5eacf13b1a0d2efff8e3ed5c763ed",
+      "bytes": 41218,
+      "sha256": "9c7cd88f11832a6943b1e03620577b9db6e3fe6b89e395697397e14e8f44a21d",
+      "source_blob_sha256": "9c7cd88f11832a6943b1e03620577b9db6e3fe6b89e395697397e14e8f44a21d",
       "source_bytes_preserved": true
     },
     {
@@ -3717,9 +3718,9 @@
     },
     {
       "path": "scripts/p0c4_source_lifecycle_gate_acceptance.py",
-      "bytes": 223730,
-      "sha256": "1302967c813136aa8e58a82a39ab6d82e835c07a88720a6138aaf048f0d52202",
-      "source_blob_sha256": "1302967c813136aa8e58a82a39ab6d82e835c07a88720a6138aaf048f0d52202",
+      "bytes": 224809,
+      "sha256": "7fd183497d69fa258d7a41bd297817d4bc91b4de02557cae72dff4ef19da857a",
+      "source_blob_sha256": "7fd183497d69fa258d7a41bd297817d4bc91b4de02557cae72dff4ef19da857a",
       "source_bytes_preserved": true
     },
     {
@@ -3773,9 +3774,9 @@
     },
     {
       "path": "scripts/test_p0c4_completion_acceptance.py",
-      "bytes": 56453,
-      "sha256": "72154dc83f47acd407c8745234c0ba0746482ad2c5a28d2a47a2b37a63a70708",
-      "source_blob_sha256": "72154dc83f47acd407c8745234c0ba0746482ad2c5a28d2a47a2b37a63a70708",
+      "bytes": 71490,
+      "sha256": "f2fb22bca39c4799378f530674028d6381c57fec467df373df9aa1340bb9b7d3",
+      "source_blob_sha256": "f2fb22bca39c4799378f530674028d6381c57fec467df373df9aa1340bb9b7d3",
       "source_bytes_preserved": true
     },
     {
@@ -3934,9 +3935,9 @@
     },
     {
       "path": "scripts/test_p0c4_source_lifecycle_gate_acceptance.py",
-      "bytes": 135597,
-      "sha256": "bf74a534e2023c3d2d6d0eb6fc79acbc97ee67c4e4df845b1810ec24cba41a44",
-      "source_blob_sha256": "bf74a534e2023c3d2d6d0eb6fc79acbc97ee67c4e4df845b1810ec24cba41a44",
+      "bytes": 140346,
+      "sha256": "1b38d0f2f1df5abb6219caee081a5f1d88e18bc99cb2fe1a9f18911db3eb8ad2",
+      "source_blob_sha256": "1b38d0f2f1df5abb6219caee081a5f1d88e18bc99cb2fe1a9f18911db3eb8ad2",
       "source_bytes_preserved": true
     },
     {
@@ -3975,5 +3976,6 @@
       "source_bytes_preserved": true
     }
   ],
-  "progress_as_of": "2026-10-13"
+  "progress_as_of": "2026-10-15",
+  "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference"
 }

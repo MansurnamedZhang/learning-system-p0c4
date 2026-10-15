@@ -40,6 +40,53 @@ def raw_request(**changes):
 
 
 class LifecycleProtocolTests(unittest.TestCase):
+    def test_raw_evidence_schedule_limits_are_fixed_and_typed(self):
+        for count in (1,2,8,9):
+            self.assertEqual(driver.raw_evidence_limits(count),(8192*count,2*1024**2*count))
+        for count in (0,10,-1,True,False,1.0,'8',None):
+            with self.subTest(count=count),self.assertRaisesRegex(driver.GateError,'RAW_SCHEDULE_COUNT'):
+                driver.raw_evidence_limits(count)
+
+    def test_owned_runner_schedule_budget_preserves_zero_ledger_setup(self):
+        from types import SimpleNamespace
+        class Runner:
+            def __init__(self,logs):self.logs=logs
+            def run(self,*args,**kwargs):raise AssertionError('no transport expected')
+        with tempfile.TemporaryDirectory() as directory:
+            batch=Path(directory);key=str(batch/'evidence/logs')
+            try:
+                for count in (0,1,2,8,9):
+                    driver.owned_log_runner(SimpleNamespace(Runner=Runner),batch,dict(helpers=[]),count)
+                    state=driver.LOG_RESERVATIONS[key]
+                    self.assertEqual((state['ledgers'],state['case_count']),(count,max(1,count)))
+                previous=driver.LOG_RESERVATIONS[key]
+                for count in (-1,10,True,False,8.0,'8'):
+                    with self.subTest(count=count),self.assertRaisesRegex(driver.GateError,'RAW_LEDGER_COUNT'):
+                        driver.owned_log_runner(SimpleNamespace(Runner=Runner),batch,{},count)
+                    self.assertIs(driver.LOG_RESERVATIONS[key],previous)
+            finally:driver.LOG_RESERVATIONS.pop(key,None)
+
+    def test_schedule_budget_extends_total_audits_but_not_one_case(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            logs=Path(directory);state=dict(archives=0,ledgers=8,pending=0,audits=600,case_count=8)
+            driver.LOG_RESERVATIONS[str(logs)]=state
+            try:
+                occupied=[logs/f'{n:04d}.stdout' for n in range(9000)]
+                with patch.object(Path,'iterdir',lambda path:iter(occupied)):
+                    self.assertEqual(driver.log_capacity(logs),9000)
+                    ns=driver.NamespaceAudits(SimpleNamespace(runner=SimpleNamespace(logs=logs)),dict(identity=dict(case_id=CASE)))
+                    ns.capacity()
+                    ns.audits=[None]*256
+                    self.reject(ns.capacity,'NAMESPACE_AUDIT_CAPACITY');ns.audits=[]
+                    state['audits']=4096;self.reject(ns.capacity,'NAMESPACE_AUDIT_CAPACITY')
+                    state['audits']=0;state['ledgers']=0;state['pending']=65536-9000
+                    driver.log_capacity(logs)
+                    self.reject(lambda:driver.log_capacity(logs,1),'NAMESPACE_LOG_CAPACITY')
+                    state.pop('case_count');state['pending']=0
+                    self.reject(lambda:driver.log_capacity(logs),'NAMESPACE_LOG_CAPACITY')
+            finally:driver.LOG_RESERVATIONS.pop(str(logs),None)
+
     def test_external_source_fault_observes_fixed_stop_cont_and_keeps_cleanup_guard_on_error(self):
         from types import SimpleNamespace
         cid='a'*64
@@ -144,7 +191,7 @@ class LifecycleProtocolTests(unittest.TestCase):
                 if not preflights:ledger_initial.append(state['ledgers'])
                 preflights.append((len(identities),len(subnets),case_id))
                 if failure=='second-capacity' and len(preflights)==3:
-                    state['pending']=8192;driver.log_capacity(runner.logs)
+                    state['pending']=driver.raw_evidence_limits(state['case_count'])[0];driver.log_capacity(runner.logs)
             def live(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,manifest,files,pin,first,legacy=False):
                 events.append((name,first,legacy,subnet))
                 record=dict(test=name,kind='LEGACY_CLOSE_ONLY_SYNTHETIC_PHASES_NO_DUMP' if legacy else 'REAL_LIFECYCLE',identity=ident,
@@ -159,7 +206,8 @@ class LifecycleProtocolTests(unittest.TestCase):
                 if failure=='failed-body' and not first:record['outcome']['passed']=0
                 if failure=='metadata':result['suite_leaf']['executions'][0]['first']=False
                 if failure=='cleanup':record['transports_reaped']=False
-                if failure=='final-capacity':driver.LOG_RESERVATIONS[str(runner.logs)]['pending']=8192
+                if failure=='final-capacity':
+                    state=driver.LOG_RESERVATIONS[str(runner.logs)];state['pending']=driver.raw_evidence_limits(state['case_count'])[0]
                 if legacy:result['legacy_close_regression']=dict(executed=True)
             def final_helper(h,b,runner,result,image,mounted,command):
                 finals.append(command[-1]);return 0,command[-1].encode(),b''
@@ -411,6 +459,7 @@ class LifecycleProtocolTests(unittest.TestCase):
             with self.subTest(scope=scope,legacy=legacy):
                 code,result,events,preflights,finals,ledgers,state=self.scope_main_model(scope,count,None if scope=='all' else NONCE,legacy)
                 self.assertEqual(code,0,result);self.assertEqual(ledgers,[length]);self.assertEqual(len(events),length)
+                self.assertEqual(state['case_count'],length)
                 self.assertEqual(len(preflights),length+1);self.assertEqual(preflights[0][:2],(length,length))
                 self.assertEqual(len(finals),length);self.assertTrue(all('audit_final' in c for c in result['cases']))
                 self.assertEqual([first for _,first,_,_ in events],[True]+[False]*(length-1))
