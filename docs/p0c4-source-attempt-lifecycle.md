@@ -13,7 +13,7 @@
 | `prepare_source_backup(&PgPool, &FsAssetStore, &SourceBackupConfig)` | 新尝试；同 admitted 会话覆盖真实 PG dump、全部 ready index、本地 sealed pin全字节及持久释放。成功返回 SourceLocalPin与Released，非CompleteBackup；其他unresolved authority阻止新尝试。 |
 | `force_close_release_ready(&PgPool, &Path, Uuid, &str)` | 仅严格ReleaseReady及原bound root；REVOKE/drain、create-only `<id>.release-recovery/closed.json`。close-only不重验pin、不finish/abandon、不重开；重复调用可能先关闸后因已有目录失败，非通用幂等修复。 |
 | `finish_source_backup(&PgPool, &SourceBackupConfig)` | 返回 SourceLocalPin。仅 DumpAndIndexDurable/PinsDurable/ReleaseReady 且真实已 published matching `<id>.sealed`；reclose/drain/full verify 后补合法阶段至 Released。早期 Intent/Closed/Drained 在首个变更前拒绝；缺失、损坏或只有 staging 的 pin 不能完成或重新开放。任何 abandonment authority 禁止 finish。 |
-| `abandon_source_backup(&PgPool, &SourceBackupConfig)` | 返回()。合法unresolved Intent..ReleaseReady可显式放弃，部分/坏payload可以，但坏journal authority不可绕过；durable ready后GRANT/核验，再durable abandoned terminal。原journal phase/source/sealed/staging全保留，无fake Released/删除/GC/completion资格。Released禁止abandon。 |
+| `abandon_source_backup(&PgPool, &SourceBackupConfig)` | 返回()。合法unresolved Intent..ReleaseReady可显式放弃；未登记的部分payload或source-copy损坏可保留后放弃，但已提交至retained protection的sealed pin损坏须在首个变更前严格拒绝，保持runtime CONNECT关闭及journal/protection/损坏字节不变，交人工隔离；不得修复后冒充原证据。坏journal authority同样不可绕过；durable ready后GRANT/核验，再durable abandoned terminal。原journal phase/source/sealed/staging全保留，无fake Released/删除/GC/completion资格。Released禁止abandon。 |
 
 finish/abandon不消费capture-only executable/passfile/host/port，不执行dump、重采集资产、重封存缺字节或promote staging；保持ID/database/project/isolation/control/local-pin/drain timeout核对。DumpAndIndexDurable sealed-rename seam须先sync/full readback，再补PinsDurable；不能凭journal digest/token合成成功。
 

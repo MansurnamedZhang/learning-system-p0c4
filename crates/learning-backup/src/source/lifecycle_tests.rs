@@ -582,6 +582,58 @@ pub(crate) mod live {
                 })
                 .collect()
         }
+        pub fn protection_bytes(&self) -> Vec<(String, Vec<u8>)> {
+            use learning_assets::backup_fs::BackupEntryKind;
+            use std::io::Read;
+            fn collect(
+                dir: &BackupDir,
+                prefix: &str,
+                bytes: &mut u64,
+                rows: &mut Vec<(String, Vec<u8>)>,
+            ) {
+                let mut names = dir
+                    .list_bounded(crate::registry::MAX_ENTRIES - rows.len())
+                    .unwrap();
+                names.sort();
+                for name in names {
+                    assert!(rows.len() < crate::registry::MAX_ENTRIES);
+                    let relative = format!("{prefix}{name}");
+                    match dir.kind(&name).unwrap() {
+                        BackupEntryKind::Directory => {
+                            rows.push((format!("{relative}/"), Vec::new()));
+                            collect(
+                                &dir.open_dir(&name).unwrap(),
+                                &format!("{relative}/"),
+                                bytes,
+                                rows,
+                            );
+                        }
+                        BackupEntryKind::File => {
+                            let mut file = dir.open_file(&name).unwrap();
+                            let metadata = file.metadata().unwrap();
+                            assert_eq!(metadata.uid(), 0);
+                            assert_eq!(metadata.mode() & 0o7777, 0o600);
+                            assert_eq!(metadata.nlink(), 1);
+                            *bytes = bytes.checked_add(metadata.len()).unwrap();
+                            assert!(*bytes <= crate::registry::MAX_SCAN_BYTES);
+                            let mut value = vec![0; usize::try_from(metadata.len()).unwrap()];
+                            file.read_exact(&mut value).unwrap();
+                            assert_eq!(file.metadata().unwrap().len(), metadata.len());
+                            rows.push((relative, value));
+                        }
+                        BackupEntryKind::Other => panic!("unexpected private protection entry"),
+                    }
+                }
+            }
+            let root =
+                BackupDir::open_trusted_private_root(Path::new(crate::registry::REGISTRY_PATH))
+                    .unwrap()
+                    .open_dir("protection")
+                    .unwrap();
+            let mut rows = Vec::new();
+            collect(&root, "", &mut 0, &mut rows);
+            rows
+        }
         pub async fn acl(&self) -> bool {
             sqlx::query_scalar(
                 "SELECT has_database_privilege('learning_runtime',current_database(),'CONNECT')",
@@ -958,7 +1010,20 @@ async fn finish_real_pin_from_pins_durable() {
     assert!(!f.acl().await);
     assert_eq!(f.legacy_bytes(), before);
     assert_eq!(std::fs::read(&sealed_asset).unwrap(), altered);
-    f.abandon().await;
+    // This pin was already committed to additive protection before corruption.
+    // Admission must reject it before abandonment or any runtime release.
+    f.refresh().await;
+    let journal_before = f.legacy_bytes();
+    let protection_before = f.protection_bytes();
+    assert!(!f.acl().await);
+    assert!(matches!(
+        super::abandon_source_backup(&f.pool, &f.config).await,
+        Err(crate::BackupError::Invalid("target file digest or size"))
+    ));
+    assert_eq!(std::fs::read(&sealed_asset).unwrap(), altered);
+    assert_eq!(f.legacy_bytes(), journal_before);
+    assert_eq!(f.protection_bytes(), protection_before);
+    assert!(!f.acl().await);
 }
 #[cfg(target_os = "linux")]
 #[tokio::test]
