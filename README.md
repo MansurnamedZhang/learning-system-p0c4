@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18。固定同包源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。2026-10-18更新：ba96561最终固定同包已实际完成Linux编译与检查，fresh admission5/5、binding4/4及首例两项live回归均独审接受。端点normal真实1/0/0并获单例整体接受，当前整体仅normal1/5。新clone内部正文1/0/0、run/verify及receipt有效，但外层transport退出1、UNKNOWN_RETAINED，不能记为整体接受或2/5。后三项endpoint与新生命周期八项从未派发，Task2继续OPEN。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍开放，缺独立存储，未签发CompleteBackup，未生产部署。**
+**最新同步：2026-10-18。固定同包源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。2026-10-18更新：Task2代码与单机补验收尾完成。当前ba96561固定同包准入5/5、绑定4/4及首例两项live回归、全新replacement端点5/5、fresh生命周期8/8已分别独审接受，交付证据独立留档。旧normal/clone各保留来源，旧clone外层UNKNOWN_RETAINED不提升、不重放。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍OPEN，缺独立存储，未签发CompleteBackup，未生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | ba96561准入5/5、绑定4+2和normal1/5已接受；clone内部通过但外层UNKNOWN；后三端点与新life未派；Task2、Task5当前0/11及整关开放 |
+| P0-C4 | Task2代码与单机补验收尾完成：同包准入5/5、绑定4+2、新端点5/5、life8/8；交付证据独立留档；旧UNKNOWN保持；Task5当前0/11、Task6–9及整关OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
