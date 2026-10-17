@@ -136,6 +136,10 @@ fn synthetic_release_ready(root: &Path, id: Uuid) {
     let control = BackupDir::open_trusted_private_root(root).unwrap();
     let database = fixture_database("TEST_C4_BINDING_DATABASE_NAME");
     binding::fixture_pending(&control, &database, id);
+    synthetic_release_ready_journal(root, id);
+}
+
+fn synthetic_release_ready_journal(root: &Path, id: Uuid) {
     let mut journal = SourceGateJournal::start(root, id).unwrap();
     journal.advance(GatePhase::Closed, None).unwrap();
     journal.advance(GatePhase::Drained, None).unwrap();
@@ -222,7 +226,8 @@ async fn alternate_root_after_session_loss_preserves_acl_and_journal() {
         "fixture gate really closed"
     );
     synthetic_release_ready(&root, id);
-    synthetic_release_ready(&alternate, id);
+    // The alternate fabricates a journal but has no enrolled capture authority.
+    synthetic_release_ready_journal(&alternate, id);
     sqlx::query(&format!(
         "GRANT CONNECT ON DATABASE \"{database}\" TO learning_runtime"
     ))
@@ -313,8 +318,11 @@ async fn alternate_root_after_session_loss_preserves_acl_and_journal() {
         "alternate root recovery must preserve runtime CONNECT ACL after original backend loss"
     );
     assert!(
-        result.is_err(),
-        "alternate root recovery must refuse copied binding"
+        matches!(
+            result,
+            Err(BackupError::Invalid("source binding control root identity"))
+        ),
+        "alternate root recovery must refuse copied binding before registry admission"
     );
     assert_eq!(
         original_after, original_before,
