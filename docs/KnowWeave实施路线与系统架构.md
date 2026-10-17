@@ -1,16 +1,16 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-18。当前状态：C4 补验中 · ba96561候选：本地startup15/15、库326/326；Linux/native待验 · Task2开放 · Task5当前0/11，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
+更新：2026-10-18。当前状态：C4 补验中 · ba96561：准入5/5、绑定4+2已接受；端点normal1/5，clone外层UNKNOWN · Task2 OPEN · Task5当前0/11，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
-这是截至2026-10-18的实施进度与目标架构。ba96561是代码独审及Windows本地检查已过、Linux/native尚待验证的固定候选；5fcc已接受的原生结果、49528历史八项与79c旧失败分别标明来源。颜色和连线表达阶段/依赖，不表示图中功能全部上线。
+这是截至2026-10-18的实施进度与目标架构。ba96561同包准入5/5、绑定4+首例2和normal单例已独审接受；clone仅内部正文通过、外层UNKNOWN，后三endpoint及新life8未派发。Task2与C4保持OPEN，旧检查点和失败各保留来源。颜色和连线表达阶段/依赖，不表示图中功能全部上线。
 
 [离线图文版](../KnowWeave实施路线与架构.html)。此文为可编辑 Markdown 快照；可维护图数据在 .build/knowweave-map.data.mjs（私有或未公开参考），生成命令为 `node .build/build-knowweave-map.mjs`。
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。2026-10-18更新：固定候选ba96561仅修改test-only端点启动observer，代码独审GO、native信用0。新鲜Windows startup15/15、整库326/326、fmt与严格Clippy均实际退出0；本轮尚未Linux编译或原生执行，不能称候选已验收。5fcc224已接受的准入5/5、绑定4/4及首例两项live回归仅属其原检查点；49528e1生命周期八项8/8同样保留历史身份，不继承到ba96561。79c端点45b4原失败仍保留，native退出/wait仍UNKNOWN。Task2开放；Task3单机收尾完成；Task5当前0/11，旧owner和持锁现场被动保留。Task6–9及C4整关未完成，缺独立存储，未签发CompleteBackup，未生产部署。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。2026-10-18更新：ba96561最终固定同包已实际完成Linux编译与检查，fresh admission5/5、binding4/4及首例两项live回归均独审接受。端点normal真实1/0/0并获单例整体接受，当前整体仅normal1/5。新clone内部正文1/0/0、run/verify及receipt有效，但外层transport退出1、UNKNOWN_RETAINED，不能记为整体接受或2/5。后三项endpoint与新生命周期八项从未派发，Task2继续OPEN。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍开放，缺独立存储，未签发CompleteBackup，未生产部署。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -53,7 +53,7 @@ flowchart LR
 | P0-C1 原件、图片与附件 | 已验收 | 不可变原字节、资源版本定位、v3 图片/附件及精确使用授权。 | 独立卷原字节核验；中断/损坏/回滚/撤权；四套旧程序升级。 | [328 通过 / 3 忽略；已验收](p0c1-verification.md) |
 | P0-C2 持久任务与受限 Worker | 已验收 | 同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。 | 专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。 | [388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致](p0c2-verification.md) |
 | P0-C3 融合快照交换 | 已验收 | 精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。 | 授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。 | [整关隔离验收与 602 份证据哈希复核通过；未生产部署](p0c3-verification.md) |
-| P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task1已验收；Task2：ba96561候选本地检查与代码审查完成、Linux/native待验；5fcc准入绑定及49528八项单列历史；Task3单机完成；Task4内容3/3；Task5历史9/9、当前0/11；Task6作业恢复实施中；整关尚未闭合](p0c4-verification.md) |
+| P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task1已验收；Task2：ba96561准入5/5、绑定4+2、normal1/5已接受；clone外层UNKNOWN，后三端点与新life未派，Task2开放；Task3单机完成；Task4内容3/3；Task5历史9/9、当前0/11；Task6作业恢复实施中；整关尚未闭合](p0c4-verification.md) |
 | P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [待建设；首次形成浏览器内容工作台](设计批准与实施路线.md) |
 | P1-B 学习与实践闭环 | 待建设 | 学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。 | 今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。 | [待建设；通过后形成完整学习系统试用版](学习系统设计方案.md) |
 | P2 批量演进与多领域复用 | 待建设 | 批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。 | 真实资料更新保留旧事实；第二领域不新增专属核心业务流程。 | [待建设](学习系统设计方案.md) |
@@ -63,16 +63,16 @@ flowchart LR
 
 任务编号依据 [2026-10-04 补齐计划](superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-2026-10-18更新：固定候选ba96561仅修改test-only端点启动observer，代码独审GO、native信用0。新鲜Windows startup15/15、整库326/326、fmt与严格Clippy均实际退出0；本轮尚未Linux编译或原生执行，不能称候选已验收。5fcc224已接受的准入5/5、绑定4/4及首例两项live回归仅属其原检查点；49528e1生命周期八项8/8同样保留历史身份，不继承到ba96561。79c端点45b4原失败仍保留，native退出/wait仍UNKNOWN。Task2开放；Task3单机收尾完成；Task5当前0/11，旧owner和持锁现场被动保留。Task6–9及C4整关未完成，缺独立存储，未签发CompleteBackup，未生产部署。
+2026-10-18更新：ba96561最终固定同包已实际完成Linux编译与检查，fresh admission5/5、binding4/4及首例两项live回归均独审接受。端点normal真实1/0/0并获单例整体接受，当前整体仅normal1/5。新clone内部正文1/0/0、run/verify及receipt有效，但外层transport退出1、UNKNOWN_RETAINED，不能记为整体接受或2/5。后三项endpoint与新生命周期八项从未派发，Task2继续OPEN。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍开放，缺独立存储，未签发CompleteBackup，未生产部署。
 
-在ba96561最终固定同包先做实际Linux编译与严格检查，再逐段fresh admission5→binding4+首例live2→endpoint5→lifecycle8；每段必须核对真实raw、source与资源并经独立复核后再前进。旧5fcc的5/5与4+2、49528旧八项不迁移，既有修复预算和旧5/5账本不重置。新包的360/0/80只是推导预期，不写作实际Linux结果。只读资源预检不等于Ops GO或业务执行。Task5确认消息容量修复及当前11门、Task6–8现场/升级/全回归/整分支审查、Task9独立存储和密钥托管仍待完成；旧owner与失败现场不动。
+先完成新clone外层UNKNOWN的原件诊断与独立分类；仅观察到网络投影变化及后续恢复，不能据此宣称确定发起者、唯一原因或已修复。保留本次失败/隔离原件与旧资源，不重放UNKNOWN，不将inner正文通过改写为整体通过。后三endpoint和新life8未派发，后续执行条件另按真实原件与审查决定；旧5fcc/49528结果不迁移，public/private原5/5及既有修复预算不重置。Task5当前11门、Task6–8现场/升级/全回归/整分支审查、Task9独立存储和密钥托管仍待完成。Task2、C4整关未完成，无CompleteBackup和生产部署。
 
-候选ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1的canonical ZIP为2278129字节、541个raw Git文件，SHA-256 0c2e70b7a6347bce0c409aa0b095ffe01bcbee25dc4dc9e21a528b9701ad6ae0；manifest e8152a2d7b873f7b5470b4d8fe649fbd0b871acef44435ccb936d33e4c996f54，source digest d9aeafa54dfa1d6275eed9466d4668120e8cd02d49a1939c68b35149fc71f203。唯一差分为endpoint_tests.rs的cfg(test) observer；每次先核对owned PID、稳定已知start/exe和try_wait=None，空argv/env只记NOT_READY，任意非空错误立即拒绝；完整exact八项argv及29字节env才Ready。最多8次读取，以局部1ms和原总deadline较早者截止，无sleep/yield；同步读取不可抢占、原supervisor取消权威不变。代码独审只授权固定新包Linux验证，不授原生信用。fresh Windows原件startup15/15、整库326/326、fmt、strict Clippy均exit0；旧9项日志曾被重跑覆盖且原件丢失，本次不声称旧证据包完整或恢复旧原件。v3拒绝诊断的顶层exe标志可反映后续未完成读取中已发现的错误，last_observation仍保留上次完整sample；后续v3失败读取器须独审，不能放宽已冻结v2。5fcc准入055a5/5和绑定fe0514/4+首例live2、49528生命周期8/8均保留各自实际source。79c normal45b4原libtest101/0通过/1失败，typed旧诊断argv0/env exact、native_exit=null/native_wait未观察，旧失败和UNKNOWN不补值。
+固定源码ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1的canonical ZIP为2278129字节、541个raw Git文件，SHA-256 0c2e70b7a6347bce0c409aa0b095ffe01bcbee25dc4dc9e21a528b9701ad6ae0；manifest e8152a2d7b873f7b5470b4d8fe649fbd0b871acef44435ccb936d33e4c996f54，source digest d9aeafa54dfa1d6275eed9466d4668120e8cd02d49a1939c68b35149fc71f203。Linux整库实际360通过/0失败/80忽略，maintenance4+1与strict Clippy退出0；fmt按固定helper/构建链的退出记录接受，未导出的独立空输出process日志不补造。Windows startup15/15、整库326/326单列。normal独审报告SHA604b45775db94fed5d7ce2f66acb2f4d5584d5d26df49b059ac61429d00f3331，接受仅该单例，不满足五端点组和life前置。clone批b0b5d474-3f08-474f-915f-5eabeb24e701的内部result SHA826fce10672804cf4845bccc1998c8fa7f3fff96d71c694e16f2c3303483aa02；外层旧资源保护投影中观察到一个旧network digest变化，同时曾观察到非KnowWeave同步容器，后续容器消失且digest回到before。Docker events未留存，发起者、因果和唯一根因不作推定，不称已修复；clone分类独审仍进行中，UNKNOWN不重跑。旧9项日志曾被覆盖且原件丢失，该限制保持。79c normal45b4原libtest101/0通过/1失败、native_exit=null/native_wait未观察；旧失败与UNKNOWN不补值。5fcc准入和绑定、49528生命周期8/8只保留各自历史身份，不能搬用到ba96561。
 
 ```mermaid
 flowchart LR
     C4T1["Task 1<br/>持久登记与原件保护<br/>限定分项已验收"]
-    C4T2["Task 2<br/>精确源端绑定与捕获监督<br/>ba96561候选已代码审查与本地检查；Linux/native待验"]
+    C4T2["Task 2<br/>精确源端绑定与捕获监督<br/>OPEN：normal1/5整体接受；clone外层UNKNOWN，后三项与life未派"]
     C4T3["Task 3<br/>保留校验与完成收据<br/>单机补验收尾完成，Task9开放"]
     C4T4["Task 4<br/>全量模式与有界 COPY 数据<br/>内容三门已验收"]
     C4T5["Task 5<br/>受控整库导入与原件恢复<br/>创建确认消息容量待修，当前0/11"]
@@ -99,7 +99,7 @@ flowchart LR
 | 任务 | 状态 | 工作与验收依据 |
 | --- | --- | --- |
 | Task 1 · 持久登记与原件保护 | 限定分项已验收 | 登记资产与本地 pin 根身份；独立发现保留保护，缺失或不完整时拒绝清理候选。 固定 Linux/PG 登记保护门 11/11 与五项文件系统门通过；本任务不签发完整备份，也不关闭 C4。 |
-| Task 2 · 精确源端绑定与捕获监督 | ba96561候选已代码审查与本地检查；Linux/native待验 | ba96561仅含test-only启动observer；Windows startup15/15、整库326/326、fmt和严格Clippy实际exit0，代码独审GO，当前原生信用0。 新固定同包待Linux编译及fresh admission5→binding4+首例live2→endpoint5→lifecycle8。5fcc准入/绑定和49528八项均仅历史身份；79c旧失败仍UNKNOWN，Task2未关闭，旧预算不重置。 |
+| Task 2 · 精确源端绑定与捕获监督 | OPEN：normal1/5整体接受；clone外层UNKNOWN，后三项与life未派 | ba96561同包准入5/5、绑定4/4+首例live2独审接受；normal真实1/0/0且单例整体接受。 clone内部1/0/0、run/verify和receipt有效，但外层exit1/UNKNOWN_RETAINED，不计整体接受或2/5。后三endpoint及新life8未派发，Task2开放；旧5/5预算不重置。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
 | Task 5 · 受控整库导入与原件恢复 | 创建确认消息容量待修，当前0/11 | 卷根修复已通过前置阶段；c342254第二轮完成source创建与peer inspection及target实际创建校验，创建确认消息因容量超限在发送前被拒绝，body_dispatched=false。两轮现场继续被动持锁留存，当前0/11，其余10门尚未实现，历史9/9单独保留。 完整before/after快照确认帧1,061,422字节，超过1,048,576字节上限；原BrokerClient复现BROKER_INPUT_BUDGET、send_calls=0，待限定修复。第二轮result SHA-256 b201023f70a03b04893893787009d27efaf556be0f873c36ead2e1f4444a1a08；UnconfirmedIsolation、exact_test为空、source_unchanged=true。target owner继续持锁，隔离尚未解决，不终止、不重放旧现场，不授予正文或清理信用。 |
@@ -393,8 +393,8 @@ flowchart TB
 - C3 Task 1–7 已完成分项与整关隔离验收：Task 7 在全新 Compose 项目通过完整 workspace、四套旧版升级、真实 Worker SIGKILL/租约接管、双端往返和四组失败注入。独立 root 只读审计核验 602 份证据文件、341 个源码文件、301 项镜像输入；状态为 P0_C3_VERIFIED / NOT_PRODUCTION。
 - C3 输入为精确 ReadingViewRevision、模式和原件选项；当前授权求闭包，作业结束与交付时再次检查。已下载的文件无法被服务器远程撤回。
 - 无损交换以版本化 JSON 与 manifest 为准；HTML/Markdown 是阅读副本。导入同 ID 同字节幂等复用，不同字节拒绝。
-- 2026-10-18更新：固定候选ba96561仅修改test-only端点启动observer，代码独审GO、native信用0。新鲜Windows startup15/15、整库326/326、fmt与严格Clippy均实际退出0；本轮尚未Linux编译或原生执行，不能称候选已验收。5fcc224已接受的准入5/5、绑定4/4及首例两项live回归仅属其原检查点；49528e1生命周期八项8/8同样保留历史身份，不继承到ba96561。79c端点45b4原失败仍保留，native退出/wait仍UNKNOWN。Task2开放；Task3单机收尾完成；Task5当前0/11，旧owner和持锁现场被动保留。Task6–9及C4整关未完成，缺独立存储，未签发CompleteBackup，未生产部署。
-- 在ba96561最终固定同包先做实际Linux编译与严格检查，再逐段fresh admission5→binding4+首例live2→endpoint5→lifecycle8；每段必须核对真实raw、source与资源并经独立复核后再前进。旧5fcc的5/5与4+2、49528旧八项不迁移，既有修复预算和旧5/5账本不重置。新包的360/0/80只是推导预期，不写作实际Linux结果。只读资源预检不等于Ops GO或业务执行。Task5确认消息容量修复及当前11门、Task6–8现场/升级/全回归/整分支审查、Task9独立存储和密钥托管仍待完成；旧owner与失败现场不动。
+- 2026-10-18更新：ba96561最终固定同包已实际完成Linux编译与检查，fresh admission5/5、binding4/4及首例两项live回归均独审接受。端点normal真实1/0/0并获单例整体接受，当前整体仅normal1/5。新clone内部正文1/0/0、run/verify及receipt有效，但外层transport退出1、UNKNOWN_RETAINED，不能记为整体接受或2/5。后三项endpoint与新生命周期八项从未派发，Task2继续OPEN。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍开放，缺独立存储，未签发CompleteBackup，未生产部署。
+- 先完成新clone外层UNKNOWN的原件诊断与独立分类；仅观察到网络投影变化及后续恢复，不能据此宣称确定发起者、唯一原因或已修复。保留本次失败/隔离原件与旧资源，不重放UNKNOWN，不将inner正文通过改写为整体通过。后三endpoint和新life8未派发，后续执行条件另按真实原件与审查决定；旧5fcc/49528结果不迁移，public/private原5/5及既有修复预算不重置。Task5当前11门、Task6–8现场/升级/全回归/整分支审查、Task9独立存储和密钥托管仍待完成。Task2、C4整关未完成，无CompleteBackup和生产部署。
 - 早期 C4 源端、Linux 封存/单机传输、目标准入与精确子进程只读子门记录保留；历史受控小型 dump 计划中的 Task6 只覆盖固定合成夹具，与当前九任务计划的 Task6 作业恢复不同。历史维护三门、准入五门、绑定四门及两项回归分别绑定原源码/批次，不能累计为当前源码组合通过数。
 - 历史 Task5 九门覆盖完整导入、提交前 EOF、取消、提交结果未知、错误数据库路由、坏输入、坏角色、脏目标与损坏原件；错误路由门不是同身份物理克隆门。Task6 的 99 项是本地测试；真实目标 COPY、作业归一化、恢复资格与新 Linux/PG 门尚待完成。
 - C4 首先恢复现有内容事实；P1-B 后还必须把学习任务、尝试、产物、验收与计划历史加入完整恢复闭包。
