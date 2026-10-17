@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "date": "2026-10-15",
+  "date": "2026-10-18",
   "source_commit": "79c1027fa4a741cd4d9a5142788d3f2090bdb4be",
-  "previous_public_commit": "4cb30de56c6faa18a9e31a886e972cc1ea1e013f",
+  "previous_public_commit": "9fe71b7552353835af781ab8c4a78010b9234753",
   "source_archive_sha256": "93db5b7e0ef726e8ee43ee6fd1b512b59a16761236a5ffb26d5d1a1626f1ac69",
   "source_manifest_sha256": "29f4bbe2cef1f0ff5c3c63f9581e1e392d9779e8213ecf986b80a1ac11a41274",
   "source_file_count": 541,
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 116381,
-      "sha256": "3a0c0ebf23ea0310a973cc308db5482ef908f9b6b8ecb4a326a54e5a2b305c75",
+      "bytes": 114457,
+      "sha256": "ffb7ecf7917c396142b282ad58d2d43a2c50bd25af675b2a8951a979beded787",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3996,
-      "sha256": "6139e7557c2d4db2e9aa5de2a4d65d266111411a13b190b102f13ba26cdbd4b1",
+      "bytes": 4257,
+      "sha256": "eddc35fa15fcf3b79f23e649ac1850d8976f00a2cde723ed466640d03ca924b2",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2689,8 +2689,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 49586,
-      "sha256": "100b06415ec7dee1f18e8273c63918c36c92148ada329d436387cba29d612dad",
+      "bytes": 47540,
+      "sha256": "dbbca3136acea8757bbd3e72e59e7ded7fe09835219fa0de520d7b3f9007133b",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2710,8 +2710,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 18614,
-      "sha256": "16110ab6001762bd428bc883acfb7f8d5a0116f1142efeea8fe8fd1034343812",
+      "bytes": 16894,
+      "sha256": "cdf1fbbb8ec7d47f5b06388686d0dec68f8de7922d85e988b49c2381d3d55252",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3361,8 +3361,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 1685,
-      "sha256": "979376b2144d9c9d93c1ee010205736341e2aabb45fe5fc9f85c6a89bf767a8a",
+      "bytes": 1946,
+      "sha256": "150dae014ba4ff04822c5d6097df1d812924a99bf36fcaee251aade40451d475",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3410,8 +3410,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 13850,
-      "sha256": "3e7b4f5f0c432318c50315802ba473d93cc0abdc4fe9a4fddf988fe015c96e0e",
+      "bytes": 12053,
+      "sha256": "ab7eb9ee0aa5e9b80170ddc5ead32c4e93710af06b1d5a9b18a2844f05b8e320",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
