@@ -2,7 +2,12 @@
 mod startup_failure {
     use super::diagnostic::Fault;
     use crate::restore_preflight::target_binding::child_attestation::ChildFailure;
-    use std::{io, process::ExitStatus, sync::Mutex};
+    use std::{
+        io,
+        process::ExitStatus,
+        sync::Mutex,
+        time::{Duration, Instant},
+    };
 
     #[derive(Clone, Copy, serde::Serialize)]
     pub(super) enum Phase {
@@ -10,6 +15,8 @@ mod startup_failure {
         Executable,
         #[serde(rename = "arguments_environment_mismatch")]
         ArgumentsEnvironment,
+        #[serde(rename = "startup_readiness_rejected")]
+        StartupReadiness,
     }
 
     #[derive(Default, serde::Serialize)]
@@ -104,6 +111,413 @@ mod startup_failure {
         }
     }
 
+    #[derive(Clone)]
+    pub(super) struct StartupSample {
+        pub pid: u32,
+        pub start_before: Option<u64>,
+        pub start_after: Option<u64>,
+        pub exe_before: bool,
+        pub exe_after: bool,
+        pub argv: Vec<u8>,
+        pub environment: Vec<u8>,
+        pub child_status_present: bool,
+    }
+    #[derive(Clone, serde::Serialize)]
+    pub(super) struct StartupPoint {
+        pub attempt: u8,
+        pub pid: u32,
+        pub start_before: Option<u64>,
+        pub start_after: Option<u64>,
+        pub exe_before: bool,
+        pub exe_after: bool,
+        pub argv_shape: super::diagnostic::BufferShape,
+        pub environment_shape: super::diagnostic::BufferShape,
+        pub child_status_present: bool,
+    }
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+    #[serde(rename_all = "snake_case")]
+    pub(super) enum StartupResult {
+        #[default]
+        NotObserved,
+        Ready,
+        Identity,
+        Io,
+        Deadline,
+        AttemptLimit,
+        ChildExited,
+    }
+    #[derive(Clone, Default, serde::Serialize)]
+    pub(super) struct StartupObservation {
+        pub attempts: u8,
+        pub first_not_ready: Option<StartupPoint>,
+        pub last_observation: Option<StartupPoint>,
+        pub final_result: StartupResult,
+    }
+    impl StartupPoint {
+        fn new(attempt: u8, sample: &StartupSample, expected: &[u8]) -> Self {
+            Self {
+                attempt,
+                pid: sample.pid,
+                start_before: sample.start_before,
+                start_after: sample.start_after,
+                exe_before: sample.exe_before,
+                exe_after: sample.exe_after,
+                argv_shape: super::diagnostic::BufferShape::observe::<8>(&sample.argv, expected),
+                environment_shape: super::diagnostic::BufferShape::observe::<2>(
+                    &sample.environment,
+                    b"LC_ALL=C\0PGCONNECT_TIMEOUT=5\0",
+                ),
+                child_status_present: sample.child_status_present,
+            }
+        }
+    }
+    // Empty publication is never identity. This bounded test-only observation
+    // grants no capture/protection authority; the supervisor still owns every
+    // cancellation/deadline/capture/cleanup check after this synchronous hook.
+    pub(super) fn poll_startup(
+        state: &mut StartupObservation,
+        owned_pid: u32,
+        expected: &[u8],
+        overall_deadline: Instant,
+        mut now: impl FnMut() -> Instant,
+        mut read: impl FnMut() -> Result<StartupSample, ChildFailure>,
+    ) -> Result<StartupSample, ChildFailure> {
+        let deadline = overall_deadline.min(now() + Duration::from_millis(1));
+        let mut original_start = None;
+        for _ in 0..8 {
+            if now() >= deadline {
+                state.final_result = StartupResult::Deadline;
+                return Err(ChildFailure::Deadline);
+            }
+            state.attempts += 1;
+            let sample = match read() {
+                Ok(sample) => sample,
+                Err(error) => {
+                    state.final_result = if error == ChildFailure::Identity {
+                        StartupResult::Identity
+                    } else {
+                        StartupResult::Io
+                    };
+                    return Err(error);
+                }
+            };
+            let point = StartupPoint::new(state.attempts, &sample, expected);
+            state.last_observation = Some(point.clone());
+            if sample.pid != owned_pid
+                || !sample.exe_before
+                || !sample.exe_after
+                || sample.start_before.is_none()
+                || sample.start_before != sample.start_after
+                || original_start.is_some_and(|start| Some(start) != sample.start_before)
+            {
+                state.final_result = StartupResult::Identity;
+                return Err(ChildFailure::Identity);
+            }
+            original_start = sample.start_before;
+            if sample.child_status_present {
+                state.final_result = StartupResult::ChildExited;
+                return Err(ChildFailure::Exit);
+            }
+            if (!sample.argv.is_empty() && sample.argv != expected)
+                || (!sample.environment.is_empty()
+                    && sample.environment != b"LC_ALL=C\0PGCONNECT_TIMEOUT=5\0")
+            {
+                state.final_result = StartupResult::Identity;
+                return Err(ChildFailure::Identity);
+            }
+            let not_ready = sample.argv.is_empty() || sample.environment.is_empty();
+            if not_ready && state.first_not_ready.is_none() {
+                state.first_not_ready = Some(point);
+            }
+            // Cooperative bound: a slow procfs read cannot be interrupted here,
+            // but its completed result cannot pass after either deadline.
+            if now() >= deadline {
+                state.final_result = StartupResult::Deadline;
+                return Err(ChildFailure::Deadline);
+            }
+            if !not_ready {
+                state.final_result = StartupResult::Ready;
+                return Ok(sample);
+            }
+        }
+        state.final_result = StartupResult::AttemptLimit;
+        Err(ChildFailure::Identity)
+    }
+    mod startup_readiness_tests {
+        use super::*;
+        use std::cell::Cell;
+        const ARGV: &[u8] = b"a\0b\0c\0d\0e\0f\0g\0h\0";
+        const ENV: &[u8] = b"LC_ALL=C\0PGCONNECT_TIMEOUT=5\0";
+        fn sample(argv: &[u8], environment: &[u8]) -> StartupSample {
+            StartupSample {
+                pid: 42,
+                start_before: Some(7),
+                start_after: Some(7),
+                exe_before: true,
+                exe_after: true,
+                argv: argv.into(),
+                environment: environment.into(),
+                child_status_present: false,
+            }
+        }
+        fn run(
+            rows: Vec<StartupSample>,
+        ) -> (Result<StartupSample, ChildFailure>, StartupObservation) {
+            let base = Instant::now();
+            let mut rows = rows.into_iter();
+            let mut state = StartupObservation::default();
+            let result = poll_startup(
+                &mut state,
+                42,
+                ARGV,
+                base + Duration::from_secs(1),
+                || base,
+                || Ok(rows.next().expect("unexpected extra observation")),
+            );
+            (result, state)
+        }
+        #[test]
+        fn first_both_empty_and_later_exact_preserve_first_and_attempts() {
+            let (result, state) = run(vec![sample(b"", b""), sample(b"", ENV), sample(ARGV, ENV)]);
+            assert!(result.is_ok());
+            assert_eq!(state.attempts, 3);
+            assert_eq!(state.final_result, StartupResult::Ready);
+            let value = serde_json::to_value(&state).unwrap();
+            assert_eq!(value["first_not_ready"]["attempt"], 1);
+            assert_eq!(
+                value["first_not_ready"]["argv_shape"]["classification"],
+                "empty"
+            );
+            assert_eq!(
+                value["first_not_ready"]["environment_shape"]["classification"],
+                "empty"
+            );
+            assert_eq!(
+                value["last_observation"]["argv_shape"]["classification"],
+                "exact"
+            );
+        }
+        #[test]
+        fn either_empty_publication_state_needs_later_full_exact() {
+            for first in [sample(b"", ENV), sample(ARGV, b"")] {
+                let (result, state) = run(vec![first, sample(ARGV, ENV)]);
+                assert!(result.is_ok());
+                assert_eq!(state.attempts, 2);
+                assert!(state.first_not_ready.is_some());
+            }
+        }
+        #[test]
+        fn nonempty_wrong_bytes_never_read_again() {
+            for row in [
+                sample(b"wrong", ENV),
+                sample(ARGV, b"wrong"),
+                sample(b"wrong", b""),
+                sample(b"", b"wrong"),
+                sample(&ARGV[..ARGV.len() - 1], ENV),
+            ] {
+                let (result, state) = run(vec![row]);
+                assert!(matches!(result, Err(ChildFailure::Identity)));
+                assert_eq!(state.attempts, 1);
+            }
+        }
+        #[test]
+        fn empty_publication_does_not_hide_later_mismatch_or_exit() {
+            let mut exited = sample(ARGV, ENV);
+            exited.child_status_present = true;
+            let mut changed_exe = sample(ARGV, ENV);
+            changed_exe.exe_after = false;
+            for later in [
+                sample(b"wrong", ENV),
+                sample(ARGV, b"wrong"),
+                changed_exe,
+                exited,
+            ] {
+                let (result, state) = run(vec![sample(b"", b""), later]);
+                assert!(result.is_err());
+                assert_eq!(state.attempts, 2);
+                assert_eq!(state.first_not_ready.unwrap().attempt, 1);
+                assert_eq!(state.last_observation.unwrap().attempt, 2);
+            }
+        }
+        #[test]
+        fn pid_executable_and_start_changes_refuse_even_exact_bytes() {
+            for which in 0..6 {
+                let mut row = sample(ARGV, ENV);
+                match which {
+                    0 => row.pid = 43,
+                    1 => row.exe_before = false,
+                    2 => row.exe_after = false,
+                    3 => row.start_before = None,
+                    4 => row.start_after = None,
+                    _ => row.start_after = Some(8),
+                }
+                let (result, _) = run(vec![row]);
+                assert!(result.is_err(), "identity variant {which}");
+            }
+        }
+        #[test]
+        fn start_must_remain_same_across_not_ready_attempts() {
+            let mut later = sample(ARGV, ENV);
+            later.start_before = Some(8);
+            later.start_after = Some(8);
+            let (result, state) = run(vec![sample(b"", b""), later]);
+            assert!(matches!(result, Err(ChildFailure::Identity)));
+            assert_eq!(state.attempts, 2);
+        }
+        #[test]
+        fn exited_child_refuses_and_is_not_final_native_wait_success() {
+            let mut row = sample(ARGV, ENV);
+            row.child_status_present = true;
+            let (result, state) = run(vec![row]);
+            assert!(matches!(result, Err(ChildFailure::Exit)));
+            assert_eq!(state.final_result, StartupResult::ChildExited);
+        }
+        #[test]
+        fn eight_empty_samples_exhaust_without_success_or_sleep() {
+            let (result, state) = run(vec![sample(b"", b""); 8]);
+            assert!(matches!(result, Err(ChildFailure::Identity)));
+            assert_eq!(state.attempts, 8);
+            assert_eq!(state.final_result, StartupResult::AttemptLimit);
+        }
+        #[test]
+        fn eighth_exact_is_allowed_but_ninth_exact_is_never_observed() {
+            for empty_count in [7, 8] {
+                let mut rows = vec![sample(b"", b""); empty_count];
+                rows.push(sample(ARGV, ENV));
+                let (result, state) = run(rows);
+                assert_eq!(result.is_ok(), empty_count == 7);
+                assert_eq!(state.attempts, 8);
+            }
+        }
+        #[test]
+        fn already_expired_overall_deadline_does_not_read() {
+            let base = Instant::now();
+            let mut state = StartupObservation::default();
+            let result = poll_startup(
+                &mut state,
+                42,
+                ARGV,
+                base,
+                || base,
+                || panic!("expired sample read"),
+            );
+            assert!(matches!(result, Err(ChildFailure::Deadline)));
+            assert_eq!(state.attempts, 0);
+        }
+        #[test]
+        fn completed_sample_checks_existing_and_local_deadline_before_ready() {
+            for overall in [Duration::from_micros(10), Duration::from_secs(1)] {
+                let base = Instant::now();
+                let clock = Cell::new(base);
+                let mut state = StartupObservation::default();
+                let result = poll_startup(
+                    &mut state,
+                    42,
+                    ARGV,
+                    base + overall,
+                    || clock.get(),
+                    || {
+                        clock.set(base + overall.min(Duration::from_millis(1)));
+                        Ok(sample(ARGV, ENV))
+                    },
+                );
+                assert!(matches!(result, Err(ChildFailure::Deadline)));
+                assert_eq!(state.final_result, StartupResult::Deadline);
+            }
+        }
+        #[test]
+        fn deadline_before_next_attempt_refuses_without_reading_again() {
+            let base = Instant::now();
+            let calls = Cell::new(0);
+            let mut state = StartupObservation::default();
+            let mut reads = 0;
+            let result = poll_startup(
+                &mut state,
+                42,
+                ARGV,
+                base + Duration::from_secs(1),
+                || {
+                    calls.set(calls.get() + 1);
+                    if calls.get() < 4 {
+                        base
+                    } else {
+                        base + Duration::from_millis(1)
+                    }
+                },
+                || {
+                    reads += 1;
+                    Ok(sample(b"", b""))
+                },
+            );
+            assert!(matches!(result, Err(ChildFailure::Deadline)));
+            assert_eq!(reads, 1);
+            assert_eq!(state.attempts, 1);
+        }
+        #[test]
+        fn read_failure_refuses_with_typed_result() {
+            let base = Instant::now();
+            let mut state = StartupObservation::default();
+            let result = poll_startup(
+                &mut state,
+                42,
+                ARGV,
+                base + Duration::from_secs(1),
+                || base,
+                || Err(ChildFailure::Io),
+            );
+            assert!(matches!(result, Err(ChildFailure::Io)));
+            assert_eq!(state.final_result, StartupResult::Io);
+        }
+        #[test]
+        fn disappearance_after_empty_retains_first_and_counts_failed_read() {
+            let base = Instant::now();
+            let mut state = StartupObservation::default();
+            let mut reads = 0;
+            let result = poll_startup(
+                &mut state,
+                42,
+                ARGV,
+                base + Duration::from_secs(1),
+                || base,
+                || {
+                    reads += 1;
+                    if reads == 1 {
+                        Ok(sample(b"", b""))
+                    } else {
+                        Err(ChildFailure::Io)
+                    }
+                },
+            );
+            assert!(matches!(result, Err(ChildFailure::Io)));
+            assert_eq!(state.attempts, 2);
+            assert_eq!(state.first_not_ready.unwrap().attempt, 1);
+            assert_eq!(state.last_observation.unwrap().attempt, 1);
+        }
+        #[test]
+        fn late_empty_observation_is_preserved_without_another_read() {
+            let base = Instant::now();
+            let clock = Cell::new(base);
+            let mut state = StartupObservation::default();
+            let result = poll_startup(
+                &mut state,
+                42,
+                ARGV,
+                base + Duration::from_secs(1),
+                || clock.get(),
+                || {
+                    clock.set(base + Duration::from_millis(1));
+                    Ok(sample(b"", b""))
+                },
+            );
+            assert!(matches!(result, Err(ChildFailure::Deadline)));
+            assert_eq!(state.attempts, 1);
+            assert_eq!(state.first_not_ready.unwrap().attempt, 1);
+            assert_eq!(
+                serde_json::to_value(Phase::StartupReadiness).unwrap(),
+                "startup_readiness_rejected"
+            );
+        }
+    }
     mod tests {
         use super::*;
         use std::cell::{Cell, RefCell};
@@ -506,7 +920,7 @@ pub(in crate::source) mod diagnostic {
         OverObservationBound,
     }
     #[derive(Clone, serde::Serialize)]
-    struct BufferShape {
+    pub(super) struct BufferShape {
         bytes: usize,
         nul_count: Option<usize>,
         trailing_nul_count: Option<usize>,
@@ -514,7 +928,7 @@ pub(in crate::source) mod diagnostic {
         classification: ShapeClass,
     }
     impl BufferShape {
-        fn observe<const N: usize>(actual: &[u8], expected: &[u8]) -> Self {
+        pub(super) fn observe<const N: usize>(actual: &[u8], expected: &[u8]) -> Self {
             // This bound limits diagnostics only, never native read/capture decisions.
             if actual.len() > 4096 {
                 return Self {
@@ -610,8 +1024,28 @@ pub(in crate::source) mod diagnostic {
         stream_result: Option<bool>,
         pub(super) dropped: Option<bool>,
         pub(super) pid_start_unobserved: Option<bool>,
+        startup_observation: super::startup_failure::StartupObservation,
     }
     impl Snapshot {
+        pub(super) fn startup_observation(
+            &mut self,
+            observation: super::startup_failure::StartupObservation,
+        ) {
+            if let Some(point) = &observation.last_observation {
+                self.pid = Some(point.pid);
+                self.start_ticks = point.start_after;
+                self.executable_matches = Some(point.exe_before && point.exe_after);
+                self.argv_matches =
+                    Some(matches!(point.argv_shape.classification, ShapeClass::Exact));
+                self.environment_matches = Some(matches!(
+                    point.environment_shape.classification,
+                    ShapeClass::Exact
+                ));
+                self.argv_shape = Some(point.argv_shape.clone());
+                self.environment_shape = Some(point.environment_shape.clone());
+            }
+            self.startup_observation = observation;
+        }
         pub(super) fn cleanup(&mut self, cause: ChildFailure) {
             self.first_cleanup.get_or_insert(cause);
             self.last_cleanup = Some(cause);
@@ -636,13 +1070,14 @@ pub(in crate::source) mod diagnostic {
             dump_size: Option<u64>,
         ) -> Result<Vec<u8>, BackupError> {
             // Only typed observations and fixed labels enter this projection.
-            // Native wait/exit were never stored by the original Trace.
+            // Final supervisor wait/exit are not stored by this Trace. A
+            // startup poll records status presence only, never final capture.
             bounded(serde_json::to_vec(&serde_json::json!({
-                "format_version":2,"capability":"source_bound_dump_diagnostic_v2","state":"DIAGNOSTIC_NOT_AUTHORITY",
+                "format_version":3,"capability":"source_bound_dump_diagnostic_v3","state":"DIAGNOSTIC_NOT_AUTHORITY",
                 "backup_id":backup,"source_epoch":self.epoch,"prepare_result":if prepare_ok{"ok"}else{"err"},"returned_pin":prepare_ok,"dump_metadata_size":dump_size,
                 "spawn_callback_entered":self.callback_entered,"spawn_callback_completed":self.callback_completed,
                 "exact_executable_matches":self.executable_matches,"exact_argv_matches":self.argv_matches,"exact_environment_matches":self.environment_matches,
-                "argv_shape":self.argv_shape,"environment_shape":self.environment_shape,
+                "argv_shape":self.argv_shape,"environment_shape":self.environment_shape,"startup_observation":self.startup_observation,
                 "failed_proc_read":self.failed_proc_read.map(proc_name),"observed_child_pid":self.pid,"observed_child_start_ticks":self.start_ticks,
                 "admitted_backend":self.backend,"database_oid":self.oid,"first_cleanup_error":self.first_cleanup.map(error_name),"last_cleanup_error":self.last_cleanup.map(error_name),"final_stream_error":self.final_stream.map(error_name),
                 "stream_result":self.stream_result.map(|ok|if ok{"ok"}else{"err"}),"test_control_dropped":self.dropped,"pid_start_no_longer_observed_after_drop":self.pid_start_unobserved,
@@ -728,11 +1163,11 @@ pub(in crate::source) mod diagnostic {
                 "source_fault_early_return_diagnostic_v1"
             );
             assert_eq!(value["state"], "DIAGNOSTIC_NOT_AUTHORITY");
-            assert_eq!(value["snapshot"].as_object().unwrap().len(), 30);
-            assert_eq!(value["snapshot"]["format_version"], 2);
+            assert_eq!(value["snapshot"].as_object().unwrap().len(), 31);
+            assert_eq!(value["snapshot"]["format_version"], 3);
             assert_eq!(
                 value["snapshot"]["capability"],
-                "source_bound_dump_diagnostic_v2"
+                "source_bound_dump_diagnostic_v3"
             );
             assert!(value["snapshot"]["dump_metadata_size"].is_null());
             value
@@ -935,6 +1370,7 @@ pub(in crate::source) mod diagnostic {
                 "exact_environment_matches",
                 "argv_shape",
                 "environment_shape",
+                "startup_observation",
                 "failed_proc_read",
                 "observed_child_pid",
                 "observed_child_start_ticks",
@@ -952,8 +1388,8 @@ pub(in crate::source) mod diagnostic {
                 "guard_stage"
             ])
         );
-        assert_eq!(value["format_version"], 2);
-        assert_eq!(value["capability"], "source_bound_dump_diagnostic_v2");
+        assert_eq!(value["format_version"], 3);
+        assert_eq!(value["capability"], "source_bound_dump_diagnostic_v3");
         assert_eq!(value["state"], "DIAGNOSTIC_NOT_AUTHORITY");
         assert!(value["argv_shape"].is_null());
         assert!(value["environment_shape"].is_null());
@@ -961,6 +1397,97 @@ pub(in crate::source) mod diagnostic {
         assert!(raw.len() <= 4096);
         assert!(bounded(vec![b'x'; 4096]).is_ok());
         assert!(bounded(vec![b'x'; 4097]).is_err());
+    }
+    #[test]
+    fn diagnostic_startup_schema_preserves_first_and_final_without_raw_bytes() {
+        use super::startup_failure::{StartupObservation, StartupSample, poll_startup};
+        let expected = b"a\0b\0c\0d\0e\0f\0g\0h\0";
+        let base = std::time::Instant::now();
+        let mut rows = [
+            (b"".as_slice(), b"".as_slice()),
+            (
+                expected.as_slice(),
+                b"LC_ALL=C\0PGCONNECT_TIMEOUT=5\0".as_slice(),
+            ),
+        ]
+        .into_iter();
+        let mut evidence = StartupObservation::default();
+        poll_startup(
+            &mut evidence,
+            42,
+            expected,
+            base + std::time::Duration::from_secs(1),
+            || base,
+            || {
+                let (argv, environment) = rows.next().unwrap();
+                Ok(StartupSample {
+                    pid: 42,
+                    start_before: Some(7),
+                    start_after: Some(7),
+                    exe_before: true,
+                    exe_after: true,
+                    argv: argv.into(),
+                    environment: environment.into(),
+                    child_status_present: false,
+                })
+            },
+        )
+        .unwrap_or_else(|_| panic!("exact final startup must succeed"));
+        let mut snapshot = Snapshot::default();
+        snapshot.startup_observation(evidence);
+        let raw = snapshot.bytes(uuid::Uuid::new_v4(), false, None).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&raw).unwrap();
+        let progress = &value["startup_observation"];
+        assert_eq!(
+            progress
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str)
+                .collect::<std::collections::BTreeSet<_>>(),
+            std::collections::BTreeSet::from([
+                "attempts",
+                "first_not_ready",
+                "last_observation",
+                "final_result"
+            ])
+        );
+        assert_eq!(progress["attempts"], 2);
+        assert_eq!(progress["final_result"], "ready");
+        let first = &progress["first_not_ready"];
+        let last = &progress["last_observation"];
+        assert_eq!(
+            first
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str)
+                .collect::<std::collections::BTreeSet<_>>(),
+            std::collections::BTreeSet::from([
+                "attempt",
+                "pid",
+                "start_before",
+                "start_after",
+                "exe_before",
+                "exe_after",
+                "argv_shape",
+                "environment_shape",
+                "child_status_present"
+            ])
+        );
+        assert_eq!(first["attempt"], 1);
+        assert_eq!(first["argv_shape"]["classification"], "empty");
+        assert_eq!(first["environment_shape"]["classification"], "empty");
+        assert_eq!(last["attempt"], 2);
+        assert_eq!(last["argv_shape"]["classification"], "exact");
+        assert_eq!(last["environment_shape"]["classification"], "exact");
+        assert_eq!(value["exact_argv_matches"], true);
+        assert_eq!(value["exact_environment_matches"], true);
+        assert_eq!(value["argv_shape"], last["argv_shape"]);
+        assert_eq!(value["native_wait"], "not_observed");
+        assert!(value["native_exit_code"].is_null());
+        assert!(!String::from_utf8_lossy(&raw).contains("PGCONNECT_TIMEOUT"));
+        assert!(raw.len() <= 4096);
     }
     type ShapeCase<'a> = (&'a [u8], usize, usize, usize, u8, &'a str);
 
@@ -1699,6 +2226,7 @@ pub(super) mod faults {
         lost_lock: bool,
         proof: Option<BackupDir>,
         pause_request: Option<serde_json::Value>,
+        startup_deadline: Option<Instant>,
     }
     pub(in crate::source) fn current_control() -> Option<TestControl> {
         TRACE.with(|state| {
@@ -1709,6 +2237,7 @@ pub(super) mod faults {
                 lost_lock: false,
                 proof: None,
                 pause_request: None,
+                startup_deadline: None,
             })
         })
     }
@@ -1760,12 +2289,16 @@ pub(super) mod faults {
                     *self.trace.overflow_proof.lock().unwrap() = Some(proof.try_clone()?);
                 }
             }
+            let duration = if self.trace.fault == Fault::Timeout {
+                Duration::from_millis(800)
+            } else {
+                Duration::from_secs(900)
+            };
+            // The production supervisor computes its deadline later from this
+            // same duration. This earlier test-only bound cannot extend it.
+            self.startup_deadline = Some(Instant::now() + duration);
             Ok((
-                if self.trace.fault == Fault::Timeout {
-                    Duration::from_millis(800)
-                } else {
-                    Duration::from_secs(900)
-                },
+                duration,
                 if self.trace.fault == Fault::Overflow {
                     64
                 } else {
@@ -1893,28 +2426,6 @@ pub(super) mod faults {
                 ChildFailure::Io
             })?;
             self.trace.diagnostic.lock().unwrap().pid = Some(pid);
-            let exe = std::fs::read_link(format!("/proc/{pid}/exe")).map_err(|_| {
-                self.trace.diagnostic.lock().unwrap().failed_proc_read =
-                    Some(super::diagnostic::ProcRead::Executable);
-                ChildFailure::Io
-            })?;
-            self.trace.diagnostic.lock().unwrap().executable_matches =
-                Some(exe == Path::new("/usr/lib/postgresql/18/bin/pg_dump"));
-            if exe != Path::new("/usr/lib/postgresql/18/bin/pg_dump") {
-                return super::startup_failure::Evidence::after_strict_result(
-                    &self.trace.startup_failure,
-                    self.active,
-                    self.trace.fault,
-                    super::startup_failure::Phase::Executable,
-                    Err(ChildFailure::Identity),
-                    || child.try_wait(),
-                );
-            }
-            let cmd = std::fs::read(format!("/proc/{pid}/cmdline")).map_err(|_| {
-                self.trace.diagnostic.lock().unwrap().failed_proc_read =
-                    Some(super::diagnostic::ProcRead::CommandLine);
-                ChildFailure::Io
-            })?;
             let expected = [
                 "/usr/lib/postgresql/18/bin/pg_dump".into(),
                 "--format=custom".into(),
@@ -1927,39 +2438,102 @@ pub(super) mod faults {
             ]
             .join("\0")
                 + "\0";
-            let env = std::fs::read(format!("/proc/{pid}/environ")).map_err(|_| {
-                self.trace.diagnostic.lock().unwrap().failed_proc_read =
-                    Some(super::diagnostic::ProcRead::Environment);
-                ChildFailure::Io
-            })?;
-            self.trace
-                .diagnostic
-                .lock()
-                .unwrap()
-                .comparisons(&cmd, expected.as_bytes(), &env);
-            if cmd != expected.as_bytes() || env != b"LC_ALL=C\0PGCONNECT_TIMEOUT=5\0" {
-                return super::startup_failure::Evidence::after_strict_result(
-                    &self.trace.startup_failure,
-                    self.active,
-                    self.trace.fault,
-                    super::startup_failure::Phase::ArgumentsEnvironment,
-                    Err(ChildFailure::Identity),
-                    || child.try_wait(),
-                );
+            let failed_proc = std::cell::Cell::new(None);
+            let executable_matches = std::cell::Cell::new(None);
+            let mut startup = super::startup_failure::StartupObservation::default();
+            let outcome = super::startup_failure::poll_startup(
+                &mut startup,
+                pid,
+                expected.as_bytes(),
+                self.startup_deadline.ok_or(ChildFailure::Deadline)?,
+                Instant::now,
+                || {
+                    use super::diagnostic::ProcRead;
+                    let owned_pid = child.id().ok_or_else(|| {
+                        failed_proc.set(Some(ProcRead::ChildId));
+                        ChildFailure::Io
+                    })?;
+                    let before =
+                        std::fs::read_link(format!("/proc/{owned_pid}/exe")).map_err(|_| {
+                            failed_proc.set(Some(ProcRead::Executable));
+                            ChildFailure::Io
+                        })?;
+                    let before = before == Path::new("/usr/lib/postgresql/18/bin/pg_dump");
+                    executable_matches.set(Some(before));
+                    if !before {
+                        return Err(ChildFailure::Identity);
+                    }
+                    let start_before = process_start(owned_pid).ok_or_else(|| {
+                        failed_proc.set(Some(ProcRead::StartTicks));
+                        ChildFailure::Io
+                    })?;
+                    let argv =
+                        std::fs::read(format!("/proc/{owned_pid}/cmdline")).map_err(|_| {
+                            failed_proc.set(Some(ProcRead::CommandLine));
+                            ChildFailure::Io
+                        })?;
+                    let environment =
+                        std::fs::read(format!("/proc/{owned_pid}/environ")).map_err(|_| {
+                            failed_proc.set(Some(ProcRead::Environment));
+                            ChildFailure::Io
+                        })?;
+                    let start_after = process_start(owned_pid).ok_or_else(|| {
+                        failed_proc.set(Some(ProcRead::StartTicks));
+                        ChildFailure::Io
+                    })?;
+                    let after =
+                        std::fs::read_link(format!("/proc/{owned_pid}/exe")).map_err(|_| {
+                            failed_proc.set(Some(ProcRead::Executable));
+                            ChildFailure::Io
+                        })?;
+                    let after = after == Path::new("/usr/lib/postgresql/18/bin/pg_dump");
+                    executable_matches.set(Some(after));
+                    if !after {
+                        return Err(ChildFailure::Identity);
+                    }
+                    let child_status_present =
+                        child.try_wait().map_err(|_| ChildFailure::Io)?.is_some();
+                    Ok(super::startup_failure::StartupSample {
+                        pid: owned_pid,
+                        start_before: Some(start_before),
+                        start_after: Some(start_after),
+                        exe_before: before,
+                        exe_after: after,
+                        argv,
+                        environment,
+                        child_status_present,
+                    })
+                },
+            );
+            {
+                let mut diagnostic = self.trace.diagnostic.lock().unwrap();
+                diagnostic.startup_observation(startup);
+                diagnostic.failed_proc_read = failed_proc.get();
+                if executable_matches.get() == Some(false) {
+                    diagnostic.executable_matches = Some(false);
+                }
             }
-            let start = process_start(pid).ok_or_else(|| {
-                self.trace.diagnostic.lock().unwrap().failed_proc_read =
-                    Some(super::diagnostic::ProcRead::StartTicks);
-                ChildFailure::Io
-            })?;
-            self.trace.diagnostic.lock().unwrap().start_ticks = Some(start);
+            let observed = match outcome {
+                Ok(observed) => observed,
+                Err(reason) => {
+                    return super::startup_failure::Evidence::after_strict_result(
+                        &self.trace.startup_failure,
+                        self.active,
+                        self.trace.fault,
+                        super::startup_failure::Phase::StartupReadiness,
+                        Err(reason),
+                        || child.try_wait(),
+                    );
+                }
+            };
+            let start = observed.start_after.ok_or(ChildFailure::Identity)?;
             *self.trace.observation.lock().unwrap() = Observation {
                 pid,
                 start,
                 backend,
                 oid,
                 keys,
-                exe: exe.to_string_lossy().into(),
+                exe: "/usr/lib/postgresql/18/bin/pg_dump".into(),
                 ..Observation::default()
             };
             if self.trace.fault == Fault::Overflow {
