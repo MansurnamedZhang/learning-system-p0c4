@@ -2,15 +2,15 @@
   "schema": 1,
   "date": "2026-10-18",
   "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
-  "previous_public_commit": "8f019c64f458bea3165e592baa36c8e1abd08b2e",
-  "source_archive_sha256": null,
+  "previous_public_commit": "98d471e0f44bb987ad0bac86e2758639b902a8c1",
+  "source_archive_sha256": "c77e6766c3e11f66bec8f10ed95a2f5489cbab77da3e85a600540179bd490baa",
   "source_manifest_sha256": "87aa19662f1d9b93a79dae02ddaf4f7abd3b836d8a49687ab63f891785a8dbd4",
   "source_file_count": 549,
   "excluded_source_files": [
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
   ],
-  "scope": "CODE_PROGRESS_NOT_TASK5_NATIVE_ACCEPTANCE_NOT_C4_COMPLETE_NOT_PRODUCTION",
+  "scope": "CONTROLLED11_MIXED_SOURCE_ACCEPTED_FULL0_TASK5_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "documentation_transform": "redact machine locations, resolve published links, add current progress; private references remain labels",
   "files": [
     {
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112929,
-      "sha256": "ae1d49cc3aaa07efda9a64f1c99c3683ddcdfcebe04601da8ff0171883b937b8",
+      "bytes": 112780,
+      "sha256": "bd09e7a8b5af6d8c9e63a7d0d45a6e0e92802dd4ecbce45f01ae4b2e2dca333f",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4050,
-      "sha256": "8c9deff891dd253f938ee2d6dbd7598fb2f01a83d7620f511a0e2623511708bd",
+      "bytes": 3846,
+      "sha256": "f19c0f1791d7aa4fe83a19115416c7c572f3582d6095077d2cf7e7d7ff9def89",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45440,
-      "sha256": "bf8dc9cc005e53db64d38e7461f4fe626736125c647b3cc585aabc1e46d09ca0",
+      "bytes": 45303,
+      "sha256": "a725a72f16845abaea9f2a3a91a5586b002c69ea85ad31da19d92bd0e8446e7a",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29795,
-      "sha256": "5d12cdb398b6abf7771f54cfcbf69301cfd8bc1283e3fb78e1915165b8efdf1c",
+      "bytes": 29252,
+      "sha256": "3ded6208839dc3411565446b2ab310ea55cfc62a296972389697b0ff788cb29f",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3508,
-      "sha256": "444fb3d2d9663c0d235cb8d16d7a3792c9961464752b9798e79622d7e113dc56",
+      "bytes": 2869,
+      "sha256": "badbc2069abfe867bddf4e7233255c6ce35c2267c4a4f232f56c1fff6b7e2a8b",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 25113,
-      "sha256": "b25a1022a6ef047c64a6bc13dad30325bbac11ff43b40d3f20787551b872278d",
+      "bytes": 24570,
+      "sha256": "1f8515ce92d59b80a86334371e7049132505160576483ee9bcc2c1e621cf80f5",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4036,15 +4036,15 @@
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
   "task5_current": {
-    "legacy_passed": 10,
+    "legacy_passed": 11,
     "legacy_total": 11,
     "full_passed": 0,
     "full_total": 9,
     "protected_entries_implemented": 11,
     "protected_entries_total": 11,
     "code_review": "APPROVED_CODE_REVIEW_ONLY",
-    "current11_ops": "PREPARATION_REVIEW_AND_SINGLE_SUCCESS_INSTALL_ACCEPTED_FIRST_BODY_UNKNOWN_RETAINED",
-    "physical_clone": "85C49AF_EXISTING_IMPORT_LINE_MOVED_UNIT_ONLY_F476_HELD_UNKNOWN_IMMUTABLE_FRESH_NATIVE_PENDING",
+    "current11_ops": "CONTROLLED11_ACCEPTED_TEN_HISTORICAL_C749_ONE_CURRENT_85C_NOT_FULL_RESTORE",
+    "physical_clone": "85C49AF_WRONG_ENDPOINT_ACTUAL_EXPECTED_REJECTION_ACCEPTED_13_CHECKPOINTS_THREE_PG_STOPPED_VOLUMES_RETAINED_NOT_FULL_RESTORE",
     "focused_root": {
       "run": 53,
       "passed": 48,
@@ -4099,7 +4099,7 @@
     },
     "production_helper_caps_attestation": false,
     "full_ops_fix": "LOCAL_REVIEW_PASS_BINDINGS_NATIVE_HOLD",
-    "current11_ops_scope": "Ten fresh c749 whole cases independently accepted; legacy10/11 full0/9; commit outcome unknown distinct from known settled resources; cb421 wrong-endpoint still not run",
+    "current11_ops_scope": "Eleven controlled cases accepted: ten historical c749 and one current 85c wrong-endpoint; not eleven rerun at 85c; full0/9 Task5/C4 OPEN; consumed UNKNOWN preserved",
     "success_installation": {
       "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
       "originals": 202,
@@ -4220,7 +4220,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "85C49AF_FIXED_SOURCE_PACKET_BINDING_REVIEW_AND_FRESH_NATIVE_PENDING_TEN_C749_ACCEPTED_UNCHANGED",
+    "reader_compatibility_next": "85C_WRONG_ENDPOINT_OWNED_READER_RECEIPTS_ACCEPTED_FULL9_METADATA_ONLY_FIRST_FULL_REFRESH_REVIEW_PENDING",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -4423,7 +4423,8 @@
       "copy-truncated",
       "attempt-sync-failure",
       "commit-intent-sync-failure",
-      "commit-unknown"
+      "commit-unknown",
+      "wrong-endpoint"
     ],
     "actual_ready_eof_c749d9e": {
       "source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
@@ -5071,9 +5072,103 @@
       "new_source_native_accepted": false,
       "prior_f476_full_metadata_and_reader_model_preparation_only": true,
       "native_credit": 0
+    },
+    "prior_controlled10_status_before_85c_acceptance": {
+      "legacy_passed": 10,
+      "accepted_current11_cases": [
+        "success",
+        "ready-eof",
+        "ready-restart",
+        "precommit-eof",
+        "precommit-cancel",
+        "sql-error",
+        "copy-truncated",
+        "attempt-sync-failure",
+        "commit-intent-sync-failure",
+        "commit-unknown"
+      ],
+      "current11_ops": "PREPARATION_REVIEW_AND_SINGLE_SUCCESS_INSTALL_ACCEPTED_FIRST_BODY_UNKNOWN_RETAINED",
+      "current11_ops_scope": "Ten fresh c749 whole cases independently accepted; legacy10/11 full0/9; commit outcome unknown distinct from known settled resources; cb421 wrong-endpoint still not run",
+      "physical_clone": "85C49AF_EXISTING_IMPORT_LINE_MOVED_UNIT_ONLY_F476_HELD_UNKNOWN_IMMUTABLE_FRESH_NATIVE_PENDING",
+      "reader_compatibility_next": "85C49AF_FIXED_SOURCE_PACKET_BINDING_REVIEW_AND_FRESH_NATIVE_PENDING_TEN_C749_ACCEPTED_UNCHANGED"
+    },
+    "controlled_source_coverage": {
+      "historical_source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
+      "historical_cases": 10,
+      "latest_source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
+      "latest_cases": 1,
+      "all_eleven_rerun_at_latest_source": false
+    },
+    "actual_wrong_endpoint_85c49af": {
+      "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
+      "case": "wrong-endpoint",
+      "verdict": "ROOT_ACCEPTED_EXPECTED_REJECTION_NATIVE_CASE_NOT_FULL_RESTORE",
+      "body_result_sha256": "4869bed75bef82ab7bffbb39248aaad0f0b3422199eadd73be26146431c421a3",
+      "clone_birth_sha256": "a432812377e06f66ea83d404456e4af0078041fe626bb92347e5bbf23ccb29d9",
+      "independent_index_sha256": "64f407ea5083bb1bcaae296ceb814481b3329fe076085cf90aee2df5ae8422e6",
+      "independent_report_sha256": "4215560a1b1f7ec30d1a14852451d9db798db407cca8c2a278b9c62d87daf03b",
+      "root_adoption_sha256": "7744ad2140e167be4700031de92606bdfc298495b932d943c813e23637c9320a",
+      "independent_checks": 445,
+      "independent_raw_refs": 429,
+      "root_review_and_raw_refs": 435,
+      "test_passed": 1,
+      "test_failed": 0,
+      "test_ignored": 0,
+      "test_filtered": 451,
+      "test_seconds": 13.87,
+      "checkpoints": [
+        "ATTEMPT_ABSENT",
+        "BOTH_EXACT_CONTAINERS_STOPPED",
+        "CLONE_SAME_SYSTEM_ID_DATABASE_OID",
+        "DDL_NOT_SENT",
+        "EXACT_TARGET_STOPPED",
+        "FRESH_SOURCE_FIXED_PRODUCER",
+        "FULL_GOLDEN_VERIFIED",
+        "INTENT_ABSENT",
+        "REAL_TOC_VERIFIED",
+        "SNAPSHOT_NOFOLLOW_FROZEN",
+        "TARGET_UNUSABLE",
+        "WRITER_DOUBLE_LOCK_REJECTED",
+        "ZERO_OBJECTS_BOTH_BEFORE_STOP"
+      ],
+      "failure": "Exit",
+      "ddl_sent": false,
+      "commit_attempted": false,
+      "rollback_verified": false,
+      "retry_allowed": false,
+      "ops_original_files": 132,
+      "safe_original_files": 11,
+      "outer_prepare_run_exit0_empty_stderr": true,
+      "three_pg_stopped_volumes_retained": true,
+      "full_old_docker_projection_preserved": true,
+      "own_installer_body_control_and_reader_removed": true,
+      "final_stdout_only_additional_durable_and_empty_settlement_receipts": true,
+      "whole_case_master_original_pending_zero_credit_retained": true,
+      "old_f476_a668_unknown_immutable_no_replay_cleanup": true,
+      "clone_v31_mother_pg_inode_limitation_unchanged": true,
+      "source_binding_sha256": "4258345c6b02f78aecfb43601e6b1ef270e3c59d4905bdfc50937ed164c15fcd",
+      "public_archive_sha256": "c77e6766c3e11f66bec8f10ed95a2f5489cbab77da3e85a600540179bd490baa",
+      "public_manifest_sha256": "f006e0c2266e2c5310657634e26d53d44f5f493e3ae57209dd20154cf654e2b5",
+      "native_credit": 1,
+      "full_credit": 0
+    },
+    "controlled_eleven_root_adoption": {
+      "index_sha256": "2dfbf3bcbcb19d5bd544966390d57190048a2852d3f96f66f2481c1732f42fcc",
+      "review_records": 7,
+      "exact_original_review_input_refs": 3430,
+      "all_local_refs_rehashed_for_publication": true,
+      "controlled_accepted": 11,
+      "controlled_total": 11,
+      "historical_c749_cases": 10,
+      "current_85c_cases": 1,
+      "full_accepted": 0,
+      "full_total": 9,
+      "task5": "OPEN",
+      "old_consumed_unknowns_not_replayed_not_credited": true,
+      "full_execution_authority": false
     }
   },
   "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_TWO_GIT_BLOBS_SAME_549_TREE_CLOSED",
   "previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "source_archive_status": "NEW_85C49AF_OPERATIONAL_SOURCE_PACKET_PENDING_NOT_OLD_F476_ARCHIVE"
+  "source_archive_status": "85C_CANONICAL_ARCHIVE_BOUND_TO_ACCEPTED_WRONG_ENDPOINT_ONLY_NOT_FULL_AUTHORITY"
 }
