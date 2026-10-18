@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "date": "2026-10-18",
-  "source_commit": "a66885322a16515f65abc2ab6c72570b46f53903",
-  "previous_public_commit": "92419ffb89c8b7b4e73a92739765791255f9b3e0",
-  "source_archive_sha256": "9d4e0af23a81cbe140ef51b235db79a27f5f1a405421d3b65107a1a5b01c9731",
-  "source_manifest_sha256": "cc5a440971afaf7efd86c2080d171087a46d974ed4e0a65747d34946b89dd731",
+  "source_commit": "f47612dd6aae762f7cdb00ba8c09c2e9aea86b97",
+  "previous_public_commit": "c22e7a585942604b63c77d8d4c44d0636f86dd55",
+  "source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
+  "source_manifest_sha256": "59f6165f829f250686a1ced19f9d4cbe4210a010cc85dd594ea1d7deea3baceb",
   "source_file_count": 549,
   "excluded_source_files": [
     ".artifacts/.gitignore",
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112811,
-      "sha256": "0e6264b09986875f1cf31d8f0b7395fc0a556b1df67b2eaaa6461c3d2546b461",
+      "bytes": 112885,
+      "sha256": "b087c0a15f23ca50c11603e4e3a5cbca2fb4bc15328f4a1900061f2f8a77d61e",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4086,
-      "sha256": "7d680a3f68c9cdafb3c6aaa7a1cefd241d43ad4f3e6bbfbf2e344b22088f7c7b",
+      "bytes": 4140,
+      "sha256": "18daf4555ec12e557463715d08cd943408d4fe748dc982ea259b8caf9c1c0bac",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45322,
-      "sha256": "9159ad475ce07818981e19f18226ccdf40721cd55c9923e941c9505694eb8634",
+      "bytes": 45400,
+      "sha256": "554ec8f69a3194849a00d15550e98b0372f0bdaa81ba0234e5446d17ff878537",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29786,
-      "sha256": "e51038c950c649b8b0adf081bdfa9a6beecdd307641bc4ad77f8b73d782dc287",
+      "bytes": 29750,
+      "sha256": "305447451e02cd8cf8ca2053c3f8ea0e332cacbc3c9bfbeaae8469b973e8675b",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3385,
-      "sha256": "6f110c6ad1fbaaecb1997db1d35fe603f3a5d222ad37ca7fb45bd0a0464cafed",
+      "bytes": 3349,
+      "sha256": "d46ffbf2483f85ad80c1555a45ba2102095414769012f6ac688b50dcaec47902",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 25104,
-      "sha256": "5d6dc4a43d6c5fa88b636f662f4cb7e7196483469531038e4df4c79f3c7ba99f",
+      "bytes": 25068,
+      "sha256": "d67d9c35d8f9de5b43ed9e1e106363d5c9384f5b718bc02e8536a9dc32af7f18",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3564,9 +3564,9 @@
     },
     {
       "path": "scripts/p0c4_completion/controlled_fixture.py",
-      "bytes": 106506,
-      "sha256": "b8e8478a3c89c5271f01c95dd8fb9ee087bb521af44d51b414c05afbf9655077",
-      "source_blob_sha256": "b8e8478a3c89c5271f01c95dd8fb9ee087bb521af44d51b414c05afbf9655077",
+      "bytes": 106526,
+      "sha256": "fb4a6fea7960b30cf0795e3d958d592677979f5dbde74aebb3e8306203292f76",
+      "source_blob_sha256": "fb4a6fea7960b30cf0795e3d958d592677979f5dbde74aebb3e8306203292f76",
       "source_bytes_preserved": true
     },
     {
@@ -3823,9 +3823,9 @@
     },
     {
       "path": "scripts/test_p0c4_controlled_clone_exact_stop.py",
-      "bytes": 41686,
-      "sha256": "9f58c6b630504bff1fac884228f3ac9a0ddbf32c3d78915f935d62ecdecbd511",
-      "source_blob_sha256": "9f58c6b630504bff1fac884228f3ac9a0ddbf32c3d78915f935d62ecdecbd511",
+      "bytes": 46177,
+      "sha256": "4ecc8bd39d4e71d2c8a789f6f81b0246145cbad14129858d37b61ea4e4045cdf",
+      "source_blob_sha256": "4ecc8bd39d4e71d2c8a789f6f81b0246145cbad14129858d37b61ea4e4045cdf",
       "source_bytes_preserved": true
     },
     {
@@ -4044,7 +4044,7 @@
     "protected_entries_total": 11,
     "code_review": "APPROVED_CODE_REVIEW_ONLY",
     "current11_ops": "PREPARATION_REVIEW_AND_SINGLE_SUCCESS_INSTALL_ACCEPTED_FIRST_BODY_UNKNOWN_RETAINED",
-    "physical_clone": "A668_CONTROLLED_BACKEND_CONSUMER_FIX_ADOPTED_UNIT_ONLY_NEW_OPERATIONAL_PINS_AND_NATIVE_WRONG_ENDPOINT_PENDING",
+    "physical_clone": "F476_ONE_ACTOR_ARGV_SELECTOR_EXPRESSION_FIX_ADOPTED_UNIT_ONLY_CONSUMED_A668_UNKNOWN_RETAINED_FRESH_NATIVE_PENDING",
     "focused_root": {
       "run": 53,
       "passed": 48,
@@ -4220,7 +4220,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "A668_FIXED_BACKEND_CODE_AND_STATIC_PACKAGE_ONLY_NATIVE_TEN_C749_CASES_UNCHANGED",
+    "reader_compatibility_next": "F476_FIXED_ACTOR_ARGV_SOURCE_STATIC_PACKAGE_NEW_BINDING_REVIEW_AND_FRESH_NATIVE_PENDING_TEN_C749_ACCEPTED_UNCHANGED",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -4953,6 +4953,63 @@
       "old_cb421_source_only_model_checks": 17,
       "old_source_only_approval_not_new_activation_authority": true,
       "new_operational_source_pin_refresh_review_pending": true,
+      "fresh_wrong_endpoint_native_accepted": false,
+      "native_credit": 0
+    },
+    "clone_actor_argv_fix": {
+      "source_commit": "f47612dd6aae762f7cdb00ba8c09c2e9aea86b97",
+      "parent": "a66885322a16515f65abc2ab6c72570b46f53903",
+      "changed_files": 2,
+      "review_index_sha256": "c427fbd3cf9ba9950d5052014f874312fc94770407dc59992752a6d315c78179",
+      "spec_quality": "APPROVED_ZERO_BLOCKERS",
+      "product_change": "ONE_EXACT_ADAPTER_PREPARE_RUN_SELECTOR_MEMBERSHIP_EXPRESSION_WRONG_ENDPOINT_LITERAL",
+      "independent_direct_actor_tests": 5,
+      "independent_source_checks": 30,
+      "generic_fixed_cases_plan_profile_wire_strict_main_native_identity_stop_rust_full_engine_unchanged": true,
+      "other_nine_finite_selector_contracts_unchanged": true,
+      "controlled_fixture_profile_consumer_one_expression_changed": true,
+      "all_ten_consumers_byte_identical_claimed": false,
+      "retained_a668_prepare": {
+        "stage": "BEFORE_PLAN_OR_NEW_PG_NATIVE_BODY",
+        "reason": "CONTROLLED_ACTOR_FIXED_MAIN_ONLY",
+        "status": "CONSUMED_UNKNOWN_RETAINED",
+        "replayed_or_cleaned": false,
+        "native_credit": 0
+      },
+      "linux_red": {
+        "tests": 30,
+        "meaningful_assertion_failure_entries": 3,
+        "errors": 0,
+        "result_sha256": "6ea9e8298a95d4eecf857c9cf062c4dc5f5de1f38a8c6f9f78ea1c6a01e2cc21"
+      },
+      "linux_green": {
+        "batch": "ec5d8878a6b34c07935480d15f0f460d",
+        "result_sha256": "55fffd59a6534018f13a2349718f79b2106ca553958d23ca685e965fc798bb6e",
+        "run": 178,
+        "passed": 178,
+        "failures": 0,
+        "errors": 0,
+        "skips": 0,
+        "source_base_recorded": "a66885322a16515f65abc2ab6c72570b46f53903",
+        "scope": "A668_PLUS_TWO_FROZEN_RAW_OVERLAY_NOT_EXACT_GIT_LF_BUILD",
+        "fixture_raw_git_byte_exact": true,
+        "test_crlf_to_git_lf_only": true,
+        "no_pg_actor_rust_native": true,
+        "source_and_full_old_projection_unchanged": true,
+        "builder_natural_exit0_exact_removed": true,
+        "native_credit": 0
+      },
+      "canonical_local_package_ready": true,
+      "source_files": 548,
+      "archive_members": 549,
+      "source_binding_sha256": "a7d565bb86b6928b9dcf517d242d95b8e49ed68bf750dd255c5cadf72e04f607",
+      "public_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
+      "public_manifest_sha256": "d95cf8abfb608bea9bc6b479df9398d1d6f2a01f5be0b13071594c45bb91bfe8",
+      "legacy_archive_sha256": "229c43fb59cd8d27b84eb5b926f9107b91e7b50cf59f8f6cb12c1fbf8b32a28b",
+      "legacy_manifest_sha256": "0d62caef3ec0a71388ea8ed4c3af0f8f6c1c752c9f48382c08f79ecb161c45b4",
+      "package_static_only_not_executable": true,
+      "new_operational_source_pin_refresh_review_pending": true,
+      "prior_a668_full_import_metadata_and_reader_model_approval_not_f476_execution_authority": true,
       "fresh_wrong_endpoint_native_accepted": false,
       "native_credit": 0
     }

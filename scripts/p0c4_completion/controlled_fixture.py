@@ -326,7 +326,7 @@ def _actor_diagnostic_program(suite):
 def _actor_main_contract(suite):
     adapter=str(Path(suite)/'current11/adapter.py')
     if sys.argv in ([adapter,'--fixed-prepare-plan'],[adapter,'--fixed-success']):return 'python3',['-B','-u',*sys.argv]
-    if len(sys.argv)==3 and sys.argv[0]==adapter and sys.argv[1] in ('--fixed-prepare-case','--fixed-run-case') and type(sys.argv[2]) is str and sys.argv[2] in _FIXED_CASES:return 'python3',['-B','-u',*sys.argv]
+    if len(sys.argv)==3 and sys.argv[0]==adapter and sys.argv[1] in ('--fixed-prepare-case','--fixed-run-case') and type(sys.argv[2]) is str and sys.argv[2] in (*_FIXED_CASES,'wrong-endpoint'):return 'python3',['-B','-u',*sys.argv]
     _require(sys.argv==['-c'],'CONTROLLED_ACTOR_FIXED_MAIN_ONLY')
     return _actor_interpreter(),['-I','-S','-B','-u','-c',_actor_diagnostic_program(suite)]
 

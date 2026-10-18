@@ -18,6 +18,63 @@ import test_p0c4_controlled_exact_stop as ordinary
 import test_p0c4_controlled_fixture_context as context_tests
 
 
+class CloneActorMainContractTests(unittest.TestCase):
+    suite=Path('/private/controlled-import/suite')
+
+    def contract(self, words):
+        argv=[str(self.suite/'current11/adapter.py'),*words]
+        with patch.object(sys,'argv',argv):
+            try:return controlled._actor_main_contract(self.suite)
+            except controlled.ControlledRejected as error:self.fail(f'actual actor contract rejected canonical adapter argv {argv}: {error}')
+
+    def test_canonical_adapter_wrong_endpoint_prepare_and_run_argv_are_recognised(self):
+        for operation in ('--fixed-prepare-case','--fixed-run-case'):
+            with self.subTest(operation=operation):
+                expected=('python3',['-B','-u',str(self.suite/'current11/adapter.py'),operation,'wrong-endpoint'])
+                self.assertEqual(self.contract([operation,'wrong-endpoint']),expected)
+
+    def test_original_ten_cases_keep_exact_actor_commands_and_generic_case_set(self):
+        cases=('ready-eof','precommit-eof','precommit-cancel','sql-error','copy-truncated',
+               'attempt-sync-failure','commit-intent-sync-failure','commit-unknown','ready-restart')
+        self.assertEqual(controlled._FIXED_CASES,cases)
+        for case in cases:
+            for operation in ('--fixed-prepare-case','--fixed-run-case'):
+                with self.subTest(case=case,operation=operation):
+                    self.assertEqual(self.contract([operation,case]),('python3',['-B','-u',str(self.suite/'current11/adapter.py'),operation,case]))
+        for operation in ('--fixed-prepare-plan','--fixed-success'):
+            self.assertEqual(self.contract([operation]),('python3',['-B','-u',str(self.suite/'current11/adapter.py'),operation]))
+
+    def test_original_fixed_diagnostic_keeps_pinned_interpreter_and_program(self):
+        with patch.object(sys,'argv',['-c']),patch.object(controlled,'_actor_interpreter',return_value='/usr/bin/python3.11') as interpreter:
+            self.assertEqual(controlled._actor_main_contract(self.suite),('/usr/bin/python3.11',['-I','-S','-B','-u','-c',controlled._actor_diagnostic_program(self.suite)]))
+        interpreter.assert_called_once_with()
+
+    def test_wrong_endpoint_actor_argv_does_not_admit_other_commands_or_typos(self):
+        adapter=str(self.suite/'current11/adapter.py')
+        invalid=[['-c','print(1)'],['-c',controlled._actor_diagnostic_program(self.suite)],
+                 [adapter,'--fixed-run-case','wrong-endpoint','extra'],[adapter,'--fixed-prepare-case'],
+                 [adapter,'--fixed-run-case','success'],[adapter,'--fixed-run-case','wrong_endpoint'],
+                 [adapter,'--fixed-prepare-case','wrong-endpoint '],[adapter,'--fixed-run-case','WRONG-ENDPOINT'],
+                 [adapter,'--fixed-prepare-case',True],[adapter,'--fixed-run-case',False],
+                 [adapter,'--fixed-run-case',1],[adapter,'--fixed-prepare-case',None],
+                 [adapter,'--fixed-prepare-case=true','wrong-endpoint'],['/other/adapter.py','--fixed-run-case','wrong-endpoint']]
+        for argv in invalid:
+            with self.subTest(argv=argv),patch.object(sys,'argv',argv),self.assertRaisesRegex(controlled.ControlledRejected,'CONTROLLED_ACTOR_FIXED_MAIN_ONLY'):
+                controlled._actor_main_contract(self.suite)
+
+    def test_wrong_endpoint_main_processconfig_still_requires_exact_original_argv(self):
+        for operation in ('--fixed-prepare-case','--fixed-run-case'):
+            expected=self.contract([operation,'wrong-endpoint'])
+            value=dict(ID='a'*64,Running=True,ExitCode=None,ProcessConfig=dict(privileged=False,user='0:0',tty=False,entrypoint=expected[0],arguments=expected[1]),
+                       OpenStdin=False,OpenStdout=True,OpenStderr=True,CanRemove=False,ContainerID='b'*64,DetachKeys='',Pid=42)
+            self.assertIs(controlled._actor_validate_main(value,'a'*64,'b'*64,expected),value)
+            for key,replacement in [('privileged',True),('user','999:999'),('tty',True),('entrypoint','/bin/sh'),
+                                    ('arguments',[*expected[1],'extra']),('arguments',['-B','-u',str(self.suite/'current11/adapter.py'),operation,'ready-eof'])]:
+                changed=copy.deepcopy(value);changed['ProcessConfig'][key]=replacement
+                with self.subTest(operation=operation,key=key),self.assertRaisesRegex(controlled.ControlledRejected,'CONTROLLED_ACTOR_SEALED_MAIN_ARGV'):
+                    controlled._actor_validate_main(changed,'a'*64,'b'*64,expected)
+
+
 class CloneExactStopTests(unittest.TestCase):
     _install_recheck=ordinary.ExactStopTests._install_recheck
 
