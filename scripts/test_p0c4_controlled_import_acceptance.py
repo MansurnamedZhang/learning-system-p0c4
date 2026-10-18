@@ -1385,6 +1385,34 @@ class ImportPhaseTests(unittest.TestCase):
             self.assertNotIn('private', json.dumps(result))
             self.assertNotIn('SELECT', json.dumps(result))
 
+    def test_capture_identity_failures_preserve_fixed_first_source_boundary(self):
+        phases = ('source-guard-acquire', 'source-identity', 'source-ip',
+                  'source-password-read', 'source-connection', 'source-session',
+                  'source-roots', 'source-recheck', 'source-facts',
+                  'source-birth', 'source-birth-pin')
+        observed = set()
+        for phase in phases:
+            with self.subTest(phase=phase):
+                event = self.diagnostic(phase=phase, reason='Identity', candidate=None)
+                result = runner._import_failure_diagnostic(event, 'success')
+                self.assertEqual(result['diagnostic_status'], 'PRESENT')
+                self.assertEqual(result['diagnostic'], {'schema': 1, 'case': 'success',
+                    'phase': phase, 'reason': 'Identity', 'candidate': None})
+                observed.add(result['diagnostic']['phase'])
+        self.assertEqual(observed, set(phases))
+
+    def test_capture_boundary_cannot_carry_os_text_secret_or_unknown_phase(self):
+        events = (self.diagnostic(phase='source-password-read', reason='Identity',
+                                 candidate=None, path='/private/password'),
+                  self.diagnostic(phase='source-password-read',
+                                  reason='Permission denied password=private'),
+                  self.diagnostic(phase='source-password-read:/private/password'),
+                  self.diagnostic(phase='source-unreviewed-phase'))
+        for event in events:
+            with self.subTest(event=event):
+                result = runner._import_failure_diagnostic(event, 'success')
+                self.assertEqual(result, {'diagnostic_status': 'REJECTED', 'diagnostic': None})
+
     def test_uncompleted_import_publishes_unknown_exit_and_no_diagnostic(self):
         with tempfile.TemporaryDirectory() as directory:
             args, backend, lifecycle = self.failure_backend(directory, b'', completed=False)

@@ -316,17 +316,21 @@ pub(super) async fn capture_fresh_fixture(
     target_database: String,
     case: &'static str,
     snapshot_root: std::path::PathBuf,
-) -> Result<FrozenDump, ImportFailure> {
+) -> Result<FrozenDump, super::diagnostics::CaptureFailure> {
     // Dropping the waiter never abandons source guard/original lease/process.
     tokio::spawn(async move {
         use super::super as binding;
         use super::super::super as preflight;
         use super::commands::FixedImportCommand;
+        use super::diagnostics::{CaptureFailure, CaptureStage};
         use binding::child_attestation::{Isolation, linux_child};
         use learning_assets::backup_fs::BackupDir;
         use std::{io::Write, os::unix::fs::MetadataExt, time::{Duration, Instant}};
-        let mut guard = binding::acquire_for_import_source(&config).map_err(|_| ImportFailure::Identity)?;
+        let mut guard = binding::acquire_for_import_source(&config).map_err(|_| {
+            CaptureFailure::at(CaptureStage::GuardAcquire)(ImportFailure::Identity)
+        })?;
         let mut lease = None;
+        let mut stage = CaptureStage::Identity;
         let result = async {
             if config.expected_database == target_database { return Err(ImportFailure::Identity); }
             let batch_root=config.control_root.ancestors().nth(4).ok_or(ImportFailure::Identity)?;
@@ -336,24 +340,34 @@ pub(super) async fn capture_fresh_fixture(
                 .ok_or(ImportFailure::Identity)?).map_err(|_| ImportFailure::Identity)?;
             let batch = uuid::Uuid::parse_str(target_database.strip_prefix("learning_restore_c4_")
                 .ok_or(ImportFailure::Identity)?).map_err(|_| ImportFailure::Identity)?;
-            let admin = super::live_tests::control_pool(&config, &guard)?.await?;
+            let connection = super::live_tests::control_pool_staged(&config, &guard)
+                .map_err(|failure| { stage = failure.stage; failure.reason })?;
+            stage = CaptureStage::Connection;
+            let admin = connection.await?;
             let deadline = Instant::now() + Duration::from_secs(45);
+            stage = CaptureStage::Session;
             let (original, pid, oid) = tokio::time::timeout_at(deadline.into(),preflight::begin_sql_session(&admin)).await
                 .map_err(|_|ImportFailure::Deadline)?.map_err(|_| ImportFailure::Session)?;
             lease = Some(original);
             let lease = lease.as_mut().ok_or(ImportFailure::Session)?;
+            stage = CaptureStage::Roots;
             let control = BackupDir::open_trusted_private_root(&config.control_root).map_err(|_| ImportFailure::Identity)?;
             let assets = BackupDir::open_trusted_private_root(&config.asset_root).map_err(|_| ImportFailure::Identity)?;
+            stage = CaptureStage::Recheck;
             linux_child::candidate_recheck(&mut guard, lease, pid, oid, deadline).await.map_err(super::linux::failure)?;
             tokio::time::timeout_at(deadline.into(),async {
+                stage = CaptureStage::Facts;
                 preflight::target_facts(lease.lease_mut(), assets.list().map_err(|_| ImportFailure::Identity)?.len())
                     .await.map_err(|_| ImportFailure::Identity)?.validate().map_err(|_| ImportFailure::Identity)?;
+                stage = CaptureStage::Birth;
                 preflight::verify_import_source_birth(lease.lease_mut(), &config, &control, &assets)
                     .await.map_err(|_| ImportFailure::Identity)
             }).await.map_err(|_|ImportFailure::Deadline)??;
+            stage = CaptureStage::BirthPin;
             let pin = option_env!("KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256").ok_or(ImportFailure::Identity)?;
             let source_birth_sha256: [u8;32] = hex::decode(pin).map_err(|_| ImportFailure::Identity)?
                 .try_into().map_err(|_| ImportFailure::Identity)?;
+            stage = CaptureStage::Capture;
             let cid = &guard.claim.container_id;
             // Existing version grammar validates pg_restore; actual producer version is
             // independently checked in the complete pg_dump TOC below.
@@ -405,9 +419,13 @@ pub(super) async fn capture_fresh_fixture(
         let isolation = linux_child::candidate_quarantine(&guard.claim).await;
         drop(lease);
         drop(guard);
-        if isolation != Isolation::Stopped { return Err(ImportFailure::UnconfirmedIsolation); }
-        result
-    }).await.map_err(|_| ImportFailure::UnconfirmedIsolation)?
+        if isolation != Isolation::Stopped {
+            return Err(CaptureFailure::at(CaptureStage::Capture)(ImportFailure::UnconfirmedIsolation));
+        }
+        result.map_err(CaptureFailure::at(stage))
+    }).await.map_err(|_| {
+        super::diagnostics::CaptureFailure::at(super::diagnostics::CaptureStage::Capture)(ImportFailure::UnconfirmedIsolation)
+    })?
 }
 
 pub(super) fn verify_fixture_sql(decoded: &[u8]) -> Result<VerifiedFixtureSql, ImportFailure> {

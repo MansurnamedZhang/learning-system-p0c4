@@ -120,6 +120,9 @@ def _import_test_command(binary, case):
 IMPORT_DIAGNOSTIC_TAG = b'KW_C4_IMPORT_DIAGNOSTIC|'
 IMPORT_DIAGNOSTIC_PHASES = {'authority-case-env', 'source-config', 'target-config',
     'artifact-root-env', 'fresh-fixture-capture', 'acquire-target-guard',
+    'source-guard-acquire', 'source-identity', 'source-ip', 'source-password-read',
+    'source-connection', 'source-session', 'source-roots', 'source-recheck',
+    'source-facts', 'source-birth', 'source-birth-pin',
     'target-control-connection', 'candidate-admission',
     'live-toc', 'live-clone', 'candidate-report', 'evidence-unwrap', 'harness-join'}
 IMPORT_CANDIDATE_PHASES = {'InputFrozen', 'SqlVerified', 'WriterReady', 'AttemptDurable',

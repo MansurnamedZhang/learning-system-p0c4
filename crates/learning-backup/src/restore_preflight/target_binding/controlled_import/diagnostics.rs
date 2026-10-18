@@ -43,6 +43,17 @@ pub(super) enum Phase {
     TargetConfig,
     ArtifactRootEnv,
     FreshFixtureCapture,
+    SourceGuardAcquire,
+    SourceIdentity,
+    SourceIp,
+    SourcePasswordRead,
+    SourceConnection,
+    SourceSession,
+    SourceRoots,
+    SourceRecheck,
+    SourceFacts,
+    SourceBirth,
+    SourceBirthPin,
     AcquireTargetGuard,
     TargetControlConnection,
     CandidateAdmission,
@@ -51,6 +62,50 @@ pub(super) enum Phase {
     CandidateReport,
     EvidenceUnwrap,
     HarnessJoin,
+}
+/// Fixed test-only capture context: never retains an error string or resource.
+#[derive(Clone, Copy)]
+pub(super) enum CaptureStage {
+    Capture,
+    GuardAcquire,
+    Identity,
+    Ip,
+    PasswordRead,
+    Connection,
+    Session,
+    Roots,
+    Recheck,
+    Facts,
+    Birth,
+    BirthPin,
+}
+impl CaptureStage {
+    fn phase(self) -> Phase {
+        match self {
+            Self::Capture => Phase::FreshFixtureCapture,
+            Self::GuardAcquire => Phase::SourceGuardAcquire,
+            Self::Identity => Phase::SourceIdentity,
+            Self::Ip => Phase::SourceIp,
+            Self::PasswordRead => Phase::SourcePasswordRead,
+            Self::Connection => Phase::SourceConnection,
+            Self::Session => Phase::SourceSession,
+            Self::Roots => Phase::SourceRoots,
+            Self::Recheck => Phase::SourceRecheck,
+            Self::Facts => Phase::SourceFacts,
+            Self::Birth => Phase::SourceBirth,
+            Self::BirthPin => Phase::SourceBirthPin,
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub(super) struct CaptureFailure {
+    pub(super) stage: CaptureStage,
+    pub(super) reason: ImportFailure,
+}
+impl CaptureFailure {
+    pub(super) fn at(stage: CaptureStage) -> impl FnOnce(ImportFailure) -> Self {
+        move |reason| Self { stage, reason }
+    }
 }
 #[derive(Clone, Copy)]
 enum Reason {
@@ -75,6 +130,9 @@ pub(super) struct Failure {
     candidate: Option<CandidateSnapshot>,
 }
 impl Failure {
+    pub(super) fn capture(error: CaptureFailure) -> Self {
+        Self::at(error.stage.phase())(error.reason)
+    }
     pub(super) fn at(phase: Phase) -> impl FnOnce(ImportFailure) -> Self {
         move |error| Self {
             phase,
@@ -329,6 +387,62 @@ mod tests {
         );
     }
     #[test]
+    fn capture_identity_failures_do_not_collapse_distinct_first_boundaries() {
+        // Losing stage context would merge the observed guard failure with a
+        // later credential read failure; no IO or live authority is needed.
+        let stages = [
+            (CaptureStage::GuardAcquire, "source-guard-acquire"),
+            (CaptureStage::Identity, "source-identity"),
+            (CaptureStage::Ip, "source-ip"),
+            (CaptureStage::PasswordRead, "source-password-read"),
+            (CaptureStage::Connection, "source-connection"),
+            (CaptureStage::Session, "source-session"),
+            (CaptureStage::Roots, "source-roots"),
+            (CaptureStage::Recheck, "source-recheck"),
+            (CaptureStage::Facts, "source-facts"),
+            (CaptureStage::Birth, "source-birth"),
+            (CaptureStage::BirthPin, "source-birth-pin"),
+        ];
+        let mut observed = std::collections::BTreeSet::new();
+        for (stage, name) in stages {
+            for (reason, expected) in [
+                (ImportFailure::Identity, "Identity"),
+                (ImportFailure::Session, "Session"),
+            ] {
+                let failure = CaptureFailure::at(stage)(reason);
+                // The copyable wrapper owns only fixed enum values.
+                let copied = failure;
+                let value = decode(
+                    settled::<()>(Case::Success, Ok(Err(Failure::capture(copied)))).unwrap_err(),
+                );
+                assert_eq!(
+                    value,
+                    json!({"schema":1,"case":"success",
+                    "phase":name,"reason":expected,"candidate":null})
+                );
+                observed.insert(value["phase"].as_str().unwrap().to_owned());
+            }
+        }
+        assert_eq!(observed.len(), 11);
+    }
+    #[test]
+    fn capture_isolation_or_join_override_keeps_original_capture_phase_and_reason() {
+        let event = settled::<()>(
+            Case::Success,
+            Ok(Err(Failure::capture(CaptureFailure::at(
+                CaptureStage::Capture,
+            )(
+                ImportFailure::UnconfirmedIsolation
+            )))),
+        )
+        .unwrap_err();
+        assert_eq!(
+            decode(event),
+            json!({"schema":1,"case":"success",
+            "phase":"fresh-fixture-capture","reason":"UnconfirmedIsolation","candidate":null})
+        );
+    }
+    #[test]
     fn settled_report_keeps_typed_candidate_and_unknown_commit_booleans() {
         let report = CandidateImportReport {
             phase: ImportPhase::CommitUnknown,
@@ -412,6 +526,17 @@ mod tests {
             Phase::TargetConfig,
             Phase::ArtifactRootEnv,
             Phase::FreshFixtureCapture,
+            Phase::SourceGuardAcquire,
+            Phase::SourceIdentity,
+            Phase::SourceIp,
+            Phase::SourcePasswordRead,
+            Phase::SourceConnection,
+            Phase::SourceSession,
+            Phase::SourceRoots,
+            Phase::SourceRecheck,
+            Phase::SourceFacts,
+            Phase::SourceBirth,
+            Phase::SourceBirthPin,
             Phase::AcquireTargetGuard,
             Phase::TargetControlConnection,
             Phase::CandidateAdmission,

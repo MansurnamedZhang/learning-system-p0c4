@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-> Task5当前实测进度（2026-10-18，78cd74a）：新success安装及202原件/独审243项获限定接受；首次真实正文exit101、0通过/1失败，fresh-fixture-capture / Identity，外层UNKNOWN_RETAINED。source字节保持，但正文后host网络digest变化、完整保护未通过；保留owner/锁及全部现场，仅只读定位。现场legacy0/11、full0/9，Task2已验收检查点ba96561单列，C4仍OPEN。
+> Task5当前诊断进度（2026-10-18）：固定dfbd4fc五文件诊断增量独审通过；隔离Linux fmt/严格Clippy、diagnostics11/11及contract2/2实际通过，仅占位birth、无PG/host socket/真实导入，native0。旧78cd74a/dd7555首例exit101、fresh-fixture-capture Identity及UNKNOWN保留，根因未定；外层HEAD404不代表inner helper缺挂载，本轮不作权限/挂载修复。现场legacy0/11、full0/9，Task2关闭，C4仍OPEN。
 
 更新：2026-10-18。当前状态：C4 补验中 · Task2代码与单机补验收尾完成 · 同包准入5/5、绑定4+2、端点新5/5、life8/8 · Task5当前0/11 · 整关OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
@@ -104,7 +104,7 @@ flowchart LR
 | Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN、旧5/5预算和Task5当前0/11保持；Task6–9及C4整关仍开放，无CompleteBackup和生产部署。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | 新安装已接受；首例正文失败/UNKNOWN，legacy0/11、full0/9 | 11/11代码入口已审；新success安装202原件和独审243项获限定接受，v7 stop有限修正独审151检查/66模型场景通过。首次真实success测试exit101、0通过/1失败，诊断fresh-fixture-capture / Identity，根因未定；外层UnconfirmedIsolation、UNKNOWN_RETAINED。 安装阶段旧资源完整保护相等；正文阶段旧container/volume及其余network保持，唯一host网络digest变化，整体保护未通过。保留原owner/锁/资源/证据，不重跑或stop/rm，仅只读定位；source_unchanged不等于完整快照保持，native未知、legacy0/11/full0/9。 |
+| Task 5 · 受控整库导入与原件恢复 | 诊断增量及Linux预检通过；现场legacy0/11、full0/9 | 新固定dfbd4fc仅细分11个source捕获诊断阶段，五文件独审通过；Root本地Python59及隔离Linux fmt/严格Clippy、diagnostics11/11、contract2/2通过。Linux仅占位birth，无PG/host socket或实际导入，不提供native信用。 旧78cd74a/dd7555首例exit101、0通过/1失败，fresh-fixture-capture / Identity、UNKNOWN_RETAINED及host网络digest保护失败保留。inner native helper原有源/目标只读挂载；本轮不改权限/挂载，未定位实际first phase根因，不重跑/stop/rm；现场legacy0/11/full0/9。 |
 | Task 6 · 作业归一化与恢复资格校验 | 本地基础通过，现场门待验 | 全表数据比对、旧租约/token 失效、未知副作用持久隔离、恢复收据；全部成立后才可判定可用。 WIP d4b97df：64张表数据观察基础及queued策略修复，本地87+12=99项通过，其中新增17项。真实目标COPY/外部排序与作业SQL未接入；独立审查、Linux/PG五门未完成。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6独立审查尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |

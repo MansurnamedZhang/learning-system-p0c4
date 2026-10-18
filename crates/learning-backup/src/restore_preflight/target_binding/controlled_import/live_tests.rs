@@ -10,7 +10,7 @@ use sqlx::{
 };
 use std::{collections::BTreeSet, fs::File, sync::Mutex, time::Duration};
 
-use diagnostics::{Case, Failure, Phase};
+use diagnostics::{CaptureFailure, CaptureStage, Case, Failure, Phase};
 
 #[derive(Default, Serialize)]
 pub(super) struct Observation {
@@ -61,14 +61,22 @@ pub(super) fn control_pool(
     config: &preflight::RestorePreflightConfig,
     guard: &binding::BoundTargetGuard<File, Option<File>>,
 ) -> Result<impl Future<Output = Result<PgPool, ImportFailure>> + Send + use<>, ImportFailure> {
-    let ip = guard.target_ip().map_err(|_| ImportFailure::Identity)?;
-    let password = binding::linux::read_admin_password(
-        config
-            .control_root
-            .parent()
-            .ok_or(ImportFailure::Identity)?,
-    )
-    .map_err(|_| ImportFailure::Identity)?;
+    // Target callers retain their original ImportFailure-only contract.
+    control_pool_staged(config, guard).map_err(|failure| failure.reason)
+}
+
+pub(super) fn control_pool_staged(
+    config: &preflight::RestorePreflightConfig,
+    guard: &binding::BoundTargetGuard<File, Option<File>>,
+) -> Result<impl Future<Output = Result<PgPool, ImportFailure>> + Send + use<>, CaptureFailure> {
+    let ip = guard
+        .target_ip()
+        .map_err(|_| CaptureFailure::at(CaptureStage::Ip)(ImportFailure::Identity))?;
+    let password =
+        binding::linux::read_admin_password(config.control_root.parent().ok_or_else(|| {
+            CaptureFailure::at(CaptureStage::PasswordRead)(ImportFailure::Identity)
+        })?)
+        .map_err(|_| CaptureFailure::at(CaptureStage::PasswordRead)(ImportFailure::Identity))?;
     let options = PgConnectOptions::new()
         .host(&ip.to_string())
         .port(5432)
@@ -111,7 +119,7 @@ async fn execute(case: Case) -> Result<Observation, Failure> {
             .into(),
     )
     .await
-    .map_err(Failure::at(Phase::FreshFixtureCapture))?;
+    .map_err(Failure::capture)?;
     let guard = binding::acquire_for_restore(&target)
         .map_err(|_| Failure::at(Phase::AcquireTargetGuard)(ImportFailure::Identity))?;
     let pool = control_pool(&target, &guard)
