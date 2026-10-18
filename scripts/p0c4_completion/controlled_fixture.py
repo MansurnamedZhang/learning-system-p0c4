@@ -1212,9 +1212,9 @@ def _native_main(operation):
     source=Path(__file__).resolve().parents[2]
     match=re.fullmatch(r'(/var/lib/docker/volumes/kwc4c-suite-[0-9a-f]{32}/_data)/controlled-import/batches/([0-9a-f-]{36})/source',str(source))
     _require(match is not None,'CONTROLLED_NATIVE_SOURCE_PATH')
+    sys.path.insert(0,str(source/'scripts'))
     suite=Path(match[1]);batch=source.parent;plan,_=_read_plan(suite/'current11'/'plan.json')
     _require(plan['batch_id']==match[2],'CONTROLLED_NATIVE_BATCH')
-    sys.path.insert(0,str(source/'scripts'))
     import p0c4_controlled_import_acceptance as runner
     import p0c4_import_fixture as clients
     import p0c4_restore_target as target

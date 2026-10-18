@@ -2,9 +2,12 @@
 import copy
 import json
 import os
+import shutil
 import stat
+import subprocess
 import sys
 import tempfile
+import uuid
 from contextlib import ExitStack
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
@@ -16,6 +19,89 @@ import p0c4_source_lifecycle_gate_acceptance as driver
 from p0c4_completion import controlled_clone as clone, controlled_fixture as controlled, full_target_fs as fs
 import test_p0c4_controlled_exact_stop as ordinary
 import test_p0c4_controlled_fixture_context as context_tests
+
+
+@unittest.skipUnless(sys.platform=='linux' and getattr(os,'geteuid',lambda:1)()==0,
+                     'Linux root canonical direct-script bootstrap test; no Docker/PG/socket')
+class NativeCloneBootstrapTests(unittest.TestCase):
+    """Cold imports must work before the first native namespace boundary."""
+
+    @classmethod
+    def setUpClass(cls):
+        # This suite requires the socketless no-PG test capsule. Never advance
+        # into native install/inspection work if a host namespace was supplied.
+        if os.path.lexists('/run/knowweave-c4/host-netns'):
+            raise AssertionError('bootstrap test requires absent host namespace reference')
+        base=Path('/var/lib/docker/volumes');base.mkdir(mode=0o755,parents=True,exist_ok=True)
+        cls.suite=base/('kwc4c-suite-'+uuid.uuid4().hex)
+        cls.suite.mkdir(mode=0o700)
+        cls.addClassCleanup(shutil.rmtree,cls.suite)
+        cls.suite=cls.suite/'_data';cls.suite.mkdir(mode=0o700)
+        cls.plan=context_tests.ContextPlanTests().plan()
+        cls.source=cls.suite/'controlled-import'/'batches'/cls.plan['batch_id']/'source'
+        cls.source.mkdir(mode=0o700,parents=True)
+        scripts=Path(controlled.__file__).resolve().parents[1]
+        shutil.copytree(scripts,cls.source/'scripts',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+        cls.entry=cls.source/'scripts/p0c4_completion/controlled_fixture.py'
+        (cls.suite/'current11').mkdir(mode=0o700)
+        cls.plan_path=cls.suite/'current11/plan.json'
+
+    def run_native(self,operation,clone_plan=True):
+        plan=dict(self.plan)
+        if clone_plan:
+            plan.update(case='wrong-endpoint',capability='c4_current11_same_id_clone_plan_v1',
+                        budget_profile='controlled_fixture_same_id_clone_v1',
+                        clone_case_id=str(uuid.uuid4()),clone_subnet='172.30.243.0/24')
+        self.plan_path.write_bytes(json.dumps(plan,sort_keys=True,separators=(',',':')).encode())
+        self.plan_path.chmod(0o600)
+        env={key:value for key,value in os.environ.items() if key not in ('PYTHONPATH','PYTHONHOME')}
+        return subprocess.run([sys.executable,'-I','-S','-B',str(self.entry),'--fixed-'+operation],
+                              cwd=self.suite,env=env,stdin=subprocess.DEVNULL,capture_output=True,timeout=20)
+
+    def assert_reached_namespace_boundary(self,process):
+        # Real resources.require_host_namespace fails on its first open. No
+        # socket, Docker, install read, source inspection or body is reached.
+        stderr=process.stderr.decode('utf-8','replace')
+        self.assertNotIn('ModuleNotFoundError',stderr,stderr)
+        self.assertEqual(process.returncode,1,stderr)
+        self.assertEqual(process.stdout,b'')
+        self.assertTrue(stderr.rstrip().endswith('ResourceError: HOST_NETNS_REFERENCE_UNAVAILABLE'),stderr)
+        self.assertFalse((self.source.parent/'source-control').exists())
+        self.assertFalse((self.source.parent/'target-control').exists())
+        self.assertFalse((self.source.parent/'clone-control').exists())
+
+    def test_inspect_source_cold_clone_plan_reaches_namespace_boundary(self):
+        self.assert_reached_namespace_boundary(self.run_native('inspect-source'))
+
+    def test_inspect_target_cold_clone_plan_reaches_namespace_boundary(self):
+        self.assert_reached_namespace_boundary(self.run_native('inspect-target'))
+
+    def test_body_cold_clone_plan_reaches_namespace_boundary(self):
+        self.assert_reached_namespace_boundary(self.run_native('body'))
+
+    def test_ordinary_plan_cold_script_keeps_namespace_boundary(self):
+        self.assert_reached_namespace_boundary(self.run_native('inspect-source',clone_plan=False))
+
+    def test_malformed_source_path_rejects_before_import_path_insertion(self):
+        entry=self.suite/'malformed/scripts/p0c4_completion/controlled_fixture.py'
+        entry.parent.mkdir(mode=0o700,parents=True)
+        shutil.copyfile(self.entry,entry)
+        probe='''import json,runpy,sys
+scope=runpy.run_path(sys.argv[1],run_name='cold_native_probe')
+before=list(sys.path)
+try:scope['_native_main']('inspect-source')
+except scope['ControlledRejected'] as error:
+    assert str(error)=='CONTROLLED_NATIVE_SOURCE_PATH',str(error)
+else:raise AssertionError('malformed native source accepted')
+assert sys.path==before,'malformed source inserted import path'
+assert not any(key=='p0c4_completion' or key.startswith('p0c4_completion.') for key in sys.modules)
+print(json.dumps({'rejected':'CONTROLLED_NATIVE_SOURCE_PATH','path_unchanged':True}))
+'''
+        process=subprocess.run([sys.executable,'-I','-S','-B','-c',probe,str(entry)],
+                               cwd=self.suite,stdin=subprocess.DEVNULL,capture_output=True,timeout=20)
+        self.assertEqual(process.returncode,0,process.stderr.decode('utf-8','replace'))
+        self.assertEqual(process.stderr,b'')
+        self.assertEqual(json.loads(process.stdout),dict(rejected='CONTROLLED_NATIVE_SOURCE_PATH',path_unchanged=True))
 
 
 class CloneActorMainContractTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-> Task5当前actor修复与验收（2026-10-18）：f47612d仅actor exact adapter prepare/run成员表达式接纳wrong-endpoint，其他9个finite selectors及plan/wire/strict main不变；controlled_fixture这个consumer确实已变，不称所有10个字节不变。独立5直测/30source检查与Linux178/178 unit通过。旧a668在prepare/plan新PG前拒绝并UNKNOWN保留，无native信用；当前仍c749十项10/11、full0/9，f476 SOURCE pins刷新/独审与fresh实际待验，Task5/C4 OPEN，Task2关闭。
+> Task5当前冷启动修复与验收（2026-10-18）：85c49af仅将既有source/scripts路径插入移至canonical path校验后、首次plan读取前；独立SPEC/QUALITY批准、101检查，Linux RED35/3具体assert失败→GREEN183/183无skip，仅代码信用。f476 inspect-source冷启动导入失败已只读确认，原UNKNOWN actors保留，无native正文或隔离信用。当前仍c749十项10/11、full0/9，新source包/绑定/独审及fresh实际待验，Task5/C4 OPEN，Task2关闭。
 
 更新：2026-10-18。当前状态：C4 补验中 · Task2代码与单机补验收尾完成 · 同包准入5/5、绑定4+2、端点新5/5、life8/8 · Task5当前0/11 · 整关OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
@@ -104,7 +104,7 @@ flowchart LR
 | Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN、旧5/5预算和Task5当前0/11保持；Task6–9及C4整关仍开放，无CompleteBackup和生产部署。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | f476 actor窄修复已采纳/178 unit通过；旧prepare UNKNOWN保留，native仍10/11、full0/9 | 原a668 wrong-endpoint在prepare前置actor selector被CONTROLLED_ACTOR_FIXED_MAIN_ONLY拒绝，尚未plan/新PG/native正文，consumed UNKNOWN不重跑。f476仅显式接纳正确adapter的两操作，独立五直测/30source检查，Linux RED30含3 assertion失败→GREEN178/178无skip；不授native信用。 通用cases/plan/profile/wire/strict main/native identity/stop/Rust/full engine不改，但controlled_fixture单consumer有一表达式变化；旧a668 backend修复173与clone v3.1有限namespace保证保持。f476本地包静态ready、新SOURCE pins独审及fresh wrong-endpoint待完成；c749十项10/11/full0/9，Task5/C4 OPEN。 |
+| Task 5 · 受控整库导入与原件恢复 | 85c49af导入顺序修复已采纳/183 unit通过；native仍10/11、full0/9 | f476原尝试仅preflight编译/list11、executed=false、未派发native测试正文，冷启动读取plan先于既有scripts导入路径导致ModuleNotFoundError；原900秒外层退出1与UNKNOWN actors保持，不重放/Stop/Exec。85c49af只移动既有一行，5个真实冷进程测试加入；Linux183/183通过、独审101检查，Windows五项Linux专用skip不冒充成功。 canonical path guard仍先行；plan/profile/limits、namespace/source seals、FD/flock、native正文/stop/Rust/full engine保持，fixture consumer字节确已变化。旧actor178/backend173对象与clone v3.1有限保证保持；新source固定包/绑定/独审与fresh wrong-endpoint待验。c749十项10/11、full0/9，Task5/C4 OPEN。 |
 | Task 6 · 作业归一化与恢复资格校验 | 本地基础通过，现场门待验 | 全表数据比对、旧租约/token 失效、未知副作用持久隔离、恢复收据；全部成立后才可判定可用。 WIP d4b97df：64张表数据观察基础及queued策略修复，本地87+12=99项通过，其中新增17项。真实目标COPY/外部排序与作业SQL未接入；独立审查、Linux/PG五门未完成。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6独立审查尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |

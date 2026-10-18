@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18：已采纳actor argv窄修复f47612d（parent a668853），独立SPEC/QUALITY批准、0阻塞。a668的全新wrong-endpoint尝试在prepare、尚未生成plan/新PG前被CONTROLLED_ACTOR_FIXED_MAIN_ONLY拒绝，已consumed UNKNOWN保留，不重跑或清理，不授case信用。新修复仅actor exact adapter prepare/run分支的一处成员表达式显式接纳wrong-endpoint；Linux178/178 unit通过、0失败/错误/skip，仅代码信用。当前native仍c749十项10/11、full0/9；f476新source绑定刷新/独审和fresh实际验收待完成，Task5及Task6–9/C4 OPEN，Task2关闭、Task3仅单机，无CompleteBackup、独立存储或生产部署。**
+**最新同步：2026-10-18：已采纳native冷启动导入顺序修复85c49af（parent f47612d），独立SPEC/QUALITY批准、0阻塞。既有source/scripts路径插入移到canonical source path校验之后、首次plan读取之前；Linux183/183 unit通过、0失败/错误/skip，仅代码信用。f476原尝试未进入native测试正文，原900秒外层退出1与UNKNOWN actors保留；当前native仍c749十项10/11、full0/9。新source绑定包、复审及fresh实际验收待完成，Task5及Task6–9/C4 OPEN，Task2关闭、Task3仅单机，无CompleteBackup、独立存储或生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；f476 actor argv窄修复已采纳/Linux178 unit通过，旧a668 prepare失败UNKNOWN保留；native仍c749十项10/11、full0/9，新source/fresh wrong-endpoint待验，Task5/C4 OPEN |
+| P0-C4 | Task2关闭；85c49af冷启动导入顺序修复已采纳/Linux183 unit通过，f476原UNKNOWN保留；native仍c749十项10/11、full0/9，新source/fresh wrong-endpoint待验，Task5/C4 OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
