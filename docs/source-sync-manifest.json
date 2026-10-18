@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "date": "2026-10-18",
-  "source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
-  "previous_public_commit": "fa44f75b37388894c40d25b237c3d1345d3f5e59",
-  "source_archive_sha256": "0c2e70b7a6347bce0c409aa0b095ffe01bcbee25dc4dc9e21a528b9701ad6ae0",
-  "source_manifest_sha256": "e8152a2d7b873f7b5470b4d8fe649fbd0b871acef44435ccb936d33e4c996f54",
-  "source_file_count": 541,
+  "source_commit": "ecf7b8eb14570973cb9252462a818896b360dbf4",
+  "previous_public_commit": "c69e373d1e635c5c22c8eac23f63c253acebb413",
+  "source_archive_sha256": "d1f4e461bb993390079e85cdd5c591ffee5f502155f3da5dc6ee4c873f87ab77",
+  "source_manifest_sha256": "d1f69091e8761b17ad507acb3cde7fa48c72f7b545f2673a426296b386103eac",
+  "source_file_count": 542,
   "excluded_source_files": [
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
   ],
-  "scope": "WORKING_SNAPSHOT_NOT_RELEASE_NOT_C4_ACCEPTANCE_NOT_PRODUCTION",
+  "scope": "CODE_PROGRESS_NOT_TASK5_NATIVE_ACCEPTANCE_NOT_C4_COMPLETE_NOT_PRODUCTION",
   "documentation_transform": "redact machine locations, resolve published links, add current progress; private references remain labels",
   "files": [
     {
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4031,
-      "sha256": "efbf847fd8e752e739cfe6ba19b0d800a0e9035775a9f5a36e8c7edca0ccd18b",
+      "bytes": 3902,
+      "sha256": "af412890673ad49c73d57440cf7d8ae8deb14a91bd24c2ed8157190fec8451b9",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2710,8 +2710,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 26809,
-      "sha256": "2f69681a27b39b5219e7dbec84cb9f26a8f8a1024f30e7dde16e9eff82206c81",
+      "bytes": 28489,
+      "sha256": "9b5afb7935dfa9c44b3669ba8f89b21f5ffa76bc70619998f2aa8e1b24f9e195",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3361,8 +3361,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 2802,
-      "sha256": "1e32d2e3c90f6f128d7ec65cd3cd52d30dfa534c37416b4d7b2e4c863c5add91",
+      "bytes": 2082,
+      "sha256": "51b334a63fa023096666766633759f2c8983f895a6e7b4522f82826afd36fb79",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3410,8 +3410,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 22127,
-      "sha256": "c5241da540afedf4e0ef6b8b38ebb49b03e3e6e57def26e9ed5b72f8b7d1df80",
+      "bytes": 23807,
+      "sha256": "9df700822bd62b36742d07c1c7ddba2a6491e11e50b09e5be93746cad91bcf5d",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3571,9 +3571,9 @@
     },
     {
       "path": "scripts/p0c4_completion/full_target_fs.py",
-      "bytes": 30535,
-      "sha256": "eb5c2eb7f00e9f3424549498d5f8b2495664c7206e9e804ff77cb8f01c142fe9",
-      "source_blob_sha256": "eb5c2eb7f00e9f3424549498d5f8b2495664c7206e9e804ff77cb8f01c142fe9",
+      "bytes": 31039,
+      "sha256": "9a6a496e728651b4b2afe6530eac28eecc1f5843cc32f847f7858f041d572b5c",
+      "source_blob_sha256": "9a6a496e728651b4b2afe6530eac28eecc1f5843cc32f847f7858f041d572b5c",
       "source_bytes_preserved": true
     },
     {
@@ -3718,9 +3718,9 @@
     },
     {
       "path": "scripts/p0c4_source_lifecycle_gate_acceptance.py",
-      "bytes": 224809,
-      "sha256": "7fd183497d69fa258d7a41bd297817d4bc91b4de02557cae72dff4ef19da857a",
-      "source_blob_sha256": "7fd183497d69fa258d7a41bd297817d4bc91b4de02557cae72dff4ef19da857a",
+      "bytes": 225749,
+      "sha256": "4a5bceffc687d4106948d15731192ac60ba37336045f23905ff0e492100a2fc7",
+      "source_blob_sha256": "4a5bceffc687d4106948d15731192ac60ba37336045f23905ff0e492100a2fc7",
       "source_bytes_preserved": true
     },
     {
@@ -3812,6 +3812,13 @@
       "bytes": 92466,
       "sha256": "ca5ba6c61d085a37a329ed330d44cdddba5bf35c1128582d1040c3c0bf14dae0",
       "source_blob_sha256": "ca5ba6c61d085a37a329ed330d44cdddba5bf35c1128582d1040c3c0bf14dae0",
+      "source_bytes_preserved": true
+    },
+    {
+      "path": "scripts/test_p0c4_created_frame_budget.py",
+      "bytes": 12520,
+      "sha256": "2c53ac04d7c86349ea89a0ed3e67ca1f6d8a922f1eb63b420426bc15638b1015",
+      "source_blob_sha256": "2c53ac04d7c86349ea89a0ed3e67ca1f6d8a922f1eb63b420426bc15638b1015",
       "source_bytes_preserved": true
     },
     {
@@ -3977,5 +3984,13 @@
     }
   ],
   "progress_as_of": "2026-10-18",
-  "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference"
+  "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
+  "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
+  "task5_current": {
+    "legacy_passed": 0,
+    "legacy_total": 11,
+    "full_passed": 0,
+    "full_total": 9,
+    "focused_local_passed": 15
+  }
 }

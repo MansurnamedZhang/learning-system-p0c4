@@ -11,6 +11,9 @@ import uuid
 _TOKEN=object()
 _CONTROLLED_RECIPE=object()
 _CAP=1024*1024
+# Only the fixed controlled recipe's two complete creation snapshots use this
+# JSON-body budget. Responses and private-file reads keep the original _CAP.
+_CONTROLLED_CREATED_REQUEST_CAP=2*1024*1024
 _NEXT={'new':{'setup':'setup'},'setup':{'pin':'pin'},'pin':{'files':'files'},
        'files':{'created':'created'},'created':{'check':'created','birth':'birth'},
        'birth':{'release':'released'},'failed':{'release':'released'}}
@@ -275,9 +278,13 @@ def _owner_main(*,_recipe=None):
     _require(_recipe is None or _recipe is _CONTROLLED_RECIPE)
     os.umask(0o077);backend=_new_controlled_owner() if _recipe is _CONTROLLED_RECIPE else _NativeOwner();protocol=None
     try:
-        for raw in iter(lambda:sys.stdin.buffer.readline(_CAP+1),b''):
-            _require(len(raw)<=_CAP and raw.endswith(b'\n'))
+        controlled=_recipe is _CONTROLLED_RECIPE
+        read_cap=_CONTROLLED_CREATED_REQUEST_CAP+2 if controlled else _CAP+1
+        for raw in iter(lambda:sys.stdin.buffer.readline(read_cap),b''):
+            _require(len(raw)<=(_CONTROLLED_CREATED_REQUEST_CAP+1 if controlled else _CAP) and raw.endswith(b'\n'))
             value=json.loads(raw,object_pairs_hook=_pairs)
+            if controlled:
+                _require(len(raw)<=_CAP or type(value) is dict and value.get('op')=='created')
             if protocol is None:protocol=_Protocol(_TOKEN,value.get('session'),backend)
             reply=protocol.handle(value)
             print(_canonical(reply).decode(),flush=True)

@@ -1745,7 +1745,17 @@ class BrokerClient:
         require(0<timeout<=5,'BROKER_RPC_BUDGET')
         self.budget.begin_rpc()
         try:
-            raw=canonical(value);require(len(raw)<=1024**2,'BROKER_INPUT_BUDGET')
+            raw=canonical(value);input_cap=1024**2
+            if len(raw)>input_cap and type(value) is dict and set(value)=={'session','seq','op','value'} and value['op']=='created':
+                from p0c4_completion.full_target_fs import _HelperProfile,_CONTROLLED_CREATED_REQUEST_CAP
+                from p0c4_completion.controlled_fixture import ControlledFixtureContext
+                profile=getattr(self.container,'_full_profile',None)
+                if type(profile) is _HelperProfile and profile._kind=='controlled-owner':
+                    context=profile._controlled
+                    require(type(context) is ControlledFixtureContext and getattr(runner_base(self.container.runner).ownership,'_controlled_pair',None) is context,'CONTROLLED_HELPER_PAIR')
+                    context._validate_helper_contract(profile._kind,profile._mounts,profile._command,profile._interactive)
+                    input_cap=_CONTROLLED_CREATED_REQUEST_CAP
+            require(len(raw)<=input_cap,'BROKER_INPUT_BUDGET')
             self.child.send(raw+b'\n');deadline=time.monotonic()+timeout
             while b'\n' not in self.buffer:
                 self.budget.check_rpc();self.child.check()
