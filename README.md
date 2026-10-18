@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18：全新85c49af wrong-endpoint实际预期拒绝case已独审并由Root采纳，受控11/11＝10项历史c749＋1项当前85c，不能理解为11项均在85c重跑。精确Rust测试1通过、0失败/ignored、451 filtered，测试输出13.87s；13个checkpoint、Exit、无DDL、commit/rollback/retry均false。full仍0/9，Task5及Task6–9/C4 OPEN，Task2关闭、Task3仅单机，无CompleteBackup、独立存储或生产部署。**
+**最新同步：2026-10-18进度：FIRST/Reader metadata已批准，Root首full尝试的prepare/install已知，PLAN返回ROOT_PLAN_ISSUED_NOT_RESERVED后因PROTECTED_RESOURCE_CHANGED_OR_UNKNOWN停止。独审53项检查和Root采纳仅确认保护停止边界，未接受新case：native正文未派发、未创建测试PG、无本次DDL执行，full仍0/9。受控11/11仍为10历史c749＋1当前85c；Task5及Task6–9/C4 OPEN，Task2关闭、Task3仅单机，无CompleteBackup、独立存储或生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；受控11/11已接受＝10历史c749＋1最新85c wrong-endpoint，独审445检查/Root采纳；full0/9，Task5/C4 OPEN |
+| P0-C4 | Task2关闭；受控11/11＝10历史c749＋1当前85c；首full准备/安装已知，PLAN保护停止已独审53检查/Root确认，未运行body，full0/9，Task5/C4 OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
