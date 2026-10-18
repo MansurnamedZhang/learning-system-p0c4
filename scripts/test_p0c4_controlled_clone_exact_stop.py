@@ -5,7 +5,8 @@ import os
 import stat
 import sys
 import tempfile
-from pathlib import Path
+from contextlib import ExitStack
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -139,6 +140,141 @@ class CloneExactStopTests(unittest.TestCase):
         with self.assertRaises(runner.ImportRejected):self.backend.stop()
         self.assertTrue(self.context._native_broken);self.assertEqual(self.lane.state,'unknown');self.assertFalse(self.lane.isolated)
         self.assertIs(self.context._sides['target']['owner'],owner)
+
+    def consume_clone_preparation(self, *, controlled_context=True, change_summary=None):
+        """Actual backend/context/lane consumers; fake only external setup/PG IO.
+
+        Stop at the existing post-setup birth recheck, before compilation/body.
+        The original _prepare constructs, registers and publishes the clone row.
+        """
+        c=self.context;b=self.backend;l=self.lane
+        class BeforeCompile(Exception):pass
+        b.args=SimpleNamespace(**{role+'_batch_id':c._plan[role+'_case_id'] for role in ('source','target','clone')},
+                               **{role+'_subnet':c._plan[role+'_subnet'] for role in ('source','target','clone')})
+        b.build_evidence={};b.helper._json_bytes=lambda value:json.dumps(value,ensure_ascii=False,separators=(',',':')).encode()
+        b.helper._private_write=lambda path,raw:self.files.__setitem__(str(path),raw)
+        b.provisioner.admit_fresh=lambda *args:None
+        b.provisioner.snapshot=lambda:{'daemon_id':'original-daemon'}
+        summary=[];rechecks=[];self.preparation_rechecks=rechecks
+        def before_compile(row):
+            rechecks.append(row);raise BeforeCompile()
+        def prepare():
+            value=original_prepare()
+            if change_summary is not None:change_summary(value)
+            summary.append(value)
+            return value
+        if controlled_context:
+            old_batch=b.batch;b.batch=PurePosixPath('/private/controlled-import/batches/'+c._plan['batch_id'])
+            self.files={str(b.batch)+key[len(str(old_batch)):]:value for key,value in self.files.items()}
+            # Fixed Linux protocol paths remain POSIX even on the Windows model.
+            self.files={key.replace('\\','/'):value for key,value in self.files.items()}
+            for side in c._sides.values():side['root']=side['record']['control']=b.batch/(side['role']+'-control')
+            for pg in self.containers.values():
+                for mount in pg.get('Mounts',[]):
+                    if mount['Source'].startswith(str(old_batch)):
+                        mount['Source']=(str(b.batch)+mount['Source'][len(str(old_batch)):]).replace('\\','/')
+            b.resources.remove(l.row);c._runner.ownership.owners.pop(l.creation['intent']['name'])
+            old_owner=l.owner;ids=l.ids;measurement=l.measurement;proofs=l.helper_proofs
+            l.root=self.root(str(b.batch/'clone-control'),52)
+            l.state='new';l.owner=None;l.row=None;l.creation=None;l.birth=None
+            l.target_pg=self.containers[l.target_id]
+            self.containers[l.target_id]['State'].update(Running=True,Pid=321,Status='running')
+            c._suite=Path('/private/suite');c._tools={};c._images={controlled._BUILDER:{}}
+            c._h=c._binding=None
+            original_call=old_owner.broker.call
+            def owner_call(request):
+                if request['op']=='setup':value=dict(root=l.root,compose_sha256=clone._digest(l.compose),lock_held=True)
+                elif request['op']=='birth':
+                    raw=clone._canonical(request['value']);self.files[str(b.batch/'clone-control/birth.json')]=raw
+                    value=dict(birth_sha256=clone._digest(raw))
+                else:return original_call(request)
+                return dict(**{k:request[k] for k in ('session','seq','op')},ok=True,value=value)
+            old_owner.broker.call=owner_call
+            def acquire(kind,name,expected,network,row):
+                owner=dict(intent=dict(kind=kind,name=name,case_id=c._plan['source_case_id'],batch_id=c._plan['batch_id'],expected=expected,network=network),state='reserved',id=None,record=row)
+                c._runner.ownership.owners[name]=owner;return owner
+            def known(owner,cid):owner.update(state='known',id=cid)
+            c._runner.ownership.acquire=acquire;c._runner.ownership.known=known
+            def creation_call(r,owner,send):owner['state']='sent';return send()
+            def run(args,**kwargs):
+                if args[0]=='start':return 0,(ids['container_id']+'\n').encode()
+                if args[-1]==clone._REPLICATION_SQL:return 0,b'[]'
+                if args[-1]==clone._SAME_ID_SQL:
+                    value=l.sql_identity;return 0,(value['database']+'|'+value['pg_system_identifier']+'|'+str(value['database_oid'])+'|f\n').encode()
+                return 0,b''
+            original_prepare=l._prepare
+        else:
+            # The legacy delegate owns its separate summary-inspection contract.
+            summary_value=dict(**l.ids,same_system_identifier=True,same_database_oid=True,passfile_state='NOT_CREATED',backup_verified=True,no_standby=True,clone_birth_sha256=l.birth_sha256)
+            original_prepare=lambda:dict(summary_value)
+        with ExitStack() as stack:
+            def patched(obj,name,**kwargs):return stack.enter_context(patch.object(obj,name,**kwargs))
+            patched(controlled.ControlledFixtureContext,'_runtime',return_value=None)
+            patched(runner.ImportBackend,'_budget',return_value=None)
+            patched(runner.ImportBackend,'_preflight_import_builder',return_value={})
+            patched(runner.ImportBackend,'_create',side_effect=lambda role,*args:c._sides[role]['record'])
+            patched(runner.ImportBackend,'_birth',side_effect=lambda row:(row['control'],{}))
+            patched(runner.ImportBackend,'_birth_recheck',side_effect=before_compile)
+            if controlled_context:
+                patched(controlled,'_verify_tools',return_value={})
+                patched(controlled.ControlledFixtureContext,'_snapshot',return_value={'daemon_id':'original-daemon'})
+                patched(controlled.ControlledFixtureContext,'_helper_contract',return_value=([],[]))
+                patched(fs,'_HelperProfile',return_value=object())
+                patched(driver,'log_capacity',return_value=None)
+                patched(driver,'HelperContainer',return_value=old_owner.container)
+                patched(driver,'BrokerClient',return_value=old_owner.broker)
+                patched(driver,'creation_call',side_effect=creation_call)
+                patched(clone.os,'statvfs',create=True,return_value=SimpleNamespace(f_bavail=10*1024**3,f_frsize=1))
+                patched(clone,'_trust_replication',return_value='EXACT_LOOPBACK_TRUST')
+                patched(clone,'_created_clone_resources',return_value=ids)
+                proof_iter=iter(proofs)
+                patched(clone,'_PgHelper',side_effect=lambda lane,kind:SimpleNamespace(run=lambda:next(proof_iter)))
+                patched(clone._CloneLane,'_run',side_effect=run)
+                patched(clone._CloneLane,'_check_created',return_value=None)
+                patched(clone._CloneLane,'_measure_pg',return_value=measurement)
+                patched(clone,'_check_live_birth',return_value=self.containers[ids['container_id']])
+                patched(l,'_prepare',side_effect=prepare)
+                original_run=c._runner.run
+                c._runner.run=lambda args,**kwargs:(0,json.dumps([dict(l.image,RepoDigests=[l.identity['image']])]).encode(),b'') if args[1:3]==['image','inspect'] else original_run(args,**kwargs)
+                self.addCleanup(setattr,c._runner,'run',original_run)
+            else:
+                b._controlled_context=None;b.delegate=SimpleNamespace(_prepare_physical_clone=lambda *args:prepare())
+            try:b.execute_import('wrong-endpoint')
+            except BeforeCompile:pass
+        self.assertEqual(len(summary),1)
+        return summary[0],rechecks
+
+    def test_actual_backend_context_clone_preparation_preserves_sealed_birth_for_stop(self):
+        summary,rechecks=self.consume_clone_preparation()
+        self.assertEqual(len(rechecks),1)
+        self.assertNotEqual(runner.digest(self.backend.helper._json_bytes(summary)),self.lane.birth_sha256)
+        self.assertEqual(self.lane.row['inspection_sha256'],self.lane.birth_sha256)
+        self.assertEqual(sum(row is self.lane.row for row in self.backend.resources),1)
+        self.assertIsNone(self.context._sides['source']['owner'])
+        self.containers[self.lane.target_id]['State'].update(Running=False,Pid=0,Status='exited')
+        self.assertTrue(self.backend.stop()['clone_stopped'])
+        self.assertEqual(self.events,['clone-release','clone-close','target-release','target-close'])
+
+    def test_actual_backend_rejects_clone_summary_birth_join_before_compile(self):
+        changes=[('clone_birth_sha256','0'*64),('container_id','a'*64),('network_id','a'*64),
+                 ('volume_name','foreign'),('volume_mountpoint','/foreign'),('daemon_id','foreign'),
+                 ('same_system_identifier',1),('same_database_oid',False),('backup_verified',False),('no_standby',False)]
+        for key,value in changes:
+            with self.subTest(key=key):
+                self.doCleanups();case=CloneExactStopTests();case.setUp()
+                try:
+                    with case.assertRaises(runner.ImportRejected):
+                        case.consume_clone_preparation(change_summary=lambda summary:summary.update({key:value}))
+                    case.assertEqual(case.preparation_rechecks,[])
+                    case.assertFalse(case.lane.isolated)
+                    case.assertIs(case.context._sides['target']['owner'],case.lane.target_owner)
+                    case.assertEqual(case.events,[])
+                finally:case.doCleanups()
+
+    def test_actual_legacy_backend_keeps_summary_inspection_digest(self):
+        summary,rechecks=self.consume_clone_preparation(controlled_context=False)
+        self.assertEqual(len(rechecks),1)
+        self.assertEqual(self.backend.clone_record['inspection_sha256'],runner.digest(self.backend.helper._json_bytes(summary)))
 
     def test_postbody_actual_stop_ignores_foreign_inventory(self):
         self.containers['a'*64]['State'].update(Running=True,Pid=123,Status='running')

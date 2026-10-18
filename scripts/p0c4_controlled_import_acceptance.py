@@ -932,7 +932,18 @@ class ImportBackend(ContractBackend):
             if context is not None:
                 cloned=context._prepare_physical_clone()
                 row=self.clone_record
-                require(row is context._clone.row and row in self.resources,'Identity')
+                lane=context._clone
+                # The private producer publishes a sealed birth inspection;
+                # its returned routing summary is a different document.
+                require(row is lane.row and sum(item is row for item in self.resources)==1 and
+                        lane.state=='born' and row['identity']==identity and
+                        row['container_id']==lane.ids['container_id'] and
+                        row['birth_sha256']==row['inspection_sha256']==lane.birth_sha256 and
+                        type(cloned) is dict and all(cloned.get(key) is True for key in
+                            ('same_system_identifier','same_database_oid','backup_verified','no_standby')) and
+                        cloned==dict(**lane.ids,same_system_identifier=True,same_database_oid=True,
+                            passfile_state='NOT_CREATED',backup_verified=True,no_standby=True,
+                            clone_birth_sha256=lane.birth_sha256),'Identity')
             else:
                 row = {'role': 'clone', 'identity': identity, 'control': self.batch / 'clone-control',
                        'batch_id': self.args.clone_batch_id, 'subnet': self.args.clone_subnet,
@@ -942,8 +953,8 @@ class ImportBackend(ContractBackend):
                 cloned = self.delegate._prepare_physical_clone(self.provisioner, self.batch, target_root,
                     target['container_id'], identity, self.args.clone_subnet, before, target_birth,
                     target['identity']['database'])
-            row['container_id'] = cloned['container_id']
-            row['inspection_sha256'] = digest(self.helper._json_bytes(cloned))
+                row['container_id'] = cloned['container_id']
+                row['inspection_sha256'] = digest(self.helper._json_bytes(cloned))
             env.update({'KNOWWEAVE_C4_CLONE_CONTAINER_ID': cloned['container_id'],
                 'KNOWWEAVE_C4_CLONE_NETWORK_ID': cloned['network_id'],
                 'KNOWWEAVE_C4_CLONE_NETWORK_NAME': identity['network'],
