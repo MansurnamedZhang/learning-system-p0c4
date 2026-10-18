@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-18",
   "source_commit": "78cd74a08c0a6831fcf09f560c5178652a595804",
-  "previous_public_commit": "dac6082c8f270f5f346ffb47e061dbd6720200a4",
+  "previous_public_commit": "1c320fd9a0e5f0442b859633e89a9c6ccba395e5",
   "source_archive_sha256": null,
   "source_manifest_sha256": "61e4772125d813ab28194372fb752ccc9d47fa9f32efee8f71a3dd736fa84040",
   "source_file_count": 546,
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112691,
-      "sha256": "dc8be834fc997a0b2a4b894e6ea714b477344cd4e7a7a6f1085bb29a0a6ba3f8",
+      "bytes": 112725,
+      "sha256": "d2844730a6e31077ec0ed0da2ee140b60a96d4d54d0ec6f3dc72bdfd50591e58",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4044,
-      "sha256": "9332cf7ca1ef985f1253f7141dff0cd9b26fd7a3b08307e8e43771b3ad63d1d8",
+      "bytes": 4027,
+      "sha256": "0cb03b1aba2bb20973091a642edfad3ce2548aed2450ee2bf4987b3437d91d01",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2689,8 +2689,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45214,
-      "sha256": "1d9807e31597cf2402f60e7321a0d0881d8ce6945f5f92bad874df2305028f15",
+      "bytes": 45248,
+      "sha256": "2eb7d52fcf3787b10dde964b1a16ba1a3a764a149cd8785cc5f91557d09ea872",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2710,8 +2710,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29255,
-      "sha256": "41a7cc6b5e0aaa1470ce8cbb84362c0206659bc7c3d9ad178bfa3093fb17fd52",
+      "bytes": 29356,
+      "sha256": "0f0119836cc713584e52182bbb2a065f7854a724d682f606357d5a386157d158",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3361,8 +3361,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 2875,
-      "sha256": "bfa8567814b81cc7db2a305874c5d4fc62e16c8b3a7bac2eb9908a05c2a260f0",
+      "bytes": 2930,
+      "sha256": "acd61b24f786b05f6cb290551bcc7ac98a8a83a9964d581cae133b84187e2e92",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3410,8 +3410,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 24573,
-      "sha256": "979cadedfbc11576b8db96dfd5cf12f929b3312716e4eb45438ec5a122f656fb",
+      "bytes": 24674,
+      "sha256": "26acbd23b7cdb71b77e0103a71b2a30226e356100824628e87c26f7fd0daa92b",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4022,7 +4022,7 @@
     "protected_entries_implemented": 11,
     "protected_entries_total": 11,
     "code_review": "APPROVED_CODE_REVIEW_ONLY",
-    "current11_ops": "PREPARATION_ALGORITHM_SPEC_QUALITY_PASS_ACTUAL_BINDINGS_OPS_NATIVE_PENDING",
+    "current11_ops": "PREPARATION_REVIEW_AND_SINGLE_SUCCESS_INSTALL_ACCEPTED_FIRST_BODY_UNKNOWN_RETAINED",
     "physical_clone": "IMPLEMENTED_CODE_REVIEW_APPROVED_NOT_NATIVE",
     "focused_root": {
       "run": 53,
@@ -4078,7 +4078,41 @@
     },
     "production_helper_caps_attestation": false,
     "full_ops_fix": "LOCAL_REVIEW_PASS_BINDINGS_NATIVE_HOLD",
-    "current11_ops_scope": "Disabled preparation algorithm independently reviewed; actual binding/Ops/native remain pending"
+    "current11_ops_scope": "Preparation review and one actual installation accepted; first real success body failed, overall protection failed, native state unknown",
+    "success_installation": {
+      "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
+      "originals": 202,
+      "independent_checks": 243,
+      "old_inventory_unchanged": true,
+      "native_credit": 0
+    },
+    "current11_stop_v7": {
+      "scope": "LIMITED_PREPARATION_TOKEN_REPAIR_ONLY",
+      "independent_checks": 151,
+      "modeled_scenarios": 66,
+      "native_credit": 0
+    },
+    "first_actual_success": {
+      "source_commit": "78cd74a08c0a6831fcf09f560c5178652a595804",
+      "exact_test_exit_code": 101,
+      "test_passed": 0,
+      "test_failed": 1,
+      "phase": "fresh-fixture-capture",
+      "reason": "Identity",
+      "result_sha256": "ba3adca2cc685f403c935af6ffc5fe67055a82bdcfcaaacaa85e514d9d4e03ed",
+      "outer_status": "UNKNOWN_RETAINED",
+      "reason_code": "UnconfirmedIsolation",
+      "source_unchanged": true,
+      "native_exit_wait": "UNKNOWN",
+      "whole_old_resource_projection_unchanged": false,
+      "old_changed_projection": "HOST_NETWORK_DIGEST_ONLY",
+      "old_containers_volumes_other_networks_unchanged": true,
+      "retry_allowed": false,
+      "stop_rm_performed": false,
+      "root_cause": "UNDETERMINED",
+      "next": "READ_ONLY_DIAGNOSIS_ONLY",
+      "native_credit": 0
+    }
   },
   "source_capture_method": "FIXED_RAW_GIT_CAT_FILE_NO_WORKTREE_READ"
 }

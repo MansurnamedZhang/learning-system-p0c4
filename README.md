@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18：Task5同标识物理克隆实现已在固定源码78cd74a提交并获独立代码审查批准；success、8项固定负例、ready后重启与同标识物理克隆共11/11项代码入口已实现。本轮真实Linux/PG验收仍为legacy0/11、full0/9，current11 Ops candidate-v6运行脚本准备算法已独立审查；实际绑定/Ops/native仍待验。Task2代码、单机补验与文档交付已完成（受测ba96561，交付c69e373）；Task3仅单机完成。Task6–9及C4仍OPEN，缺独立存储，无CompleteBackup或生产部署。**
+**最新同步：2026-10-18：Task5固定源码78cd74a的全新success安装已完成，202份原件及独立243项检查获限定接受；这不等于导入验收。首次真实success正文已运行但失败：exact测试退出101、0通过/1失败，诊断fresh-fixture-capture / Identity；外层UnconfirmedIsolation、UNKNOWN_RETAINED，native状态仍未知，source_unchanged=true。本轮现场信用仍legacy0/11、full0/9。Task2代码、单机补验与交付已完成（受测ba96561，交付c69e373）；Task3仅单机完成，Task6–9及C4仍OPEN，缺独立存储，无CompleteBackup或生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2代码与单机收尾完成；Task5代码入口11/11已实现并获代码审查批准，运行脚本准备算法已独立审查，实际绑定/Ops/native待验，现场legacy0/11、full0/9；Task6–9及整关OPEN |
+| P0-C4 | Task2代码与单机收尾完成；Task5新安装独审接受、首次success正文失败并保留UNKNOWN，现场legacy0/11、full0/9；Task6–9及整关OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
