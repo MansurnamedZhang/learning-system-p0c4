@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18：已采纳guard-owned reader六文件修复源码a844889（parent dfbd4fc），独立代码SPEC/QUALITY审查95项通过。Windows credential10及fixture/golden9通过；冻结六文件包的Linux fmt、严格Clippy（lib+tests）、credential10＋diagnostics11＋full-restore contract2通过，无skip；固定程序7项dummy探针通过。以上是代码与预检信用，真实guard＋secret读取/导入仍待新source绑定和fresh actual，不能称真实reader已通。旧dd7555与1892e23d两轮consumed/UNKNOWN保留，strict门仍false，现场legacy0/11、full0/9。Task2关闭，Task3仅单机；Task6–9/C4仍OPEN，无CompleteBackup、独立存储或生产部署。**
+**最新同步：2026-10-18：固定a844889的新925e实测中，Rust exact success为1 PASS／0 FAIL／0 skip、exit0、14.88秒；credential reader、固定合成夹具提交与content digest已在该Rust正文通过。Python backend.stop()返回前抛UnconfirmedIsolation，持久result没有isolation键，外层仍UNKNOWN_RETAINED、native信用0。当前整套仍legacy0/11、full0/9；Task2关闭（ba96561/c69e373），Task3仅单机，Task6–9/C4仍OPEN，无CompleteBackup、独立存储或生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；guard-owned reader a844889已采纳并获代码审查/预检通过，真实reader与导入待fresh actual；旧两UNKNOWN/strict=false保留，现场legacy0/11、full0/9；整关OPEN |
+| P0-C4 | Task2关闭；a844889 Rust exact正文1 PASS，Python最终隔离共享时限内快照RPC超时，整轮UNKNOWN/native0；现场legacy0/11、full0/9，Task6–9及整关OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 

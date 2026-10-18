@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-18",
   "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
-  "previous_public_commit": "488da97d5809607d090a48262d37c69a2bad53ee",
+  "previous_public_commit": "38fa4300230d511ce5e4f9d54d95845e1cc7103e",
   "source_archive_sha256": null,
   "source_manifest_sha256": "5867c05ed1376ed56881b03ba6f12fb4d2e710d2f2f089e65a08c34062ce14bf",
   "source_file_count": 547,
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112713,
-      "sha256": "94e67ecd15ce4a7882e1965d576eead0122726ef31586bc46a7504b9cb5a5f9d",
+      "bytes": 112731,
+      "sha256": "2213988e946ced6668aff71ce6268c7e74685359e3beafc73d4c33c8df2b2fe6",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4156,
-      "sha256": "1d1fd11ae1593e3fa1622aca9650c4d20659f2f85f9a663eeff86474032d3015",
+      "bytes": 3941,
+      "sha256": "b587e9befdff8c7b1c818c00d755e4a098af1c55557e6f4b6c4f8e8726f7fef1",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45236,
-      "sha256": "f441d67ee34d60c4bbf4eae38233e39afc2138ceb90feb3f9e0f85e51c8d8d01",
+      "bytes": 45245,
+      "sha256": "a4c2a8d26d7aa9cb37b0b90b00d52beff6001f54f8565c30c38b6a27a8dc287b",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29605,
-      "sha256": "52e263ceba024a821ba69f8c95cce311d38bb76e9a4cedcc70476b317794b950",
+      "bytes": 29860,
+      "sha256": "6692052873bc8d5c43dc09471cf2a83fd3891dc1a3d45670e2dc44b182ccbcdb",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3207,
-      "sha256": "85790887e4d1952d2002edf9e857cd7439794acae2f2d0b56693a40fbc08d127",
+      "bytes": 3464,
+      "sha256": "afcc10523b30a5d731c77ede244ed5aa84a9c22a104e72061c9a56fe1e81877d",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 24923,
-      "sha256": "e00d8a14b00ebb98cbfced90bf4eb9cd0b0cf6d72838ab92b72633b25d7548be",
+      "bytes": 25178,
+      "sha256": "cb56fac266ba0b36a2cd9bce82efd604fc0de1d59ea99e8d1ef3decceb96e2c9",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4085,7 +4085,7 @@
     },
     "production_helper_caps_attestation": false,
     "full_ops_fix": "LOCAL_REVIEW_PASS_BINDINGS_NATIVE_HOLD",
-    "current11_ops_scope": "Preparation review and one actual installation accepted; first real success body failed, overall protection failed, native state unknown",
+    "current11_ops_scope": "Reviewed installation and Rust exact success body accepted in separate scopes; Python final isolation and full old resource protection unconfirmed; zero whole-case native credit",
     "success_installation": {
       "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
       "originals": 202,
@@ -4206,7 +4206,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "ADOPTED_CODE_AND_LOCAL_PREREQUISITES_PASS_FRESH_ACTUAL_CASE_PENDING",
+    "reader_compatibility_next": "RUST_BODY_READER_PASS_REVIEW_BOUNDED_IDENTITY_ISOLATION_KEEP_15S_AND_FULL_OUTER_PROTECTION",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -4241,9 +4241,11 @@
         "no_pg_no_real_credentials": true,
         "native_credit": 0
       },
-      "fresh_actual_guard_secret_read_passed": false,
+      "fresh_actual_guard_secret_read_passed": true,
       "fresh_actual_import_passed": false,
-      "native_credit": 0
+      "native_credit": 0,
+      "fresh_actual_guard_secret_read_scope": "RUST_EXACT_BODY_ONLY_NOT_WHOLE_CASE_ACCEPTED",
+      "python_final_isolation_confirmed": false
     },
     "host_network_witness": {
       "scope": "READ_ONLY_SINGLE_NEW_OUTER_ENDPOINT_HASH_INVERSE",
@@ -4252,6 +4254,50 @@
       "strict_old_gate_passed": false,
       "rule_changed": false,
       "native_credit": 0
+    },
+    "actual_success_a844889": {
+      "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
+      "batch_id": "925e8e63-8adf-4b28-b427-2f5e46df37e2",
+      "scope": "RUST_EXACT_BODY_PASS_WHOLE_CASE_UNKNOWN_NOT_NATIVE_ACCEPTED",
+      "exact_test_exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "elapsed_seconds": 14.88,
+      "reader_fixture_commit_content_digest_passed": true,
+      "result_sha256": "61534f930685f69e4c878bf1398c0e6f60735fcd89fcc155905ebdc5ce2d0d67",
+      "stdout_sha256": "0eba021648777652bedfbe47f9c16108f0ecbcbfc9cb4f103d9fc70eeacbcf18",
+      "independent_body_evidence_checks": 144,
+      "independent_isolation_addendum_checks": 345,
+      "raw_compile_birth_join_closed": true,
+      "snapshot_role_labels": "SOURCE_CONTROL_FLOW_INFERENCE_NOT_PROCESS_FIELDS",
+      "python_isolation": "UNCONFIRMED_BEFORE_BACKEND_STOP_RETURN",
+      "persisted_result_has_isolation_key": false,
+      "outer": "UNKNOWN_RETAINED",
+      "native_credit": 0,
+      "source_unchanged": true,
+      "whole_old_projection_unchanged": false,
+      "old_containers_volumes_unchanged": true,
+      "host_network_digest_changed": true,
+      "changed_host_member_not_inferred_from_prior_dfbd_witness": true,
+      "later_pg_stopped_observation_not_isolation_gate": true,
+      "postpublish_body_stdout_helper_annotation_not_persisted_result": true,
+      "process_receipts": {
+        "0689_to_0793": "EXIT_0_STDERR_EMPTY",
+        "0794": {
+          "exit_code": -9,
+          "reason": "PROCESS_TIMEOUT",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0
+        },
+        "0795_to_0880": "ABSENT"
+      },
+      "root_actual_frontier": "THIRD_WHOLE_HOST_SNAPSHOT_TARGET_BEFORE_SIXTH_NETWORK_METADATA_BATCH_RPC_TIMEOUT_UNDER_SHARED_15S",
+      "rpc_timeout_formula": "MIN_5S_SHARED_15S_REMAINING_SNAPSHOT_30S_REMAINING_MINUS_RESERVE",
+      "actual_rpc_budget_or_shared_15s_exhaustion_distinguished": false,
+      "frontier_fix_implemented": false,
+      "retry_allowed": false,
+      "stop_rm_performed": false
     }
   },
   "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_SIX_GIT_BLOBS_NEW_547_TREE_CLOSED"
