@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-18",
   "source_commit": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
-  "previous_public_commit": "076acea90ceff34a97c57a757b0c4aec361405a3",
+  "previous_public_commit": "ab0971e3e75a1b95b5211cc51dbfcc0b0bb39478",
   "source_archive_sha256": null,
   "source_manifest_sha256": "66b6f59a4ff7574e019cf84a8e24f51179890f7e86a1964eaaee0be224c6c878",
   "source_file_count": 546,
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112691,
-      "sha256": "c6e7af828bd5b837f36757e00f87dfe9c1643d8eef68678b9810f019e243adad",
+      "bytes": 112732,
+      "sha256": "5824f885c849acb9c674d2eaebe944fb4c4ff20d6a52c980ddbce4256db6a6cd",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4099,
-      "sha256": "c0188cf8a28cc9df0c8999a0338de28a7ec58abe869db0f6a7350dc3cc92a24b",
+      "bytes": 4072,
+      "sha256": "2191bfb251edbf499296b67596344acae448a4791f04bceb40b4612bbe450842",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2689,8 +2689,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45214,
-      "sha256": "42eb77a84e6de7e49b84692e82e89079d25e3f817e342598be1087e278c9b544",
+      "bytes": 45255,
+      "sha256": "d01ec75a96c4709119f1f6c2f25ff7c3e62d2c0c9b412ff3f7129ea57c0fe931",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2710,8 +2710,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29764,
-      "sha256": "12ec34826e025ae90911643c6bc332700b8463347bebedec7f37c56041125dcf",
+      "bytes": 29535,
+      "sha256": "4ba35b68e98fdcf9e158ae9518d9280709cebaf79eb815ab4e5cfa83ee898cf3",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3361,8 +3361,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3389,
-      "sha256": "964f8865d11748eeae570350fec2e8de61397bb37b534214eb7b6bac27fc25fb",
+      "bytes": 3158,
+      "sha256": "1c374c024a54f8f50b9f1c65dc6ae4819c9988150250f211d27cd0ea63365726",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3410,8 +3410,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 25082,
-      "sha256": "2c256843bf97d6c61db3c0c869cb282b4eacc421862e278b50935595fa5200aa",
+      "bytes": 24853,
+      "sha256": "7e3e6a1492d7f4ae1565e39ab9bc3c6244aed04ff75ad83caa9ee93893504575",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4151,9 +4151,55 @@
         "actual_import_case_run": false,
         "native_credit": 0
       },
-      "actual_first_phase_localized": false,
+      "native_credit": 0,
+      "actual_reader_stage_observed": true,
+      "actual_reader_stage": "source-password-read",
+      "actual_error_errno_observed": false,
+      "root_cause_localized": false
+    },
+    "actual_success_dfbd4fc": {
+      "source_commit": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
+      "batch_id": "1892e23d-a295-40f7-8de1-a53b776d83e6",
+      "exact_test_exit_code": 101,
+      "passed": 0,
+      "failed": 1,
+      "schema": 1,
+      "phase": "source-password-read",
+      "reason": "Identity",
+      "result_sha256": "e52379bdfdd44ecaf3493098952481887012d8b2ac3f2260c7f8895836d6db5c",
+      "guard_ip_preconditions_reached": true,
+      "reader_whole_stage_rejected": true,
+      "actual_errno_observed": false,
+      "actual_eacces_observed": false,
+      "outer": "UNKNOWN_RETAINED",
+      "source_unchanged": true,
+      "whole_old_projection_unchanged": false,
+      "changed_old_projection": "HOST_NETWORK_DIGEST_ONLY",
+      "retained_no_replay_no_stop": true,
       "native_credit": 0
-    }
+    },
+    "synthetic_dac_basis": {
+      "scope": "SYNTHETIC_KERNEL_ONLY_NOT_ACTUAL_CASE_ERRNO",
+      "uid": 0,
+      "effective_and_permitted_caps_zero": true,
+      "dummy_uid": 999,
+      "dummy_mode": "0600",
+      "observed": "EACCES",
+      "bounding_set_recorded_not_assumed_equal": true,
+      "native_credit": 0
+    },
+    "pinned_pg_perl_tool_probe": {
+      "scope": "EXISTING_TOOL_DUMMY_ONLY_NO_PG_NO_CREDENTIALS_NOT_READER_FIX",
+      "exit_code": 0,
+      "uid": 999,
+      "dummy_bytes": 65,
+      "nofollow": true,
+      "held_fd": true,
+      "old_resources_unchanged": true,
+      "removed": true,
+      "native_credit": 0
+    },
+    "reader_compatibility_next": "MINIMAL_DESIGN_REVIEW_AND_TDD_NOT_IMPLEMENTED_OR_NATIVE_ACCEPTED"
   },
   "source_capture_method": "PARENT_FIXED_GIT_LEDGER_PLUS_EXACT_FIVE_BLOBS_NEW_TREE_CLOSED"
 }

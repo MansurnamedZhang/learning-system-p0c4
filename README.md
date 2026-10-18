@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18：已采纳诊断-only源码dfbd4fc（基线78cd74a），五文件独立SPEC/QUALITY审查通过，固定source捕获阶段新增11个闭合诊断标签；这不是权限或挂载修复。新隔离Linux预检实际退出0：fmt、严格Clippy（lib+tests）、11项diagnostics及2项full-restore contract通过；仅占位birth、无PG/host socket/实际导入用例，native信用0。旧dd7555首次success仍exit101、0通过/1失败，fresh-fixture-capture / Identity、UNKNOWN_RETAINED；本轮现场仍legacy0/11、full0/9。Task2受测ba96561/交付c69e373已关闭，Task3仅单机；Task6–9/C4仍OPEN，无CompleteBackup、独立存储或生产部署。**
+**最新同步：2026-10-18：固定dfbd4fc的新隔离1892e23d success实测仍失败：exact测试exit101、0通过/1失败，schema1诊断已细化为source-password-read / Identity。已走到guard/IP前置之后的严格reader阶段，reader整体拒绝；没有实际errno原件，不能声称本例观察到EACCES或修复完成。source_unchanged=true，但正文后host网络digest变化导致完整保护未通过，外层UNKNOWN_RETAINED，保留现场不重跑/stop/rm。本轮仍legacy0/11、full0/9。Task2已关闭（ba96561/c69e373），Task3仅单机；Task6–9/C4仍OPEN，无CompleteBackup、独立存储或生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；Task5诊断-only dfbd4fc独审及隔离Linux预检通过，旧首例失败/UNKNOWN保留，现场legacy0/11、full0/9；Task6–9及整关OPEN |
+| P0-C4 | Task2关闭；Task5新首例在source-password-read / Identity失败并保留UNKNOWN，reader兼容最小设计/TDD待推进，现场legacy0/11、full0/9；Task6–9及整关OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
