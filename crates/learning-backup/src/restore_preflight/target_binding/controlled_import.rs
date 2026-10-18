@@ -2,6 +2,8 @@
 mod candidate_attempt;
 mod commands;
 #[cfg(test)]
+mod credential_reader;
+#[cfg(test)]
 mod diagnostics;
 #[cfg(test)]
 mod fixture_sql;

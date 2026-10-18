@@ -168,6 +168,24 @@ pub(super) struct StreamBudget {
 
 impl StreamBudget {
     #[cfg(test)]
+    pub(super) fn credential(deadline: Instant) -> Self {
+        Self {
+            deadline,
+            stdout_cap: 512,
+            stderr_cap: 64,
+            identity_error: false,
+            full_route: None,
+            observation: None,
+        }
+    }
+    #[cfg(test)]
+    pub(super) fn credential_description(deadline: Instant) -> Self {
+        Self {
+            stdout_cap: 4096,
+            ..Self::credential(deadline)
+        }
+    }
+    #[cfg(test)]
     pub(super) fn observed(
         mut self,
         observation: super::supervisor_observation::Observation,
@@ -245,6 +263,33 @@ impl StreamBudget {
             identity_error: true,
             ..Self::writer()
         }
+    }
+}
+
+#[cfg(test)]
+mod credential_budget_tests {
+    use super::*;
+    #[test]
+    fn secret_and_env_capture_have_fixed_small_caps_and_no_observation() {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        for (budget, cap) in [
+            (StreamBudget::credential(deadline), 512),
+            (StreamBudget::credential_description(deadline), 4096),
+        ] {
+            assert_eq!(budget.stdout_cap, cap);
+            assert_eq!(budget.stderr_cap, 64);
+            assert!(!budget.identity_error);
+            assert!(budget.full_route.is_none() && budget.observation.is_none());
+        }
+    }
+    #[test]
+    fn credential_rpc_does_not_restart_an_expired_read_window() {
+        let deadline = Instant::now() - Duration::from_secs(1);
+        assert_eq!(StreamBudget::credential(deadline).deadline, deadline);
+        assert_eq!(
+            StreamBudget::credential_description(deadline).deadline,
+            deadline
+        );
     }
 }
 

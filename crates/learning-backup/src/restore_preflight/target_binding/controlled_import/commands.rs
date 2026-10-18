@@ -3,6 +3,66 @@ use super::ImportFailure;
 #[derive(Debug)]
 pub(super) struct FixedImportCommand(Vec<String>);
 impl FixedImportCommand {
+    #[cfg(test)]
+    fn credential_read_id(container_id: &str) -> Result<Self, ImportFailure> {
+        if !super::super::exact_id(container_id) {
+            return Err(ImportFailure::Identity);
+        }
+        let mut args = [
+            "/usr/bin/docker",
+            "exec",
+            "--user",
+            "999:999",
+            container_id,
+            "/usr/bin/env",
+            "-i",
+            "LC_ALL=C",
+            "PATH=/usr/bin:/bin",
+            "/usr/bin/perl",
+            "-T",
+            "-e",
+        ]
+        .map(String::from)
+        .to_vec();
+        args.push(super::credential_reader::PROGRAM.to_owned());
+        Ok(Self(args))
+    }
+    #[cfg(test)]
+    fn credential_describe_id(container_id: &str) -> Result<Self, ImportFailure> {
+        if !super::super::exact_id(container_id) {
+            return Err(ImportFailure::Identity);
+        }
+        Ok(Self(
+            [
+                "/usr/bin/docker",
+                "container",
+                "inspect",
+                "--format",
+                "{\"id\":{{json .Id}},\"image\":{{json .Image}},\"env\":{{json .Config.Env}}}",
+                container_id,
+            ]
+            .map(String::from)
+            .to_vec(),
+        ))
+    }
+    #[cfg(all(test, target_os = "linux"))]
+    pub(super) fn credential_read(
+        guard: &super::super::BoundTargetGuard<std::fs::File, Option<std::fs::File>>,
+    ) -> Result<Self, ImportFailure> {
+        guard
+            .ensure_child_usable()
+            .map_err(|_| ImportFailure::Identity)?;
+        Self::credential_read_id(&guard.claim.container_id)
+    }
+    #[cfg(all(test, target_os = "linux"))]
+    pub(super) fn credential_describe(
+        guard: &super::super::BoundTargetGuard<std::fs::File, Option<std::fs::File>>,
+    ) -> Result<Self, ImportFailure> {
+        guard
+            .ensure_child_usable()
+            .map_err(|_| ImportFailure::Identity)?;
+        Self::credential_describe_id(&guard.claim.container_id)
+    }
     #[cfg(target_os = "linux")]
     pub(super) fn producer(container_id: &str, database: &str) -> Result<Self, ImportFailure> {
         Self::writer(container_id, database)?;
@@ -104,6 +164,40 @@ mod tests {
     use super::*;
     const ID: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const DB: &str = "learning_restore_c4_2b8a1252-54d5-48aa-b176-a9586a86bea3";
+
+    #[test]
+    fn credential_commands_are_fixed_noninteractive_owner_read_and_exact_description() {
+        let read = FixedImportCommand::credential_read_id(ID).unwrap();
+        let prefix = [
+            "/usr/bin/docker",
+            "exec",
+            "--user",
+            "999:999",
+            ID,
+            "/usr/bin/env",
+            "-i",
+            "LC_ALL=C",
+            "PATH=/usr/bin:/bin",
+            "/usr/bin/perl",
+            "-T",
+            "-e",
+        ];
+        assert_eq!(&read.argv()[..prefix.len().min(read.argv().len())], prefix);
+        assert_eq!(read.argv().len(), 13);
+        assert!(read.argv()[12].contains("/run/secrets/admin_password"));
+        let description = FixedImportCommand::credential_describe_id(ID).unwrap();
+        assert_eq!(
+            description.argv(),
+            [
+                "/usr/bin/docker",
+                "container",
+                "inspect",
+                "--format",
+                "{\"id\":{{json .Id}},\"image\":{{json .Image}},\"env\":{{json .Config.Env}}}",
+                ID
+            ]
+        );
+    }
 
     #[test]
     fn commands_reject_non_rfc_uuid_variant_with_v4_nibble() {

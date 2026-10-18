@@ -340,10 +340,8 @@ pub(super) async fn capture_fresh_fixture(
                 .ok_or(ImportFailure::Identity)?).map_err(|_| ImportFailure::Identity)?;
             let batch = uuid::Uuid::parse_str(target_database.strip_prefix("learning_restore_c4_")
                 .ok_or(ImportFailure::Identity)?).map_err(|_| ImportFailure::Identity)?;
-            let connection = super::live_tests::control_pool_staged(&config, &guard)
+            let admin = super::live_tests::control_pool_staged(&config, &mut guard).await
                 .map_err(|failure| { stage = failure.stage; failure.reason })?;
-            stage = CaptureStage::Connection;
-            let admin = connection.await?;
             let deadline = Instant::now() + Duration::from_secs(45);
             stage = CaptureStage::Session;
             let (original, pid, oid) = tokio::time::timeout_at(deadline.into(),preflight::begin_sql_session(&admin)).await

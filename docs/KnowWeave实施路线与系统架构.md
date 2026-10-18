@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-> Task5当前读取阶段（2026-10-18，dfbd4fc）：新1892e23d success实测exit101、0通过/1失败，schema1 source-password-read / Identity；guard/IP之后的reader整体拒绝，尚无本例EACCES syscall证据。source字节保持，但host网络digest变化、完整保护未通过，外层UNKNOWN保留。合成DAC及固定PG镜像Perl dummy工具探针只作设计依据/工具能力；reader最小兼容设计审查/TDD待推进，修复未完成，现场legacy0/11、full0/9，Task2关闭、C4OPEN。
+> Task5当前读取实现（2026-10-18）：guard-owned reader六文件a844889已采纳，独立代码95检查通过；Windows credential10/fixture9、冻结包Linux fmt/严格Clippy及10＋11＋2定向通过，固定程序7项dummy探针通过。真实guard＋secret读取与导入仍待fresh actual；旧dd7555/1892e23d两UNKNOWN和strict=false不改，host唯一新outer endpoint witness不授信用。现场legacy0/11、full0/9，Task2关闭、C4OPEN。
 
 更新：2026-10-18。当前状态：C4 补验中 · Task2代码与单机补验收尾完成 · 同包准入5/5、绑定4+2、端点新5/5、life8/8 · Task5当前0/11 · 整关OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
@@ -104,7 +104,7 @@ flowchart LR
 | Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN、旧5/5预算和Task5当前0/11保持；Task6–9及C4整关仍开放，无CompleteBackup和生产部署。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | reader阶段Identity失败/UNKNOWN；现场legacy0/11、full0/9 | 固定dfbd4fc新success实际exit101、0通过/1失败，阶段source-password-read / Identity。已到guard/IP之后的reader整体拒绝边界；没有实际errno原件，不宣称本例EACCES或根因已确认。 source字节保持，正文后host网络digest变化导致完整保护未通过；原owner/锁/资源/证据UNKNOWN保留，不重跑/stop/rm。合成无DAC样本的EACCES和无PG/无真实credentials的Perl dummy探针分别单列，不算reader修复或native通过；下一步最小设计审查/TDD，legacy0/11/full0/9。 |
+| Task 5 · 受控整库导入与原件恢复 | reader代码已采纳/预检通过；真实读取和导入待验，legacy0/11、full0/9 | 新a844889受控guard-owned reader代码获SPEC/QUALITY审查95检查通过；Windows credential10/fixture9，冻结raw包Linux fmt/严格Clippy、credential10/diagnostics11/contract2通过，无skip；7项固定程序dummy探针仅工具/协议范围。 保持999:999/0600、原caps/mounts、guard隔离顺序和旧direct reader；真实reader＋guard＋secret路径未获成功信用，需新固定包/全新case实测。旧两UNKNOWN及strict=false保留；host唯一新outer endpoint增量已独审定位但不回改旧门，现场legacy0/11/full0/9。 |
 | Task 6 · 作业归一化与恢复资格校验 | 本地基础通过，现场门待验 | 全表数据比对、旧租约/token 失效、未知副作用持久隔离、恢复收据；全部成立后才可判定可用。 WIP d4b97df：64张表数据观察基础及queued策略修复，本地87+12=99项通过，其中新增17项。真实目标COPY/外部排序与作业SQL未接入；独立审查、Linux/PG五门未完成。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6独立审查尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |

@@ -57,35 +57,35 @@ fn config(role: &str) -> Result<preflight::RestorePreflightConfig, ImportFailure
     Ok(config)
 }
 
-pub(super) fn control_pool(
+pub(super) async fn control_pool_staged(
     config: &preflight::RestorePreflightConfig,
-    guard: &binding::BoundTargetGuard<File, Option<File>>,
-) -> Result<impl Future<Output = Result<PgPool, ImportFailure>> + Send + use<>, ImportFailure> {
-    // Target callers retain their original ImportFailure-only contract.
-    control_pool_staged(config, guard).map_err(|failure| failure.reason)
-}
-
-pub(super) fn control_pool_staged(
-    config: &preflight::RestorePreflightConfig,
-    guard: &binding::BoundTargetGuard<File, Option<File>>,
-) -> Result<impl Future<Output = Result<PgPool, ImportFailure>> + Send + use<>, CaptureFailure> {
+    guard: &mut binding::BoundTargetGuard<File, Option<File>>,
+) -> Result<PgPool, CaptureFailure> {
     let ip = guard
         .target_ip()
         .map_err(|_| CaptureFailure::at(CaptureStage::Ip)(ImportFailure::Identity))?;
-    let password =
-        binding::linux::read_admin_password(config.control_root.parent().ok_or_else(|| {
-            CaptureFailure::at(CaptureStage::PasswordRead)(ImportFailure::Identity)
-        })?)
-        .map_err(|_| CaptureFailure::at(CaptureStage::PasswordRead)(ImportFailure::Identity))?;
+    let password = credential_reader::read(guard)
+        .await
+        .map_err(CaptureFailure::at(CaptureStage::PasswordRead))?;
+    connect_control_pool(config, ip, password)
+        .await
+        .map_err(CaptureFailure::at(CaptureStage::Connection))
+}
+
+fn connect_control_pool(
+    config: &preflight::RestorePreflightConfig,
+    ip: std::net::Ipv4Addr,
+    password: credential_reader::Secret,
+) -> impl Future<Output = Result<PgPool, ImportFailure>> + Send + use<> {
     let options = PgConnectOptions::new()
         .host(&ip.to_string())
         .port(5432)
         .username("learning_admin")
-        .password(&password)
+        .password(password.for_connection())
         .database(&config.expected_database)
         .ssl_mode(PgSslMode::Disable);
     drop(password);
-    Ok(async move {
+    async move {
         tokio::time::timeout(
             Duration::from_secs(10),
             PgPoolOptions::new()
@@ -96,7 +96,7 @@ pub(super) fn control_pool_staged(
         .await
         .map_err(|_| ImportFailure::Deadline)?
         .map_err(|_| ImportFailure::Session)
-    })
+    }
 }
 
 async fn execute(case: Case) -> Result<Observation, Failure> {
@@ -120,10 +120,19 @@ async fn execute(case: Case) -> Result<Observation, Failure> {
     )
     .await
     .map_err(Failure::capture)?;
-    let guard = binding::acquire_for_restore(&target)
+    let mut guard = binding::acquire_for_restore(&target)
         .map_err(|_| Failure::at(Phase::AcquireTargetGuard)(ImportFailure::Identity))?;
-    let pool = control_pool(&target, &guard)
-        .map_err(Failure::at(Phase::TargetControlConnection))?
+    let ip = guard
+        .target_ip()
+        .map_err(|_| Failure::at(Phase::TargetControlConnection)(ImportFailure::Identity))?;
+    let password = match credential_reader::read(&mut guard).await {
+        Ok(password) => password,
+        Err(reason) => {
+            let reason = credential_reader::reject_target_reader(guard, reason).await;
+            return Err(Failure::at(Phase::TargetControlConnection)(reason));
+        }
+    };
+    let pool = connect_control_pool(&target, ip, password)
         .await
         .map_err(Failure::at(Phase::TargetControlConnection))?;
     drop(guard);

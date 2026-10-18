@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "date": "2026-10-18",
-  "source_commit": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
-  "previous_public_commit": "ab0971e3e75a1b95b5211cc51dbfcc0b0bb39478",
+  "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
+  "previous_public_commit": "488da97d5809607d090a48262d37c69a2bad53ee",
   "source_archive_sha256": null,
-  "source_manifest_sha256": "66b6f59a4ff7574e019cf84a8e24f51179890f7e86a1964eaaee0be224c6c878",
-  "source_file_count": 546,
+  "source_manifest_sha256": "5867c05ed1376ed56881b03ba6f12fb4d2e710d2f2f089e65a08c34062ce14bf",
+  "source_file_count": 547,
   "excluded_source_files": [
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112732,
-      "sha256": "5824f885c849acb9c674d2eaebe944fb4c4ff20d6a52c980ddbce4256db6a6cd",
+      "bytes": 112713,
+      "sha256": "94e67ecd15ce4a7882e1965d576eead0122726ef31586bc46a7504b9cb5a5f9d",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4072,
-      "sha256": "2191bfb251edbf499296b67596344acae448a4791f04bceb40b4612bbe450842",
+      "bytes": 4156,
+      "sha256": "1d1fd11ae1593e3fa1622aca9650c4d20659f2f85f9a663eeff86474032d3015",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -435,9 +435,9 @@
     },
     {
       "path": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import.rs",
-      "bytes": 50354,
-      "sha256": "838c24bafe0165429a7cb9b1834eec9e739186dc5574e9856d89220c7941aae1",
-      "source_blob_sha256": "838c24bafe0165429a7cb9b1834eec9e739186dc5574e9856d89220c7941aae1",
+      "bytes": 50390,
+      "sha256": "cc2dc1dfb25989775f593e6e8861ee8935b05e78da966caccc2b9fe6110d8942",
+      "source_blob_sha256": "cc2dc1dfb25989775f593e6e8861ee8935b05e78da966caccc2b9fe6110d8942",
       "source_bytes_preserved": true
     },
     {
@@ -449,9 +449,16 @@
     },
     {
       "path": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import/commands.rs",
-      "bytes": 6790,
-      "sha256": "f34a2aab8a0821012758ad3753f845cf86dc3e76b0976a7676b670749fc8e4de",
-      "source_blob_sha256": "f34a2aab8a0821012758ad3753f845cf86dc3e76b0976a7676b670749fc8e4de",
+      "bytes": 9882,
+      "sha256": "0c28f52d996995beaf48e5b47774410a99021ec1958b2288320cd3f99e3b0d3d",
+      "source_blob_sha256": "0c28f52d996995beaf48e5b47774410a99021ec1958b2288320cd3f99e3b0d3d",
+      "source_bytes_preserved": true
+    },
+    {
+      "path": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import/credential_reader.rs",
+      "bytes": 21914,
+      "sha256": "de823c63ccdeb6826970cc279e1a2aba68e32dbe1b80dcb2070281b7f70941e4",
+      "source_blob_sha256": "de823c63ccdeb6826970cc279e1a2aba68e32dbe1b80dcb2070281b7f70941e4",
       "source_bytes_preserved": true
     },
     {
@@ -463,9 +470,9 @@
     },
     {
       "path": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import/fixture_sql.rs",
-      "bytes": 31811,
-      "sha256": "5003a0883a1453f45d8c744b231e46a7dc7c3e8e55dbf2a6f2ee1df2975d4f34",
-      "source_blob_sha256": "5003a0883a1453f45d8c744b231e46a7dc7c3e8e55dbf2a6f2ee1df2975d4f34",
+      "bytes": 31727,
+      "sha256": "f2e9de8d1079871080741c6bdd64923afa7cf8d195a0a95844a47ad80553574e",
+      "source_blob_sha256": "f2e9de8d1079871080741c6bdd64923afa7cf8d195a0a95844a47ad80553574e",
       "source_bytes_preserved": true
     },
     {
@@ -477,9 +484,9 @@
     },
     {
       "path": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import/live_tests.rs",
-      "bytes": 6807,
-      "sha256": "f05025fff56d267825caa32f39c6ad6dffb3dcb5f6b14a92d3ef88dcb1533cb9",
-      "source_blob_sha256": "f05025fff56d267825caa32f39c6ad6dffb3dcb5f6b14a92d3ef88dcb1533cb9",
+      "bytes": 6960,
+      "sha256": "469688967c4c2560c7eeb816c55cbac3d306c65c15ddc2d06872a5c214bff777",
+      "source_blob_sha256": "469688967c4c2560c7eeb816c55cbac3d306c65c15ddc2d06872a5c214bff777",
       "source_bytes_preserved": true
     },
     {
@@ -498,9 +505,9 @@
     },
     {
       "path": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import/stream.rs",
-      "bytes": 63444,
-      "sha256": "341d78036a8f999394e2af9721289cc42c0f1330b50acef7c60c9500003a30d3",
-      "source_blob_sha256": "341d78036a8f999394e2af9721289cc42c0f1330b50acef7c60c9500003a30d3",
+      "bytes": 64877,
+      "sha256": "93aa73b6602a6278bd740d5abdebd25c69e83cdd021f617bb818949834c51888",
+      "source_blob_sha256": "93aa73b6602a6278bd740d5abdebd25c69e83cdd021f617bb818949834c51888",
       "source_bytes_preserved": true
     },
     {
@@ -2689,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45255,
-      "sha256": "d01ec75a96c4709119f1f6c2f25ff7c3e62d2c0c9b412ff3f7129ea57c0fe931",
+      "bytes": 45236,
+      "sha256": "f441d67ee34d60c4bbf4eae38233e39afc2138ceb90feb3f9e0f85e51c8d8d01",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2710,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29535,
-      "sha256": "4ba35b68e98fdcf9e158ae9518d9280709cebaf79eb815ab4e5cfa83ee898cf3",
+      "bytes": 29605,
+      "sha256": "52e263ceba024a821ba69f8c95cce311d38bb76e9a4cedcc70476b317794b950",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3361,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3158,
-      "sha256": "1c374c024a54f8f50b9f1c65dc6ae4819c9988150250f211d27cd0ea63365726",
+      "bytes": 3207,
+      "sha256": "85790887e4d1952d2002edf9e857cd7439794acae2f2d0b56693a40fbc08d127",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3410,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 24853,
-      "sha256": "7e3e6a1492d7f4ae1565e39ab9bc3c6244aed04ff75ad83caa9ee93893504575",
+      "bytes": 24923,
+      "sha256": "e00d8a14b00ebb98cbfced90bf4eb9cd0b0cf6d72838ab92b72633b25d7548be",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4199,7 +4206,53 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "MINIMAL_DESIGN_REVIEW_AND_TDD_NOT_IMPLEMENTED_OR_NATIVE_ACCEPTED"
+    "reader_compatibility_next": "ADOPTED_CODE_AND_LOCAL_PREREQUISITES_PASS_FRESH_ACTUAL_CASE_PENDING",
+    "guard_owned_reader": {
+      "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
+      "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
+      "source_changed_files": 6,
+      "new_module": "crates/learning-backup/src/restore_preflight/target_binding/controlled_import/credential_reader.rs",
+      "code_review": "SPEC_PASS_QUALITY_PASS",
+      "independent_checks": 95,
+      "windows_credential_passed": 10,
+      "windows_fixture_golden_passed": 9,
+      "linux_frozen_package": {
+        "source_base_recorded": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
+        "scope": "BASE_PLUS_SIX_REVIEWED_RAW_FILES_BEFORE_ADOPTION",
+        "source_files": 546,
+        "exit_code": 0,
+        "fmt": "PASS",
+        "strict_clippy_lib_tests": "PASS",
+        "credential_passed": 10,
+        "diagnostics_passed": 11,
+        "full_contract_passed": 2,
+        "skipped": 0,
+        "raw_to_git_lf_join": "FIXTURE_SQL_CRLF_TO_LF_ONLY_OTHER_FIVE_BYTE_IDENTICAL",
+        "whole_old_resources_unchanged": true,
+        "source_unchanged": true,
+        "builder_removed": true,
+        "native_credit": 0
+      },
+      "exact_program_dummy_probe": {
+        "program_sha256": "8c47337ca47c11d2105c96817c6a8454df154adb29b1a4079384c0a96a9c70d5",
+        "cases": 7,
+        "accepted": 1,
+        "rejected": 6,
+        "no_pg_no_real_credentials": true,
+        "native_credit": 0
+      },
+      "fresh_actual_guard_secret_read_passed": false,
+      "fresh_actual_import_passed": false,
+      "native_credit": 0
+    },
+    "host_network_witness": {
+      "scope": "READ_ONLY_SINGLE_NEW_OUTER_ENDPOINT_HASH_INVERSE",
+      "independent_checks": 22,
+      "unique_changed_old_projection": "HOST_NETWORK_NEW_OUTER_ENDPOINT_ONLY",
+      "strict_old_gate_passed": false,
+      "rule_changed": false,
+      "native_credit": 0
+    }
   },
-  "source_capture_method": "PARENT_FIXED_GIT_LEDGER_PLUS_EXACT_FIVE_BLOBS_NEW_TREE_CLOSED"
+  "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_SIX_GIT_BLOBS_NEW_547_TREE_CLOSED"
 }
