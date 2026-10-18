@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-18",
   "source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
-  "previous_public_commit": "4df96df8697881ede1fee4af28099ae192e6cb11",
+  "previous_public_commit": "7117bc48cb789e9f28e61771eafb017f8997b43d",
   "source_archive_sha256": null,
   "source_manifest_sha256": "db5fe2f9ad24f053b0b2952923312dc5622ba500b3f9f8e6e1754e0234940a5e",
   "source_file_count": 548,
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112522,
-      "sha256": "973228aa49c8da9cba652df820dc3c921ac106027c7dc4c9f6b889aee4718545",
+      "bytes": 112565,
+      "sha256": "ff774cf35084b2d9e8c1a96eacd16a35b50f4030941f6cd672f7d8a716d0254b",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3909,
-      "sha256": "b15e8936cf9520602667f25c2eb3b71470aeccb6f099ede79879b46e67937384",
+      "bytes": 3940,
+      "sha256": "9b35f39c741615a8f30a3f00c5455b53aed9986f53c0288ab0cab739e990d68f",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45039,
-      "sha256": "022bbda760c15c3a8501e4cfe58185cd737830e9dd2e17f3cef686fde0d8efb1",
+      "bytes": 45088,
+      "sha256": "a8af1cb33b7bfc5e642c0d68896bb8e6ffc37fe9f3cc807e871b942c1008ab42",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29229,
-      "sha256": "08d952cb2149a4a3b6e62e5d398e2733ee40fdd19d154f8e5454274d673db6bc",
+      "bytes": 29491,
+      "sha256": "b65c3e0f02232e1687c6887fe113d8310fc6e9fe8b434c6bba3fba396c468814",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 2819,
-      "sha256": "aaa3b17b6d53875927c6aa7ceb7c8bbc30079f1ae2eb0bd0719339e4a0d1d0c3",
+      "bytes": 3103,
+      "sha256": "36ef25201cacc8d8395066b0c578b3615c3870c4e0ace397ae671efe69853dba",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 24547,
-      "sha256": "fb2e95ca3d1909cc056e33d7e4d792119379b65e931f9aaa3ba150099bcd1459",
+      "bytes": 24809,
+      "sha256": "630ef426bd402cf9b457bdea6d0eb87977f34eee8e60fd7a59659eac0c809009",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4029,7 +4029,7 @@
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
   "task5_current": {
-    "legacy_passed": 1,
+    "legacy_passed": 2,
     "legacy_total": 11,
     "full_passed": 0,
     "full_total": 9,
@@ -4092,7 +4092,7 @@
     },
     "production_helper_caps_attestation": false,
     "full_ops_fix": "LOCAL_REVIEW_PASS_BINDINGS_NATIVE_HOLD",
-    "current11_ops_scope": "One newly fixed c749 legacy success body and outer full protection accepted after independent review; only legacy1/11, full0/9; previous UNKNOWNs remain retained",
+    "current11_ops_scope": "Fresh success and ready-eof whole cases accepted after independent review; legacy2/11, full0/9; ready-restart has no credit and all previous UNKNOWNs retain status",
     "success_installation": {
       "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
       "originals": 202,
@@ -4213,7 +4213,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "LEGACY_SUCCESS_ACCEPTED_ONE_OF_ELEVEN_OTHER_LEGACY_AND_FULL_NINE_PENDING",
+    "reader_compatibility_next": "LEGACY_SUCCESS_AND_READY_EOF_ACCEPTED_TWO_OF_ELEVEN_READY_RESTART_RUNNING_NO_CREDIT_FULL_NINE_PENDING",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -4404,6 +4404,51 @@
       "native_full_credit": 0,
       "task5_complete": false,
       "complete_backup": false,
+      "all_new_audit_helpers_removed_claimed": false
+    },
+    "accepted_current11_cases": [
+      "success",
+      "ready-eof"
+    ],
+    "actual_ready_eof_c749d9e": {
+      "source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
+      "case_batch": "6c1de5d8-3c93-4811-9922-09ab9ad2c182",
+      "scope": "READY_EOF_EXPECTED_REJECTION_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE",
+      "test_exit_code": 0,
+      "exact_test_exit_code_field_present": false,
+      "rust_passed": 1,
+      "rust_failed": 0,
+      "rust_skipped": 0,
+      "rust_filtered": 451,
+      "rust_elapsed_seconds": 12.88,
+      "checkpoints": 12,
+      "receipt_failure": "Protocol",
+      "commit_attempted": false,
+      "rollback_verified": true,
+      "retry_allowed": false,
+      "intent_exists": false,
+      "attempt_exists": false,
+      "target_zero_objects_before_stop": true,
+      "content_sha256": null,
+      "persistent_result_sha256": "0eb0b0cb514a609785d44bb84ce34747807036241b20ee1402ec0239743015dc",
+      "status": "CONTROLLED_FIXTURE_IMPORT_EXPECTED_REJECTION_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE",
+      "source_stopped": true,
+      "target_stopped": true,
+      "volumes_retained": true,
+      "source_unchanged": true,
+      "outer_exit": 0,
+      "whole_old_container_network_volume_projection_equal": true,
+      "independent_assertions": 423,
+      "independent_assertions_are_not_native_test_count": true,
+      "independent_blocking_findings": 0,
+      "independent_report_sha256": "a24f771e50ccfc430faa5a74c44b81073d05499a1240f962514cc695a28aaa5f",
+      "independent_index_sha256": "699b44ed80b40419e49ab396276d0fb5456a73c65f31c9b7bf308ff317fdd2d2",
+      "native_legacy_credit": 1,
+      "native_full_credit": 0,
+      "task5_complete": false,
+      "complete_backup": false,
+      "own_audit_reader_removed": true,
+      "prior_success_audit_reader_created_retained": true,
       "all_new_audit_helpers_removed_claimed": false
     }
   },
