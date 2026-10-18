@@ -897,9 +897,9 @@ class ImportBackend(ContractBackend):
     def execute_import(self, case):
         context=getattr(self,'_controlled_context',None)
         if context is not None:
-            from p0c4_completion.controlled_fixture import ControlledFixtureContext,ControlledRejected
+            from p0c4_completion.controlled_fixture import ControlledFixtureContext,ControlledRejected,_validate_plan
             require(type(context) is ControlledFixtureContext,'Identity')
-            if case!='success':raise ControlledRejected('CONTROLLED_FIRST_SUCCESS_ONLY')
+            if type(case) is not str or case!=_validate_plan(context._plan)['case']:raise ControlledRejected('CONTROLLED_BACKEND_PLAN_CASE')
             context._runtime()
         self._budget()
         self.build_evidence['preflight'] = self._preflight_import_builder()

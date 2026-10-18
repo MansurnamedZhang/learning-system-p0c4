@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "date": "2026-10-18",
-  "source_commit": "ecf7b8eb14570973cb9252462a818896b360dbf4",
-  "previous_public_commit": "c69e373d1e635c5c22c8eac23f63c253acebb413",
-  "source_archive_sha256": "d1f4e461bb993390079e85cdd5c591ffee5f502155f3da5dc6ee4c873f87ab77",
-  "source_manifest_sha256": "d1f69091e8761b17ad507acb3cde7fa48c72f7b545f2673a426296b386103eac",
-  "source_file_count": 542,
+  "source_commit": "8bbbce6e69acbafcbc8c00137d8e6b310ccf2158",
+  "previous_public_commit": "404691071451df24b19ad9710e94e0b4575cdfd9",
+  "source_archive_sha256": "cbfc44316b748ba88ade7f5df2d1e45318a25a66d9fa70e6e92db7df87e0c121",
+  "source_manifest_sha256": "8224141022bafc99649319a2de8707ac17bf4389f84fbeb24e246a99d65aec86",
+  "source_file_count": 544,
   "excluded_source_files": [
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112278,
-      "sha256": "a21e376060e48e9f4b8e5d0f74f342b2220895226d4c99e4cb413ab657108e13",
+      "bytes": 112373,
+      "sha256": "dd72b41caeb8e2c150cf4d1a56932f898c023ff3cd7727b4532b89a4e30f67b2",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3902,
-      "sha256": "af412890673ad49c73d57440cf7d8ae8deb14a91bd24c2ed8157190fec8451b9",
+      "bytes": 3959,
+      "sha256": "6c80515f0c24fde8aa8da5810bf154d94fb28e9b856c9ddcce17cdd246b4b514",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2689,8 +2689,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 44896,
-      "sha256": "93c0160c7133d2cd2eb50a9b9cc7ddadb414a3f7a734b780413c4884ca929ab3",
+      "bytes": 44890,
+      "sha256": "6b62bafce799d266111fd8a8c495fe6361a5febcef169bf33e7c6ed3d47b921e",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2710,8 +2710,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 28489,
-      "sha256": "9b5afb7935dfa9c44b3669ba8f89b21f5ffa76bc70619998f2aa8e1b24f9e195",
+      "bytes": 29562,
+      "sha256": "83f5a1f1a2f4b74c5d10b27e6c75aa00906665eb4a1decba0e69fc6cfea89304",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3165,15 +3165,15 @@
     },
     {
       "path": "docs/p0c4-controlled-import-acceptance.md",
-      "bytes": 44249,
-      "sha256": "d68ba283772cc846e0a0625440130724cc75ab409f5bae777cdb22b2e112b9c6",
+      "bytes": 44233,
+      "sha256": "0cd3fc94b4e75c7137ad3ec8614232a7d626c2151db838143ab015b9bb9849f1",
       "source_blob_sha256": "92d2953a9916f29bd762796558bf018c20e1b1f2c3c2168e0af3174dd45c0423",
       "source_bytes_preserved": false
     },
     {
       "path": "docs/p0c4-controlled-import-contract-acceptance.md",
-      "bytes": 39032,
-      "sha256": "1c584ceba9bdc19fb969d3d3963633707196f66f2737543d825deee2b3338da1",
+      "bytes": 39016,
+      "sha256": "2a520d6eda5fbb3b67cde9f18ef7dd16db72f399703046f06a108e527e1241b5",
       "source_blob_sha256": "2d676bc1cfdbeae9d79ead0d46fc451eb3f2722c4e13c300751bad3d36c40dce",
       "source_bytes_preserved": false
     },
@@ -3249,8 +3249,8 @@
     },
     {
       "path": "docs/p0c4-verification.md",
-      "bytes": 159897,
-      "sha256": "8db7bbc139e2f3d1349bb82a7e6479f21946b2eafc3e73cfd082d801d6836fc7",
+      "bytes": 159881,
+      "sha256": "ea6fe6be306c198172473eacc1aa91c83beb720149422d8b2bee9a87203979e4",
       "source_blob_sha256": "2ce59f9ce1c88aa3ae79eadba6e54875188605ce6f6966e4c5a29956b19ee7a1",
       "source_bytes_preserved": false
     },
@@ -3361,8 +3361,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 2082,
-      "sha256": "51b334a63fa023096666766633759f2c8983f895a6e7b4522f82826afd36fb79",
+      "bytes": 3146,
+      "sha256": "0c140c927d9b94a77d75cc10dc522c24138b8a7cac81917870affd2f38a7ae7d",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3410,8 +3410,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 23807,
-      "sha256": "9df700822bd62b36742d07c1c7ddba2a6491e11e50b09e5be93746cad91bcf5d",
+      "bytes": 24880,
+      "sha256": "94d39e074a7cc189df8625b0cf2b3ea4089e8580963cb245e923cc86e87662be",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3550,9 +3550,9 @@
     },
     {
       "path": "scripts/p0c4_completion/controlled_fixture.py",
-      "bytes": 87479,
-      "sha256": "42bf5ece76bd675fb216469e1585016d00cdbd9c1dc5bda4405a55cf6087745a",
-      "source_blob_sha256": "42bf5ece76bd675fb216469e1585016d00cdbd9c1dc5bda4405a55cf6087745a",
+      "bytes": 89052,
+      "sha256": "e47e2ce5f1ebc009ad1c78a63c60ed3ba7b945631dffc0d0648a5ffbec5848af",
+      "source_blob_sha256": "e47e2ce5f1ebc009ad1c78a63c60ed3ba7b945631dffc0d0648a5ffbec5848af",
       "source_bytes_preserved": true
     },
     {
@@ -3620,9 +3620,9 @@
     },
     {
       "path": "scripts/p0c4_controlled_import_acceptance.py",
-      "bytes": 68451,
-      "sha256": "82765b294e54f06b68deaad5e201a545bd6c227db9f7d3c76cc012beb41147e8",
-      "source_blob_sha256": "82765b294e54f06b68deaad5e201a545bd6c227db9f7d3c76cc012beb41147e8",
+      "bytes": 68518,
+      "sha256": "d92558e3479fa73db962779e69ca48487be50bbc7d61d4dbc14b2df3fa6be67a",
+      "source_blob_sha256": "d92558e3479fa73db962779e69ca48487be50bbc7d61d4dbc14b2df3fa6be67a",
       "source_bytes_preserved": true
     },
     {
@@ -3801,10 +3801,17 @@
       "source_bytes_preserved": true
     },
     {
+      "path": "scripts/test_p0c4_controlled_finite_cases.py",
+      "bytes": 12539,
+      "sha256": "67c4006529990e3570978d54c2ecbc5e52c6ce149269db502cdb480cbb587b22",
+      "source_blob_sha256": "67c4006529990e3570978d54c2ecbc5e52c6ce149269db502cdb480cbb587b22",
+      "source_bytes_preserved": true
+    },
+    {
       "path": "scripts/test_p0c4_controlled_fixture_context.py",
-      "bytes": 49225,
-      "sha256": "eed797bebc0f24600f5fab89fbb4061974c8eac0534f70bcd37ce87322961da9",
-      "source_blob_sha256": "eed797bebc0f24600f5fab89fbb4061974c8eac0534f70bcd37ce87322961da9",
+      "bytes": 55074,
+      "sha256": "dc2de2cbe77b37a34b56beeb84a6d7ad6f2f7d923f349131e6e41bf25f72fb95",
+      "source_blob_sha256": "dc2de2cbe77b37a34b56beeb84a6d7ad6f2f7d923f349131e6e41bf25f72fb95",
       "source_bytes_preserved": true
     },
     {
@@ -3812,6 +3819,13 @@
       "bytes": 92466,
       "sha256": "ca5ba6c61d085a37a329ed330d44cdddba5bf35c1128582d1040c3c0bf14dae0",
       "source_blob_sha256": "ca5ba6c61d085a37a329ed330d44cdddba5bf35c1128582d1040c3c0bf14dae0",
+      "source_bytes_preserved": true
+    },
+    {
+      "path": "scripts/test_p0c4_controlled_ready_restart.py",
+      "bytes": 13637,
+      "sha256": "4e95a2e3d517974e64607fce1a3790aae7ee8d555ab09100a7fa9003a5fa62e2",
+      "source_blob_sha256": "4e95a2e3d517974e64607fce1a3790aae7ee8d555ab09100a7fa9003a5fa62e2",
       "source_bytes_preserved": true
     },
     {
@@ -3991,6 +4005,53 @@
     "legacy_total": 11,
     "full_passed": 0,
     "full_total": 9,
-    "focused_local_passed": 15
+    "protected_entries_implemented": 10,
+    "protected_entries_total": 11,
+    "physical_clone": "WIP_NOT_EXPORTED",
+    "finite_local": {
+      "run": 204,
+      "passed": 154,
+      "skipped": 50,
+      "adapter_passed": 4
+    },
+    "restart_local": {
+      "run": 155,
+      "passed": 119,
+      "skipped": 36,
+      "adapter_passed": 4,
+      "legacy_compat_passed": 3
+    },
+    "windows_python_full": {
+      "run": 658,
+      "passed": 575,
+      "skipped": 75,
+      "errors": 8,
+      "status": "NOT_GREEN"
+    },
+    "linux_unit_8bbbce6": {
+      "run": 81,
+      "passed": 80,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 1,
+      "ssh_exit": 0,
+      "status": "UNIT_PASS_NOT_NATIVE_IMPORT",
+      "operator_fixture_caps": [
+        "CHOWN",
+        "DAC_OVERRIDE"
+      ],
+      "production_helper_caps_attestation": false,
+      "complete_originals_independent_review": "PENDING_SEPARATE_RECORD",
+      "prior_rootfs3": {
+        "run": 81,
+        "passed": 73,
+        "errors": 6,
+        "failures": 1,
+        "skipped": 1,
+        "exit_code": 1
+      },
+      "prior_operator_batch": "UNIT_PASS_OUTER_PROTECTION_REJECTED_RETAINED"
+    },
+    "full_ops_fix": "LOCAL_REVIEW_PASS_BINDINGS_NATIVE_HOLD"
   }
 }

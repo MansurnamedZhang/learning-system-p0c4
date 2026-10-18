@@ -233,6 +233,84 @@ class NativeContextTests(unittest.TestCase):
         self.context=self.context_module._mint_from_backend(self.backend)
         return self.context
 
+    def test_actual_negative_plan_mints_only_matching_case_and_original_held_install(self):
+        self.plan.update(capability='c4_current11_two_role_case_plan_v1',case='commit-unknown',
+            budget_profile='controlled_fixture_two_role_fixed_case_v1')
+        plan_path=self.suite/'current11/plan.json'
+        plan_path.write_bytes(self.context_module._canonical(self.plan))
+        install_path=self.suite/'current11/install.json'
+        record=json.loads(install_path.read_bytes());record['budget_profile']=self.plan['budget_profile']
+        install_path.write_bytes(self.context_module._canonical(record))
+        original_plan_inode=os.stat(plan_path).st_ino
+        for wrong in ('success','sql-error','ready-restart','wrong-endpoint'):
+            self.args.case=wrong
+            with self.subTest(case=wrong),self.assertRaisesRegex(self.context_module.ControlledRejected,'CONTROLLED_BACKEND_PLAN'):
+                self.context_module._mint_from_backend(self.backend)
+            self.assertFalse((self.backend.batch/'context.minted').exists())
+            self.assertFalse((self.suite/'current11/cache').exists())
+        self.args.case='commit-unknown';context=self.mint();context._alive()
+        self.assertEqual(context._plan,self.plan)
+        self.assertEqual(context._install.plan_pin['ino'],original_plan_inode)
+        self.assertEqual(os.fstat(context._install.suite_fd).st_ino,os.stat(self.suite).st_ino)
+        self.assertEqual(os.fstat(context._install.source_fd).st_ino,os.stat(self.backend.source).st_ino)
+        with self.assertRaises(self.context_module.ControlledRejected):self.backend.execute_import('success')
+        with self.assertRaises(self.context_module.ControlledRejected):context._execute_body()
+        self.assertFalse((self.backend.batch/'body.dispatched').exists())
+        self.assertEqual(self.backend.resources,[])
+
+    def test_issuer_wrong_case_or_install_profile_rejects_before_plan_or_log_writes(self):
+        bootstrap=self.suite/'current11/bootstrap/scripts/p0c4_completion/controlled_fixture.py'
+        spec=importlib.util.spec_from_file_location('finite_bootstrap_issuer_unit',bootstrap)
+        issuer=importlib.util.module_from_spec(spec);spec.loader.exec_module(issuer)
+        # This test's disposable Suite is unissued, and still has its original
+        # exact private installation record and archive bytes.
+        plan_path=self.suite/'current11/plan.json';plan_path.unlink()
+        install_path=self.suite/'current11/install.json';raw=install_path.read_bytes()
+        for invalid in ('wrong-endpoint','unknown',True,[]):
+            with self.subTest(invalid=invalid),self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_FIXED_CASE_ONLY'):
+                issuer._mint_plan_from_install(invalid)
+        with self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):
+            issuer._mint_plan_from_install('ready-eof')
+        with self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):
+            issuer._mint_plan_from_install('ready-restart')
+        record=json.loads(raw);record['budget_profile']='controlled_fixture_two_role_fixed_case_v1'
+        install_path.write_bytes(issuer._canonical(record))
+        with self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):
+            issuer._mint_plan_from_install()
+        with self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):
+            issuer._mint_plan_from_install('ready-restart')
+        for name in ('plan.json','plan-logs','plan-routes.bin','plan-routes.json','cache'):
+            self.assertFalse((self.suite/'current11'/name).exists())
+        self.assertFalse((self.backend.batch/'context.minted').exists())
+
+    def test_actual_restart_mint_requires_exact_install_and_preserves_original_fds(self):
+        self.plan.update(capability='c4_current11_ready_restart_plan_v1',case='ready-restart',
+            budget_profile='controlled_fixture_two_role_ready_restart_v1')
+        plan_path=self.suite/'current11/plan.json'
+        plan_path.write_bytes(self.context_module._canonical(self.plan))
+        install_path=self.suite/'current11/install.json'
+        record=json.loads(install_path.read_bytes());self.args.case='ready-restart'
+        with self.assertRaisesRegex(self.context_module.ControlledRejected,'CONTROLLED_PLAN_INSTALL_BINDING'):
+            self.context_module._mint_from_backend(self.backend)
+        self.assertFalse((self.backend.batch/'context.minted').exists())
+        record['budget_profile']=self.plan['budget_profile']
+        install_path.write_bytes(self.context_module._canonical(record))
+        original_plan_inode=os.stat(plan_path).st_ino
+        for wrong in ('success','ready-eof','wrong-endpoint'):
+            self.args.case=wrong
+            with self.assertRaisesRegex(self.context_module.ControlledRejected,'CONTROLLED_BACKEND_PLAN'):
+                self.context_module._mint_from_backend(self.backend)
+        self.args.case='ready-restart';context=self.mint();context._alive()
+        self.assertEqual(context._install.plan_pin['ino'],original_plan_inode)
+        self.assertEqual(os.fstat(context._install.suite_fd).st_ino,os.stat(self.suite).st_ino)
+        self.assertEqual(os.fstat(context._install.source_fd).st_ino,os.stat(self.backend.source).st_ino)
+        for wrong in ('success','ready-eof','wrong-endpoint'):
+            with self.assertRaises(self.context_module.ControlledRejected):self.backend.execute_import(wrong)
+        with self.assertRaises(self.context_module.ControlledRejected):context._execute_body()
+        self.assertFalse(context._body_used)
+        self.assertFalse((self.backend.batch/'body.dispatched').exists())
+        self.assertEqual(self.backend.resources,[])
+
     def test_actual_dual_package_mint_holds_original_fds_and_is_not_reconstructible(self):
         import pickle
         context=self.mint()
@@ -361,9 +439,9 @@ class NativeContextTests(unittest.TestCase):
         self.assertFalse((self.suite/'current11/cache').exists())
         self.assertEqual(context._compiled,{})
 
-    def test_backend_rejects_other_ten_before_budget_or_native_body(self):
+    def test_backend_rejects_wrong_plan_case_before_budget_or_native_body(self):
         self.mint()
-        for case in set(self.runner.IMPORT_CASES)-{'success'}:
+        for case in [*(set(self.runner.IMPORT_CASES)-{'success'}),'unknown',True]:
             with self.subTest(case=case),self.assertRaises(self.context_module.ControlledRejected):
                 self.backend.execute_import(case)
         self.assertEqual(self.backend.resources,[])

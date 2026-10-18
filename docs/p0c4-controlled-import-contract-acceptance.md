@@ -128,7 +128,7 @@ bash <server-user-home>/knowweave-c4-source-pin-b1a18043-2ae0-4f8b-a8eb-8a911206
 
 命令末尾回传 A／B 的 JSON 摘要和 `SOURCE_PIN_RUN_EXIT`。失败即停，不在同一批次重跑。新源／目标 UUID 为 `81e27cfc-a51b-4009-81fe-b4158467f3af`／`a9720b7d-ed0c-4112-8554-523d65baa4ed`，拟用子网 `10.253.134.0/24`／`10.253.135.0/24`，运行时再次检查路径、项目和子网未占用。
 
-封存 ZIP SHA-256 `9e73c9665604b348436f39f62117dce02e02629b4a988bacb2f494a70a6c5c82`；新交接记录 `real-import-source-pin-runtime-handoff.json` SHA-256 `40dc74bfbb67dffdf78a850c38adc1e017b295c1aa857c94936f39184dc7f5ff`；可变进度账本为 `.superpowers/sdd/2026-09-30-p0c4-controlled-import/task6-live-gates-status.json`。
+封存 ZIP SHA-256 `9e73c9665604b348436f39f62117dce02e02629b4a988bacb2f494a70a6c5c82`；新交接记录 `real-import-source-pin-runtime-handoff.json` SHA-256 `40dc74bfbb67dffdf78a850c38adc1e017b295c1aa857c94936f39184dc7f5ff`；历史原始验收记录未随公开快照发布，不能据此视为当前补验通过。
 
 以下保留各轮当时的状态、待运行提示和失败证据，以本页“当前状态”为最新口径。
 

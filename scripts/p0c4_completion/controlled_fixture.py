@@ -1,4 +1,4 @@
-"""Private current-source, fixed-success orchestration; no restore authority.
+"""Private current-source, finite-case orchestration; no restore authority.
 
 Plans bind one reviewed installation. Live creation authority stays with the
 shared native owner fd/flock. This module has no general plan or command CLI.
@@ -26,6 +26,12 @@ _ACTOR_ENV=['PYTHONDONTWRITEBYTECODE=1','PATH=/usr/local/cargo/bin:/usr/local/sb
 
 _TOKEN=object()
 _RUNTIME_ADMITTED=object()
+_NEGATIVE_CASES=('ready-eof','precommit-eof','precommit-cancel','sql-error','copy-truncated',
+    'attempt-sync-failure','commit-intent-sync-failure','commit-unknown')
+_SUCCESS_PROFILE='controlled_fixture_two_role_first_success_v1'
+_CASE_PROFILE='controlled_fixture_two_role_fixed_case_v1'
+_RESTART_PROFILE='controlled_fixture_two_role_ready_restart_v1'
+_FIXED_CASES=(*_NEGATIVE_CASES,'ready-restart')
 _BUILDER='sha256:fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b'
 _POSTGRES='postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d'
 _PLAN_KEYS={'format_version','capability','case','batch_id','source_case_id','target_case_id','cache_scope',
@@ -49,9 +55,15 @@ def _v4(value):
     try:return type(value) is str and str(uuid.UUID(value))==value and uuid.UUID(value).version==4
     except (ValueError,TypeError,AttributeError):return False
 
+def _case_contract(case):
+    _require(type(case) is str and case in ('success',*_FIXED_CASES),'CONTROLLED_FIXED_CASE_ONLY')
+    if case=='ready-restart':return 'c4_current11_ready_restart_plan_v1',_RESTART_PROFILE
+    return ('c4_current11_first_success_plan_v1',_SUCCESS_PROFILE) if case=='success' else ('c4_current11_two_role_case_plan_v1',_CASE_PROFILE)
+
 def _validate_plan(value):
     _require(type(value) is dict and set(value)==_PLAN_KEYS,'CONTROLLED_PLAN_FIELDS')
-    _require(type(value['format_version']) is int and value['format_version']==1 and value['capability']=='c4_current11_first_success_plan_v1' and type(value['case']) is str and value['case']=='success' and value['budget_profile']=='controlled_fixture_two_role_first_success_v1','CONTROLLED_FIRST_SUCCESS_ONLY')
+    capability,profile=_case_contract(value['case'])
+    _require(type(value['format_version']) is int and value['format_version']==1 and value['capability']==capability and value['budget_profile']==profile,'CONTROLLED_CASE_PROFILE')
     keys=('batch_id','source_case_id','target_case_id','cache_scope')
     _require(all(_v4(value[k]) for k in keys) and len({value[k] for k in keys})==4,'CONTROLLED_FRESH_IDENTITIES')
     _require(value['builder']==_BUILDER and value['postgres']==_POSTGRES,'CONTROLLED_FIXED_IMAGES')
@@ -97,7 +109,7 @@ def _read_install(suite):
     raw,pin=_private_bytes(Path(suite)/'current11/install.json',16384,0o400)
     value=json.loads(raw,object_pairs_hook=_pairs)
     _require(type(value) is dict and set(value)==_INSTALL_KEYS and raw==_canonical(value) and type(value['format_version']) is int and value['format_version']==1 and value['capability']=='c4_current11_install_v1','CONTROLLED_INSTALL_RECORD')
-    _require(type(value['source_commit']) is str and re.fullmatch('[0-9a-f]{40}',value['source_commit']) is not None and value['builder']==_BUILDER and value['postgres']==_POSTGRES and value['budget_profile']=='controlled_fixture_two_role_first_success_v1','CONTROLLED_INSTALL_FIXED_SOURCE')
+    _require(type(value['source_commit']) is str and re.fullmatch('[0-9a-f]{40}',value['source_commit']) is not None and value['builder']==_BUILDER and value['postgres']==_POSTGRES and value['budget_profile'] in (_SUCCESS_PROFILE,_CASE_PROFILE,_RESTART_PROFILE),'CONTROLLED_INSTALL_FIXED_SOURCE')
     _require(all(type(value[k]) is str and re.fullmatch('[0-9a-f]{64}',value[k]) is not None for k in _INSTALL_KEYS if k.endswith('_sha256')),'CONTROLLED_INSTALL_PINS')
     return value,pin
 
@@ -109,16 +121,18 @@ def _choose_subnets(occupied):
     _require(len(candidates)>=2,'CONTROLLED_FRESH_SUBNET_CAPACITY')
     return candidates[:2]
 
-def _mint_plan_from_install():
+def _mint_plan_from_install(case='success'):
     """One fixed read-only daemon preflight followed by an O_EXCL plan.
 
     This private Ops hook consumes the sealed installed source closure. Its
     metadata is not creation authority; the native owner is minted later.
     """
+    capability,profile=_case_contract(case)
     source=Path(__file__).resolve().parents[2]
     match=re.fullmatch(r'(/var/lib/docker/volumes/kwc4c-suite-[0-9a-f]{32}/_data)/current11/bootstrap',str(source))
     _require(match is not None,'CONTROLLED_FIXED_BOOTSTRAP')
     suite=Path(match[1]);record,_=_read_install(suite)
+    _require(record['budget_profile']==profile,'CONTROLLED_PLAN_INSTALL_PROFILE')
     _require(not os.path.lexists(suite/'current11/plan.json') and not os.path.lexists(suite/'current11/plan-logs'),'CONTROLLED_PLAN_REPLAY')
     import p0c4_source_admission_gate_acceptance as admission
     from p0c4_completion import resources
@@ -148,7 +162,7 @@ def _mint_plan_from_install():
     occupied.extend(row['dst'] for row in routes)
     source_subnet,target_subnet=_choose_subnets(occupied)
     ids=[str(uuid.uuid4()) for _ in range(4)]
-    plan=dict(format_version=1,capability='c4_current11_first_success_plan_v1',case='success',batch_id=ids[0],source_case_id=ids[1],target_case_id=ids[2],cache_scope=ids[3],source_subnet=source_subnet,target_subnet=target_subnet,**{k:record[k] for k in ('source_commit','public_archive_sha256','public_manifest_sha256','legacy_archive_sha256','legacy_manifest_sha256','builder','postgres','budget_profile')})
+    plan=dict(format_version=1,capability=capability,case=case,batch_id=ids[0],source_case_id=ids[1],target_case_id=ids[2],cache_scope=ids[3],source_subnet=source_subnet,target_subnet=target_subnet,**{k:record[k] for k in ('source_commit','public_archive_sha256','public_manifest_sha256','legacy_archive_sha256','legacy_manifest_sha256','builder','postgres','budget_profile')})
     _validate_plan(plan);_require(admission.source_digest(source,manifest) is not None,'CONTROLLED_PLAN_SOURCE_AFTER')
     path=suite/'current11/plan.json';fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600)
     try:
@@ -158,7 +172,7 @@ def _mint_plan_from_install():
     try:os.fsync(parent)
     finally:os.close(parent)
     observed,pin=_read_plan(path);_require(observed==plan,'CONTROLLED_PLAN_READBACK')
-    return dict(scope='FRESH_FIRST_SUCCESS_PLAN_NOT_CREATION_AUTHORITY',plan_sha256=pin['sha256'],plan=observed)
+    return dict(scope='FRESH_FIRST_SUCCESS_PLAN_NOT_CREATION_AUTHORITY' if case=='success' else 'FRESH_FIXED_CASE_PLAN_NOT_CREATION_AUTHORITY',plan_sha256=pin['sha256'],plan=observed)
 
 def _verify_tools(suite):
     raw,_=_private_bytes(Path(suite)/'current11/tool-pins.json',4096,0o400)
@@ -299,6 +313,7 @@ def _actor_diagnostic_program(suite):
 def _actor_main_contract(suite):
     adapter=str(Path(suite)/'current11/adapter.py')
     if sys.argv in ([adapter,'--fixed-prepare-plan'],[adapter,'--fixed-success']):return 'python3',['-B','-u',*sys.argv]
+    if len(sys.argv)==3 and sys.argv[0]==adapter and sys.argv[1] in ('--fixed-prepare-case','--fixed-run-case') and type(sys.argv[2]) is str and sys.argv[2] in _FIXED_CASES:return 'python3',['-B','-u',*sys.argv]
     _require(sys.argv==['-c'],'CONTROLLED_ACTOR_FIXED_MAIN_ONLY')
     return _actor_interpreter(),['-I','-S','-B','-u','-c',_actor_diagnostic_program(suite)]
 
@@ -964,7 +979,9 @@ class ControlledFixtureContext:
         _require(not self._body_used and set(self._sides)=={'source','target'} and 'live' in self._compiled,'CONTROLLED_LIVE_COMPILE_REQUIRED')
         build=self._compiled['live']
         _require(build['source_birth_sha256']==self._sides['source']['status']['birth_sha256'] and build['target_birth_sha256']==self._sides['target']['status']['birth_sha256'] and build['source_birth_sha256']!=build['target_birth_sha256'] and '0'*64 not in (build['source_birth_sha256'],build['target_birth_sha256']),'CONTROLLED_ACTUAL_DISTINCT_BIRTH_PINS')
-        self._backend.helper._private_write(self._backend.batch/'body.dispatched',_canonical(dict(scope='EXACT_SUCCESS_BODY_DISPATCHED_NOT_ACCEPTANCE',binary_sha256=build['binary_sha256'])))
+        import p0c4_controlled_import_acceptance as runner
+        case=_validate_plan(self._plan)['case']
+        self._backend.helper._private_write(self._backend.batch/'body.dispatched',_canonical(dict(scope='EXACT_SUCCESS_BODY_DISPATCHED_NOT_ACCEPTANCE' if case=='success' else 'EXACT_FIXED_CASE_BODY_DISPATCHED_NOT_ACCEPTANCE',case=case,exact_test=runner._import_test_command('',case)[2],binary_sha256=build['binary_sha256'])))
         self._body_used=True
         return self._native('body')
 
@@ -995,6 +1012,15 @@ def _native_snapshot():
     return dict(daemon_id=target._docker('info','--format','{{.ID}}').strip(),
         containers=target._inspect('container',containers),networks=target._inspect('network',networks),
         volumes=target._inspect('volume',volumes),routes=[r['dst'] for r in resources.sample_host_routes()[0]])
+
+def _run_native_body(runner,delegate,source,batch,plan,binary):
+    """Fixed consumer of the already pinned plan; no creation authority."""
+    case=_validate_plan(plan)['case']
+    env={'PATH':'/usr/bin:/bin','HOME':str(batch),'LC_ALL':'C','TMPDIR':str(batch/'tmp'),'TMP':str(batch/'tmp'),'TEMP':str(batch/'tmp'),
+         'KNOWWEAVE_C4_IMPORT_CASE':case,'KNOWWEAVE_C4_IMPORT_SOURCE_ROOT':str(batch/'source-control'/'targets'/plan['source_case_id']),
+         'KNOWWEAVE_C4_IMPORT_TARGET_ROOT':str(batch/'target-control'/'targets'/plan['target_case_id']),
+         'KNOWWEAVE_C4_IMPORT_ARTIFACT_ROOT':str(batch/'artifacts')}
+    return delegate._run_bounded(runner._import_test_command(binary,case),cwd=source,env=env,timeout=360,limit=64*1024)
 
 def _native_main(operation):
     """Only three fixed native commands; no input files/commands/SQL in argv."""
@@ -1038,18 +1064,14 @@ def _native_main(operation):
     compiler,_=_private_bytes(build_root/'compiler.jsonl',16*1024**2,0o600)
     _require(source_candidate['birth_sha256']!=target_candidate['birth_sha256'] and '0'*64 not in (source_candidate['birth_sha256'],target_candidate['birth_sha256']),'CONTROLLED_NATIVE_COMPILE_BINDING')
     binary,build=_read_materialized(build_root,compiler+b'CURRENT11_MATERIALIZED\t'+receipt+b'\n',source_candidate['birth_sha256'],target_candidate['birth_sha256'],suite/'current11/cache'/plan['cache_scope'])
-    env={'PATH':'/usr/bin:/bin','HOME':str(batch),'LC_ALL':'C','TMPDIR':str(batch/'tmp'),'TMP':str(batch/'tmp'),'TEMP':str(batch/'tmp'),
-         'KNOWWEAVE_C4_IMPORT_CASE':'success','KNOWWEAVE_C4_IMPORT_SOURCE_ROOT':str(batch/'source-control'/'targets'/plan['source_case_id']),
-         'KNOWWEAVE_C4_IMPORT_TARGET_ROOT':str(batch/'target-control'/'targets'/plan['target_case_id']),
-         'KNOWWEAVE_C4_IMPORT_ARTIFACT_ROOT':str(batch/'artifacts')}
-    process=delegate._run_bounded(runner._import_test_command(binary,'success'),cwd=source,env=env,timeout=360,limit=64*1024)
+    process=_run_native_body(runner,delegate,source,batch,plan,binary)
     _require(_digest(_private_bytes(binary,128*1024**2,0o500)[0])==build['binary_sha256'],'CONTROLLED_NATIVE_BINARY_CHANGED')
     _require(admission.source_digest(source,manifest)==source_hash,'CONTROLLED_NATIVE_SOURCE_CHANGED')
     sys.stdout.buffer.write(process.stdout);sys.stderr.buffer.write(process.stderr)
     return process.returncode
 
 def _mint_from_backend(backend):
-    """Called only by the fixed sealed Ops success entry after legacy admission."""
+    """Called only by the fixed sealed Ops case entry after legacy admission."""
     import p0c4_controlled_import_acceptance as runner
     _require(type(backend) is runner.ImportBackend and getattr(backend,'_controlled_context',None) is None,'CONTROLLED_EXACT_BACKEND')
     _require(sys.platform=='linux' and os.geteuid()==0 and not backend.resources and backend.verify_source(),'CONTROLLED_FRESH_BACKEND')
@@ -1060,7 +1082,7 @@ def _mint_from_backend(backend):
     _,adapter_pin=_private_bytes(suite/'current11/adapter.py',128*1024,0o500)
     _require(adapter_pin['sha256']==record['adapter_sha256'] and all(value[k]==record[k] for k in ('source_commit','public_archive_sha256','public_manifest_sha256','legacy_archive_sha256','legacy_manifest_sha256','builder','postgres','budget_profile')),'CONTROLLED_PLAN_INSTALL_BINDING')
     args=backend.args
-    _require(value['batch_id']==match[3]==args.batch_id and value['source_case_id']==args.source_batch_id and value['target_case_id']==args.target_batch_id and value['source_subnet']==args.source_subnet and value['target_subnet']==args.target_subnet and args.case==value['case']=='success' and args.phase=='import','CONTROLLED_BACKEND_PLAN')
+    _require(value['batch_id']==match[3]==args.batch_id and value['source_case_id']==args.source_batch_id and value['target_case_id']==args.target_batch_id and value['source_subnet']==args.source_subnet and value['target_subnet']==args.target_subnet and type(args.case) is str and args.case==value['case'] and args.phase=='import','CONTROLLED_BACKEND_PLAN')
     _require(value['source_commit']==args.commit==backend.manifest['commit'] and value['legacy_archive_sha256']==args.archive_sha256 and value['legacy_manifest_sha256']==args.manifest_sha256,'CONTROLLED_LEGACY_PACKAGE')
     _require(args.archive==suite/'incoming'/'source-legacy.zip','CONTROLLED_FIXED_ARCHIVE_PATH')
     checked,_=backend.helper.verify_archive(args.archive,args.archive_sha256,args.manifest_sha256,args.commit)
