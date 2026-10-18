@@ -1030,6 +1030,9 @@ class ImportBackend(ContractBackend):
         self._isolation_deadline()
         discovery_failed = False
         context=getattr(self,'_controlled_context',None)
+        if context is not None and context._plan['case']=='wrong-endpoint' and context._body_used:
+            from p0c4_completion.controlled_clone import _stop_owned_clone
+            return _stop_owned_clone(context)
         if self.clone_record is not None and self.clone_record['container_id'] is None:
             # Current clone custody never comes from post-hoc name discovery.
             if context is not None:raise ImportRejected('UnconfirmedIsolation')

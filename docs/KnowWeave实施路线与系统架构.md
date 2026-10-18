@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-> Task5当前三项验收（2026-10-18，c749d9e）：success＋ready-eof＋ready-restart累计legacy3/11，full0/9。新ready-restart真实Rust 1 PASS，Identity/12checkpoint、RESTART_BEFORE_DDL/OLD_GUARD_REJECTED/DDL_NOT_SENT，未commit、rollback=false不声明回滚成功，双marker不存在。Python隔离闭合、outer exit0且旧C/N/V完整投影相同；其余门未计信用，旧UNKNOWN保留，Task5整体OPEN，Task2关闭、C4OPEN。
+> Task5当前代码与验收（2026-10-18）：clone隔离cb42122三文件按v3.1有限合同采纳、SPEC/QUALITY无阻塞，raw包Linux170/170 unit通过。历史native birth/devino与当前Docker/control-root custody分开，不提供post-body mother fresh PG inode或host同路径替换检测；新source包仅本地静态就绪，运维绑定/真实wrong-endpoint待完成。当前native三项仍来自c749d9e：success＋ready-eof＋ready-restart＝legacy3/11、full0/9；Task5/C4 OPEN，Task2关闭。
 
 更新：2026-10-18。当前状态：C4 补验中 · Task2代码与单机补验收尾完成 · 同包准入5/5、绑定4+2、端点新5/5、life8/8 · Task5当前0/11 · 整关OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
@@ -104,7 +104,7 @@ flowchart LR
 | Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN、旧5/5预算和Task5当前0/11保持；Task6–9及C4整关仍开放，无CompleteBackup和生产部署。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | success＋ready-eof＋ready-restart已接受；legacy3/11、full0/9，Task5整体OPEN | 新c749d9e ready-restart整轮预期拒绝获独审接受：真实Rust 1 PASS／0 FAIL／0 skip、11.07秒，Identity/12checkpoint、重启后旧guard拒绝且DDL从未发送；commit=False/rollback=False/retry=False，双marker不存在，不授content提交或回滚成功信用。 源/目标停止、volume保留，outer exit0、source字节和全部旧C/N/V投影保持。累计仅success＋ready-eof＋ready-restart：legacy3/11/full0/9；剩余编排未激活/clone未采纳不授信用，旧UNKNOWN与Task2账目保持，异机存储及C4仍待验。 |
+| Task 5 · 受控整库导入与原件恢复 | clone代码cb42122已采纳/170 unit通过；native仍c749三项3/11、full0/9 | clone隔离三文件按Root v3.1有限合同获独审批准：handoff/strict release/部分失败custody修正及原15秒预算闭合，Linux170/170无skip；新canonical包已本地静态生成，运维绑定及真实wrong-endpoint验收待完成，不加native信用。 stop重新观察当前exact Docker身份和原control-root/owner custody，native devino仅历史绑定；排除post-body mother fresh PG/PGDATA inode重测与host同路径替换检测，正常Rust返回后的clone检查不泛化异常路径或三角色postcheck。旧c749 accepted三项/UNKNOWN及完整outer保护保持，legacy3/11/full0/9，Task5及C4仍OPEN。 |
 | Task 6 · 作业归一化与恢复资格校验 | 本地基础通过，现场门待验 | 全表数据比对、旧租约/token 失效、未知副作用持久隔离、恢复收据；全部成立后才可判定可用。 WIP d4b97df：64张表数据观察基础及queued策略修复，本地87+12=99项通过，其中新增17项。真实目标COPY/外部排序与作业SQL未接入；独立审查、Linux/PG五门未完成。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6独立审查尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |

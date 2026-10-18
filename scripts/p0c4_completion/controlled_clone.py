@@ -4,6 +4,7 @@ The only supported authentication is the reviewed fixture's exact loopback trust
 There is no caller command, SQL, environment, path, image or budget interface.
 """
 import ipaddress
+import copy
 import hashlib
 import json
 import os
@@ -455,25 +456,31 @@ class _CloneLane:
         return retained
 
     def confirm_isolated(self):
+        with self._isolation_scope():self._confirm_isolated()
+
+    @contextmanager
+    def _isolation_scope(self):
         c=self.context;original=c._runner;deadline=c._backend.commands.isolation_deadline
-        budget=_StopDeadline(_TOKEN,deadline);budget.remaining()
+        budget=_StopDeadline(_TOKEN,deadline,c);budget.remaining()
         wrapped=_deadline_runner(budget,original);c._runner=wrapped
         persistent=[]
         if self.target_owner is not None:persistent.append((self.target_owner._container,self.target_owner._broker))
         if self.owner is not None:persistent.append((self.owner.container,self.owner.broker))
+        budget.budgets=tuple(broker.budget for _,broker in persistent)
         previous=[(helper,helper.runner,broker,broker.budget.refresh_deadline) for helper,broker in persistent]
         for helper,broker in persistent:
             helper.runner=wrapped;broker.budget.refresh_deadline=min(broker.budget.refresh_deadline or deadline,deadline)
         try:
-            self._confirm_isolated();budget.remaining()
+            yield wrapped
+            budget.remaining()
         except BaseException:
-            self.state='unknown';c._native_broken=True;raise
+            self.state='unknown';self.isolated=False;c._native_broken=True;raise
         finally:
             c._runner=original
             if self.state!='unknown':
                 for helper,runner,broker,refresh in previous:helper.runner=runner;broker.budget.refresh_deadline=refresh
 
-    def _confirm_isolated(self):
+    def _confirm_isolated(self,authority=None):
         self._owner_live();_require(self.birth is not None and self.creation['state']=='known','CLONE_ISOLATION_AUTHORITY')
         from p0c4_completion import controlled_fixture as f
         raw,_=f._private_bytes(self.context._backend.batch/'clone-control/birth.json',32768,0o400)
@@ -485,7 +492,21 @@ class _CloneLane:
             network=self.context._sides['target']['ids']['network_id'] if role=='target' else self.ids['network_id']
             _require(not self.context._inspect('network',[network])[0].get('Containers'),'CLONE_NETWORK_NOT_EMPTY')
             self.row[role+'_final_stop_sha256']=_digest(_canonical(facts))
-        self.isolated=True;self.state='isolated';self.owner.release();self.target_owner.close();self.context._sides['target']['owner']=None
+        if authority is not None:
+            authority.birth_check()
+            _require(authority.last_view._rpc('info','--format','{{.ID}}').decode().strip()==self.ids['daemon_id'],'CLONE_STOP_FINAL_DAEMON')
+        ack=self.owner.call('release',{})
+        _require(type(ack) is dict and set(ack)=={'released'} and ack['released'] is True,'CLONE_ROOT_RELEASE_REPLY')
+        if authority is not None:authority.released.add('clone');authority.check()
+        self.owner.container.close()
+        if authority is not None:authority.check()
+        # _OwnerClient.close has an unconditional helper-close finally. Never
+        # enter it until this ORIGINAL client's release has a strict ack.
+        _require(self.target_owner.call('release',{})==dict(released=True),'CLONE_TARGET_RELEASE_REPLY')
+        if authority is not None:authority.released.add('target');authority.check()
+        self.target_owner.close()
+        if authority is not None:authority.check()
+        self.context._sides['target']['owner']=None;self.isolated=True;self.state='isolated'
 
 _REPLICATION_SQL="""SELECT CASE WHEN current_setting('server_version_num')::int >= 180000
 AND current_setting('server_version_num')::int < 190000
@@ -607,23 +628,197 @@ def _check_held_inode(fd,path,expected):
     for meta in (os.fstat(fd),os.lstat(path)):
         _require(stat.S_ISDIR(meta.st_mode) and (meta.st_dev,meta.st_ino,meta.st_uid,meta.st_gid,stat.S_IMODE(meta.st_mode))==tuple(expected[k] for k in ('dev','ino','uid','gid','mode')),'CLONE_NATIVE_PG_INODE_CHANGED')
 
+class _CloneStopAuthority:
+    """Pins the original three-role chain; snapshots never mint custody."""
+    def __init__(self,lane):
+        from p0c4_completion import controlled_fixture as f,full_target_fs as fs
+        import p0c4_controlled_import_acceptance as controller
+        c=lane.context;b=c._backend
+        _require(type(c) is f.ControlledFixtureContext and type(lane) is _CloneLane and c._clone is lane and lane.state=='born' and not lane.isolated,'CLONE_STOP_ORIGINAL_LANE')
+        _require(type(b) is controller.ImportBackend and type(c._install) is f._VerifiedInstall and c._install.backend is b and c._install.plan is c._plan and c._plan['case']=='wrong-endpoint' and c._body_used and c._runtime_admission is f._RUNTIME_ADMITTED,'CLONE_STOP_CONTEXT')
+        _validate_plan(c._plan)
+        _require(set(c._sides)=={'source','target'} and len(b.resources)==3 and type(lane.owner) is _RootClient and type(lane.target_owner) is fs._OwnerClient,'CLONE_STOP_COMPLETE')
+        self.lane=lane;self.context=c;self.install=c._install;self.plan=c._plan;self.runner=c._runner;self.registry=c._runner.ownership
+        self.backend=b;self.commands=b.commands;self.install_fds=(self.install.suite_fd,self.install.source_fd)
+        self.deadline=b.commands.isolation_deadline;self.plan_pin=copy.deepcopy(c._plan);self.compiled=copy.deepcopy(c._compiled['live'])
+        self.rows=[];self.evidence={};self.births=[];self.released=set()
+        for role in ('source','target'):
+            side=c._sides[role];row=side['record'];identity=side['identity'];owner=side['creation'];ids=side['ids'];status=side['status']
+            case_id=c._plan[role+'_case_id'];subnet=c._plan[role+'_subnet'];cid=ids['container_id']
+            _require(side['role']==row['role']==role and side['case_id']==row['batch_id']==status['batch_id']==case_id and side['subnet']==row['subnet']==status['subnet']==subnet and side['root']==row['control']==b.batch/(role+'-control') and row['identity'] is identity and identity==b.provisioner.identity_for(case_id),'CLONE_STOP_ROLE')
+            _require(owner['state']=='known' and type(cid) is str and _HEX64.fullmatch(cid) and cid==owner['id']==row['container_id']==status['container_id'] and owner['intent']==dict(kind='pg',name=identity['project']+'-pg-1',case_id=c._plan['source_case_id'],batch_id=c._plan['batch_id'],expected=dict(name=identity['project']+'-pg-1',labels={'com.docker.compose.project':identity['project'],'com.docker.compose.service':'pg'}),network=dict(name=identity['network'])),'CLONE_STOP_CREATION')
+            _require(ids['volume_name']==status['volume_name']==side['pg']['Name']==identity['volume'] and ids['volume_mountpoint']==status['volume_mountpoint']==side['pg']['Mountpoint'] and side['pg']['Driver']=='local' and side['pg']['Scope']=='local' and not side['pg']['Options'] and side['pg']['Labels'].get('com.docker.compose.project')==identity['project'] and ids['network_id']==status['network_id'] and _HEX64.fullmatch(ids['network_id']),'CLONE_STOP_VOLUME_BINDING')
+            dest=side['root']/'targets'/case_id
+            raw=b.helper._private_read(dest/'control'/(identity['database']+'.birth.json'),limit=4096);pin=_digest(raw)
+            _require(pin==status['birth_sha256']==row['birth_sha256']==self.compiled[role+'_birth_sha256'] and pin!='0'*64,'CLONE_STOP_BIRTH')
+            evidence_raw=b.helper._private_read(dest/'birth-evidence.json',limit=4096);fact=json.loads(evidence_raw,object_pairs_hook=f._pairs)
+            _require(all(fact.get(k)==v for k,v in dict(project=identity['project'],batch_id=case_id,container_id=cid,volume_name=ids['volume_name'],volume_mountpoint=ids['volume_mountpoint'],birth_sha256=pin,docker_daemon_id=row['before']['daemon_id']).items()) and type(fact.get('image_id')) is str and re.fullmatch('sha256:[0-9a-f]{64}',fact['image_id']) and type(fact.get('container_started_at')) is str and fact['container_started_at']!='','CLONE_STOP_BIRTH_EVIDENCE')
+            measured=row['pg_root_measurement'];meta=measured['roots']['target_pg']['identity']
+            _require(measured['phase']=='birth' and measured['target_case_id']==case_id and measured['source_case_id']==c._plan[('target' if role=='source' else 'source')+'_case_id'] and meta['path']==ids['volume_mountpoint'] and all(type(meta[k]) is int and meta[k]>0 and meta[k]==fact['volume_mount_'+k] for k in ('dev','ino')) and meta['uid']==meta['gid']==0 and meta['mode']==0o755,'CLONE_STOP_NATIVE_VOLUME')
+            self.births.append(pin);self.evidence[role]=(fact,_digest(evidence_raw))
+            self.rows.append((role,side,row,identity,owner,row['before'],copy.deepcopy(f._ExactStopView._values(side,row,owner))))
+        _validate_birth(lane.birth,c._plan)
+        _require(lane.birth['source_birth_sha256']==self.births[0] and lane.birth['target_birth_sha256']==self.births[1] and lane.birth['plan_sha256']==c._install.plan_pin['sha256'],'CLONE_STOP_CLONE_BIRTH')
+        self.clone_refs=(lane.row,lane.creation,lane.ids,lane.identity,lane.birth,lane.root,lane.measurement,lane.helper_proofs,lane.sql_identity,lane.image,lane.creation['intent'],lane.row['before'])
+        self.clone_pin=copy.deepcopy(self._clone_values())
+        self.owners=(lane.target_owner,lane.target_owner._container,lane.target_owner._broker,lane.owner,lane.owner.container,lane.owner.broker)
+        self.transports=tuple((broker.child,broker.child.p,broker.budget) for broker in (lane.target_owner._broker,lane.owner.broker))
+        self.owner_pins=(lane.target_owner._nonce,lane.target_owner._seq,lane.target_owner._state,lane.owner.nonce,lane.owner.seq,lane.owner.state)
+        self.target_root=c._sides['target']['owner_root'];self.root_pins=copy.deepcopy((self.target_root,lane.root))
+        self.check();self.birth_check()
+
+    def _clone_values(self):
+        l=self.lane
+        return (l.ids,l.identity,l.birth,l.root,l.measurement,l.helper_proofs,l.sql_identity,l.image,l.compose,l.birth_sha256,l.started_at,l.target_started_at,l.owner_started,l.target_owner_started,
+                tuple(l.row[k] for k in ('role','identity','control','batch_id','subnet','container_id','birth_sha256','inspection_sha256')),l.row['before']['daemon_id'],l.creation['intent'],l.creation['state'],l.creation['id'])
+
+    def check(self):
+        from p0c4_completion import controlled_fixture as f
+        c=self.context;l=self.lane;b=c._backend
+        _require(b is self.backend and b.commands is self.commands and self.install.backend is b and (self.install.suite_fd,self.install.source_fd)==self.install_fds,'CLONE_STOP_HELD_OBJECT_CHANGED')
+        _require(c._clone is l and l.context is c and l.plan is self.plan and l.state=='born' and not l.isolated and c._body_used and c._runtime_admission is f._RUNTIME_ADMITTED,'CLONE_STOP_CHAIN')
+        _require(b.commands.isolation_deadline is self.deadline,'CLONE_STOP_DEADLINE_REPLACED');_StopDeadline(_TOKEN,self.deadline,c).remaining()
+        c._alive();b.commands.require_usable()
+        _require(c._install is self.install and c._plan is self.plan and c._plan==self.plan_pin and c._compiled['live']==self.compiled and c._runner is self.runner and c._runner.ownership is self.registry and self.registry._controlled_pair is c and self.registry.case_id==self.plan['source_case_id'] and set(c._sides)=={'source','target'} and len(b.resources)==3 and not c._result['resource_creation_unknown'],'CLONE_STOP_INSTALL_CHANGED')
+        for role,side,row,identity,owner,before,pinned in self.rows:
+            _require(c._sides[role] is side and side['record'] is row and side['identity'] is row['identity'] is identity and side['creation'] is owner and owner['record'] is row and row['before'] is before and sum(r is row for r in b.resources)==1 and self.registry.owners.get(owner['intent']['name']) is owner and f._ExactStopView._values(side,row,owner)==pinned,'CLONE_STOP_CUSTODY')
+        refs=(l.row,l.creation,l.ids,l.identity,l.birth,l.root,l.measurement,l.helper_proofs,l.sql_identity,l.image,l.creation['intent'],l.row['before'])
+        _require(all(a is b for a,b in zip(refs,self.clone_refs)) and self._clone_values()==self.clone_pin,'CLONE_STOP_CLONE_CHANGED')
+        _require(l.row is b.clone_record and l.creation['record'] is l.row and sum(r is l.row for r in b.resources)==1 and self.registry.owners.get(l.creation['intent']['name']) is l.creation,'CLONE_STOP_CLONE_REGISTRY')
+        identity=l.identity;expected=dict(name=identity['project']+'-pg-1',labels={'com.docker.compose.project':identity['project'],'com.docker.compose.service':'pg'},clone_resources=dict(network=identity['network'],volume=identity['volume'],subnet=self.plan['clone_subnet'],compose_sha256=_digest(l.compose)))
+        _require(identity==b.provisioner.identity_for(self.plan['clone_case_id']) and l.row['role']=='clone' and l.row['identity'] is identity and l.row['control']==b.batch/'clone-control' and l.row['batch_id']==self.plan['clone_case_id'] and l.row['subnet']==self.plan['clone_subnet'] and l.row['container_id']==l.creation['id']==l.ids['container_id'] and l.creation['state']=='known' and l.creation['intent']==dict(kind='pg',name=expected['name'],case_id=self.plan['source_case_id'],batch_id=self.plan['batch_id'],expected=expected,network={'name':identity['network']}),'CLONE_STOP_CLONE_CREATION')
+        _require(l.birth['ids'] is l.ids and l.birth['root'] is l.root and l.birth['pg_measurement'] is l.measurement and l.birth['helpers'] is l.helper_proofs and l.birth['sql_identity'] is l.sql_identity and l.birth['image_id']==l.image['Id'] and l.birth['compose_sha256']==_digest(l.compose) and l.birth['started_at']==l.started_at and l.birth['target_started_at']==l.target_started_at and l.target_id==c._sides['target']['ids']['container_id'],'CLONE_STOP_CLONE_BINDING')
+        ids=[c._sides[r]['ids'] for r in ('source','target')]+[l.ids]
+        native=[c._sides[r]['record']['pg_root_measurement']['roots']['target_pg']['identity'] for r in ('source','target')]+[l.measurement['identity']]
+        _require(len(set(self.births))==2 and all(len({i[k] for i in ids})==3 for k in ('container_id','network_id','volume_name','volume_mountpoint')) and len({(v['dev'],v['ino']) for v in native})==3,'CLONE_STOP_ROLE_ALIAS')
+        owners=(l.target_owner,l.target_owner._container,l.target_owner._broker,l.owner,l.owner.container,l.owner.broker)
+        _require(all(a is b for a,b in zip(owners,self.owners)) and c._sides['target']['owner'] is l.target_owner and c._sides['source']['owner'] is None and c._sides['target']['owner_root'] is self.target_root and (self.target_root,l.root)==self.root_pins,'CLONE_STOP_OWNER_CHANGED')
+        tn,ts,tp,cn,cs,cp=self.owner_pins
+        _require((l.target_owner._nonce,l.target_owner._seq,l.target_owner._state)==(tn,ts+int('target' in self.released),'release' if 'target' in self.released else tp) and (l.owner.nonce,l.owner.seq,l.owner.state)==(cn,cs+int('clone' in self.released),'release' if 'clone' in self.released else cp) and l.target_owner._failure is None and not l.owner.failed,'CLONE_STOP_OWNER_SESSION')
+        if 'target' not in self.released:l.target_owner.held()
+        if 'clone' not in self.released:l.owner.held()
+        for role,broker,(child,process,budget) in zip(('target','clone'),(l.target_owner._broker,l.owner.broker),self.transports):
+            _require(broker.child is child and child.p is process and broker.budget is budget and not broker.broken,'CLONE_STOP_TRANSPORT_REPLACED')
+            if role not in self.released:child.check();_require(process.poll() is None,'CLONE_STOP_TRANSPORT_LOST')
+        for root in (self.target_root,l.root):
+            meta=os.lstat(root['path']);_require(stat.S_ISDIR(meta.st_mode) and (meta.st_dev,meta.st_ino,meta.st_uid,meta.st_gid,stat.S_IMODE(meta.st_mode))==tuple(root[k] for k in ('dev','ino','uid','gid','mode')),'CLONE_STOP_ROOT_CHANGED')
+
+    def birth_check(self):
+        from p0c4_completion import controlled_fixture as f
+        self.check();l=self.lane;b=self.context._backend
+        raw,_=f._private_bytes(b.batch/'clone-control/birth.json',32768,0o400)
+        compose,_=f._private_bytes(b.batch/'clone-control/compose.json',16384,0o400)
+        _require(raw==_canonical(l.birth) and _digest(raw)==l.birth_sha256==l.row['birth_sha256']==l.row['inspection_sha256'] and compose==l.compose==_canonical(_compose_document(l.identity,self.plan['clone_subnet'])),'CLONE_STOP_SEALED_BIRTH_CHANGED')
+        target=self.context._sides['target'];path=target['root']/'targets'/target['case_id']/'control'/(target['identity']['database']+'.birth.json')
+        target_raw=b.helper._private_read(path,limit=4096);value=json.loads(target_raw,object_pairs_hook=f._pairs)
+        _require(_digest(target_raw)==self.births[1] and l.sql_identity==dict(database=value['database_name'],pg_system_identifier=value['pg_system_identifier'],database_oid=value['database_oid']),'CLONE_STOP_SAME_SQL_ID')
+        self.check()
+
+
+def _clone_role_views(authority):
+    from p0c4_completion import controlled_fixture as f
+    # Keep the accepted ordinary role snapshot validator byte-for-byte. Clone
+    # owns a separate schema and is never presented as an ordinary side.
+    class RoleView(f._ExactStopView):
+        def _check(self):authority.check()
+        def _birth(self):
+            if self.side is None:authority.birth_check()
+            else:super()._birth()
+        def _docker(self,*args):
+            self._check();cid=authority.lane.ids['container_id'] if self.side is None else self.side['ids']['container_id']
+            _require(self.phase==1 and self.mutations==0 and self.before[1]['Running'] is True and args==('stop','--time','1',cid),'CLONE_STOP_FIXED_COMMAND')
+            self.mutations=1;raw=self._rpc('stop','--timeout','1',cid)
+            _require(raw in (b'',(cid+'\n').encode()),'CLONE_STOP_FIXED_STDOUT');return raw.decode()
+        def snapshot(self):
+            if self.side is not None:
+                answer=super().snapshot();pg=answer['containers'][0]
+            else:
+                _require(self.phase in (0,1),'CLONE_STOP_SNAPSHOTS');self._birth();l=authority.lane
+                pg=self._inspect('container',l.ids['container_id']);volume=self._inspect('volume',l.ids['volume_name'])
+                _require(volume['Name']==l.ids['volume_name'] and volume['Mountpoint']==l.ids['volume_mountpoint'] and volume['Driver']=='local' and volume['Scope']=='local' and not volume['Options'] and type(volume['Labels']) is dict and volume['Labels'].get('com.docker.compose.project')==l.identity['project'],'CLONE_STOP_VOLUME')
+                config=pg['Config']
+                _require(pg['Id']==l.ids['container_id'] and pg['Name']=='/'+l.identity['project']+'-pg-1' and pg['Image']==l.image['Id'] and type(config) is dict and set(config)=={'Image','Labels'} and config['Image']==l.identity['image'] and type(config['Labels']) is dict and all(config['Labels'].get(k)==v for k,v in l.creation['intent']['expected']['labels'].items()) and len(pg['Mounts'])==1 and all(pg['Mounts'][0].get(k)==v for k,v in dict(Type='volume',Name=l.ids['volume_name'],Source=l.ids['volume_mountpoint'],Destination='/var/lib/postgresql',RW=True).items()),'CLONE_STOP_PG')
+                s=pg['State'];stable={k:v for k,v in pg.items() if k!='State'}
+                _require(type(s.get('Running')) is bool and type(s.get('Pid')) is int and (s['Running'] and s['Pid']>0 or not s['Running'] and s['Pid']==0),'CLONE_STOP_PID')
+                if self.phase==0:self.before=(copy.deepcopy(stable),copy.deepcopy(s),copy.deepcopy(volume))
+                else:_require(stable==self.before[0] and volume==self.before[2] and s['Running'] is False and s['Pid']==0 and self.mutations==int(self.before[1]['Running']),'CLONE_STOP_FINAL')
+                self._birth();self.phase+=1;answer=dict(containers=[pg],volumes=[volume])
+            s=pg['State']
+            _require(pg.get('ExecIDs') in (None,[]) and s.get('OOMKilled') is False and s.get('Dead') is False and s.get('Error')=='' and type(s.get('ExitCode')) is int,'CLONE_STOP_STATE')
+            if self.side is None or self.side['role']=='target':
+                started=authority.lane.started_at if self.side is None else authority.lane.target_started_at
+                _require(s['StartedAt']==started and pg['RestartCount']==0,'CLONE_STOP_STARTED')
+            if self.phase==2:_require(s['Status']=='exited' and s['Running'] is False and s['Pid']==0,'CLONE_STOP_EXITED')
+            if self.phase==2:self.final=copy.deepcopy(pg)
+            return answer
+    c=authority.context
+    return [RoleView(c,c._sides[r],authority.deadline,None,authority.evidence[r]) for r in ('source','target')]+[RoleView(c,None,authority.deadline,None,({},''))]
+
+
+def _stop_owned_clone(context):
+    import p0c4_controlled_import_acceptance as controller
+    lane=getattr(context,'_clone',None)
+    try:
+        _require(type(lane) is _CloneLane and not getattr(lane,'_stop_entered',False),'CLONE_STOP_REENTRY')
+        lane._stop_entered=True
+        with lane._isolation_scope():
+            authority=_CloneStopAuthority(lane);context._runner.guard=authority.check;views=_clone_role_views(authority);authority.last_view=views[-1]
+            lane._owner_live();authority.check()
+            daemon=views[0]._rpc('info','--format','{{.ID}}').decode().strip()
+            _require(daemon and daemon==lane.ids['daemon_id']==lane.row['before']['daemon_id'] and all(e[0]['docker_daemon_id']==daemon for e in authority.evidence.values()),'CLONE_STOP_DAEMON')
+            stopped={}
+            for role,view in zip(('source','target','clone'),views):
+                side=context._sides[role] if role!='clone' else None
+                identity=side['identity'] if side is not None else lane.identity;cid=side['ids']['container_id'] if side is not None else lane.ids['container_id']
+                result=context._backend.helper.stop_verified_pg(view,identity,cid)
+                _require(result==dict(confirmed=True,container_id=cid,volume_retained=True) and view.phase==2,'CLONE_STOP_UNCONFIRMED');stopped[role+'_stopped']=True
+                lane.row[role+'_final_stop_sha256']=_digest(_canonical(view.final))
+                network=side['ids']['network_id'] if side is not None else lane.ids['network_id']
+                raw=view._rpc('network','inspect','--format','{"Id":{{json .Id}},"Containers":{{json .Containers}}}',network)
+                from p0c4_completion.controlled_fixture import _pairs
+                _require(len(raw.splitlines())==1,'CLONE_STOP_NETWORK_CARDINALITY');net=json.loads(raw,object_pairs_hook=_pairs)
+                _require(type(net) is dict and set(net)=={'Id','Containers'} and net['Id']==network and net['Containers'] in (None,{}),'CLONE_STOP_NETWORK')
+            authority.birth_check();lane._confirm_isolated(authority)
+        return dict(**stopped,volumes_retained=True)
+    except BaseException:
+        context._native_broken=True
+        if type(lane) is _CloneLane:lane.state='unknown';lane.isolated=False
+        raise controller.ImportRejected('UnconfirmedIsolation') from None
+
+
 def _deadline_runner(lane,runner):
     import p0c4_source_lifecycle_gate_acceptance as driver
     class CloneDeadlineRunner(driver.BudgetRunner):
+        def run(self,command,**kwargs):
+            if not isinstance(lane,_StopDeadline):return super().run(command,**kwargs)
+            lane.remaining()
+            if self.guard is not None:self.guard()
+            answer=super().run(command,**kwargs);lane.remaining()
+            if self.guard is not None:self.guard()
+            _require(type(answer) is tuple and len(answer)==3 and type(answer[0]) is int and answer[0]==0 and type(answer[1]) is bytes and answer[2]==b'','CLONE_STOP_RPC_RESULT')
+            return answer
         @property
         def ownership(self):return self.runner.ownership
         @property
         def logs(self):return self.runner.logs
         @property
         def counter(self):return self.runner.counter
-    return CloneDeadlineRunner(runner,lane)
+    wrapped=CloneDeadlineRunner(runner,lane)
+    wrapped.guard=None
+    if isinstance(lane,_StopDeadline):wrapped.refresh_deadline=lane.deadline
+    return wrapped
 
 class _StopDeadline:
-    def __init__(self,token,deadline):
+    def __init__(self,token,deadline,context=None):
         _require(token is _TOKEN and type(deadline) in (int,float) and 0<deadline<float('inf'),'CLONE_EXISTING_STOP_DEADLINE')
-        self.deadline=deadline
+        self.deadline=deadline;self.context=context;self.budgets=()
     def remaining(self):
-        left=self.deadline-time.monotonic();_require(left>0,'CLONE_STOP_DEADLINE');return left
+        if self.context is not None:
+            _require(self.context._backend.commands.isolation_deadline is self.deadline,'CLONE_STOP_DEADLINE_CHANGED')
+            self.context._backend.commands.require_usable()
+        left=min(self.deadline-time.monotonic(),*(b.remaining() for b in self.budgets)) if self.budgets else self.deadline-time.monotonic()
+        _require(left>0,'CLONE_STOP_DEADLINE')
+        return left-min(0.25,left/4)
 
 def _open_native_inode(path,expected):
     # O_PATH binds identity without reading UID999/0700 PGDATA. Native body's

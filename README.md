@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18：固定c749d9e的全新ready-restart整轮预期拒绝已独立接受，当前legacy累计3/11，仅success＋ready-eof＋ready-restart；full0/9。真实Rust exact 1 PASS／0 FAIL／0 skip、11.07秒，Identity、12个checkpoint，DDL从未发送、未尝试commit；rollback=false且无回滚成功声明，intent/attempt均不存在。源/目标停止、volume保留，outer exit0、source字节与全部旧C/N/V投影保持。Task5及Task6–9/C4仍OPEN；Task2关闭（ba96561/c69e373），Task3仅单机，无CompleteBackup、独立存储或生产部署。**
+**最新同步：2026-10-18：已采纳clone隔离三文件源码cb42122（parent c749d9e），在Root v3.1明确合同下独立SPEC/QUALITY批准、0剩余阻塞。固定raw覆盖包Linux 170/170通过、0失败/错误/skip，仅代码与无PG单元验证信用；新source本地548源文件/549 ZIP成员包已生成并静态核验，运维source-binding独审/pins仍待，wrong-endpoint真实验收尚待全新隔离绑定。已接受的success＋ready-eof＋ready-restart仍全部来自c749d9e，当前legacy3/11、full0/9。Task5及Task6–9/C4 OPEN，Task2关闭、Task3仅单机，无CompleteBackup、独立存储或生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；c749d9e success＋ready-eof＋ready-restart已接受，当前legacy3/11、full0/9；其余门无信用，旧UNKNOWN保留，Task5及Task6–9/C4仍OPEN |
+| P0-C4 | Task2关闭；clone隔离cb42122按v3.1有限合同已采纳、Linux170 unit通过；wrong-endpoint真实验收/运维绑定待完成，既有c749三项legacy3/11、full0/9；整关OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
