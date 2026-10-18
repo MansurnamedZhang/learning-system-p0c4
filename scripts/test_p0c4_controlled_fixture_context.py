@@ -266,13 +266,12 @@ class NativeContextTests(unittest.TestCase):
         # exact private installation record and archive bytes.
         plan_path=self.suite/'current11/plan.json';plan_path.unlink()
         install_path=self.suite/'current11/install.json';raw=install_path.read_bytes()
-        for invalid in ('wrong-endpoint','unknown',True,[]):
+        for invalid in ('unknown',True,[]):
             with self.subTest(invalid=invalid),self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_FIXED_CASE_ONLY'):
                 issuer._mint_plan_from_install(invalid)
-        with self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):
-            issuer._mint_plan_from_install('ready-eof')
-        with self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):
-            issuer._mint_plan_from_install('ready-restart')
+        for mismatch in ('wrong-endpoint','ready-eof','ready-restart'):
+            with self.subTest(mismatch=mismatch),self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):
+                issuer._mint_plan_from_install(mismatch)
         record=json.loads(raw);record['budget_profile']='controlled_fixture_two_role_fixed_case_v1'
         install_path.write_bytes(issuer._canonical(record))
         with self.assertRaisesRegex(issuer.ControlledRejected,'CONTROLLED_PLAN_INSTALL_PROFILE'):

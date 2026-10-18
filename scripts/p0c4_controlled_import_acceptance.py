@@ -1040,7 +1040,8 @@ class ImportBackend(ContractBackend):
                 require(self.clone_record['container_id'] is not None, 'UnconfirmedIsolation')
             except BaseException:
                 discovery_failed = True
-        result = super().stop()
+        result = context._stop_owned_known() if context is not None else None
+        if result is None:result = super().stop()
         if context is not None and context._clone is not None:context._confirm_clone_isolated()
         require(time.monotonic()<self.commands.isolation_deadline,'UnconfirmedIsolation')
         require(not discovery_failed, 'UnconfirmedIsolation')

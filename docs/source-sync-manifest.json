@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "date": "2026-10-18",
-  "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
-  "previous_public_commit": "38fa4300230d511ce5e4f9d54d95845e1cc7103e",
+  "source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
+  "previous_public_commit": "7a7839ea287305043f133a932fcddfeaac825a02",
   "source_archive_sha256": null,
-  "source_manifest_sha256": "5867c05ed1376ed56881b03ba6f12fb4d2e710d2f2f089e65a08c34062ce14bf",
-  "source_file_count": 547,
+  "source_manifest_sha256": "db5fe2f9ad24f053b0b2952923312dc5622ba500b3f9f8e6e1754e0234940a5e",
+  "source_file_count": 548,
   "excluded_source_files": [
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112731,
-      "sha256": "2213988e946ced6668aff71ce6268c7e74685359e3beafc73d4c33c8df2b2fe6",
+      "bytes": 112680,
+      "sha256": "c78e1f1a82355f111166b2885a1af5ee2ea0b83247ab1954301d5f815a6bf08e",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3941,
-      "sha256": "b587e9befdff8c7b1c818c00d755e4a098af1c55557e6f4b6c4f8e8726f7fef1",
+      "bytes": 3997,
+      "sha256": "b6d50deca9bc4b422c4fde482adc4a76e9fd7d52b3d66f8a6e8cc86e852d3fac",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45245,
-      "sha256": "a4c2a8d26d7aa9cb37b0b90b00d52beff6001f54f8565c30c38b6a27a8dc287b",
+      "bytes": 45203,
+      "sha256": "92830e74f81caf14c67d8e62ede5b0b27eebdb789f25abbd20041571a5de1e94",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29860,
-      "sha256": "6692052873bc8d5c43dc09471cf2a83fd3891dc1a3d45670e2dc44b182ccbcdb",
+      "bytes": 29555,
+      "sha256": "b55018c3c345aab0efbe32ffca14641ea913198400e0552b1969469292542597",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3464,
-      "sha256": "afcc10523b30a5d731c77ede244ed5aa84a9c22a104e72061c9a56fe1e81877d",
+      "bytes": 3163,
+      "sha256": "233766c9e241bf188dc5b266fbb138775d1f42f88b26539d92f86151b815cf80",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 25178,
-      "sha256": "cb56fac266ba0b36a2cd9bce82efd604fc0de1d59ea99e8d1ef3decceb96e2c9",
+      "bytes": 24873,
+      "sha256": "af2eb9906072f1e8bac3c64446ed55a17b36cedb649f9c88efe5e5dc9949e418",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3564,9 +3564,9 @@
     },
     {
       "path": "scripts/p0c4_completion/controlled_fixture.py",
-      "bytes": 92868,
-      "sha256": "077f6cb9db45c246f1c0010e80827c4feb4f728e91cab3e4c23f6053e09248b5",
-      "source_blob_sha256": "077f6cb9db45c246f1c0010e80827c4feb4f728e91cab3e4c23f6053e09248b5",
+      "bytes": 106506,
+      "sha256": "b8e8478a3c89c5271f01c95dd8fb9ee087bb521af44d51b414c05afbf9655077",
+      "source_blob_sha256": "b8e8478a3c89c5271f01c95dd8fb9ee087bb521af44d51b414c05afbf9655077",
       "source_bytes_preserved": true
     },
     {
@@ -3634,9 +3634,9 @@
     },
     {
       "path": "scripts/p0c4_controlled_import_acceptance.py",
-      "bytes": 69405,
-      "sha256": "4aa65e6caa3db0ceebdba3ad3eb19a6009042f1b9b3e5d039c49d4771afed2d3",
-      "source_blob_sha256": "4aa65e6caa3db0ceebdba3ad3eb19a6009042f1b9b3e5d039c49d4771afed2d3",
+      "bytes": 69501,
+      "sha256": "505ff9b0ddda01147a9c29691d4feba82ad9c37b67230caa49f5b498e9b4e51e",
+      "source_blob_sha256": "505ff9b0ddda01147a9c29691d4feba82ad9c37b67230caa49f5b498e9b4e51e",
       "source_bytes_preserved": true
     },
     {
@@ -3822,6 +3822,13 @@
       "source_bytes_preserved": true
     },
     {
+      "path": "scripts/test_p0c4_controlled_exact_stop.py",
+      "bytes": 23503,
+      "sha256": "85fe85621cdadd984da8cbc4ba0233a081c7c6d289ba8bdac659041bc10673bb",
+      "source_blob_sha256": "85fe85621cdadd984da8cbc4ba0233a081c7c6d289ba8bdac659041bc10673bb",
+      "source_bytes_preserved": true
+    },
+    {
       "path": "scripts/test_p0c4_controlled_finite_cases.py",
       "bytes": 12555,
       "sha256": "b3d823e57f8d8b867cacf4fafcf96a5a4e2f5cdcf34cfc0557ba3f6136980163",
@@ -3830,9 +3837,9 @@
     },
     {
       "path": "scripts/test_p0c4_controlled_fixture_context.py",
-      "bytes": 55074,
-      "sha256": "dc2de2cbe77b37a34b56beeb84a6d7ad6f2f7d923f349131e6e41bf25f72fb95",
-      "source_blob_sha256": "dc2de2cbe77b37a34b56beeb84a6d7ad6f2f7d923f349131e6e41bf25f72fb95",
+      "bytes": 55008,
+      "sha256": "adb3619ebdffdc80ac5e137fbd0dd5c901d69821242f775de37bcaa6ba8a7985",
+      "source_blob_sha256": "adb3619ebdffdc80ac5e137fbd0dd5c901d69821242f775de37bcaa6ba8a7985",
       "source_bytes_preserved": true
     },
     {
@@ -4206,7 +4213,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "RUST_BODY_READER_PASS_REVIEW_BOUNDED_IDENTITY_ISOLATION_KEEP_15S_AND_FULL_OUTER_PROTECTION",
+    "reader_compatibility_next": "ADOPTED_EXACT_OWNED_ISOLATION_CODE_UNIT_PASS_FRESH_NATIVE_PENDING",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -4298,7 +4305,75 @@
       "frontier_fix_implemented": false,
       "retry_allowed": false,
       "stop_rm_performed": false
+    },
+    "exact_owned_isolation": {
+      "source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
+      "parent": "a844889c78eeab506f112c2425852e0a687ab7b9",
+      "source_changed_files": 4,
+      "code_review": "SPEC_QUALITY_PASS_ZERO_BLOCKERS",
+      "independent_tests": 41,
+      "independent_consumer_probes": 9,
+      "fixed_shared_deadline_seconds": 15,
+      "read_rpcs": 10,
+      "maximum_own_stops": 2,
+      "strict_original_context_creation_birth_volume_inode_fd_pins": true,
+      "dispatched_missing_conflict": "UNKNOWN_NO_FALLBACK",
+      "changed_pins": "STOP_FURTHER_ACTIONS",
+      "old_helper_bytes_preserved": true,
+      "full_snapshot_early_clone_and_outer_protection_unchanged": true,
+      "stop_mapping": "FIXED_OLD_TIME_1_TO_TIMEOUT_1_ONCE_NO_STDERR_SWALLOW_NO_RETRY",
+      "linux_red_valid_v2": {
+        "failed": 1,
+        "inventory_timeout": true,
+        "rpc_count": 5,
+        "clock_approx": 116.499,
+        "deadline": 115,
+        "initial_invalid_none_fixture_red_not_counted": true
+      },
+      "linux_green": {
+        "batch_id": "7df545f9e343462399127d6e792e9cec",
+        "result_sha256": "655347c231c194f23797f63b1aae944e138c3ec5ca823179b05f12acf65952f5",
+        "run": 148,
+        "passed": 148,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "source_base_recorded": "a844889c78eeab506f112c2425852e0a687ab7b9",
+        "scope": "BASE_PLUS_FOUR_FROZEN_RAW_OVERLAY_NOT_EXACT_GIT_LF_BUILD",
+        "source_files": 547,
+        "controller_crlf_to_git_lf_only": true,
+        "other_three_raw_git_byte_exact": true,
+        "source_and_full_old_projection_unchanged": true,
+        "builder_natural_exit0_exact_removed": true,
+        "unit_fixture_caps": [
+          "CHOWN",
+          "DAC_OVERRIDE"
+        ],
+        "unit_fixture_caps_scope": "IN_CONTAINER_TMPFS_EXISTING_UNIT_FIXTURES_ONLY",
+        "production_caps_unchanged": true,
+        "no_pg_socket_network": true,
+        "native_credit": 0
+      },
+      "old_profile_assertion_baseline": {
+        "run": 107,
+        "passed": 106,
+        "failed": 1,
+        "precise_case_profile_assertion_fixed_no_broad_or_skip": true
+      },
+      "docker_timeout_one_dummy_probe": {
+        "exit_code": 0,
+        "stderr_bytes": 0,
+        "no_pg": true,
+        "no_network": true,
+        "no_volume": true,
+        "exact_removed": true,
+        "old_resources_unchanged": true,
+        "scope": "FLAG_COMPATIBILITY_ONLY",
+        "native_credit": 0
+      },
+      "fresh_native_accepted": false,
+      "native_credit": 0
     }
   },
-  "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_SIX_GIT_BLOBS_NEW_547_TREE_CLOSED"
+  "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_FOUR_GIT_BLOBS_NEW_548_TREE_CLOSED"
 }

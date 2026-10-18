@@ -8,6 +8,7 @@ import hashlib
 import io
 import ipaddress
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -589,10 +590,93 @@ class _VerifiedInstall:
             if fd is not None:os.close(fd);setattr(self,key,None)
     def __reduce_ex__(self,protocol):raise TypeError('controlled installation is process-local')
 
+class _ExactStopView:
+    """One original role's two observations for the unchanged stop helper."""
+    __slots__=('context','side','deadline','bindings','phase','mutations','before','evidence','evidence_sha')
+    _container_format='{"Id":{{json .Id}},"Name":{{json .Name}},"Image":{{json .Image}},"Config":{"Image":{{json .Config.Image}},"Labels":{{json .Config.Labels}}},"Mounts":{{json .Mounts}},"State":{{json .State}},"ExecIDs":{{json .ExecIDs}},"RestartCount":{{json .RestartCount}}}'
+    _volume_format='{"Name":{{json .Name}},"Mountpoint":{{json .Mountpoint}},"Driver":{{json .Driver}},"Scope":{{json .Scope}},"Options":{{json .Options}},"Labels":{{json .Labels}},"CreatedAt":{{json .CreatedAt}}}'
+    def __init__(self,context,side,deadline,bindings,evidence):
+        self.context,self.side,self.deadline,self.bindings=context,side,deadline,bindings
+        self.evidence,self.evidence_sha=evidence;self.phase=0;self.mutations=0;self.before=None
+    @staticmethod
+    def _values(side,row,owner):
+        # Freeze only consumed own identity, never recurse into the original
+        # full before-inventory. The original row and before objects stay held.
+        return (side['role'],side['case_id'],side['subnet'],side['root'],side['identity'],side['ids'],side['status'],side['pg'],
+            tuple(row[k] for k in ('role','identity','control','batch_id','subnet','container_id','birth_sha256','pg_root_measurement')),
+            row['before']['daemon_id'],owner['intent'],owner['state'],owner['id'])
+    def _check(self):
+        context=self.context
+        _require(not context._closed and not context._native_broken and context._body_used and context._runtime_admission is _RUNTIME_ADMITTED,'CONTROLLED_EXACT_STOP_CONTEXT')
+        _require(context._backend.commands.isolation_deadline is self.deadline and type(self.deadline) in (int,float) and math.isfinite(self.deadline) and time.monotonic()<self.deadline,'CONTROLLED_EXACT_STOP_DEADLINE')
+        context._alive()  # Recheck original held FDs, disk plan/install and source pins.
+        context._backend.commands.require_usable()
+        install,plan,compiled,rows=self.bindings
+        _require(context._install is install and type(install) is _VerifiedInstall and install.backend is context._backend and context._plan is install.plan and context._plan==plan and context._compiled['live']==compiled,'CONTROLLED_EXACT_STOP_INSTALL')
+        _require(context._runner.ownership._controlled_pair is context and set(context._sides)=={'source','target'} and len(context._backend.resources)==2,'CONTROLLED_EXACT_STOP_PAIR')
+        for role,side,row,identity,owner,before,pinned in rows:
+            _require(context._sides[role] is side and side['record'] is row and side['identity'] is row['identity'] is identity and side['creation'] is owner and owner['record'] is row and row['before'] is before and any(r is row for r in context._backend.resources),'CONTROLLED_EXACT_STOP_CUSTODY')
+            _require(context._runner.ownership.owners.get(owner['intent']['name']) is owner and context._runner.ownership.case_id==plan['source_case_id'],'CONTROLLED_EXACT_STOP_OWNER')
+            _require(self._values(side,row,owner)==pinned,'CONTROLLED_EXACT_STOP_PIN_CHANGED')
+        _require(context._backend.commands.isolation_deadline is self.deadline and time.monotonic()<self.deadline,'CONTROLLED_EXACT_STOP_DEADLINE')
+    def _birth(self):
+        self._check();side=self.side;target=side['root']/'targets'/side['case_id'];reader=self.context._backend.helper._private_read
+        raw=reader(target/'control'/(side['identity']['database']+'.birth.json'),limit=4096)
+        evidence=reader(target/'birth-evidence.json',limit=4096)
+        _require(_digest(raw)==side['status']['birth_sha256'] and _digest(evidence)==self.evidence_sha,'CONTROLLED_EXACT_STOP_BIRTH_CHANGED')
+        self._check()
+    def _rpc(self,*args):
+        self._check()
+        code,raw,stderr=self.context._runner.run(['/usr/bin/docker',*args],timeout=self.context._timeout(5))
+        self._check()
+        _require(type(code) is int and code==0 and stderr==b'' and type(raw) is bytes and len(raw)<=1024**2,'CONTROLLED_EXACT_STOP_OUTPUT')
+        return raw
+    def _inspect(self,kind,identifier):
+        args=('inspect',) if kind=='container' else ('volume','inspect')
+        raw=self._rpc(*args,'--format',self._container_format if kind=='container' else self._volume_format,identifier)
+        lines=raw.splitlines()
+        _require(len(lines)==1,'CONTROLLED_EXACT_STOP_CARDINALITY')
+        value=json.loads(lines[0],object_pairs_hook=_pairs)
+        expected={'Id','Name','Image','Config','Mounts','State','ExecIDs','RestartCount'} if kind=='container' else {'Name','Mountpoint','Driver','Scope','Options','Labels','CreatedAt'}
+        _require(type(value) is dict and set(value)==expected,'CONTROLLED_EXACT_STOP_FIELDS')
+        return value
+    def snapshot(self):
+        _require(self.phase in (0,1),'CONTROLLED_EXACT_STOP_SNAPSHOTS')
+        self._birth();side=self.side;identity=side['identity'];cid=side['ids']['container_id']
+        pg=self._inspect('container',cid);volume=self._inspect('volume',identity['volume'])
+        expected_volume={k:side['pg'].get(k) for k in ('Name','Mountpoint','Driver','Scope','Options','Labels','CreatedAt')}
+        _require(volume==expected_volume,'CONTROLLED_EXACT_STOP_VOLUME')
+        config=pg['Config'];state=pg['State']
+        _require(type(config) is dict and set(config)=={'Image','Labels'} and pg['Id']==cid and pg['Name']=='/'+identity['project']+'-pg-1' and pg['Image']==self.evidence['image_id'] and config['Image']==identity['image'] and type(config['Labels']) is dict and all(config['Labels'].get(k)==v for k,v in side['creation']['intent']['expected']['labels'].items()),'CONTROLLED_EXACT_STOP_CONTAINER')
+        target=side['root']/'targets'/side['case_id']
+        expected={'/var/lib/postgresql':('volume',identity['volume'],side['ids']['volume_mountpoint'],True),
+            '/docker-entrypoint-initdb.d/10-restore.sh':('bind',None,str(self.context._backend.initdb),False),
+            '/run/secrets/postgres_password':('bind',None,str(target/'secrets/postgres_password'),False),
+            '/run/secrets/admin_password':('bind',None,str(target/'secrets/admin_password'),False)}
+        mounts=pg['Mounts']
+        _require(type(mounts) is list and len(mounts)==4 and {m.get('Destination') for m in mounts}==set(expected) and all((m.get('Type'),m.get('Name'),m.get('Source'),m.get('RW'))==expected[m['Destination']] for m in mounts),'CONTROLLED_EXACT_STOP_MOUNTS')
+        _require(type(state) is dict and type(state.get('Running')) is bool and type(state.get('Pid')) is int and type(state.get('StartedAt')) is str and bool(state['StartedAt']) and pg['ExecIDs'] in (None,[]) and type(pg['RestartCount']) is int and pg['RestartCount']>=0,'CONTROLLED_EXACT_STOP_STATE')
+        stable={k:v for k,v in pg.items() if k!='State'}
+        if self.phase==0:
+            self.before=(stable,copy.deepcopy(state))
+            _require(state['Running'] and state['Pid']>0 or state['Running'] is False and state['Pid']==0,'CONTROLLED_EXACT_STOP_PID')
+        else:
+            _require(stable==self.before[0] and state['StartedAt']==self.before[1]['StartedAt'] and state['Running'] is False and state['Pid']==0 and self.mutations==int(self.before[1]['Running']),'CONTROLLED_EXACT_STOP_FINAL')
+        self._birth();self.phase+=1
+        return dict(containers=[pg],volumes=[volume])
+    def _docker(self,*args):
+        self._check()
+        _require(self.phase==1 and self.mutations==0 and self.before[1]['Running'] is True and args==('stop','--time','1',self.side['ids']['container_id']),'CONTROLLED_EXACT_STOP_COMMAND')
+        self.mutations=1
+        # Keep the pinned helper's interface while avoiding Docker 29's
+        # deprecated --time spelling. No warning is discarded or normalized.
+        return self._rpc('stop','--timeout','1',self.side['ids']['container_id']).decode()
+
+
 class ControlledFixtureContext:
     """Exact private orchestration type; never deserialized from observations."""
     __slots__=('_install','_backend','_plan','_suite','_runner','_h','_binding','_images','_result',
-        '_sides','_active','_cache','_cache_fd','_cache_id','_tools','_closed','_native_broken','_body_used','_native_operation','_native_helpers','_budget','_compiled','_runtime_admission','_compiling','_observation_deadline','_clone')
+        '_sides','_active','_cache','_cache_fd','_cache_id','_tools','_closed','_native_broken','_body_used','_native_operation','_native_helpers','_budget','_compiled','_runtime_admission','_compiling','_observation_deadline','_clone','_known_stop_entered')
     def __init__(self,token,install=None):
         _require(token is _TOKEN and type(install) is _VerifiedInstall,'CONTROLLED_CONTEXT_MINT_ONLY')
         install.recheck()
@@ -605,6 +689,7 @@ class ControlledFixtureContext:
         self._compiling=None
         self._observation_deadline=None
         self._clone=None
+        self._known_stop_entered=False
     def __reduce_ex__(self,protocol):raise TypeError('controlled context is process-local')
     def _alive(self):
         _require(not self._closed and not self._native_broken,'CONTROLLED_CONTEXT_UNUSABLE')
@@ -1031,6 +1116,53 @@ class ControlledFixtureContext:
     def _confirm_clone_isolated(self):
         _require(self._clone is not None,'CONTROLLED_CLONE_REQUIRED')
         self._clone.confirm_isolated()
+
+    def _stop_owned_known(self):
+        try:
+            _require(not getattr(self,'_known_stop_entered',False),'CONTROLLED_EXACT_STOP_REENTRY')
+            # None means structurally unavailable, never a failed exact authority check.
+            if self._clone is not None or self._plan['case']=='wrong-endpoint' or not self._body_used:return None
+            self._known_stop_entered=True
+            _require(set(self._sides)=={'source','target'} and all(all(side.get(k) is not None for k in ('record','creation','status','ids','pg')) for side in self._sides.values()),'CONTROLLED_EXACT_STOP_COMPLETE_REQUIRED')
+            self._alive()
+            deadline=self._backend.commands.isolation_deadline
+            rows=[];evidence={};births=[]
+            for role in ('source','target'):
+                side=self._sides[role];row=side['record'];identity=side['identity'];owner=side['creation'];ids=side['ids'];status=side['status']
+                case_id=self._plan[role+'_case_id'];subnet=self._plan[role+'_subnet'];cid=ids['container_id']
+                _require(side['role']==row['role']==role and side['case_id']==row['batch_id']==status['batch_id']==case_id and side['subnet']==row['subnet']==status['subnet']==subnet and side['root']==row['control']==self._backend.batch/(role+'-control') and row['identity'] is identity and identity==self._backend.provisioner.identity_for(case_id),'CONTROLLED_EXACT_STOP_ROLE')
+                _require(owner['state']=='known' and type(cid) is str and re.fullmatch('[0-9a-f]{64}',cid) and cid==owner['id']==row['container_id']==status['container_id'] and owner['intent']==dict(kind='pg',name=identity['project']+'-pg-1',case_id=self._plan['source_case_id'],batch_id=self._plan['batch_id'],expected=dict(name=identity['project']+'-pg-1',labels={'com.docker.compose.project':identity['project'],'com.docker.compose.service':'pg'}),network=dict(name=identity['network'])),'CONTROLLED_EXACT_STOP_CREATION')
+                _require(ids['volume_name']==status['volume_name']==side['pg']['Name']==identity['volume'] and ids['volume_mountpoint']==status['volume_mountpoint']==side['pg']['Mountpoint'] and side['pg']['Driver']=='local' and side['pg']['Scope']=='local' and not side['pg']['Options'] and side['pg']['Labels'].get('com.docker.compose.project')==identity['project'],'CONTROLLED_EXACT_STOP_VOLUME_BINDING')
+                target=side['root']/'targets'/case_id
+                raw=self._backend.helper._private_read(target/'control'/(identity['database']+'.birth.json'),limit=4096)
+                pin=_digest(raw);births.append(pin)
+                _require(pin==status['birth_sha256']==row['birth_sha256']==self._compiled['live'][role+'_birth_sha256'] and pin!='0'*64,'CONTROLLED_EXACT_STOP_BIRTH')
+                evidence_raw=self._backend.helper._private_read(target/'birth-evidence.json',limit=4096)
+                fact=json.loads(evidence_raw,object_pairs_hook=_pairs)
+                _require(all(fact.get(k)==v for k,v in dict(project=identity['project'],batch_id=case_id,container_id=cid,volume_name=ids['volume_name'],volume_mountpoint=ids['volume_mountpoint'],birth_sha256=pin,docker_daemon_id=row['before']['daemon_id']).items()) and type(fact.get('image_id')) is str and re.fullmatch('sha256:[0-9a-f]{64}',fact['image_id']) and type(fact.get('container_started_at')) is str and fact['container_started_at']!='','CONTROLLED_EXACT_STOP_BIRTH_EVIDENCE')
+                measured=row['pg_root_measurement'];meta=measured['roots']['target_pg']['identity']
+                _require(measured['phase']=='birth' and measured['target_case_id']==case_id and measured['source_case_id']==self._plan[('target' if role=='source' else 'source')+'_case_id'] and meta['path']==ids['volume_mountpoint'] and all(type(meta[k]) is int and meta[k]>0 and meta[k]==fact['volume_mount_'+k] for k in ('dev','ino')) and meta['uid']==meta['gid']==0 and meta['mode']==0o755,'CONTROLLED_EXACT_STOP_NATIVE_VOLUME')
+                evidence[role]=(fact,_digest(evidence_raw))
+                pinned=copy.deepcopy(_ExactStopView._values(side,row,owner))
+                rows.append((role,side,row,identity,owner,row['before'],pinned))
+            _require(len(set(births))==2 and len({s['ids']['container_id'] for s in self._sides.values()})==2,'CONTROLLED_EXACT_STOP_DISTINCT')
+            bindings=(self._install,copy.deepcopy(self._plan),copy.deepcopy(self._compiled['live']),rows)
+            views=[_ExactStopView(self,self._sides[r],deadline,bindings,evidence[r]) for r in ('source','target')]
+            daemon=views[0]._rpc('info','--format','{{.ID}}').decode().strip()
+            _require(bool(daemon) and all(e[0]['docker_daemon_id']==daemon for e in evidence.values()),'CONTROLLED_EXACT_STOP_DAEMON')
+            stopped={}
+            for role,view in zip(('source','target'),views):
+                side=self._sides[role]
+                fact=self._backend.helper.stop_verified_pg(view,side['identity'],side['ids']['container_id'])
+                _require(fact.get('confirmed') is True and view.phase==2,'CONTROLLED_EXACT_STOP_UNCONFIRMED')
+                stopped[role+'_stopped']=True
+            _require(views[-1]._rpc('info','--format','{{.ID}}').decode().strip()==daemon,'CONTROLLED_EXACT_STOP_DAEMON_CHANGED')
+            self._alive();views[-1]._check()
+            return dict(**stopped,volumes_retained=True)
+        except BaseException:
+            self._native_broken=True
+            import p0c4_controlled_import_acceptance as runner
+            raise runner.ImportRejected('UnconfirmedIsolation') from None
 
     def observation(self):
         compiled={stage:{k:value[k] for k in ('binary_sha256','compiler_stdout_sha256','source_birth_sha256','target_birth_sha256','materialization','profile','cache_before','cache_after','executed')} for stage,value in self._compiled.items()}
