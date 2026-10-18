@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-> Task5当前full准备与保护停止（2026-10-18）：FIRST/Reader metadata已批准，首full prepare/install已知，PLAN issued非reserved后保护检查拒绝，独审53检查/Root确认边界，无case信用。native正文未派发、无测试PG，full仍0/9；仅一旧容器stable投影摘要变化，底层字段/原因未知，当前三样本仅context。旧已消费stage/Suite/case保留；全新UUID尝试后续结果待独审。受控11/11＝10历史c749＋1当前85c，Task5/C4 OPEN，Task2关闭。
+> Task5当前首full实际验收（2026-10-19）：85c49af full-import已独审SPEC/QUALITY PASS、0阻断并由Root采纳，full1/9，仅本项；精确1PASS/0fail/0ignored、451 filtered、27.72秒。五阶段、1184原件/32指定原件、两个never-started reader与23个native helper移除、源/目标停止/七卷保留闭合。实际角色SQL stdout未独立读、tar不证明现场inode/nlink限制保持。受控11/11＝10历史c749＋1当前85c；下一EOF启动前本地路径阻断/未SSH或远端运行，Task5/C4 OPEN，Task2关闭。
 
 更新：2026-10-18。当前状态：C4 补验中 · Task2代码与单机补验收尾完成 · 同包准入5/5、绑定4+2、端点新5/5、life8/8 · Task5当前0/11 · 整关OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
@@ -104,7 +104,7 @@ flowchart LR
 | Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN、旧5/5预算和Task5当前0/11保持；Task6–9及C4整关仍开放，无CompleteBackup和生产部署。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | 受控11/11保持；首full PLAN保护停止/body未运行，full0/9、Task5 OPEN | FIRST/Reader与Root固定gate为准备批准；实际首full prepare/install已知，PLAN返回ROOT_PLAN_ISSUED_NOT_RESERVED后因PROTECTED_RESOURCE_CHANGED_OR_UNKNOWN停止。独审53项/51引用与Root确认，无新case信用。plan capsule移除，Suite保留；无新C/N/V、无测试PG/native正文或本次DDL执行。 一旧容器direct stable摘要770723…→868e92…，其余旧行保持；底层具体字段/原因未知，当前3样本等于historical after仅context，不是未来保证。原stage不重放/清理/rebase；新UUID＋完整fresh基线沿原程序，后续body仍须独审。受控11混合source/full0/9、Task5/C4 OPEN，clone v3.1有限保证保持。 |
+| Task 5 · 受控整库导入与原件恢复 | 首full-import已独审/Root采纳：full1/9；受控11/11、Task5 OPEN | 实际full-import精确测试1PASS/0fail/0ignored、451 filtered、27.72秒；五阶段原件与receipt、1184原件/27 Suite＋5 target指定原件闭合。commit/catalog/originals/target_stopped=true、rollback=false；15 migration、325220B dump、4逻辑资产/3唯一96B。23 native helpers与2 never-started readers移除，源/目标停止、七卷保留、旧C/N/V保持。 只采纳full-import为1/9，下一EOF启动前本地路径阻断，future8与EOF reader均无实际信用；受控11仍10历史c749＋1当前85c。角色SQL stdout未独立读，dump等由固定body/proof支持、tar header不证明现场inode/nlink；旧PLAN保护停止/历史根因未知与UNKNOWN保持。无独立存储/CompleteBackup/生产恢复，Task5/Task6–9/C4 OPEN。 |
 | Task 6 · 作业归一化与恢复资格校验 | 本地基础通过，现场门待验 | 全表数据比对、旧租约/token 失效、未知副作用持久隔离、恢复收据；全部成立后才可判定可用。 WIP d4b97df：64张表数据观察基础及queued策略修复，本地87+12=99项通过，其中新增17项。真实目标COPY/外部排序与作业SQL未接入；独立审查、Linux/PG五门未完成。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6独立审查尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |

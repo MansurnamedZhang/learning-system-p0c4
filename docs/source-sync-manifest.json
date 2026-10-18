@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "date": "2026-10-18",
+  "date": "2026-10-19",
   "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
-  "previous_public_commit": "18025de5ae55e14ae2bbb3f979d8cfaf61d7fe1d",
+  "previous_public_commit": "a907254879687ea6f7ccb29322cf5b9529dacd9e",
   "source_archive_sha256": "c77e6766c3e11f66bec8f10ed95a2f5489cbab77da3e85a600540179bd490baa",
   "source_manifest_sha256": "87aa19662f1d9b93a79dae02ddaf4f7abd3b836d8a49687ab63f891785a8dbd4",
   "source_file_count": 549,
@@ -10,7 +10,7 @@
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
   ],
-  "scope": "CONTROLLED11_MIXED_SOURCE_ACCEPTED_FIRST_FULL_PLAN_GUARD_STOP_FULL0_TASK5_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
+  "scope": "CONTROLLED11_MIXED_SOURCE_AND_FIRST_FULL_IMPORT_ACCEPTED_FULL1_OF9_TASK5_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "documentation_transform": "redact machine locations, resolve published links, add current progress; private references remain labels",
   "files": [
     {
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112907,
-      "sha256": "c7be5b9845ee52f9c0b29fbf544d2d03a74b3016be09a4abe7644369b2ba6da6",
+      "bytes": 113005,
+      "sha256": "bb975ea3c26ac8b0e87c5af3659dc6a92460864a65657e1f1abb70b5f7d5e906",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3938,
-      "sha256": "9a4bb1402ab2387f9a2aa85cfd6932f9414fb3ac67ed6581f14deab23b9e7df9",
+      "bytes": 3910,
+      "sha256": "d9775667a2f083fa41ec10d036bbc4fe0086ec9b360c8634393f6f84fc2053ba",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45417,
-      "sha256": "54765344db9267901a2fe30b33682608a025ef0bc8af1649a1a85055b654a403",
+      "bytes": 45521,
+      "sha256": "ad6269a08971021c4c1ef4c45c8d3aab37384ffa406ea13b8d1bfeaa01a9293f",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29365,
-      "sha256": "30449eaa514592d1dcc9b17c6126999b3638eeb3e89aace147e61b17ef49973d",
+      "bytes": 30151,
+      "sha256": "5313b494a3ed1cd8fa9f4c5ad62df7dbb0c96a67fcad3dd8e0ce1f9c770a4773",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3030,
-      "sha256": "e91ba68cb281286d38cf63db0ea69bf98b4c634daf9e90df74e42f49de80b844",
+      "bytes": 3795,
+      "sha256": "6f703429cf8c4be75568a0b9d2921c688771d69b326ee298522fd13832f77bb7",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 24683,
-      "sha256": "1cb6c48a801f6750940d354f378812ae8b711347d87e0290d6a791625350f5be",
+      "bytes": 25469,
+      "sha256": "a9e8656c03ea6e96b556b3e809e19cfad2b1efd387da7eba4cd5930a86e0fbef",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4032,13 +4032,13 @@
       "source_bytes_preserved": true
     }
   ],
-  "progress_as_of": "2026-10-18",
+  "progress_as_of": "2026-10-19",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
   "task5_current": {
     "legacy_passed": 11,
     "legacy_total": 11,
-    "full_passed": 0,
+    "full_passed": 1,
     "full_total": 9,
     "protected_entries_implemented": 11,
     "protected_entries_total": 11,
@@ -4098,7 +4098,7 @@
       "prior_operator_batch": "UNIT_PASS_OUTER_PROTECTION_REJECTED_RETAINED"
     },
     "production_helper_caps_attestation": false,
-    "full_ops_fix": "FIRST_READER_METADATA_AND_FIXED_ROOT_GATES_APPROVED_PREPARE_INSTALL_KNOWN_PLAN_PROTECTION_FAILED_NO_BODY_NO_FULL_CREDIT",
+    "full_ops_fix": "FIRST_FULL_IMPORT_ACTUAL_ROOT_ACCEPTED_ONE_OF_NINE_FUTURE_EIGHT_INACTIVE_PREPARATION_ONLY",
     "current11_ops_scope": "Eleven controlled cases accepted: ten historical c749 and one current 85c wrong-endpoint; not eleven rerun at 85c; full0/9 Task5/C4 OPEN; consumed UNKNOWN preserved",
     "success_installation": {
       "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
@@ -4220,7 +4220,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "FIRST85C_READER_METADATA_APPROVED_OLD_PLAN_STOP_HELD_NEW_UUID_FRESH_BASELINE_ATTEMPT_PENDING_NO_BODY_CREDIT",
+    "reader_compatibility_next": "FIRST_FULL_READERS_ACTUAL_REMOVED_NEXT_EOF_LOCAL_PATH_OPEN_BLOCKED_BEFORE_SSH_NO_EOF_NATIVE_CREDIT",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -5212,6 +5212,122 @@
       "guard_relaxation_or_old_baseline_rebase_permitted": false,
       "new_uuid_fresh_baseline_attempt_started_root_report_only": true,
       "new_attempt_body_or_full_credit": 0,
+      "native_credit": 0,
+      "full_credit": 0
+    },
+    "prior_full_status_before_first_actual_import": {
+      "full_passed": 0,
+      "full_ops_fix": "FIRST_READER_METADATA_AND_FIXED_ROOT_GATES_APPROVED_PREPARE_INSTALL_KNOWN_PLAN_PROTECTION_FAILED_NO_BODY_NO_FULL_CREDIT",
+      "reader_compatibility_next": "FIRST85C_READER_METADATA_APPROVED_OLD_PLAN_STOP_HELD_NEW_UUID_FRESH_BASELINE_ATTEMPT_PENDING_NO_BODY_CREDIT"
+    },
+    "accepted_full_cases": [
+      "full-import"
+    ],
+    "actual_full_import_85c49af": {
+      "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
+      "status": "ROOT_ACCEPTED_FULL_NATIVE_CASE",
+      "case": "full-import",
+      "actual_case_id": "d3785fb5-2781-44ac-b6f0-44ab84612810",
+      "actual_batch_id": "8760ddb2-e6e1-4b36-8358-74aac1a85a0d",
+      "exact_test": "full_restore::live_tests::full_import_preserves_one_writer_transaction_and_exact_endpoint",
+      "outcome": {
+        "exit_code": 0,
+        "failed": 0,
+        "filtered": 451,
+        "ignored": 0,
+        "passed": 1,
+        "seconds": 27.72
+      },
+      "independent_index_sha256": "4c2e6d154562d18dcba78dce5ef75cac3a780eae2539e2c57818e7d72b4ec006",
+      "independent_report_sha256": "a9fcce02453e60ceee2b7faeae8953928c8165bb98f37c49e769f6ca14463098",
+      "independent_checks": 46500,
+      "independent_sealed_refs": 27346,
+      "independent_exact_input_path_refs": 27331,
+      "root_adoption_index_sha256": "4df18ac360e511b005fddc3649d97f471488c5ae695accaac774e467a79d0439",
+      "root_adoption_unique_refs": 27134,
+      "root_extra_actual_proof_index_sha256": "d68f7fcd64525417c21a6963766660e0b097939d3283d6b76b93bc35159ac9f8",
+      "root_extra_actual_refs": 1193,
+      "five_known_phases": [
+        "prepare",
+        "install",
+        "plan",
+        "run",
+        "verify"
+      ],
+      "phase_export_originals": [
+        249,
+        468,
+        695,
+        926,
+        1145
+      ],
+      "all_originals": 1184,
+      "suite_selected_originals": 27,
+      "target_control_selected_originals": 5,
+      "never_started_readers_removed": 2,
+      "known_native_helpers_removed": 23,
+      "source_target_stopped": true,
+      "volumes_retained": 7,
+      "old_complete_cnv_projection_preserved": true,
+      "source_and_target_distinct_new_pg": true,
+      "commit_attempted": true,
+      "import_catalog_verified": true,
+      "originals_verified": true,
+      "target_stopped": true,
+      "rollback_verified": false,
+      "canonical_migrations": 15,
+      "dump_bytes": 325220,
+      "toc_format": "CUSTOM",
+      "toc_entries": 630,
+      "toc_declared": 635,
+      "logical_assets": 4,
+      "unique_asset_files": 3,
+      "unique_asset_sizes": [
+        27,
+        30,
+        39
+      ],
+      "unique_asset_bytes": 96,
+      "limitations": [
+        "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+        "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+        "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+        "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE"
+      ],
+      "native_credit": 1,
+      "future_cases_credit": 0,
+      "complete_backup": false,
+      "independent_storage_proven": false,
+      "production_restore_proven": false,
+      "task5_open": true,
+      "c4_open": true
+    },
+    "first_actual_full_import_root_adoption": {
+      "index_sha256": "4df18ac360e511b005fddc3649d97f471488c5ae695accaac774e467a79d0439",
+      "case": "full-import",
+      "accepted_full_cases": 1,
+      "total_full_cases": 9,
+      "other_eight_accepted": false,
+      "root_original_probe_index_sha256": "d68f7fcd64525417c21a6963766660e0b097939d3283d6b76b93bc35159ac9f8",
+      "prior_plan_stop_history_unchanged": true
+    },
+    "next_eight_full_and_eof_preparation": {
+      "next_eight_wrapper": "FIXED_GATES_ACTIVATED_BUT_FIRST_LOCAL_SCRIPT_OPEN_BLOCKED_BEFORE_SUBPROCESS_OR_SSH_NO_REMOTE_STAGE",
+      "eof_reader": "DESIGN_AND_INDEPENDENT_REVIEW_PREPARATION_ONLY",
+      "actual_eof_claimed": false,
+      "accepted_future_cases": [],
+      "native_credit": 0
+    },
+    "next_eof_local_path_block": {
+      "root_diagnosis_sha256": "7eb9a293dd1dbca65f4ad09dfd74b9f4582b5971fae8f9458361912a2ddaea7c",
+      "status": "LOCAL_FIRST_OUTPUT_FILE_OPEN_FAILED_BEFORE_SSH_OR_REMOTE_STAGE",
+      "failed_file_path_chars": 274,
+      "ssh_calls": 0,
+      "remote_stage_generated": false,
+      "pg_created": false,
+      "local_empty_attempt_retained_no_replay_or_delete": true,
+      "mutable_path_fix_not_sealed": true,
+      "actual_eof_executed": false,
       "native_credit": 0,
       "full_credit": 0
     }
