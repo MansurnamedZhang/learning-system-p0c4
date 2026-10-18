@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-> Task5当前代码与八项验收（2026-10-18）：c749d9e SQL/Exit11、COPY/Exit12/NO_BLIND_ROLLBACK、ATTEMPT/Journal12/partial retained/DDL_NOT_SENT三例整轮接受，均commit=false/rollback=false/intent不存在、outer0/旧C-N-V全同；累计legacy8/11、full0/9。公开cb421 clone仅v3.1有限合同代码＋Linux170，无新增native信用，运维绑定/真实wrong-endpoint待验；其余未审case不计，Task5/C4 OPEN，Task2关闭。
+> Task5当前代码与十项验收（2026-10-18）：c749d9e intent-sync/Journal13（COMMIT未发送）与commit-unknown/CommitUnknown14（COMMIT一次、确认丢失、不retry）两例整轮接受，均rollback=false/双marker保留；业务结果未知不等于资源创建UNKNOWN，资源已隔离、outer0/旧C-N-V全同。累计legacy10/11、full0/9；cb421 clone仅有限代码＋Linux170，wrong-endpoint未运行，full-import新五阶段提案未激活/待独审；Task5/C4 OPEN，Task2关闭。
 
 更新：2026-10-18。当前状态：C4 补验中 · Task2代码与单机补验收尾完成 · 同包准入5/5、绑定4+2、端点新5/5、life8/8 · Task5当前0/11 · 整关OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
@@ -104,7 +104,7 @@ flowchart LR
 | Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN、旧5/5预算和Task5当前0/11保持；Task6–9及C4整关仍开放，无CompleteBackup和生产部署。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | c749八项整轮已接受8/11、full0/9；cb421 clone代码信用单列 | 新sql-error、copy-truncated、attempt-sync-failure各真实Rust 1 PASS、整轮outer0并保持全部旧C/N/V；分别Exit11、Exit12/NO_BLIND_ROLLBACK、Journal12/ATTEMPT_PARTIAL_RETAINED/DDL_NOT_SENT，均commit=False/rollback=False/retry=False，attempt存在而intent不存在。 不把客户端Exit或Journal写成回滚成功，部分attempt保留不代表同步成功；累计仅c749八项8/11/full0/9，commit-intent-sync-failure/commit-unknown未审、cb421 wrong-endpoint未运行不计信用。clone历史native与currentDocker/control custody有限合同、raw导出边界及旧UNKNOWN/Task2账目保持，Task5/C4仍OPEN。 |
+| Task 5 · 受控整库导入与原件恢复 | c749十项整轮已接受10/11、full0/9；wrong-endpoint尚缺，Task5 OPEN | 新增commit-intent-sync-failure Journal13、commit_attempted=False/COMMIT_NOT_SENT；commit-unknown CommitUnknown14、commit_attempted=True/COMMIT_ONCE/CONFIRMATION_LOST/NO_RETRY。两例rollback=False、双marker保留，资源已知且停止、outer0及旧C/N/V全同；不称已确认提交或回滚。 业务CommitUnknown与资源创建UNKNOWN分离，当前legacy10/11均c749/full0/9；不将c749信用给cb421。最后wrong-endpoint未运行，full-import五阶段inactive提案待独审，clone有限namespace保证/导出边界和旧UNKNOWN/Task2账目保持，Task5及C4仍OPEN。 |
 | Task 6 · 作业归一化与恢复资格校验 | 本地基础通过，现场门待验 | 全表数据比对、旧租约/token 失效、未知副作用持久隔离、恢复收据；全部成立后才可判定可用。 WIP d4b97df：64张表数据观察基础及queued策略修复，本地87+12=99项通过，其中新增17项。真实目标COPY/外部排序与作业SQL未接入；独立审查、Linux/PG五门未完成。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6独立审查尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |
