@@ -37,7 +37,7 @@ def plan(case):
 
 class FiniteCaseTests(unittest.TestCase):
     def test_issuer_unknown_or_nonstring_case_rejects_before_filesystem(self):
-        for case in ('wrong-endpoint', 'unknown', True, []):
+        for case in ('unknown', True, []):
             with self.subTest(case=case), patch.object(fixture, 'Path', side_effect=AssertionError('filesystem reached')), \
                  self.assertRaisesRegex(fixture.ControlledRejected, 'CONTROLLED_FIXED_CASE_ONLY'):
                 fixture._mint_plan_from_install(case)
@@ -169,6 +169,7 @@ class FiniteCaseTests(unittest.TestCase):
             def write(path, data):
                 with path.open('xb') as stream: stream.write(data)
             context = fixture.ControlledFixtureContext.__new__(fixture.ControlledFixtureContext)
+            context._clone = None
             context._plan = plan('commit-unknown'); context._body_used = False
             context._backend = SimpleNamespace(batch=batch, helper=SimpleNamespace(_private_write=write))
             context._sides = {'source': {'status': {'birth_sha256': 'a'*64}}, 'target': {'status': {'birth_sha256': 'b'*64}}}

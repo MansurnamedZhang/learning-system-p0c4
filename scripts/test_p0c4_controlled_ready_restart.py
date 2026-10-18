@@ -104,6 +104,7 @@ class RestartContextTests(unittest.TestCase):
             def write(path, data):
                 with path.open('xb') as stream: stream.write(data)
             context = fixture.ControlledFixtureContext.__new__(fixture.ControlledFixtureContext)
+            context._clone = None
             context._plan = plan(); context._body_used = False
             context._backend = SimpleNamespace(batch=batch, helper=SimpleNamespace(_private_write=write))
             context._sides = {'source': {'status': {'birth_sha256': 'a'*64}}, 'target': {'status': {'birth_sha256': 'b'*64}}}

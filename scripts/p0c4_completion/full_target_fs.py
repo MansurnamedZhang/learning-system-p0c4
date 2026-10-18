@@ -10,6 +10,7 @@ import uuid
 
 _TOKEN=object()
 _CONTROLLED_RECIPE=object()
+_CLONE_TARGET_HOLD=object()
 _CAP=1024*1024
 # Only the fixed controlled recipe's two complete creation snapshots use this
 # JSON-body budget. Responses and private-file reads keep the original _CAP.
@@ -161,9 +162,11 @@ def _extend_document(document,identity,target):
 
 class _NativeOwner:
     """Only constructed by the fixed owner entry in its measured namespace."""
-    def __init__(self,*,_recipe=None):
+    def __init__(self,*,_recipe=None,_retain=None):
         _require(_recipe is None or _recipe is _CONTROLLED_RECIPE)
+        _require(_retain is None or _retain is _CLONE_TARGET_HOLD and _recipe is _CONTROLLED_RECIPE)
         self._recipe=_recipe
+        self._retain_after_birth=_retain is _CLONE_TARGET_HOLD
         self.lock=None;self.root_fd=None;self.config=None;self.status=None
         self._files_ready=False;self._birth_complete=False
     def perform(self,op,value):
@@ -217,7 +220,9 @@ class _NativeOwner:
             _require(all(self.status[k]==v for k,v in value['ids'].items()))
             birth.validate_pg_facts(value['facts'])
             result=birth._publish_birth_files(root,target,identity,self.status,value['ids'],value['image_id'],value['started_at'],value['volume_id'],value['facts'],value['daemon_id'])
-            self._recheck();self._birth_complete=True;return result
+            self._recheck();self._birth_complete=True
+            if self._retain_after_birth:self._release_creation_after_birth()
+            return result
         if op=='failure':
             _require(set(value)=={'code'} and value['code'] in ('PREPARATION_REJECTED','ISOLATION_UNCONFIRMED'))
             if target.exists() and not (target/'failure.json').exists():
@@ -229,6 +234,7 @@ class _NativeOwner:
     def _setup(self,value):
         _require(sys.platform=='linux' and os.geteuid()==0 and self.config is None)
         c=_controlled_configuration(value) if self._recipe is _CONTROLLED_RECIPE else _configuration(value)
+        _require(not self._retain_after_birth or c['role']=='target')
         _require(Path(c['source_root']).resolve()==Path(__file__).resolve().parents[2])
         sys.path.insert(0,str(Path(c['source_root'])/'scripts'))
         import p0c4_restore_target as provisioner
@@ -248,16 +254,36 @@ class _NativeOwner:
         self.lock=provisioner._locked_root(root);self.lock.__enter__()
         pin._check_setup(root,c[c['role']+'_case_id'] if self._recipe is _CONTROLLED_RECIPE else c['target_case_id'])
         self.root_fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        if self._retain_after_birth:
+            import fcntl
+            # Separate continuous custody on THIS original directory handle.
+            # No new root file; ordinary Python/Rust creation-lock admission stays intact.
+            fcntl.flock(self.root_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
         self.config=c;self.root_identity=_identity(root)
+        self._recheck()
         return dict(root=self.root_identity,lock_held=True)
     def _recheck(self):
         _require(self.config is not None and self.root_fd is not None and _identity(self.config['root'])==self.root_identity)
         m=os.fstat(self.root_fd);_require((m.st_dev,m.st_ino)==(self.root_identity['dev'],self.root_identity['ino']))
+        if self._retain_after_birth:self._check_directory_custody(m)
+    def _check_directory_custody(self,meta):
+        # fdinfo describes locks owned by the original open file description;
+        # do not silently reacquire flock when checking continuous custody.
+        fd=os.open('/proc/self/fdinfo/'+str(self.root_fd),os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        try:raw=os.read(fd,4097);_require(0<len(raw)<=4096)
+        finally:os.close(fd)
+        rows=[line.split() for line in raw.decode('ascii').splitlines() if line.startswith('lock:')]
+        _require(len(rows)==1 and len(rows[0])==9 and rows[0][2:5]==['FLOCK','ADVISORY','WRITE'] and rows[0][7:]==['0','EOF'])
+        device=rows[0][6].split(':');_require(len(device)==3)
+        _require((int(device[0],16),int(device[1],16),int(device[2]))==(os.major(meta.st_dev),os.minor(meta.st_dev),meta.st_ino))
+    def _release_creation_after_birth(self):
+        _require(self._retain_after_birth and self._birth_complete and self.lock is not None)
+        self._recheck();self.lock.__exit__(None,None,None);self.lock=None;self._recheck()
     def close(self):
         if self.root_fd is not None:os.close(self.root_fd);self.root_fd=None
         if self.lock is not None:self.lock.__exit__(None,None,None);self.lock=None
     def _disconnect_requires_hold(self):
-        return self.root_fd is not None and self._files_ready and not self._birth_complete
+        return self.root_fd is not None and self._files_ready and (self._retain_after_birth or not self._birth_complete)
     def disconnected(self):
         if self._disconnect_requires_hold():
             # Protocol loss must not voluntarily unlock a possibly live target.
@@ -274,9 +300,12 @@ class _NativeOwner:
 def _new_controlled_owner():
     return _NativeOwner(_recipe=_CONTROLLED_RECIPE)
 
-def _owner_main(*,_recipe=None):
+def _new_controlled_clone_target_owner():
+    return _NativeOwner(_recipe=_CONTROLLED_RECIPE,_retain=_CLONE_TARGET_HOLD)
+
+def _owner_main(*,_recipe=None,_retain=None):
     _require(_recipe is None or _recipe is _CONTROLLED_RECIPE)
-    os.umask(0o077);backend=_new_controlled_owner() if _recipe is _CONTROLLED_RECIPE else _NativeOwner();protocol=None
+    os.umask(0o077);backend=_NativeOwner(_recipe=_recipe,_retain=_retain);protocol=None
     try:
         controlled=_recipe is _CONTROLLED_RECIPE
         read_cap=_CONTROLLED_CREATED_REQUEST_CAP+2 if controlled else _CAP+1
@@ -371,7 +400,7 @@ if __name__=='__main__':raise SystemExit(main())
 class _HelperProfile:
     __slots__=('_kind','_mounts','_command','_interactive','_controlled')
     def __init__(self,token,kind,mounts,command,interactive,*,_controlled=None):
-        _require(token is _TOKEN and kind in ('owner','pg','roots','controlled-owner','controlled-native'))
+        _require(token is _TOKEN and kind in ('owner','pg','roots','controlled-owner','controlled-native','controlled-clone-owner'))
         if kind.startswith('controlled-'):
             from p0c4_completion.controlled_fixture import ControlledFixtureContext
             _require(type(_controlled) is ControlledFixtureContext)
@@ -473,4 +502,5 @@ def _measure(context,phase,volumes):
 if __name__=='__main__':
     if sys.argv[1:]==['--fixed-owner']:raise SystemExit(_owner_main())
     if sys.argv[1:]==['--fixed-controlled-owner']:raise SystemExit(_owner_main(_recipe=_CONTROLLED_RECIPE))
+    if sys.argv[1:]==['--fixed-controlled-clone-target-owner']:raise SystemExit(_owner_main(_recipe=_CONTROLLED_RECIPE,_retain=_CLONE_TARGET_HOLD))
     raise SystemExit(2)

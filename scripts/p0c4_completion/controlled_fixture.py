@@ -56,11 +56,18 @@ def _v4(value):
     except (ValueError,TypeError,AttributeError):return False
 
 def _case_contract(case):
+    if type(case) is str and case=='wrong-endpoint':
+        from p0c4_completion.controlled_clone import _CAPABILITY,_PROFILE
+        return _CAPABILITY,_PROFILE
     _require(type(case) is str and case in ('success',*_FIXED_CASES),'CONTROLLED_FIXED_CASE_ONLY')
     if case=='ready-restart':return 'c4_current11_ready_restart_plan_v1',_RESTART_PROFILE
     return ('c4_current11_first_success_plan_v1',_SUCCESS_PROFILE) if case=='success' else ('c4_current11_two_role_case_plan_v1',_CASE_PROFILE)
 
 def _validate_plan(value):
+    if type(value) is dict and value.get('case')=='wrong-endpoint':
+        from p0c4_completion.controlled_clone import _validate_plan as clone_plan,CloneRejected
+        try:return clone_plan(value)
+        except CloneRejected as error:raise ControlledRejected(str(error)) from None
     _require(type(value) is dict and set(value)==_PLAN_KEYS,'CONTROLLED_PLAN_FIELDS')
     capability,profile=_case_contract(value['case'])
     _require(type(value['format_version']) is int and value['format_version']==1 and value['capability']==capability and value['budget_profile']==profile,'CONTROLLED_CASE_PROFILE')
@@ -109,7 +116,8 @@ def _read_install(suite):
     raw,pin=_private_bytes(Path(suite)/'current11/install.json',16384,0o400)
     value=json.loads(raw,object_pairs_hook=_pairs)
     _require(type(value) is dict and set(value)==_INSTALL_KEYS and raw==_canonical(value) and type(value['format_version']) is int and value['format_version']==1 and value['capability']=='c4_current11_install_v1','CONTROLLED_INSTALL_RECORD')
-    _require(type(value['source_commit']) is str and re.fullmatch('[0-9a-f]{40}',value['source_commit']) is not None and value['builder']==_BUILDER and value['postgres']==_POSTGRES and value['budget_profile'] in (_SUCCESS_PROFILE,_CASE_PROFILE,_RESTART_PROFILE),'CONTROLLED_INSTALL_FIXED_SOURCE')
+    from p0c4_completion.controlled_clone import _PROFILE as clone_profile
+    _require(type(value['source_commit']) is str and re.fullmatch('[0-9a-f]{40}',value['source_commit']) is not None and value['builder']==_BUILDER and value['postgres']==_POSTGRES and value['budget_profile'] in (_SUCCESS_PROFILE,_CASE_PROFILE,_RESTART_PROFILE,clone_profile),'CONTROLLED_INSTALL_FIXED_SOURCE')
     _require(all(type(value[k]) is str and re.fullmatch('[0-9a-f]{64}',value[k]) is not None for k in _INSTALL_KEYS if k.endswith('_sha256')),'CONTROLLED_INSTALL_PINS')
     return value,pin
 
@@ -160,9 +168,13 @@ def _mint_plan_from_install(case='success'):
     admission.write_new(suite/'current11/plan-routes.bin',route_raw,0o400)
     admission.write_new(suite/'current11/plan-routes.json',_canonical(route_record),0o400)
     occupied.extend(row['dst'] for row in routes)
-    source_subnet,target_subnet=_choose_subnets(occupied)
+    if case=='wrong-endpoint':
+        from p0c4_completion.controlled_clone import _choose_subnets as clone_subnets
+        source_subnet,target_subnet,clone_subnet=clone_subnets(occupied)
+    else:source_subnet,target_subnet=_choose_subnets(occupied)
     ids=[str(uuid.uuid4()) for _ in range(4)]
     plan=dict(format_version=1,capability=capability,case=case,batch_id=ids[0],source_case_id=ids[1],target_case_id=ids[2],cache_scope=ids[3],source_subnet=source_subnet,target_subnet=target_subnet,**{k:record[k] for k in ('source_commit','public_archive_sha256','public_manifest_sha256','legacy_archive_sha256','legacy_manifest_sha256','builder','postgres','budget_profile')})
+    if case=='wrong-endpoint':plan.update(clone_case_id=str(uuid.uuid4()),clone_subnet=clone_subnet)
     _validate_plan(plan);_require(admission.source_digest(source,manifest) is not None,'CONTROLLED_PLAN_SOURCE_AFTER')
     path=suite/'current11/plan.json';fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600)
     try:
@@ -580,7 +592,7 @@ class _VerifiedInstall:
 class ControlledFixtureContext:
     """Exact private orchestration type; never deserialized from observations."""
     __slots__=('_install','_backend','_plan','_suite','_runner','_h','_binding','_images','_result',
-        '_sides','_active','_cache','_cache_fd','_cache_id','_tools','_closed','_native_broken','_body_used','_native_operation','_native_helpers','_budget','_compiled','_runtime_admission','_compiling','_observation_deadline')
+        '_sides','_active','_cache','_cache_fd','_cache_id','_tools','_closed','_native_broken','_body_used','_native_operation','_native_helpers','_budget','_compiled','_runtime_admission','_compiling','_observation_deadline','_clone')
     def __init__(self,token,install=None):
         _require(token is _TOKEN and type(install) is _VerifiedInstall,'CONTROLLED_CONTEXT_MINT_ONLY')
         install.recheck()
@@ -592,21 +604,29 @@ class ControlledFixtureContext:
         self._runtime_admission=None
         self._compiling=None
         self._observation_deadline=None
+        self._clone=None
     def __reduce_ex__(self,protocol):raise TypeError('controlled context is process-local')
     def _alive(self):
         _require(not self._closed and not self._native_broken,'CONTROLLED_CONTEXT_UNUSABLE')
         self._install.recheck()
     def _owned_pg_names(self):
         self._alive()
-        return tuple(self._backend.provisioner.identity_for(self._plan[role+'_case_id'])['project']+'-pg-1' for role in ('source','target'))
+        roles=('source','target','clone') if self._plan['case']=='wrong-endpoint' else ('source','target')
+        return tuple(self._backend.provisioner.identity_for(self._plan[role+'_case_id'])['project']+'-pg-1' for role in roles)
+
+    def _clone_profile(self):
+        self._alive()
+        if self._plan['case']!='wrong-endpoint':return False
+        from p0c4_completion.controlled_clone import _validate_plan
+        _validate_plan(self._plan);return True
 
     def _runtime(self):
         self._alive();_require(self._runner is None,'CONTROLLED_RUNTIME_REUSE')
         import p0c4_source_admission_gate_acceptance as admission
         import p0c4_source_binding_gate_acceptance as binding
         import p0c4_source_lifecycle_gate_acceptance as driver
-        from p0c4_completion import full_target_fs,resources
-        for module in (admission,binding,driver,full_target_fs,resources):
+        from p0c4_completion import full_target_fs,resources,controlled_clone
+        for module in (admission,binding,driver,full_target_fs,resources,controlled_clone):
             name='scripts/'+Path(module.__file__).resolve().relative_to(self._backend.source/'scripts').as_posix()
             _require(name in self._install.files and Path(module.__file__).read_bytes()==self._install.files[name],'CONTROLLED_RUNTIME_MODULE_SEAL')
         self._h,self._binding=admission,binding
@@ -626,6 +646,7 @@ class ControlledFixtureContext:
         self._backend.provisioner._inspect=self._inspect
         self._backend.provisioner.snapshot=self._snapshot
         self._runtime_admission=_RUNTIME_ADMITTED
+        if self._clone_profile():self._clone=controlled_clone._CloneLane(self)
 
     def _prepare_cache(self):
         self._alive();_require(self._runtime_admission is _RUNTIME_ADMITTED,'CONTROLLED_CACHE_RUNTIME_ADMISSION')
@@ -777,7 +798,9 @@ class ControlledFixtureContext:
                 _require(len(observed)==len(batch) and set(observed)==set(batch),'CONTROLLED_INVENTORY_COVERAGE')
                 collected.extend(part)
             for index,row in enumerate(collected):
-                for side in self._sides.values():
+                sides=list(self._sides.values())
+                if self._clone is not None and self._clone.row is not None:sides.append(dict(identity=self._clone.identity))
+                for side in sides:
                     expected={'container':'/'+side['identity']['project']+'-pg-1','network':side['identity']['network'],'volume':side['identity']['volume']}
                     if row['Name']==expected[kind]:
                         collected[index]=self._inspect(kind,[row['Name'] if kind=='volume' else row['Id']])[0]
@@ -814,11 +837,12 @@ class ControlledFixtureContext:
         side['owner']=fs._OwnerClient(fs._TOKEN,helper,broker)
         config=dict(batch_id=self._plan['batch_id'],source_case_id=self._plan['source_case_id'],target_case_id=self._plan['target_case_id'],subnet=subnet,root=str(root),suite_root=str(self._suite),source_root=str(backend.source),case_root=str(backend.batch),role=role)
         try:
-            side['owner'].call('setup',config)
+            side['owner_root']=side['owner'].call('setup',config)['root']
             side['owner'].call('pin',dict(before=self._snapshot()))
             side['status']=backend.provisioner._provision(root,batch_id,subnet,backend.initdb,_controlled_profile=self)
             row['container_id']=side['status']['container_id']
-            side['owner'].close();side['owner']=None
+            if self._clone is not None and role=='target':self._clone.take_target(side)
+            else:side['owner'].close();side['owner']=None
             _,inspection=self._peer_inspect(role)
             row['inspection_sha256']=_digest(backend.helper._json_bytes(inspection))
             return row
@@ -908,8 +932,13 @@ class ControlledFixtureContext:
         self._alive()
         suite=[('volume',self._suite.parent.name,str(self._suite),False)]
         if kind=='controlled-owner':
-            self._current()
-            return suite,['python3','-B','-u',str(self._backend.source/'scripts/p0c4_completion/full_target_fs.py'),'--fixed-controlled-owner']
+            side=self._current()
+            entry='--fixed-controlled-clone-target-owner' if self._clone is not None and side['role']=='target' else '--fixed-controlled-owner'
+            return suite,['python3','-B','-u',str(self._backend.source/'scripts/p0c4_completion/full_target_fs.py'),entry]
+        if kind=='controlled-clone-owner':
+            _require(self._clone is not None,'CONTROLLED_CLONE_LANE_REQUIRED')
+            self._clone.held();_require(self._clone.state=='preparing' and self._clone.owner is None,'CONTROLLED_CLONE_OWNER_PHASE')
+            return suite,['python3','-B','-u',str(self._backend.source/'scripts/p0c4_completion/controlled_clone.py'),'--fixed-clone-owner']
         _require(kind=='controlled-native' and self._native_operation in ('inspect-source','inspect-target','body'),'CONTROLLED_FIXED_NATIVE_OPERATION')
         volumes=[]
         for role in ('source','target'):
@@ -919,14 +948,17 @@ class ControlledFixtureContext:
                 continue
             _require(side['status'] is not None and side['pg'] is not None and side['creation']['state']=='known','CONTROLLED_NATIVE_CREATED_OWNER')
             volumes.append(('volume',side['pg']['Name'],side['pg']['Mountpoint'],True))
+        if self._clone is not None and self._clone.birth is not None:
+            volumes.append(('volume',self._clone.identity['volume'],self._clone.ids['volume_mountpoint'],True))
         fixed=[('bind',p,p,True) for p in ('/usr/bin/docker','/usr/libexec/docker/cli-plugins/docker-compose','/var/run/docker.sock')]+[('bind','/proc/1/ns/net','/run/knowweave-c4/host-netns',True)]
         return suite+volumes+fixed,['python3','-B','-u',str(self._backend.source/'scripts/p0c4_completion/controlled_fixture.py'),'--fixed-'+self._native_operation]
 
     def _validate_helper_contract(self,kind,mounts,command,interactive):
         expected,argv=self._helper_contract(kind)
-        _require(tuple(mounts)==tuple(expected) and tuple(command)==tuple(argv) and interactive is (kind=='controlled-owner'),'CONTROLLED_EXACT_HELPER_CONTRACT')
+        _require(tuple(mounts)==tuple(expected) and tuple(command)==tuple(argv) and interactive is (kind in ('controlled-owner','controlled-clone-owner')),'CONTROLLED_EXACT_HELPER_CONTRACT')
 
     def _retain_fs_owner(self,helper):
+        if self._clone is not None and self._clone.retain(helper):return True
         for side in self._sides.values():
             owner=side['owner'];created=side['creation']
             if owner is not None and owner._container is helper and owner._state not in ('birth','release') and (self._native_broken or created is not None and created['state'] not in ('planned','absent','stopped')):
@@ -936,6 +968,10 @@ class ControlledFixtureContext:
 
     def _retire_fs_owner_transport(self,helper):
         _require(self._retain_fs_owner(helper),'CONTROLLED_UNKNOWN_OWNER_BINDING')
+        if self._clone is not None and self._clone.owner is not None and self._clone.owner.container is helper:
+            owner=self._clone.owner;owner.failed=True;owner.broker.broken=True;child=owner.broker.child
+            if not child.retired and not child.retire_attempted:child.retire(timeout=5)
+            return
         # Detach/reap only this actual CLI transport; leave the exact native
         # Docker helper and its held lock recorded. No stop/rm/retry here.
         for side in self._sides.values():
@@ -981,9 +1017,20 @@ class ControlledFixtureContext:
         _require(build['source_birth_sha256']==self._sides['source']['status']['birth_sha256'] and build['target_birth_sha256']==self._sides['target']['status']['birth_sha256'] and build['source_birth_sha256']!=build['target_birth_sha256'] and '0'*64 not in (build['source_birth_sha256'],build['target_birth_sha256']),'CONTROLLED_ACTUAL_DISTINCT_BIRTH_PINS')
         import p0c4_controlled_import_acceptance as runner
         case=_validate_plan(self._plan)['case']
-        self._backend.helper._private_write(self._backend.batch/'body.dispatched',_canonical(dict(scope='EXACT_SUCCESS_BODY_DISPATCHED_NOT_ACCEPTANCE' if case=='success' else 'EXACT_FIXED_CASE_BODY_DISPATCHED_NOT_ACCEPTANCE',case=case,exact_test=runner._import_test_command('',case)[2],binary_sha256=build['binary_sha256'])))
+        extra={}
+        if self._clone is not None:
+            self._clone.recheck();extra['clone_birth_sha256']=self._clone.birth_sha256
+        self._backend.helper._private_write(self._backend.batch/'body.dispatched',_canonical(dict(scope='EXACT_SUCCESS_BODY_DISPATCHED_NOT_ACCEPTANCE' if case=='success' else 'EXACT_FIXED_CASE_BODY_DISPATCHED_NOT_ACCEPTANCE',case=case,exact_test=runner._import_test_command('',case)[2],binary_sha256=build['binary_sha256'],**extra)))
         self._body_used=True
         return self._native('body')
+
+    def _prepare_physical_clone(self):
+        self._alive();_require(self._clone is not None,'CONTROLLED_CLONE_REQUIRED')
+        return self._clone.prepare()
+
+    def _confirm_clone_isolated(self):
+        _require(self._clone is not None,'CONTROLLED_CLONE_REQUIRED')
+        self._clone.confirm_isolated()
 
     def observation(self):
         compiled={stage:{k:value[k] for k in ('binary_sha256','compiler_stdout_sha256','source_birth_sha256','target_birth_sha256','materialization','profile','cache_before','cache_after','executed')} for stage,value in self._compiled.items()}
@@ -1020,6 +1067,11 @@ def _run_native_body(runner,delegate,source,batch,plan,binary):
          'KNOWWEAVE_C4_IMPORT_CASE':case,'KNOWWEAVE_C4_IMPORT_SOURCE_ROOT':str(batch/'source-control'/'targets'/plan['source_case_id']),
          'KNOWWEAVE_C4_IMPORT_TARGET_ROOT':str(batch/'target-control'/'targets'/plan['target_case_id']),
          'KNOWWEAVE_C4_IMPORT_ARTIFACT_ROOT':str(batch/'artifacts')}
+    if case=='wrong-endpoint':
+        from p0c4_completion.controlled_clone import _native_route
+        with _native_route(plan,batch) as route:
+            env.update(route)
+            return delegate._run_bounded(runner._import_test_command(binary,case),cwd=source,env=env,timeout=360,limit=64*1024)
     return delegate._run_bounded(runner._import_test_command(binary,case),cwd=source,env=env,timeout=360,limit=64*1024)
 
 def _native_main(operation):
@@ -1067,6 +1119,7 @@ def _native_main(operation):
     process=_run_native_body(runner,delegate,source,batch,plan,binary)
     _require(_digest(_private_bytes(binary,128*1024**2,0o500)[0])==build['binary_sha256'],'CONTROLLED_NATIVE_BINARY_CHANGED')
     _require(admission.source_digest(source,manifest)==source_hash,'CONTROLLED_NATIVE_SOURCE_CHANGED')
+    if plan['case']=='wrong-endpoint':_require(_verify_tools(suite)=={k:record[k] for k in ('docker_sha256','compose_sha256')},'CONTROLLED_CLONE_TOOLS_AFTER')
     sys.stdout.buffer.write(process.stdout);sys.stderr.buffer.write(process.stderr)
     return process.returncode
 
@@ -1082,6 +1135,8 @@ def _mint_from_backend(backend):
     _,adapter_pin=_private_bytes(suite/'current11/adapter.py',128*1024,0o500)
     _require(adapter_pin['sha256']==record['adapter_sha256'] and all(value[k]==record[k] for k in ('source_commit','public_archive_sha256','public_manifest_sha256','legacy_archive_sha256','legacy_manifest_sha256','builder','postgres','budget_profile')),'CONTROLLED_PLAN_INSTALL_BINDING')
     args=backend.args
+    if value['case']=='wrong-endpoint':
+        _require(args.clone_batch_id==value['clone_case_id'] and args.clone_subnet==value['clone_subnet'],'CONTROLLED_CLONE_PLAN_ARGS')
     _require(value['batch_id']==match[3]==args.batch_id and value['source_case_id']==args.source_batch_id and value['target_case_id']==args.target_batch_id and value['source_subnet']==args.source_subnet and value['target_subnet']==args.target_subnet and type(args.case) is str and args.case==value['case'] and args.phase=='import','CONTROLLED_BACKEND_PLAN')
     _require(value['source_commit']==args.commit==backend.manifest['commit'] and value['legacy_archive_sha256']==args.archive_sha256 and value['legacy_manifest_sha256']==args.manifest_sha256,'CONTROLLED_LEGACY_PACKAGE')
     _require(args.archive==suite/'incoming'/'source-legacy.zip','CONTROLLED_FIXED_ARCHIVE_PATH')

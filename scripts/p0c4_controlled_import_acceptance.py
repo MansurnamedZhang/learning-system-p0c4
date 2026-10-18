@@ -926,14 +926,19 @@ class ImportBackend(ContractBackend):
             'KNOWWEAVE_C4_IMPORT_ARTIFACT_ROOT': str(self.batch / 'artifacts')}
         if case == 'wrong-endpoint':
             identity = self.provisioner.identity_for(self.args.clone_batch_id)
-            row = {'role': 'clone', 'identity': identity, 'control': self.batch / 'clone-control',
-                   'batch_id': self.args.clone_batch_id, 'subnet': self.args.clone_subnet,
-                   'container_id': None, 'before': before}
-            self.clone_record = row
-            self.resources.append(row)
-            cloned = self.delegate._prepare_physical_clone(self.provisioner, self.batch, target_root,
-                target['container_id'], identity, self.args.clone_subnet, before, target_birth,
-                target['identity']['database'])
+            if context is not None:
+                cloned=context._prepare_physical_clone()
+                row=self.clone_record
+                require(row is context._clone.row and row in self.resources,'Identity')
+            else:
+                row = {'role': 'clone', 'identity': identity, 'control': self.batch / 'clone-control',
+                       'batch_id': self.args.clone_batch_id, 'subnet': self.args.clone_subnet,
+                       'container_id': None, 'before': before}
+                self.clone_record = row
+                self.resources.append(row)
+                cloned = self.delegate._prepare_physical_clone(self.provisioner, self.batch, target_root,
+                    target['container_id'], identity, self.args.clone_subnet, before, target_birth,
+                    target['identity']['database'])
             row['container_id'] = cloned['container_id']
             row['inspection_sha256'] = digest(self.helper._json_bytes(cloned))
             env.update({'KNOWWEAVE_C4_CLONE_CONTAINER_ID': cloned['container_id'],
@@ -1021,7 +1026,10 @@ class ImportBackend(ContractBackend):
     def stop(self):
         self._isolation_deadline()
         discovery_failed = False
+        context=getattr(self,'_controlled_context',None)
         if self.clone_record is not None and self.clone_record['container_id'] is None:
+            # Current clone custody never comes from post-hoc name discovery.
+            if context is not None:raise ImportRejected('UnconfirmedIsolation')
             try:
                 self.commands.require_usable()
                 self.clone_record['container_id'] = self.delegate._find_owned_clone_pg(
@@ -1030,6 +1038,8 @@ class ImportBackend(ContractBackend):
             except BaseException:
                 discovery_failed = True
         result = super().stop()
+        if context is not None and context._clone is not None:context._confirm_clone_isolated()
+        require(time.monotonic()<self.commands.isolation_deadline,'UnconfirmedIsolation')
         require(not discovery_failed, 'UnconfirmedIsolation')
         return result
 

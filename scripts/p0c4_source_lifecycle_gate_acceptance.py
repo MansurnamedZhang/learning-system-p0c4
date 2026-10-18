@@ -407,11 +407,13 @@ class CleanupReservations:
         if kind=='pg':
             if full_pair is not None:require(name in full_pair._owned_pg_names(),'FULL_LEDGER_PG_NAME')
             if controlled_pair is not None:require(name in controlled_pair._owned_pg_names(),'CONTROLLED_LEDGER_PG_NAME')
-            require(sum(o['intent']['kind']=='pg' for o in active)<(2 if clone_names is not None or full_pair is not None or controlled_pair is not None else 1),'CLEANUP_PG_COUNT')
+            pg_limit=3 if controlled_pair is not None and controlled_pair._clone_profile() else (2 if clone_names is not None or full_pair is not None or controlled_pair is not None else 1)
+            require(sum(o['intent']['kind']=='pg' for o in active)<pg_limit,'CLEANUP_PG_COUNT')
             if clone_names is not None:require(name in clone_names,'SOURCE_CLONE_PG_NAME')
         if kind=='helper':
             helpers=[o for o in active if o['intent']['kind']=='helper']
-            require(len(helpers)<2 and all(o['intent']['expected']['stdin'] and not o.get('close_failed') for o in helpers) and
+            helper_limit=3 if controlled_pair is not None and controlled_pair._clone_profile() else 2
+            require(len(helpers)<helper_limit and all(o['intent']['expected']['stdin'] and not o.get('close_failed') for o in helpers) and
                     len(self.result['helpers'])<82,'CLEANUP_HELPER_COUNT')
         count={'pg':11,'helper':11,'volume':1}[kind];state=LOG_RESERVATIONS[str(self.runner.logs)]
         with LOG_RESERVATION_LOCK:
@@ -1701,6 +1703,9 @@ class HelperContainer:
         self.close();return code,out,err
 
     def persistent(self,logs,timeout):
+        profile=getattr(self,'_full_profile',None)
+        if profile is not None and profile._kind=='controlled-clone-owner':
+            profile._controlled._clone.remaining(0.001)
         self.child=MonitoredChild([DOCKER,'start','-a','-i',self.record['id']],logs,timeout=timeout,interactive=True)
         deadline=time.monotonic()+5
         while True:
@@ -2899,7 +2904,7 @@ def cleanup_known_helpers(runner,result):
                 if controlled is not None:
                     from p0c4_completion.controlled_fixture import ControlledFixtureContext
                     require(type(controlled) is ControlledFixtureContext and context is None and getattr(registry,'source_clone_pg_names',None) is None,'CONTROLLED_HELPER_PAIR')
-                    if profile._controlled is controlled and profile._kind in ('controlled-owner','controlled-native') and controlled._retain_fs_owner(helper):
+                    if profile._controlled is controlled and profile._kind in ('controlled-owner','controlled-native','controlled-clone-owner') and controlled._retain_fs_owner(helper):
                         errors.append('CONTROLLED_OWNER_RETAINED')
                         controlled._retire_fs_owner_transport(helper)
                         continue
@@ -3024,7 +3029,7 @@ def owned_log_runner(h,batch,result,ledger_count):
                 if controlled is not None and owner is not None:
                     from p0c4_completion.controlled_fixture import ControlledFixtureContext
                     require(type(controlled) is ControlledFixtureContext and getattr(self.ownership,'_full_pair',None) is None and getattr(self.ownership,'source_clone_pg_names',None) is None,'CONTROLLED_CREATE_PAIR')
-                    controlled_up=command[1:2]==['compose'] and 'up' in command and owner['intent']['kind']=='pg' and owner['intent']['name'] in controlled._owned_pg_names()
+                    controlled_up=command[1:2]==['compose'] and ('up' in command or 'create' in command and controlled._clone_profile() and owner is controlled._clone.creation) and owner['intent']['kind']=='pg' and owner['intent']['name'] in controlled._owned_pg_names()
                 if owner is not None and (command[1:2]==['create'] or command[1:3]==['volume','create'] or controlled_up or (command[1:2]==['compose'] and ('create' in command or 'up' in command and getattr(self.ownership,'_full_pair',None) is not None and owner['intent']['name'] in self.ownership._full_pair._owned_pg_names()))):
                     require(owner['state']=='planned','CREATE_INTENT_REUSED');owner['state']='sent'
                 return super().run(command,**kwargs)

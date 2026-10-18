@@ -47,9 +47,10 @@ def controlled_transport():
     # Only the pure fixed helper contract is needed. No install, native runtime,
     # public constructor, plan parsing or current/old dispatch is executed.
     context=object.__new__(fixture.ControlledFixtureContext)
+    context._clone=None
     context._closed=False;context._native_broken=False
     context._install=SimpleNamespace(recheck=lambda:None)
-    context._active='target';context._sides={'target':{}}
+    context._active='target';context._sides={'target':{'role':'target'}}
     context._suite=PurePosixPath('/var/lib/docker/volumes/kwc4c-suite-'+'a'*32+'/_data')
     context._backend=SimpleNamespace(source=context._suite/'source')
     mounts,command=context._helper_contract('controlled-owner')
