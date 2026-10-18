@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-18：已采纳exact-owned隔离四文件源码c749d9e（parent a844889），独立SPEC/QUALITY审查无阻塞，41测试及9项消费端探针通过。有效Linux RED v2确证旧全机扫描路径超时；最终冻结raw覆盖包Linux 148/148通过、0失败/错误/skip。新代码保留15秒原预算与完整outer旧资源保护，fresh native尚未验收。旧925e Rust正文1 PASS但Python隔离UNKNOWN保持，当前仍legacy0/11、full0/9；Task2关闭、Task3仅单机，Task6–9/C4 OPEN，无CompleteBackup、独立存储或生产部署。**
+**最新同步：2026-10-18：固定c749d9e的全新success已完成首个整轮受控导入验收：Rust exact 1 PASS／0 FAIL／0 skip、exit0，Python result为PASS且source／target均已停止、volume保留，outer exit0、旧container／network／volume完整投影相同。独立正文200项证据检查通过、0阻塞；本次仅计当前legacy success一项，进度1/11、full0/9。Task5整体及Task6–9/C4仍OPEN；Task2关闭（ba96561/c69e373），Task3仅单机，无CompleteBackup、独立存储或生产部署。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；exact-owned隔离c749d9e已采纳，Linux 148/148 unit通过、fresh native待验；旧925e正文PASS/整体UNKNOWN保持，legacy0/11、full0/9；整关OPEN |
+| P0-C4 | Task2关闭；c749d9e新success首个整轮PASS，当前legacy1/11、full0/9；旧UNKNOWN保留，Task5及Task6–9/C4仍OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 

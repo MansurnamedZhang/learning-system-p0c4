@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-18",
   "source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
-  "previous_public_commit": "7a7839ea287305043f133a932fcddfeaac825a02",
+  "previous_public_commit": "4df96df8697881ede1fee4af28099ae192e6cb11",
   "source_archive_sha256": null,
   "source_manifest_sha256": "db5fe2f9ad24f053b0b2952923312dc5622ba500b3f9f8e6e1754e0234940a5e",
   "source_file_count": 548,
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 112680,
-      "sha256": "c78e1f1a82355f111166b2885a1af5ee2ea0b83247ab1954301d5f815a6bf08e",
+      "bytes": 112522,
+      "sha256": "973228aa49c8da9cba652df820dc3c921ac106027c7dc4c9f6b889aee4718545",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3997,
-      "sha256": "b6d50deca9bc4b422c4fde482adc4a76e9fd7d52b3d66f8a6e8cc86e852d3fac",
+      "bytes": 3909,
+      "sha256": "b15e8936cf9520602667f25c2eb3b71470aeccb6f099ede79879b46e67937384",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45203,
-      "sha256": "92830e74f81caf14c67d8e62ede5b0b27eebdb789f25abbd20041571a5de1e94",
+      "bytes": 45039,
+      "sha256": "022bbda760c15c3a8501e4cfe58185cd737830e9dd2e17f3cef686fde0d8efb1",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 29555,
-      "sha256": "b55018c3c345aab0efbe32ffca14641ea913198400e0552b1969469292542597",
+      "bytes": 29229,
+      "sha256": "08d952cb2149a4a3b6e62e5d398e2733ee40fdd19d154f8e5454274d673db6bc",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3163,
-      "sha256": "233766c9e241bf188dc5b266fbb138775d1f42f88b26539d92f86151b815cf80",
+      "bytes": 2819,
+      "sha256": "aaa3b17b6d53875927c6aa7ceb7c8bbc30079f1ae2eb0bd0719339e4a0d1d0c3",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 24873,
-      "sha256": "af2eb9906072f1e8bac3c64446ed55a17b36cedb649f9c88efe5e5dc9949e418",
+      "bytes": 24547,
+      "sha256": "fb2e95ca3d1909cc056e33d7e4d792119379b65e931f9aaa3ba150099bcd1459",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4029,7 +4029,7 @@
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
   "task5_current": {
-    "legacy_passed": 0,
+    "legacy_passed": 1,
     "legacy_total": 11,
     "full_passed": 0,
     "full_total": 9,
@@ -4092,7 +4092,7 @@
     },
     "production_helper_caps_attestation": false,
     "full_ops_fix": "LOCAL_REVIEW_PASS_BINDINGS_NATIVE_HOLD",
-    "current11_ops_scope": "Reviewed installation and Rust exact success body accepted in separate scopes; Python final isolation and full old resource protection unconfirmed; zero whole-case native credit",
+    "current11_ops_scope": "One newly fixed c749 legacy success body and outer full protection accepted after independent review; only legacy1/11, full0/9; previous UNKNOWNs remain retained",
     "success_installation": {
       "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
       "originals": 202,
@@ -4213,7 +4213,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "ADOPTED_EXACT_OWNED_ISOLATION_CODE_UNIT_PASS_FRESH_NATIVE_PENDING",
+    "reader_compatibility_next": "LEGACY_SUCCESS_ACCEPTED_ONE_OF_ELEVEN_OTHER_LEGACY_AND_FULL_NINE_PENDING",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -4371,8 +4371,40 @@
         "scope": "FLAG_COMPATIBILITY_ONLY",
         "native_credit": 0
       },
-      "fresh_native_accepted": false,
-      "native_credit": 0
+      "fresh_native_accepted": true,
+      "native_credit": 0,
+      "fresh_native_scope": "LEGACY_SUCCESS_SINGLE_CASE_ONLY_NOT_FULL_RESTORE"
+    },
+    "actual_success_c749d9e": {
+      "source_commit": "c749d9ec932590564e91e924e6aafb481d7089a0",
+      "case_batch": "1ad4b9ab-27ed-4b38-bdd6-026bf2d0497a",
+      "scope": "FIRST_WHOLE_LEGACY_SUCCESS_CASE_ONLY_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE",
+      "test_exit_code": 0,
+      "exact_test_exit_code_field_present": false,
+      "rust_passed": 1,
+      "rust_failed": 0,
+      "rust_skipped": 0,
+      "rust_filtered": 451,
+      "rust_elapsed_seconds": 14.88,
+      "checkpoints": 15,
+      "content_sha256": "40848d59deaa88e4d9cb147af4d0bf45a57336f464c418cda5aa65fc56020272",
+      "persistent_result_sha256": "a0fdec36650423357ed09a887cbcdc68e6279217405a27873f4bb9f1cbc68a9b",
+      "status": "CONTROLLED_FIXTURE_IMPORT_PASSED_SINGLE_HOST_QUARANTINED_NOT_FULL_RESTORE",
+      "source_stopped": true,
+      "target_stopped": true,
+      "volumes_retained": true,
+      "source_unchanged": true,
+      "outer_exit": 0,
+      "whole_old_container_network_volume_projection_equal": true,
+      "independent_checks": 200,
+      "independent_blocking_findings": 0,
+      "independent_report_sha256": "d27a337a6630f7671c7b78b90bbfb6e314d2b230f0a37bb231d4b11414fbb03c",
+      "independent_index_sha256": "f0419ba687e377a3117971b634d41a6a7a4d94c748eb6086d3442881768735d9",
+      "native_legacy_credit": 1,
+      "native_full_credit": 0,
+      "task5_complete": false,
+      "complete_backup": false,
+      "all_new_audit_helpers_removed_claimed": false
     }
   },
   "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_FOUR_GIT_BLOBS_NEW_548_TREE_CLOSED"
