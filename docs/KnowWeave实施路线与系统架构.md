@@ -12,7 +12,7 @@
 
 > Task5单机补验限定收尾（2026-10-20）：Root已正式接受source85c代码与规定单机补验；native9/9，实际三组分别2/115/92通过、ignored0/17/13，不拼语义覆盖或新增native。Task6–9/C4仍OPEN，受控11仍10历史c749＋1当前85c。 outer SSH过程exit0、62.453秒、无timeout/unknown且outer stderr为0；三组Rust命令自身stderr分别4746/226/936字节，包含编译和通过的负例诊断。R3 FULL_REHEARSAL_FAILURE属于通过的unit反例诊断，不是新business live恢复结果。本次只接受既有三组回归，新增native/full案例信用为0。六项P1–P6为非测试预检；仅核对五workspace metadata与208 lock checksum结构，未独立验证dependency cache全部字节。 各原案例限制逐项保留：CU业务结果仍UNKNOWN，不是commit success或known rollback；wrong-endpoint仅different_database_route_only_not_same_id_clone。asset-corrupt是DBcatalog已提交后原件失败、无可用恢复回执，zeroDBwrites=false。角色SQL stdout、独立SQL/marker、raw full-negative正文、reader旧raw投影、运行时cache/write-order及TAR现场inode/nlink等原观察缺口不升级；各负例summary＋Suite entry闭合不等于负例正文或独立SQL读取。
 
-更新：2026-10-21。当前状态：Task2/4/5 按各自限定范围收尾；Task6 基础实现与指定 Linux 检查通过，基础PG现场4/5；C4 整关 OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
+更新：2026-10-21。当前状态：Task2/3/5 按各自限定范围收尾；Task6 基础实现与指定 Linux 检查通过，基础PG现场4/5；C4 整关 OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -471,7 +471,7 @@ flowchart TB
 - [C4 当前九任务补齐计划](superpowers/plans/2026-10-04-p0c4-completion.md)
 - Task5 九项现场原件核验汇总（私有或未公开参考）
 - Task6 本地检查点与未完成边界（私有或未公开参考）
-- [当前Task2/4/5补验与收尾](P0-C4补验与收尾.md)
+- [当前Task2/3/5补验与收尾](P0-C4补验与收尾.md)
 - [C4 父设计（2026-09-28）](superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md)
 - [C4 原五任务父计划（里程碑编号）](superpowers/plans/2026-09-28-p0c4-backup-recovery.md)
 - [C4 历史验证台账（原源码/批次）](p0c4-verification.md)

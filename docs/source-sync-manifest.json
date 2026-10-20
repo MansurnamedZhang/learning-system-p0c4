@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-21",
   "source_commit": "1521cfeac821072f95fa46d3637c97a3f553343b",
-  "previous_public_commit": "c03b2a6a8026950aedd2cb83898af3a443edf5df",
+  "previous_public_commit": "0db5eea081120bc4231f06ad0e49715476af2937",
   "source_archive_sha256": "b477633a964e8a9b6ee17af940b9b4576bffb1f612f5e12d770ac0873a88df82",
   "source_manifest_sha256": "18e0817cf85df335172a03e0278f61ac8d23824abadb1c7a3e7529b61c288788",
   "source_file_count": 558,
@@ -2760,7 +2760,7 @@
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
       "bytes": 48436,
-      "sha256": "97d263ac66bc6543def046b86fd9457e30fc9b6efc07d20ecee6b4f6e67047d8",
+      "sha256": "49faef1f090900bc56bfb68da5049c608d53d13350dd709f4cf35311bf59d3e1",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
