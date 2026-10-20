@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-20：full-import、full-precommit-eof、full-cancel、full-commit-unknown、full-wrong-endpoint与full-bad-input六项实际测试均已独审并获Root逐项采纳，full 6/9，其余三项没有已接受案例信用。bad-input精确测试1通过、0失败/ignored、451 filtered、12.53秒；该时长只属于本项native测试，不是整体流程或性能评测。先前CU业务提交结果仍UNKNOWN，不代表提交成功或已知rollback。受控11/11仍为10历史c749＋1当前85c，不能解释为当前源码重跑十一项。Task2关闭、Task3仅单机；Task5及Task6–9/C4 OPEN，无独立备份存储、CompleteBackup或生产恢复/部署结论。 限制完整保留：实际角色SQL stdout未独立读取；历史rollback、零对象及marker语义来自源绑定的精确native断言，不是第二次SQL或marker读取。bad-input无import-writer写入只属source-bound import-writer阶段，不推及fixture/setup。raw full-negative-inventory正文未独立读取；本例summary与Suite entry闭合不等于独立读取负例正文或SQL。先前CU业务提交结果仍UNKNOWN，不是提交成功或已知rollback，本例资源收尾不能改变CU结果。reader旧投影仅由精确guard断言支持，未另读raw snapshot；运行时cache及写入顺序未独立观测。dump/TOC/catalog/asset验证来自固定native body和hash绑定proof，未第二次下载dump或读取数据库。tar header不能独立证明现场inode/nlink连续性。没有独立存储、CompleteBackup或生产恢复结论。 canonical85源码独立静态审查已由Root采纳：29个canonical ZIP/LF成员、81项检查、0项具体发现。该source-only结果授予native/full/regression信用均为0，不替代最终9项native及三项Linux Rust回归的实际验收，Task5/C4仍OPEN。**
+**最新同步：2026-10-20：full-import、full-precommit-eof、full-cancel、full-commit-unknown、full-wrong-endpoint、full-bad-input与full-bad-role七项实际测试均已独审并获Root逐项采纳，full 7/9，其余两项没有已接受案例信用。bad-role精确测试1通过、0失败/ignored、451 filtered、13.24秒；该时长只属于本项native测试，不是整体流程或性能评测。先前CU业务提交结果仍UNKNOWN，不代表提交成功或已知rollback。受控11/11仍为10历史c749＋1当前85c，不能解释为当前源码重跑十一项。Task2关闭、Task3仅单机；Task5及Task6–9/C4 OPEN，无独立备份存储、CompleteBackup或生产恢复/部署结论。 限制完整保留：实际角色SQL stdout未独立读取；历史rollback、零对象及marker语义来自源绑定的精确native断言，不是第二次SQL或marker读取。bad-role无import-writer写入只属source-bound import-writer阶段，不推及fixture/setup。raw full-negative-inventory正文未独立读取；本例summary与Suite entry闭合不等于独立读取负例正文或SQL。先前CU业务提交结果仍UNKNOWN，不是提交成功或已知rollback，本例资源收尾不能改变CU结果。reader旧投影仅由精确guard断言支持，未另读raw snapshot；运行时cache及写入顺序未独立观测。dump/TOC/catalog/asset验证来自固定native body和hash绑定proof，未第二次下载dump或读取数据库。tar header不能独立证明现场inode/nlink连续性。没有独立存储、CompleteBackup或生产恢复结论。 canonical85源码独立静态审查已由Root采纳：29个canonical ZIP/LF成员、81项检查、0项具体发现。该source-only结果授予native/full/regression信用均为0，不替代最终9项native及三项Linux Rust回归的实际验收，Task5/C4仍OPEN。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；受控11/11＝10历史c749＋1当前85c；full-import＋EOF＋cancel＋CU＋wrong-endpoint＋bad-input实际独审/Root采纳，full6/9，其余三项无已接受案例信用，Task5/C4 OPEN |
+| P0-C4 | Task2关闭；受控11/11＝10历史c749＋1当前85c；full-import＋EOF＋cancel＋CU＋wrong-endpoint＋bad-input＋bad-role实际独审/Root采纳，full7/9，其余两项无已接受案例信用，Task5/C4 OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
