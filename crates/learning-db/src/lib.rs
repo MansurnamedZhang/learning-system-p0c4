@@ -26,6 +26,7 @@ pub use reviews::ReviewStore;
 mod release;
 mod request;
 mod snapshot;
+pub mod snapshot_broker;
 pub mod snapshot_observation;
 pub use snapshot::{
     PreparedSnapshotExport, PreparedSnapshotImport, SnapshotDelivery, SnapshotImportReceipt,
