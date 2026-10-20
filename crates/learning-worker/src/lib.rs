@@ -1,6 +1,8 @@
 //! Worker startup identity validation, shared by the binary and real-PG tests.
 use sqlx::PgPool;
 
+pub mod snapshot_broker;
+
 pub async fn ensure_restricted_runtime(pool: &PgPool) -> Result<(), String> {
     let role: (String, String, Option<String>, bool, bool) = sqlx::query_as(
         "SELECT session_user::text,current_user::text,system_user,r.rolsuper,r.rolbypassrls \

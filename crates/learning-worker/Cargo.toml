@@ -3,15 +3,20 @@ name = "learning-worker"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+default-run = "learning-worker"
 
 [dependencies]
 learning-assets = { path = "../learning-assets" }
 learning-core = { path = "../learning-core" }
 learning-db = { path = "../learning-db" }
+serde.workspace = true
+serde_json.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
-serde_json.workspace = true
 chrono.workspace = true

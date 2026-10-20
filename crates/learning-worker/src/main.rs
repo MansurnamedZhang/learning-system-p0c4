@@ -6,7 +6,7 @@ use learning_core::JobInput;
 use learning_db::{
     AssetIntegrityProcessor, AssetProcessOutcome, AssetStore, JobLease, JobStore, SnapshotStore,
 };
-use learning_worker::ensure_restricted_runtime;
+use learning_worker::{ensure_restricted_runtime, snapshot_broker};
 use sqlx::{
     PgPool,
     postgres::{PgConnectOptions, PgPoolOptions},
@@ -40,7 +40,17 @@ async fn main() {
 }
 
 async fn run() -> Result<(), String> {
-    let mode = parse_args(env::args().skip(1).collect())?;
+    let args: Vec<String> = env::args().skip(1).collect();
+    if let Some(config) = snapshot_broker::ClientConfig::from_args(&args)? {
+        let disposition = snapshot_broker::signal_next(&config)
+            .map_err(|_| "snapshot broker transport unavailable; no local fallback")?;
+        return match disposition {
+            snapshot_broker::SignalDisposition::WriterDisabledUnknown => {
+                Err("snapshot broker writer disabled; effects Unknown; no job executed".into())
+            }
+        };
+    }
+    let mode = parse_args(args)?;
     let url = env::var("DATABASE_URL").map_err(|_| "DATABASE_URL is required")?;
     let asset_root = absolute_path("ASSET_ROOT")?;
     let staging_root = absolute_path("STAGING_ROOT")?;

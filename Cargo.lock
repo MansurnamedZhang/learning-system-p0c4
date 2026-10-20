@@ -686,6 +686,8 @@ dependencies = [
  "learning-assets",
  "learning-core",
  "learning-db",
+ "libc",
+ "serde",
  "serde_json",
  "sqlx",
  "tokio",
