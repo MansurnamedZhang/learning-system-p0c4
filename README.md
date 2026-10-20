@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-20。Task6 恢复归一化与校验基础已提交。固定 Linux 格式、类型检查、严格 Clippy 通过；四组测试分别 21/15/3/7 通过，Python 封套 33 项通过。新 PostgreSQL 现场场景仍 0/5；snapshot 正面字节证明未完成，缺证据的导出作业保留 Unknown/HOLD。Task5 代码与规定单机补验已限定收尾；Task6–9、C4、CompleteBackup 与生产激活仍未完成。**
+**最新同步：2026-10-20。Task6 恢复归一化与校验基础已提交。固定 Linux 格式、类型检查、严格 Clippy 通过；四组测试分别 21/15/3/7 通过，Python 封套 33 项通过。基础 PostgreSQL 现场场景已复核3/5；snapshot 正面字节证明未完成，缺证据的导出作业保留 Unknown/HOLD。Task5 代码与规定单机补验已限定收尾；Task6–9、C4、CompleteBackup 与生产激活仍未完成。**
 
 [Task6 实现、验证与剩余门](docs/p0c4-recovery-normalization.md)。
 
@@ -21,7 +21,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭、Task3单机；Task5代码＋规定单机补验限定CLOSED（native9/9，三组2/115/92分别记录）；Task6基础代码与Linux分项检查已过，现场PG 0/5，正面snapshot字节证明待补；受控11仍10历史c749＋1当前85c；Task6–9/C4 OPEN，无独立存储/CompleteBackup/生产结论 |
+| P0-C4 | Task2关闭、Task3单机；Task5代码＋规定单机补验限定CLOSED（native9/9，三组2/115/92分别记录）；Task6基础代码与Linux分项检查已过，基础现场PG3/5，正面snapshot字节证明待补；受控11仍10历史c749＋1当前85c；Task6–9/C4 OPEN，无独立存储/CompleteBackup/生产结论 |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 

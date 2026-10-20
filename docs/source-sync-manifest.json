@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-20",
   "source_commit": "1521cfeac821072f95fa46d3637c97a3f553343b",
-  "previous_public_commit": "4ce5feb07d32bc510bf16f999e9e6d7b0380c9ef",
+  "previous_public_commit": "9b767dd7f56ec4282852c464d9cb57559db089e5",
   "source_archive_sha256": "b477633a964e8a9b6ee17af940b9b4576bffb1f612f5e12d770ac0873a88df82",
   "source_manifest_sha256": "18e0817cf85df335172a03e0278f61ac8d23824abadb1c7a3e7529b61c288788",
   "source_file_count": 558,
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4584,
-      "sha256": "73427f338b31c55870e8b4b161cb0e28e32c282c6cc20d2877975d87c5a5549e",
+      "bytes": 4597,
+      "sha256": "24fe89f8770c7486585a2a3cac99d4b86c269474db182330f1daac74b7da62a4",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2759,8 +2759,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 47031,
-      "sha256": "2f06240f9528d938e4e45742020ac4f115668f934dfd84af590c76b9497451fa",
+      "bytes": 47061,
+      "sha256": "46c887b7a17fe39db60bbb37d8a40a3aab0fd1e73e9fd1106236a7bf56ce289a",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3444,8 +3444,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 1193,
-      "sha256": "c73bd774b03b298d609ac9580ce1276fb2ddc2a1e5fecb28a91b1353bfd1763a",
+      "bytes": 1512,
+      "sha256": "912202aeb5deba0a26a4c6ba552cec2ce16f2d89a7e815863059734d93d7302f",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
