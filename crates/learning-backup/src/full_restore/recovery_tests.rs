@@ -271,7 +271,17 @@ async fn seed_job(
 
 // These are real fresh-source application writes and a genuine byte-verifying
 // C2 processor, never an admin-created digest or a positive snapshot finding.
-async fn seed_derived(
+fn seed_derived<'a>(
+    pool: &'a PgPool,
+    files: &'a learning_assets::FsAssetStore,
+    actor_id: Uuid,
+    space: Uuid,
+) -> std::pin::Pin<Box<impl std::future::Future<Output = Result<SourceJob, BackupError>> + 'a>> {
+    // The genuine application fixture has its own large async state. Keep it
+    // out of the seed match's by-value state, including the leases-only case.
+    Box::pin(seed_derived_inner(pool, files, actor_id, space))
+}
+async fn seed_derived_inner(
     pool: &PgPool,
     files: &learning_assets::FsAssetStore,
     actor_id: Uuid,
@@ -392,7 +402,15 @@ async fn seed_derived(
     result
 }
 
-pub(super) async fn seed(
+pub(super) fn seed<'a>(
+    pool: &'a PgPool,
+    files: &'a learning_assets::FsAssetStore,
+) -> std::pin::Pin<Box<impl std::future::Future<Output = Result<(), BackupError>> + 'a>> {
+    // A synchronous constructor keeps the caller's future state to a pointer;
+    // the unchanged phase body starts only when its owned future is polled.
+    Box::pin(seed_inner(pool, files))
+}
+async fn seed_inner(
     pool: &PgPool,
     files: &learning_assets::FsAssetStore,
 ) -> Result<(), BackupError> {
@@ -541,7 +559,17 @@ async fn reject_old_token(
     Ok(4)
 }
 
-pub(super) async fn after_import(
+pub(super) fn after_import<'a>(
+    target: &'a mut ImportedTarget,
+    package: &'a VerifiedPackage,
+    assets: &'a AssetRestoreReport,
+    expected: &'a crate::full_restore::data::ExpectedRecoveryRows,
+) -> std::pin::Pin<Box<impl std::future::Future<Output = Result<(), BackupError>> + 'a>> {
+    // All full-import cases share this hook. Its recovery-only state must not
+    // be embedded by value in their capture/import/settlement futures.
+    Box::pin(after_import_inner(target, package, assets, expected))
+}
+async fn after_import_inner(
     target: &mut ImportedTarget,
     package: &VerifiedPackage,
     assets: &AssetRestoreReport,
@@ -807,4 +835,35 @@ pub(super) async fn after_import(
         root.sync()?;
     }
     Ok(())
+}
+
+pub(super) fn future_sizes() -> [(&'static str, usize); 6] {
+    fn seed_size<'a, F: std::future::Future>(
+        _: fn(&'a PgPool, &'a learning_assets::FsAssetStore) -> F,
+    ) -> usize {
+        std::mem::size_of::<F>()
+    }
+    fn derived_size<'a, F: std::future::Future>(
+        _: fn(&'a PgPool, &'a learning_assets::FsAssetStore, Uuid, Uuid) -> F,
+    ) -> usize {
+        std::mem::size_of::<F>()
+    }
+    fn after_size<'a, F: std::future::Future>(
+        _: fn(
+            &'a mut ImportedTarget,
+            &'a VerifiedPackage,
+            &'a AssetRestoreReport,
+            &'a crate::full_restore::data::ExpectedRecoveryRows,
+        ) -> F,
+    ) -> usize {
+        std::mem::size_of::<F>()
+    }
+    [
+        ("seed_hook", seed_size(seed)),
+        ("seed_inner", seed_size(seed_inner)),
+        ("derived_seed_hook", derived_size(seed_derived)),
+        ("derived_seed_inner", derived_size(seed_derived_inner)),
+        ("after_import_hook", after_size(after_import)),
+        ("after_import_inner", after_size(after_import_inner)),
+    ]
 }

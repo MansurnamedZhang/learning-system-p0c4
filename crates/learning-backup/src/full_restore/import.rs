@@ -1655,11 +1655,18 @@ async fn rehearse_fresh_local_capture(
     })
 }
 #[cfg(test)]
-pub(crate) async fn real_full_import_rehearsal(case: FullFault) -> Result<(), BackupError> {
-    let diagnostic = Diagnostic::new();
-    let result = real_full_import_rehearsal_inner(case, diagnostic.clone()).await;
-    // Live callers unwrap this test result. Never expose arbitrary Error Debug.
-    diagnostic.public_result(result)
+pub(crate) fn real_full_import_rehearsal(
+    case: FullFault,
+) -> std::pin::Pin<Box<impl std::future::Future<Output = Result<(), BackupError>>>> {
+    // Keep the libtest/task-local caller's state small. Separately allocate the
+    // full phase before polling it, rather than embedding its state through
+    // both of these orchestration layers. The body still starts on first poll.
+    Box::pin(async move {
+        let diagnostic = Diagnostic::new();
+        let result = Box::pin(real_full_import_rehearsal_inner(case, diagnostic.clone())).await;
+        // Live callers unwrap this test result. Never expose arbitrary Error Debug.
+        diagnostic.public_result(result)
+    })
 }
 #[cfg(test)]
 async fn real_full_import_rehearsal_inner(
@@ -1877,6 +1884,44 @@ async fn real_full_import_rehearsal_inner(
     root.sync()?;
     fixture.pool.close().await;
     Ok(())
+}
+
+#[cfg(test)]
+#[test]
+fn full_rehearsal_future_sizes() {
+    fn one<A, F: std::future::Future>(_: fn(A) -> F) -> usize {
+        std::mem::size_of::<F>()
+    }
+    fn two<A, B, F: std::future::Future>(_: fn(A, B) -> F) -> usize {
+        std::mem::size_of::<F>()
+    }
+    // Infer the concrete return types without constructing or polling them:
+    // even this diagnostic must not place a large rehearsal future on stack.
+    let sizes = [
+        ("recovery_run", one(recovery_tests::run)),
+        ("full_rehearsal", one(real_full_import_rehearsal)),
+        (
+            "full_rehearsal_inner",
+            two(real_full_import_rehearsal_inner),
+        ),
+        ("fresh_capture", two(rehearse_fresh_local_capture)),
+    ];
+    for (phase, bytes) in sizes.into_iter().chain(recovery_tests::future_sizes()) {
+        eprintln!("full rehearsal future {phase}: {bytes} bytes");
+        // These are layout regression limits, not claims about maximum poll
+        // stack usage. The exact native body still needs a fresh real run.
+        let limit = if phase == "full_rehearsal" || phase.ends_with("_hook") {
+            2 * std::mem::size_of::<usize>()
+        } else if phase == "recovery_run" {
+            32 * 1024
+        } else {
+            128 * 1024
+        };
+        assert!(
+            bytes <= limit,
+            "{phase} future is {bytes} bytes; limit {limit}"
+        );
+    }
 }
 
 /// Read-only installed management bridge. It exposes observations, never a
