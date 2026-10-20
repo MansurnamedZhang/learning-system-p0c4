@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-21",
   "source_commit": "976a9cff9897689e326b709089c513ba8a73fcf6",
-  "previous_public_commit": "00dc96f348649eee1b2aa88c0baa64043130a659",
+  "previous_public_commit": "c038b68a78f735dcadd0231bd94fc6a2eeed3342",
   "source_archive_sha256": "4f74641a2be6e521d42bdb2d43666b20d233814580cfd8cc1eecd7581e81c81c",
   "source_manifest_sha256": "94c4bfd9ab256362c4080114077a8114e69fd3b0bd22f3c0aec0db67711ebdb2",
   "source_file_count": 564,
@@ -50,10 +50,11 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 114828,
-      "sha256": "9c513408787e4ee97140b274ab7f2181707d292b05cc93497d92b496f2cca46a",
+      "bytes": 114813,
+      "sha256": "e36511fdc61802f5ef01d9edf072445f8748de2aa04f2cd71bd731806662c5c8",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
     },
     {
       "path": "KnowWeave架构设计.html",
@@ -2791,10 +2792,11 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 50422,
-      "sha256": "6a1fa064a2ba3129042390876a6ea24027d02cadc55390fcd486c00333c43ad9",
+      "bytes": 50383,
+      "sha256": "efb8b68bf59300d1a9a101637711418cf75e099fa8097e88971bd4da7e94de3d",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false,
+      "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
     },
     {
       "path": "docs/KnowWeave架构设计总览.md",
@@ -2868,10 +2870,11 @@
     },
     {
       "path": "docs/architecture/06-portability-and-recovery.md",
-      "bytes": 10213,
-      "sha256": "27784abafffe50dc7d73c93c66962761e2954e475a3c7155478b125118bafbfc",
+      "bytes": 10724,
+      "sha256": "42de2a80a42ca9257b638f20c02a79bd43f3a1a30364ca86d3d32d9c32c78971",
       "source_blob_sha256": "9b1b2bb4fb5f09d49ee2704fb04a42ccd3d05a30951e80c3f82a615c131ecd20",
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
     },
     {
       "path": "docs/architecture/07-product-interfaces.md",
@@ -3071,17 +3074,19 @@
     },
     {
       "path": "docs/diagrams/knowweave-portability.mmd",
-      "bytes": 2363,
-      "sha256": "c6cf0906e8b7a83df1110b649743fe3d4e70028a095ff468db4329214059af7d",
+      "bytes": 2358,
+      "sha256": "92d703d98af9a3eb960ef8e912a79869f7ad4c7e811d725e0907756b4cf0f7c7",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false,
+      "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
     },
     {
       "path": "docs/diagrams/knowweave-portability.svg",
-      "bytes": 8977,
-      "sha256": "5670e87f788c2251b12731d43f749ba00d4b744972226aa100b4c741602a7f44",
+      "bytes": 8972,
+      "sha256": "efd843a2a779340a715b2f456034bc3915635caf1cd61b91d25688c8ccd85a6b",
       "source_blob_sha256": null,
-      "source_bytes_preserved": null
+      "source_bytes_preserved": false,
+      "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
     },
     {
       "path": "docs/p0a-execution.md",
@@ -8060,5 +8065,13 @@
       "business_journal": false,
       "positive_effect_authority": false
     }
+  },
+  "task6_roadmap_current_labels": {
+    "as_of": "2026-10-21",
+    "foundation_cases_accepted": 5,
+    "foundation_total": 5,
+    "positive_snapshot_byte_authority": false,
+    "task6_complete": false,
+    "scope": "CURRENT_OPERATIVE_TEXT_ONLY_PRESERVE_HISTORICAL_SCOPES"
   }
 }

@@ -98,7 +98,7 @@ flowchart LR
     C4T3["Task 3<br/>保留校验与完成收据<br/>单机补验收尾完成，Task9开放"]
     C4T4["Task 4<br/>全量模式与有界 COPY 数据<br/>内容三门已验收"]
     C4T5["Task 5<br/>受控整库导入与原件恢复<br/>代码与规定单机补验限定收尾"]
-    C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>基础与Linux检查通过，基础PG5/5"]
+    C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>基础PG5/5 · 正向待验"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>未开始"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>未开始"]
     C4T9["Task 9<br/>真实独立故障域闭合<br/>待具备独立存储"]
@@ -125,7 +125,7 @@ flowchart LR
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
 | Task 5 · 受控整库导入与原件恢复 | Task5代码＋规定单机补验限定CLOSED；native9/9＋三组实际Rust回归，C4 OPEN | Root限定接受Task5代码与规定单机补验：native9/9；full_restore_contract 2通过/0忽略、controlled_import单元115通过/17忽略、full_restore单元92通过/13忽略，各组失败0、typed exit0/唯一完整summary。各组分别保留，不合计语义独立覆盖，ignored无native/live信用。 Task5仅代码＋规定单机补验范围CLOSED；Task6–9/C4整关OPEN，未证明独立备份存储、CompleteBackup或生产恢复/激活。未来共享协议变化仍按conditional149规则重新判断回归。 各原案例限制逐项保留：CU业务结果仍UNKNOWN，不是commit success或known rollback；wrong-endpoint仅different_database_route_only_not_same_id_clone。asset-corrupt是DBcatalog已提交后原件失败、无可用恢复回执，zeroDBwrites=false。角色SQL stdout、独立SQL/marker、raw full-negative正文、reader旧raw投影、运行时cache/write-order及TAR现场inode/nlink等原观察缺口不升级；各负例summary＋Suite entry闭合不等于负例正文或独立SQL读取。 |
-| Task 6 · 作业归一化与恢复资格校验 | 五项基础现场门已复核；正向证据链待补 | 固定代码 `5b0fa3157a0e6c688d54006c53b10e949434b106`：64表行摘要及真实目标COPY/外部排序、另绑顶层归一化事务、原guard保留、旧租约清除、完整性及应用读取校验、提交/取消与回执隔离均已接入。Linux格式/类型/严格Clippy及21/15/3/7四组分别通过并独审；基础PG已复核5/5，正面snapshot字节权威未实现，Task6全范围OPEN。 |
+| Task 6 · 作业归一化与恢复资格校验 | 基础PG5/5 · 正向待验 | 固定代码 `5b0fa3157a0e6c688d54006c53b10e949434b106`：64表行摘要及真实目标COPY/外部排序、另绑顶层归一化事务、原guard保留、旧租约清除、完整性及应用读取校验、提交/取消与回执隔离均已接入。Linux格式/类型/严格Clippy及21/15/3/7四组分别通过并独审；基础PG已复核5/5，正面snapshot字节权威未实现，Task6全范围OPEN。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6全范围验收尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |
 | Task 9 · 真实独立故障域闭合 | 待具备独立存储 | 使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。 用户选择先完成代码与单机整链，目前没有真实独立备份目标；P0-C4整体、CompleteBackup与生产继续开放。 |
@@ -390,8 +390,8 @@ flowchart TB
     pause["C4 · 受控写入维护窗<br/>先停 runtime / Worker · 全量封存验证后再开放<br/>【实施中】"]
     backup["一致数据库 + 资产清单<br/>内容3/3；源端补验开放 · 独立完成收据尚未验收<br/>【实施中】"]
     copy["独立故障域验收<br/>单机传输专项已通过 · Task9 尚缺独立存储与密钥<br/>【待建设】"]
-    check["完整恢复资格校验<br/>Task6 全表与任务校验 · Linux单元已过 · 新PG待验<br/>【实施中】"]
-    restore["干净目标导入与原件<br/>Task5 历史单机导入九门9/9 · Task6 新目标现场待验<br/>【实施中】"]
+    check["完整恢复资格校验<br/>Task6 全表与任务校验 · 基础PG5/5 · 正向待验<br/>【实施中】"]
+    restore["干净目标导入与原件<br/>Task5 历史单机导入九门9/9 · Task6 基础PG5/5 · 正向待验<br/>【实施中】"]
     future["P1-B 扩展恢复闭包<br/>学习事实 / 规则 / 产物 / 计划 · 另做全链恢复验收<br/>【待建设】"]
     view -- "固定输入" --> closure
     closure -- "精确清单" --> bundle
