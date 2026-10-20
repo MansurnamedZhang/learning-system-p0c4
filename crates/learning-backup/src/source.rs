@@ -228,6 +228,7 @@ async fn prepare_linux(
     // This inspection is read-only on the already admitted session. Reject
     // unsafe prepared work/roles before requiring any orchestration evidence;
     // isolation remains mandatory before every journal, ACL, and dump mutation.
+    require_base_snapshot_observation_schema(admission.connection()).await?;
     let before = inspect_gate(admission.connection()).await?;
     if !before.admin_is_database_owner
         || !before.runtime_can_connect
@@ -267,6 +268,7 @@ async fn prepare_linux(
         endpoint::admit_source_endpoint(admission, &enrolled, &lease, isolation, config).await?;
     // Repeat the original role/prepared preflight after orchestration proof;
     // the earlier read-only rejection does not authorize a later mutation.
+    require_base_snapshot_observation_schema(endpoint.connection()).await?;
     let before = inspect_gate(endpoint.connection()).await?;
     if !before.admin_is_database_owner
         || !before.runtime_can_connect
@@ -364,6 +366,68 @@ async fn prepare_linux(
     release_runtime_connect_inner(admission, &database, &mut journal, || Ok(()), witness).await?;
     endpoint.close().await?;
     Ok(pin)
+}
+
+/// A1 adds an optional function/ACL surface, not a supported source schema.
+/// Until A2 exists, reject any overload before journal/ACL/dump mutation.
+#[cfg(target_os = "linux")]
+async fn require_base_snapshot_observation_schema(
+    conn: &mut PgConnection,
+) -> Result<(), BackupError> {
+    let present: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='p0c4_snapshot_locked_observation')",
+    ).fetch_one(conn).await?;
+    if present {
+        return Err(BackupError::Invalid(
+            "snapshot observation extension requires source schema support",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod snapshot_observation_a1_tests {
+    use super::*;
+    use sqlx::Connection;
+
+    #[tokio::test]
+    #[ignore = "explicit isolated A1 PostgreSQL owner login; no silent skip"]
+    async fn snapshot_observation_any_signature_blocks_source_before_mutation() {
+        let url = std::env::var("TEST_SNAPSHOT_OBSERVATION_ADMIN_DATABASE_URL")
+            .expect("isolated A1 owner DSN required");
+        let mut conn = PgConnection::connect(&url)
+            .await
+            .expect("A1 owner connection");
+        let identity: (String, String, String) =
+            sqlx::query_as("SELECT session_user::text,current_user::text,current_database()")
+                .fetch_one(&mut conn)
+                .await
+                .unwrap();
+        assert_eq!(
+            (&*identity.0, &*identity.1),
+            ("learning_admin", "learning_admin")
+        );
+        assert!(identity.2.starts_with("learning_task6_observation_"));
+        require_base_snapshot_observation_schema(&mut conn)
+            .await
+            .expect("fresh canonical source; run after A1 tests cleanup");
+        let mut tx = conn.begin().await.unwrap();
+        sqlx::query("CREATE FUNCTION public.p0c4_snapshot_locked_observation(integer) RETURNS integer LANGUAGE sql AS 'SELECT 1'").execute(&mut *tx).await.unwrap();
+        let facts = "SELECT (SELECT count(*) FROM public.job),(SELECT count(*) FROM public.job_outbox),has_database_privilege('learning_runtime',current_database(),'CONNECT')";
+        let before: (i64, i64, bool) = sqlx::query_as(facts).fetch_one(&mut *tx).await.unwrap();
+        assert!(matches!(
+            require_base_snapshot_observation_schema(&mut tx).await,
+            Err(BackupError::Invalid(
+                "snapshot observation extension requires source schema support"
+            ))
+        ));
+        let after: (i64, i64, bool) = sqlx::query_as(facts).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(
+            before, after,
+            "source refusal cannot mutate business rows or runtime CONNECT"
+        );
+        tx.rollback().await.unwrap();
+    }
 }
 
 #[cfg(all(test, target_os = "linux"))]

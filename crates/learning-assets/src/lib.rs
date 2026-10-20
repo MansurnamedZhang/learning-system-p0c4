@@ -1,5 +1,6 @@
 pub mod backup_fs;
 mod fs;
+pub mod root_journal;
 mod secure_dir;
 mod snapshot;
 
