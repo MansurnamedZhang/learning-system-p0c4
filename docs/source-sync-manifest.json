@@ -2,7 +2,7 @@
   "schema": 1,
   "date": "2026-10-20",
   "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
-  "previous_public_commit": "8841ab3b9da200afa87af9d81e033bfbd4ba1c26",
+  "previous_public_commit": "7ab53e66d59b7e145593b9b199a6ef9339776b52",
   "source_archive_sha256": "c77e6766c3e11f66bec8f10ed95a2f5489cbab77da3e85a600540179bd490baa",
   "source_manifest_sha256": "87aa19662f1d9b93a79dae02ddaf4f7abd3b836d8a49687ab63f891785a8dbd4",
   "source_file_count": 549,
@@ -10,7 +10,7 @@
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
   ],
-  "scope": "CONTROLLED11_MIXED_SOURCE_NATIVE_FULL_NINE_OF9_PENDING_THREE_ACTUAL_RUST_REGRESSIONS_PRIOR_CU_UNKNOWN_TASK5_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
+  "scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "documentation_transform": "redact machine locations, resolve published links, add current progress; private references remain labels",
   "files": [
     {
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 115512,
-      "sha256": "5da2a4f73d113b9b5b3949bc48a50d65e64e840734586b22f3b633acb4114813",
+      "bytes": 114002,
+      "sha256": "adad91b2c32e67f892e5d919a1c932606c8d0605c2be43a4afb058eabcb7f08d",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -64,8 +64,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5468,
-      "sha256": "5323b3c5c275a555dd82004567d7864f8b0c0a34a52eb723e21d68ff1e825536",
+      "bytes": 4965,
+      "sha256": "73705fa5c06007d7313f9d794e76366f8f45493c780a9db961db9fe9ce709e58",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 48031,
-      "sha256": "9362c64b6b010a0191c30db00eb4d0487f23e3409b4bf4e27ad1ff8e8f93657d",
+      "bytes": 46519,
+      "sha256": "220be602b4f960ce0f47ca5ceff522df9aa17691f6188646a1b45678a4fea339",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2717,8 +2717,8 @@
     },
     {
       "path": "docs/P0-C4补验与收尾.md",
-      "bytes": 32237,
-      "sha256": "b9c41cf334c4ac80e2d96ab19fecde4e3573486fd5ed39f825559eaa4c3496a3",
+      "bytes": 29496,
+      "sha256": "4e7ff841244b4d20e63e6a7396658976df8b8f04d713c05b6c48e77703881ba7",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 5841,
-      "sha256": "675add0025e3bd84155b7f783376859a4d55c948620a04dec2f0dd576acc49f6",
+      "bytes": 3088,
+      "sha256": "f14f4ce9a372e0e20e34020731baf800694b469dc4a40efa16491d15b3d1e606",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3417,8 +3417,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 27555,
-      "sha256": "8327bf8d5850e88449aa35b0e6c1dc26f423fe9e53593544650e5f7792310805",
+      "bytes": 24814,
+      "sha256": "a2ad828ddc837df71d0155a468adecacc83e3d839655510fd4b81ceebf87ecbd",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4098,7 +4098,7 @@
       "prior_operator_batch": "UNIT_PASS_OUTER_PROTECTION_REJECTED_RETAINED"
     },
     "production_helper_caps_attestation": false,
-    "full_ops_fix": "FULL_NINE_NATIVE_ACTUAL_ROOT_ACCEPTED_PENDING_THREE_ACTUAL_RUST_REGRESSIONS_TASK5_C4_OPEN_PRIOR_CU_UNKNOWN",
+    "full_ops_fix": "ROOT_ACCEPTED_TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_C4_OPEN",
     "current11_ops_scope": "Eleven controlled cases accepted: ten historical c749 and one current 85c wrong-endpoint; not eleven rerun at 85c; full0/9 Task5/C4 OPEN; consumed UNKNOWN preserved",
     "success_installation": {
       "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
@@ -4220,7 +4220,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "ASSET_ORIGINAL_SET_PHASE_V2_TWO_READERS_CLOSED_CATALOG_COMMITTED_ORIGINALS_FAILED_RAW_NEGATIVE_UNREAD_PENDING_THREE_RUST_REGRESSIONS",
+    "reader_compatibility_next": "NATIVE_NINE_CASE_READERS_AND_FINAL_THREE_RUST_GROUPS_ACCEPTED_LIMITED_SINGLE_HOST_SCOPE_ALL_ORIGINAL_LIMITATIONS_PRESERVED",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -7369,6 +7369,344 @@
       "task5_open": true,
       "c4_open": true,
       "source_only_and_codeops_preparation_do_not_replace_actual": true
+    },
+    "prior_full_status_before_single_host_closeout": {
+      "full_passed": 9,
+      "full_ops_fix": "FULL_NINE_NATIVE_ACTUAL_ROOT_ACCEPTED_PENDING_THREE_ACTUAL_RUST_REGRESSIONS_TASK5_C4_OPEN_PRIOR_CU_UNKNOWN",
+      "reader_compatibility_next": "ASSET_ORIGINAL_SET_PHASE_V2_TWO_READERS_CLOSED_CATALOG_COMMITTED_ORIGINALS_FAILED_RAW_NEGATIVE_UNREAD_PENDING_THREE_RUST_REGRESSIONS"
+    },
+    "task5_single_host_closed": true,
+    "task5_single_host_acceptance_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ONLY",
+    "task6_to_9_open": true,
+    "c4_open": true,
+    "actual_final_linux_rust_regressions_85c49af": {
+      "status": "ROOT_ACCEPTED_EXACT85_FINAL_THREE_RUST_REGRESSION_GROUPS",
+      "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
+      "actual_uuid": "8dbe70a9-8b53-4ce5-9119-80d84db1c26e",
+      "actual_result_sha256": "fa6e3ee049f3bccf54afd75ed356d05493c56181fcd4260befa6623246210320",
+      "independent_index_sha256": "76d7e72f21651740323647055ff3b23faf4f346ee76b47fdf82ad10509da9968",
+      "independent_facts_sha256": "c4a7a91b7771db9bad51f330c255963bbf048ccbb65d8128e5185a64800e0d86",
+      "independent_report_sha256": "297b81ba7b0ff918e8a894ccbb91df4f0fa0426cb3ba011fe5c49080555fb0d0",
+      "root_regression_index_sha256": "4c316ab3394cc088c653047fd6668609e4da83215d12d2d4ae6ad2c81ca13460",
+      "groups": {
+        "R1": {
+          "group": "full_restore_contract",
+          "argv": [
+            "cargo",
+            "test",
+            "--offline",
+            "--locked",
+            "-p",
+            "learning-backup",
+            "--test",
+            "full_restore_contract",
+            "--",
+            "--test-threads=1"
+          ],
+          "argv_sha256": "395da757b5da8ec4f4ac10b59ad4c3d1e678dc52829a9fe1a2c1560bcbf90a5e",
+          "counts": {
+            "status": "ok",
+            "passed": 2,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered": 0,
+            "seconds": "0.01"
+          },
+          "exit_code": 0,
+          "complete_unique_summary": true,
+          "process": {
+            "artifact": "unit-R1.process.json",
+            "bytes": 925,
+            "sha256": "6a1aa79433f2d45502d606561991a5f039585dd824e16c0cb56cac50a403205c"
+          },
+          "stdout": {
+            "artifact": "unit-R1.stdout",
+            "bytes": 265,
+            "sha256": "4336a10e2bf6f3a54bdb1ef6d7165e6ebde5831d753454b2a0312a8956c5b1a4"
+          },
+          "stderr": {
+            "artifact": "unit-R1.stderr",
+            "bytes": 4746,
+            "sha256": "8d22c5af9e948e8d292608b8b10397f7947db4e2f918bcb92ed462c519a69988"
+          },
+          "native_credit": 0,
+          "full_credit": 0,
+          "ignored_tests_no_live_credit": true
+        },
+        "R2": {
+          "group": "controlled_import_units",
+          "argv": [
+            "cargo",
+            "test",
+            "--offline",
+            "--locked",
+            "-p",
+            "learning-backup",
+            "--lib",
+            "restore_preflight::target_binding::controlled_import",
+            "--",
+            "--test-threads=1"
+          ],
+          "argv_sha256": "684e15005dc641c840ef2677bfe92bd4ed4e0d0f1fdb4ac9cf842ba4dd2b8869",
+          "counts": {
+            "status": "ok",
+            "passed": 115,
+            "failed": 0,
+            "ignored": 17,
+            "measured": 0,
+            "filtered": 320,
+            "seconds": "6.09"
+          },
+          "exit_code": 0,
+          "complete_unique_summary": true,
+          "process": {
+            "artifact": "unit-R2.process.json",
+            "bytes": 962,
+            "sha256": "72b6efa7633ee8963312b879b574102f1f783bd00afb9eefa5d130a529753d6d"
+          },
+          "stdout": {
+            "artifact": "unit-R2.stdout",
+            "bytes": 20377,
+            "sha256": "4af4057e9203cd142441d4ef9a8c78da599121654077b2856dfd07dcd26cb3f0"
+          },
+          "stderr": {
+            "artifact": "unit-R2.stderr",
+            "bytes": 226,
+            "sha256": "688652659c333e799d9e968ab9ca349cc611f31cae7a38e47bcc42bfa341dee1"
+          },
+          "native_credit": 0,
+          "full_credit": 0,
+          "ignored_tests_no_live_credit": true
+        },
+        "R3": {
+          "group": "full_restore_units",
+          "argv": [
+            "cargo",
+            "test",
+            "--offline",
+            "--locked",
+            "-p",
+            "learning-backup",
+            "--lib",
+            "full_restore",
+            "--",
+            "--test-threads=1"
+          ],
+          "argv_sha256": "b80500cad464249c60aa3e70065858d604b0348090cbd341de36f34642271a27",
+          "counts": {
+            "status": "ok",
+            "passed": 92,
+            "failed": 0,
+            "ignored": 13,
+            "measured": 0,
+            "filtered": 347,
+            "seconds": "3.37"
+          },
+          "exit_code": 0,
+          "complete_unique_summary": true,
+          "process": {
+            "artifact": "unit-R3.process.json",
+            "bytes": 920,
+            "sha256": "8456c70f439b69a9cc400a1941eb53b3ec056e4c2208c964fef5f9524584be40"
+          },
+          "stdout": {
+            "artifact": "unit-R3.stdout",
+            "bytes": 12338,
+            "sha256": "251994871c07339c3d7f686cc7ad7c8524d4b7e28c57b9fcc7f7229ee7547f3e"
+          },
+          "stderr": {
+            "artifact": "unit-R3.stderr",
+            "bytes": 936,
+            "sha256": "cf16636929d113c0e2c38edc4b58b236ff858b0c3f61661efc10792b35fffa62"
+          },
+          "native_credit": 0,
+          "full_credit": 0,
+          "ignored_tests_no_live_credit": true
+        }
+      },
+      "groups_accepted": 3,
+      "additional_native_credit": 0,
+      "additional_full_native_credit": 0,
+      "ignored_entries_not_native_credit": true,
+      "unique_semantic_test_coverage_claim": false,
+      "outer_process": {
+        "elapsed_seconds": 62.45299999997951,
+        "exit_code": 0,
+        "script_sha256": "f3b3c590a426ad0e6fa6727a3598cd9124e675f101e437a67f4bd83e29d6fcea",
+        "stderr_bytes": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_bytes": 2029153,
+        "stdout_sha256": "a933b2e8932a2158298bc830cf17a29db1e141e7f059627fa595d95522a111fa",
+        "timed_out": false,
+        "timeout_seconds": 7800,
+        "unknown_type": null
+      },
+      "outer_stderr_zero_only": true,
+      "unit_stderr_preserved": true,
+      "R3_failure_diagnostics_are_passed_unit_negative_cases_not_business_live_results": true,
+      "preflight": {
+        "status": "NON_TEST_TOOLCHAIN_AND_WORKSPACE_METADATA_PREFLIGHT_PASSED_NOT_DEPENDENCY_CACHE_VERIFICATION",
+        "is_test": false,
+        "workspace_package_count": 5,
+        "lock_registry_checksum_structure": 208,
+        "dependency_cache_independently_verified": false,
+        "dependency_cache_files_read": 0,
+        "dependency_cache_bytes_read": 0
+      },
+      "known_cleanup": {
+        "builder_removed": true,
+        "cleanup_hold": false,
+        "natural_exit": 0,
+        "old_projection_bytes_equal": true,
+        "source_hashes_unchanged_reported": true
+      },
+      "observations_from_reviewed_fixed_code_and_returned_evidence_not_independent_remote_cgroup_sql_marker_read": true,
+      "independent_checks": 418,
+      "independent_inputs": 67,
+      "independent_closed_files": 46,
+      "independent_bundle_artifacts": 40,
+      "independent_docker_records": 147,
+      "printed_test_name_entries_source_bound_reported": 239,
+      "source_symbol_join_not_semantic_reverification": true
+    },
+    "single_host_closeout_root_adoption": {
+      "status": "ROOT_ACCEPTED_TASK5_SINGLE_HOST_SUPPLEMENTAL_CLOSEOUT",
+      "index_sha256": "c39a4a67f0e065c3e008b2eddcbbe98643a0c4e7f8738f2e7e427c64ddeab239",
+      "acceptance_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ONLY",
+      "task5_single_host_closed": true,
+      "task5_code_and_prescribed_single_host_supplemental_validation_complete": true,
+      "native_full_cases": 9,
+      "actual_regression_groups": 3,
+      "full_nine_root_index_sha256": "4cf7ed457f1e1b48294a0c0bbb8e238f1653442f57da00999d5fb2556e4c23a7",
+      "final_regression_root_index_sha256": "4c316ab3394cc088c653047fd6668609e4da83215d12d2d4ae6ad2c81ca13460",
+      "source_only_root_index_sha256": "bf0c2b0280c7dbb11de715fc1ea6e448b6d1aafa5109e02ab69e4cbe6d2ae688",
+      "conditional149_root_index_sha256": "543287471cb937d9814dc3a93064cda296f177b34ef24aa690e34ba2bc433b15",
+      "conditional149_scope": "FIXED_C749_TO_85_DIFFERENCE_ONLY_NOT_FUTURE_SHARED_PROTOCOL_REGRESSION_EXEMPTION",
+      "original_case_limitations_preserved": [
+        {
+          "case": "full-import",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE"
+          ]
+        },
+        {
+          "case": "full-precommit-eof",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE"
+          ]
+        },
+        {
+          "case": "full-cancel",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+            "READER_OLD_PROJECTION_FROM_EXACT_PINNED_ACTUAL_GUARD_ASSERTIONS_NOT_SEPARATE_RAW_SNAPSHOT",
+            "RUNTIME_CACHE_AND_WRITE_ORDER_NOT_INDEPENDENTLY_OBSERVED",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE"
+          ]
+        },
+        {
+          "case": "full-commit-unknown",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+            "READER_OLD_PROJECTION_FROM_EXACT_PINNED_ACTUAL_GUARD_ASSERTIONS_NOT_SEPARATE_RAW_SNAPSHOT",
+            "RUNTIME_CACHE_AND_WRITE_ORDER_NOT_INDEPENDENTLY_OBSERVED",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE",
+            "BUSINESS_COMMIT_OUTCOME_UNKNOWN_NOT_COMMIT_SUCCESS_OR_KNOWN_ROLLBACK"
+          ]
+        },
+        {
+          "case": "full-wrong-endpoint",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+            "READER_OLD_PROJECTION_FROM_EXACT_PINNED_ACTUAL_GUARD_ASSERTIONS_NOT_SEPARATE_RAW_SNAPSHOT",
+            "RUNTIME_CACHE_AND_WRITE_ORDER_NOT_INDEPENDENTLY_OBSERVED",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE",
+            "RAW_FULL_NEGATIVE_INVENTORY_NOT_INDEPENDENTLY_READ"
+          ]
+        },
+        {
+          "case": "full-bad-input",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+            "READER_OLD_PROJECTION_FROM_EXACT_PINNED_ACTUAL_GUARD_ASSERTIONS_NOT_SEPARATE_RAW_SNAPSHOT",
+            "RUNTIME_CACHE_AND_WRITE_ORDER_NOT_INDEPENDENTLY_OBSERVED",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE",
+            "RAW_FULL_NEGATIVE_INVENTORY_NOT_INDEPENDENTLY_READ"
+          ]
+        },
+        {
+          "case": "full-bad-role",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+            "READER_OLD_PROJECTION_FROM_EXACT_PINNED_ACTUAL_GUARD_ASSERTIONS_NOT_SEPARATE_RAW_SNAPSHOT",
+            "RUNTIME_CACHE_AND_WRITE_ORDER_NOT_INDEPENDENTLY_OBSERVED",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE",
+            "RAW_FULL_NEGATIVE_INVENTORY_NOT_INDEPENDENTLY_READ"
+          ]
+        },
+        {
+          "case": "full-dirty-target",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+            "READER_OLD_PROJECTION_FROM_EXACT_PINNED_ACTUAL_GUARD_ASSERTIONS_NOT_SEPARATE_RAW_SNAPSHOT",
+            "RUNTIME_CACHE_AND_WRITE_ORDER_NOT_INDEPENDENTLY_OBSERVED",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE",
+            "RAW_FULL_NEGATIVE_INVENTORY_NOT_INDEPENDENTLY_READ"
+          ]
+        },
+        {
+          "case": "full-asset-corrupt",
+          "limitations": [
+            "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+            "CATALOG_COMMIT_ORIGINALS_FAILURE_UNUSABLE_NO_REPLAY_AND_RECEIPT_SEMANTICS_FROM_FIXED_NATIVE_SOURCE_NOT_INDEPENDENT_SQL_OR_MARKER_READ",
+            "READER_OLD_PROJECTION_FROM_EXACT_PINNED_ACTUAL_GUARD_ASSERTIONS_NOT_SEPARATE_RAW_SNAPSHOT",
+            "RUNTIME_CACHE_AND_WRITE_ORDER_NOT_INDEPENDENTLY_OBSERVED",
+            "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+            "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+            "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE",
+            "RAW_FULL_NEGATIVE_INVENTORY_NOT_INDEPENDENTLY_READ"
+          ]
+        }
+      ],
+      "historical_native9_pending_regression_object_preserved": true,
+      "prior_CU_business_UNKNOWN": true,
+      "wrong_endpoint_route_only": true,
+      "asset_catalog_committed_originals_failed_zeroDBwritesFalse": true,
+      "controlled_source_coverage": {
+        "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705": 1,
+        "c749d9ec932590564e91e924e6aafb481d7089a0": 10
+      },
+      "task6_to_9_open": true,
+      "c4_open": true,
+      "independent_storage_proven": false,
+      "complete_backup_issued": false,
+      "production_activation_accepted": false
     }
   },
   "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_TWO_GIT_BLOBS_SAME_549_TREE_CLOSED",
