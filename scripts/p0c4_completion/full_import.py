@@ -14,8 +14,20 @@ PROFILE_PATH = '/var/lib/knowweave-full-rehearsal/profile.json'
 PROFILE_CAP = 16384
 from types import MappingProxyType
 
-CASE_TESTS = MappingProxyType({
+RECOVERY_CASE_TESTS = MappingProxyType({
     'recovery-leases': 'full_restore::live_tests::recovery_invalidates_unexpired_and_expired_source_tokens',
+    'recovery-retry-limit': 'full_restore::live_tests::recovery_preserves_attempt_count_and_three_attempt_ceiling',
+    'recovery-effects': 'full_restore::live_tests::recovery_unknown_snapshot_effect_is_unclaimable_and_blocks_usable',
+    'recovery-derived': 'full_restore::live_tests::recovery_missing_derived_export_and_digest_mismatch_stay_isolated',
+    'recovery-receipt-failure': 'full_restore::live_tests::recovery_receipt_sync_failure_never_returns_recovered_instance',
+})
+RECOVERY_PROOF_CLASSIFICATION = 'FULL_RECOVERY_FOUNDATION_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
+# The five fixed fixtures contain at most seventeen jobs; this is not a new
+# general recovery metadata allowance or an excuse to truncate a larger report.
+RECOVERY_REPORT_CAP = 1024 * 1024
+
+CASE_TESTS = MappingProxyType({
+    **RECOVERY_CASE_TESTS,
     'full-import': 'full_restore::live_tests::full_import_preserves_one_writer_transaction_and_exact_endpoint',
     'full-precommit-eof': 'full_restore::live_tests::full_import_eof_before_commit_leaves_zero_objects',
     'full-cancel': 'full_restore::live_tests::full_import_cancel_retains_guards_until_isolation',
@@ -528,10 +540,26 @@ class FullRehearsalContext:
         code,raw,err=driver.pg_exec(self._runner,record['container_id'],['cat','/var/lib/knowweave-source/proofs/full-import-result.json'])
         _require(code==0 and not err and 0<len(raw)<=16384,'FULL_BODY_OBSERVATION')
         proof=json.loads(raw,object_pairs_hook=_pairs)
-        _validate_body_proof(proof,self._plan,self._target_status)
+        _validate_body_proof(proof,_import_proof_plan(self._plan),self._target_status)
         self._h.write_new(self._case/'full-import-result.json',raw)
         record['full_import_proof']=dict(path=str(self._case/'full-import-result.json'),sha256=hashlib.sha256(raw).hexdigest())
+        if self._case_name in RECOVERY_CASE_TESTS:
+            self._verify_recovery_body(record,proof)
         self._probe_target_stopped(record)
+
+    def _verify_recovery_body(self, record, imported):
+        import p0c4_source_lifecycle_gate_acceptance as driver
+        code,raw,err=driver.pg_exec(self._runner,record['container_id'],['cat','/var/lib/knowweave-source/proofs/full-recovery-result.json'])
+        _require(code==0 and not err and 0<len(raw)<=16384,'RECOVERY_BODY_OBSERVATION')
+        proof=json.loads(raw,object_pairs_hook=_pairs)
+        _validate_recovery_proof(proof,self._plan,self._target_status,imported)
+        code,report,err=driver.pg_exec(self._runner,record['container_id'],['cat','/var/lib/knowweave-source/proofs/full-recovery-normalization.json'])
+        _require(code==0 and not err and 0<len(report)<=RECOVERY_REPORT_CAP and len(report)==proof['normalization_report_bytes'] and hashlib.sha256(report).hexdigest()==proof['normalization_report_sha256'],'RECOVERY_NORMALIZATION_BODY_PIN')
+        _require(type(json.loads(report,object_pairs_hook=_pairs)) is dict,'RECOVERY_NORMALIZATION_REPORT')
+        self._h.write_new(self._case/'full-recovery-normalization.json',report)
+        self._h.write_new(self._case/'full-recovery-result.json',raw)
+        record['full_recovery_proof']=dict(path=str(self._case/'full-recovery-result.json'),sha256=hashlib.sha256(raw).hexdigest())
+        record['full_recovery_normalization']=dict(path=str(self._case/'full-recovery-normalization.json'),sha256=hashlib.sha256(report).hexdigest())
 
     def _probe_target_stopped(self, record):
         status=self._target_status
@@ -686,13 +714,29 @@ def validate_result(plan, result):
     _require(type(proof_ref) is dict and set(proof_ref)=={'path','sha256'} and proof_ref['path']==str(proof_path),'FULL_RESULT_PROOF_PATH')
     proof_raw=evidence.private_read(proof_path,16384)
     _require(hashlib.sha256(proof_raw).hexdigest()==proof_ref['sha256'],'FULL_RESULT_PROOF_DIGEST')
-    proof=json.loads(proof_raw,object_pairs_hook=_pairs);_validate_body_proof(proof,plan,target['status'])
+    proof=json.loads(proof_raw,object_pairs_hook=_pairs);_validate_body_proof(proof,_import_proof_plan(plan),target['status'])
     inventory=json.loads(evidence.private_read(proof_path.parent/'inventory.json',32*1024**2),object_pairs_hook=_pairs)
     manifest=inventory.get('pins/'+proof['backup_id']+'.sealed/manifest.json',{})
     _require(manifest.get('sha256')==proof['manifest_sha256'],'FULL_RESULT_CAPTURE_MANIFEST')
     if proof['negative_evidence'] is not None:
         negative=inventory.get('proofs/full-negative-inventory.json',{})
         _require(negative.get('sha256')==proof['negative_evidence']['sha256'] and negative.get('bytes')==proof['negative_evidence']['bytes'],'FULL_RESULT_NEGATIVE_INVENTORY')
+    if plan['case_name'] in RECOVERY_CASE_TESTS:
+        recovery_path=proof_path.parent/'full-recovery-result.json'
+        recovery_ref=row.get('full_recovery_proof')
+        _require(type(recovery_ref) is dict and set(recovery_ref)=={'path','sha256'} and recovery_ref['path']==str(recovery_path),'RECOVERY_RESULT_PROOF_PATH')
+        recovery_raw=evidence.private_read(recovery_path,16384)
+        _require(hashlib.sha256(recovery_raw).hexdigest()==recovery_ref['sha256'],'RECOVERY_RESULT_PROOF_DIGEST')
+        recovery=json.loads(recovery_raw,object_pairs_hook=_pairs)
+        _validate_recovery_proof(recovery,plan,target['status'],proof)
+        report_path=proof_path.parent/'full-recovery-normalization.json'
+        report_ref=row.get('full_recovery_normalization')
+        _require(type(report_ref) is dict and set(report_ref)=={'path','sha256'} and report_ref['path']==str(report_path) and report_ref['sha256']==recovery['normalization_report_sha256'],'RECOVERY_RESULT_NORMALIZATION_PATH')
+        report=evidence.private_read(report_path,RECOVERY_REPORT_CAP)
+        _require(len(report)==recovery['normalization_report_bytes'] and hashlib.sha256(report).hexdigest()==report_ref['sha256'] and type(json.loads(report,object_pairs_hook=_pairs)) is dict,'RECOVERY_RESULT_NORMALIZATION_BYTES')
+        for name,raw in [('full-recovery-result.json',recovery_raw),('full-recovery-normalization.json',report)]:
+            entry=inventory.get('proofs/'+name,{})
+            _require(entry.get('bytes')==len(raw) and entry.get('sha256')==hashlib.sha256(raw).hexdigest(),'RECOVERY_RESULT_NATIVE_INVENTORY')
     observation=row.get('full_rehearsal_profile')
     _require(type(observation) is dict and observation['source_mount_count']==14 and observation['target_mount_count']==5,'FULL_RESULT_PROFILE')
     from . import evidence
@@ -706,10 +750,43 @@ def validate_result(plan, result):
     return profile
 
 
+def _import_proof_plan(plan):
+    # A recovery fixture still executes the unmodified fresh Success importer.
+    # Its separate import proof never impersonates a recovery validation proof.
+    return dict(plan,case_name='full-import') if plan['case_name'] in RECOVERY_CASE_TESTS else plan
+
+
+def _validate_recovery_proof(proof,plan,target,imported):
+    keys={'format_version','classification','case','backup_id','manifest_sha256','target_database','target_container_id','stop_required','snapshot_authority','external_effect_bytes_verified','normalization_report_sha256','normalization_report_bytes','normalization_verified','attempt_counts_preserved','running_leases_cleared','source_job_count','old_token_rejections','snapshot_holds','terminal_receipts_unchanged','validation_state','fault_observed','derived_validation','usable','task6_complete'}
+    _require(type(proof) is dict and set(proof)==keys and type(proof['format_version']) is int and proof['format_version']==1 and proof['classification']==RECOVERY_PROOF_CLASSIFICATION,'RECOVERY_BODY_PROOF_FIELDS')
+    case=plan['case_name']
+    _require(case in RECOVERY_CASE_TESTS and proof['case']==case,'RECOVERY_BODY_FIXED_CASE')
+    _validate_body_proof(imported,_import_proof_plan(plan),target)
+    _require(all(proof[k]==imported[k] for k in ('backup_id','manifest_sha256','target_database','target_container_id')),'RECOVERY_IMPORT_IDENTITY_JOIN')
+    _require(proof['stop_required'] is True and proof['snapshot_authority']=='UNAVAILABLE_ALL_SNAPSHOTS_UNKNOWN' and proof['external_effect_bytes_verified'] is False and proof['usable'] is False and proof['task6_complete'] is False,'RECOVERY_FOUNDATION_NO_POSITIVE_AUTHORITY')
+    _require(all(proof[k] is True for k in ('normalization_verified','attempt_counts_preserved','running_leases_cleared','terminal_receipts_unchanged')),'RECOVERY_REQUIRED_ASSERTIONS')
+    expected={
+        'recovery-leases':(4,16,2,'HELD_UNKNOWN_SNAPSHOT_EFFECT',False),
+        'recovery-retry-limit':(17,48,6,'HELD_UNKNOWN_SNAPSHOT_EFFECT',False),
+        'recovery-effects':(7,8,7,'HELD_UNKNOWN_SNAPSHOT_EFFECT',False),
+        'recovery-derived':(2,4,0,'REJECTED_DERIVED_DIGEST',True),
+        'recovery-receipt-failure':(2,4,0,'REJECTED_RECEIPT_SYNC',True),
+    }[case]
+    _require(all(type(proof[k]) is int for k in ('source_job_count','old_token_rejections','snapshot_holds')) and tuple(proof[k] for k in ('source_job_count','old_token_rejections','snapshot_holds','validation_state','fault_observed'))==expected and type(proof['fault_observed']) is bool,'RECOVERY_FIXED_NATIVE_COVERAGE')
+    derived=proof['derived_validation']
+    if case in ('recovery-derived','recovery-receipt-failure'):
+        counts={'result_v1_count':1,'block_asset_use_count':1,'reading_view_revisions':2,'reading_current_revisions':1,'reading_historical_revisions':1,'owner_projections':6,'nonexistent_actor_denials':6,'granted_peer_denials':6,'views_without_granted_peer':0}
+        _require(type(derived) is dict and set(derived)==set(counts)|{'reading_report_sha256'} and all(type(derived[k]) is int and derived[k]==v for k,v in counts.items()) and _hash(derived['reading_report_sha256']),'RECOVERY_NONEMPTY_APPLICATION_BARRIERS')
+    else:
+        _require(derived is None,'RECOVERY_HELD_APPLICATION_BARRIERS_NOT_REACHED')
+    _require(_hash(proof['normalization_report_sha256']) and type(proof['normalization_report_bytes']) is int and 0<proof['normalization_report_bytes']<=RECOVERY_REPORT_CAP,'RECOVERY_NORMALIZATION_REPORT_PIN')
+
+
 def _validate_body_proof(proof,plan,target):
     keys={'format_version','classification','case','backup_id','manifest_sha256','target_database','target_container_id','target_stopped','commit_attempted','rollback_verified','import_catalog_verified','originals_verified','logical_assets','unique_asset_bytes','wrong_endpoint_proof','negative_evidence'}
     _require(type(proof) is dict and set(proof)==keys and type(proof['format_version']) is int and proof['format_version']==1 and proof['classification']=='FULL_IMPORT_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE','FULL_BODY_PROOF_FIELDS')
     case=plan['case_name']
+    _require(case not in RECOVERY_CASE_TESTS,'RECOVERY_REQUIRES_SEPARATE_FOUNDATION_PROOF')
     _require(proof['case']==case and _uuid(proof['backup_id']) and _hash(proof['manifest_sha256']) and proof['target_database']=='learning_restore_c4_'+plan['target']['case_id'] and proof['target_container_id']==target['container_id'] and proof['target_stopped'] is True,'FULL_BODY_PROOF_IDENTITY')
     for field,want in [('commit_attempted',case in ('full-import','full-commit-unknown','full-asset-corrupt')),('rollback_verified',case in ('full-precommit-eof','full-cancel')),('import_catalog_verified',case in ('full-import','full-asset-corrupt')),('originals_verified',case=='full-import')]:
         _require(type(proof[field]) is bool and proof[field] is want,'FULL_BODY_PROOF_OUTCOME')

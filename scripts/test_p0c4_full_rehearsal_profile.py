@@ -616,4 +616,116 @@ class FreshSocketProfileTests(unittest.TestCase):
             self.assertIsNone(h.context._profile)
 
 
+class RecoveryFoundationProofTests(unittest.TestCase):
+    def inputs(self, case='recovery-leases'):
+        _, plan = Fix1AuthorityTests().issued()
+        plan['case_name'] = case
+        imported = dict(format_version=1,classification='FULL_IMPORT_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE',case='full-import',backup_id=S,manifest_sha256='1'*64,target_database='learning_restore_c4_'+T,target_container_id='b'*64,target_stopped=True,commit_attempted=True,rollback_verified=False,import_catalog_verified=True,originals_verified=True,logical_assets=4,unique_asset_bytes=96,wrong_endpoint_proof=None,negative_evidence=None)
+        jobs, rejected, holds, state, fault = {
+            'recovery-leases': (4,16,2,'HELD_UNKNOWN_SNAPSHOT_EFFECT',False),
+            'recovery-retry-limit': (17,48,6,'HELD_UNKNOWN_SNAPSHOT_EFFECT',False),
+            'recovery-effects': (7,8,7,'HELD_UNKNOWN_SNAPSHOT_EFFECT',False),
+            'recovery-derived': (2,4,0,'REJECTED_DERIVED_DIGEST',True),
+            'recovery-receipt-failure': (2,4,0,'REJECTED_RECEIPT_SYNC',True),
+        }[case]
+        derived=dict(result_v1_count=1,block_asset_use_count=1,reading_view_revisions=2,reading_current_revisions=1,reading_historical_revisions=1,owner_projections=6,nonexistent_actor_denials=6,granted_peer_denials=6,views_without_granted_peer=0,reading_report_sha256='4'*64) if fault else None
+        proof=dict(format_version=1,classification='FULL_RECOVERY_FOUNDATION_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE',case=case,backup_id=S,manifest_sha256='1'*64,target_database=imported['target_database'],target_container_id='b'*64,stop_required=True,snapshot_authority='UNAVAILABLE_ALL_SNAPSHOTS_UNKNOWN',external_effect_bytes_verified=False,normalization_report_sha256='2'*64,normalization_report_bytes=100,normalization_verified=True,attempt_counts_preserved=True,running_leases_cleared=True,source_job_count=jobs,old_token_rejections=rejected,snapshot_holds=holds,terminal_receipts_unchanged=True,validation_state=state,fault_observed=fault,derived_validation=derived,usable=False,task6_complete=False)
+        return proof,plan,dict(container_id='b'*64),imported
+
+    def test_exact_five_recovery_entries_use_closed_full_context(self):
+        expected={
+            'recovery-leases':'recovery_invalidates_unexpired_and_expired_source_tokens',
+            'recovery-retry-limit':'recovery_preserves_attempt_count_and_three_attempt_ceiling',
+            'recovery-effects':'recovery_unknown_snapshot_effect_is_unclaimable_and_blocks_usable',
+            'recovery-derived':'recovery_missing_derived_export_and_digest_mismatch_stay_isolated',
+            'recovery-receipt-failure':'recovery_receipt_sync_failure_never_returns_recovered_instance',
+        }
+        self.assertEqual(dict(full.RECOVERY_CASE_TESTS),{k:'full_restore::live_tests::'+v for k,v in expected.items()})
+        for case in expected:
+            proof,plan,target,imported=self.inputs(case)
+            self.assertEqual(full.CASE_TESTS[case],full.RECOVERY_CASE_TESTS[case])
+            full.validate_plan(plan,case)
+            full._validate_recovery_proof(proof,plan,target,imported)
+
+    def test_import_stop_and_exact_identity_are_indispensable(self):
+        proof,plan,target,imported=self.inputs()
+        for key,value in [('target_stopped',False),('case','recovery-leases'),('commit_attempted',False),('originals_verified',False),('manifest_sha256','3'*64),('backup_id',T),('target_container_id','c'*64)]:
+            with self.subTest(key=key),self.assertRaises(full.FullImportError):
+                full._validate_recovery_proof(proof,plan,target,dict(imported,**{key:value}))
+
+    def test_unknown_holds_cannot_claim_positive_effect_or_recovery_authority(self):
+        proof,plan,target,imported=self.inputs('recovery-effects')
+        for key,value in [('snapshot_authority','ALREADY_COMMITTED'),('external_effect_bytes_verified',True),('usable',True),('task6_complete',True),('snapshot_holds',0),('validation_state','PASSED'),('fault_observed',True),('stop_required',False)]:
+            with self.subTest(key=key),self.assertRaises(full.FullImportError):
+                full._validate_recovery_proof(dict(proof,**{key:value}),plan,target,imported)
+
+    def test_case_specific_token_ceiling_and_fault_observation_cannot_be_swapped(self):
+        for case in full.RECOVERY_CASE_TESTS:
+            proof,plan,target,imported=self.inputs(case)
+            for key,value in [('old_token_rejections',proof['old_token_rejections']-1),('source_job_count',proof['source_job_count']+1),('snapshot_holds',proof['snapshot_holds']+1),('fault_observed',not proof['fault_observed']),('case','recovery-arbitrary')]:
+                with self.subTest(case=case,key=key),self.assertRaises(full.FullImportError):
+                    full._validate_recovery_proof(dict(proof,**{key:value}),plan,target,imported)
+
+    def test_strict_fields_typed_counts_and_finite_report_pin(self):
+        proof,plan,target,imported=self.inputs()
+        bads=[dict(proof,extra=True),{k:v for k,v in proof.items() if k!='normalization_verified'}]
+        for key in ('format_version','source_job_count','old_token_rejections','snapshot_holds','normalization_report_bytes'):
+            bads.append(dict(proof,**{key:True}))
+        for key in ('attempt_counts_preserved','running_leases_cleared','terminal_receipts_unchanged','normalization_verified'):
+            bads.append(dict(proof,**{key:False}))
+        bads.extend([dict(proof,normalization_report_sha256='BAD'),dict(proof,normalization_report_bytes=0),dict(proof,normalization_report_bytes=full.RECOVERY_REPORT_CAP+1)])
+        for bad in bads:
+            with self.assertRaises(full.FullImportError):full._validate_recovery_proof(bad,plan,target,imported)
+
+    def test_derived_and_receipt_faults_require_nonempty_actual_application_coverage(self):
+        for case in ('recovery-derived','recovery-receipt-failure'):
+            proof,plan,target,imported=self.inputs(case)
+            derived=proof['derived_validation']
+            bads=[None,{},dict(derived,extra=1),dict(derived,reading_report_sha256='BAD')]
+            for key in derived:
+                if key!='reading_report_sha256':
+                    bads.extend([dict(derived,**{key:True}),dict(derived,**{key:derived[key]+1})])
+            bads.append(dict(derived,result_v1_count=0,reading_view_revisions=0,reading_historical_revisions=0,owner_projections=0,granted_peer_denials=0))
+            for value in bads:
+                with self.subTest(case=case,value=value),self.assertRaises(full.FullImportError):
+                    full._validate_recovery_proof(dict(proof,derived_validation=value),plan,target,imported)
+        held,plan,target,imported=self.inputs('recovery-effects')
+        with self.assertRaises(full.FullImportError):full._validate_recovery_proof(dict(held,derived_validation=derived),plan,target,imported)
+
+    def test_actual_recovery_body_reader_requires_exact_report_bytes_before_copy(self):
+        import hashlib
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import p0c4_source_lifecycle_gate_acceptance as driver
+        proof,plan,target,imported=self.inputs()
+        report=b'{"scope":"unknown-foundation"}'
+        proof.update(normalization_report_sha256=hashlib.sha256(report).hexdigest(),normalization_report_bytes=len(report))
+        for corrupt in (False,True):
+            writes=[];calls=[]
+            context=full.FullRehearsalContext(full._TOKEN,plan)
+            context._runner=object();context._case=Path('/root/current-owned-case');context._target_status=target
+            context._h=SimpleNamespace(write_new=lambda path,raw:writes.append((path.name,raw)))
+            def remote(runner,cid,argv):
+                calls.append(argv)
+                if argv[-1].endswith('full-recovery-result.json'):return 0,full._canonical(proof),b''
+                return 0,report+(b' ' if corrupt else b''),b''
+            record=dict(container_id='a'*64)
+            with patch.object(driver,'pg_exec',side_effect=remote):
+                if corrupt:
+                    with self.assertRaises(full.FullImportError):context._verify_recovery_body(record,imported)
+                    self.assertEqual(writes,[]);self.assertNotIn('full_recovery_proof',record)
+                else:
+                    context._verify_recovery_body(record,imported)
+                    self.assertEqual([name for name,_ in writes],['full-recovery-normalization.json','full-recovery-result.json'])
+                    self.assertEqual(record['full_recovery_normalization']['sha256'],proof['normalization_report_sha256'])
+            self.assertEqual(calls,[['cat','/var/lib/knowweave-source/proofs/full-recovery-result.json'],['cat','/var/lib/knowweave-source/proofs/full-recovery-normalization.json']])
+
+    def test_legacy_import_proof_cannot_stand_in_for_a_recovery_result(self):
+        proof,plan,target,imported=self.inputs()
+        forged=dict(imported,case=plan['case_name'],commit_attempted=False,import_catalog_verified=False,originals_verified=False)
+        with self.assertRaises(full.FullImportError):full._validate_body_proof(forged,plan,target)
+        full._validate_recovery_proof(proof,plan,target,imported)
+
+
 if __name__=='__main__':unittest.main()

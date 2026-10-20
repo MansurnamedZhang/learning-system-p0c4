@@ -8,6 +8,43 @@ async fn recovery_invalidates_unexpired_and_expired_source_tokens() {
         .await
         .unwrap();
 }
+#[tokio::test]
+#[ignore = "fresh Root enrolled source and independently pinned held target"]
+async fn recovery_preserves_attempt_count_and_three_attempt_ceiling() {
+    use crate::restore_preflight::target_binding::controlled_import::full::recovery_tests::{
+        RecoveryCase, run,
+    };
+    run(RecoveryCase::RetryLimit).await.unwrap();
+}
+#[tokio::test]
+#[ignore = "fresh Root enrolled source; unbound snapshot effects remain Unknown/HOLD"]
+async fn recovery_unknown_snapshot_effect_is_unclaimable_and_blocks_usable() {
+    use crate::restore_preflight::target_binding::controlled_import::full::recovery_tests::{
+        RecoveryCase, run,
+    };
+    // This one fixed body also preserves the succeeded DB receipt without
+    // republishing. It never labels that unbound receipt AlreadyCommitted.
+    run(RecoveryCase::Effects).await.unwrap();
+}
+#[tokio::test]
+#[ignore = "fresh Root enrolled source and independently pinned held target"]
+async fn recovery_missing_derived_export_and_digest_mismatch_stay_isolated() {
+    use crate::restore_preflight::target_binding::controlled_import::full::recovery_tests::{
+        RecoveryCase, run,
+    };
+    // Missing exports are Unknown in the effects fixture; this clean snapshot-
+    // free variant verifies a genuine Result-v1 and both real reading revisions
+    // (including granted-nonowner denial) before the digest refusal seam.
+    run(RecoveryCase::Derived).await.unwrap();
+}
+#[tokio::test]
+#[ignore = "fresh Root enrolled source and independently pinned held target"]
+async fn recovery_receipt_sync_failure_never_returns_recovered_instance() {
+    use crate::restore_preflight::target_binding::controlled_import::full::recovery_tests::{
+        RecoveryCase, run,
+    };
+    run(RecoveryCase::ReceiptFailure).await.unwrap();
+}
 use super::*;
 use crate::FileRecord;
 use std::{collections::BTreeSet, io::Write, path::Path};

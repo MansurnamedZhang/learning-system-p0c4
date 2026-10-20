@@ -261,6 +261,12 @@ pub fn classify_restored_job(job: &RestoredJob) -> Result<JobRecoveryAction, Bac
     if matches!(job.status.as_str(), "queued" | "snapshot_queued") && job.checkpoint_present {
         return Err(BackupError::Invalid("queued job has checkpoint"));
     }
+    // Migration 0014's job_check2 requires both queued families to have no
+    // attempt history. The snapshot reconciliation fallback must not admit an
+    // otherwise impossible DB projection, irrespective of a supplied finding.
+    if matches!(job.status.as_str(), "queued" | "snapshot_queued") && job.attempt_count != 0 {
+        return Err(BackupError::Invalid("queued job has prior attempts"));
+    }
     if matches!(job.status.as_str(), "retry_wait" | "snapshot_retry_wait")
         && !(1..3).contains(&job.attempt_count)
     {

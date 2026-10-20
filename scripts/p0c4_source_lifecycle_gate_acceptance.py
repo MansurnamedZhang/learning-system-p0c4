@@ -62,6 +62,10 @@ SOURCE_CLONE_TEST='source::endpoint_tests::source_same_id_physical_clone_rejecte
 SOURCE_BOUND_DUMP_TEST='source::endpoint_tests::source_dump_uses_exact_container_socket_and_admitted_backend'
 FULL_RETAINED_ORIGINAL_TESTS=(
     'full_restore::live_tests::recovery_invalidates_unexpired_and_expired_source_tokens',
+    'full_restore::live_tests::recovery_preserves_attempt_count_and_three_attempt_ceiling',
+    'full_restore::live_tests::recovery_unknown_snapshot_effect_is_unclaimable_and_blocks_usable',
+    'full_restore::live_tests::recovery_missing_derived_export_and_digest_mismatch_stay_isolated',
+    'full_restore::live_tests::recovery_receipt_sync_failure_never_returns_recovered_instance',
     'full_restore::live_tests::full_import_preserves_one_writer_transaction_and_exact_endpoint',
     'full_restore::live_tests::full_import_eof_before_commit_leaves_zero_objects',
     'full_restore::live_tests::full_import_cancel_retains_guards_until_isolation',

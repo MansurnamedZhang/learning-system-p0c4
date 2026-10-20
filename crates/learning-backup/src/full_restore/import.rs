@@ -18,6 +18,10 @@ use std::{
 
 #[path = "catalog_context.rs"]
 mod catalog_context;
+#[path = "validation.rs"]
+pub(crate) mod validation;
+pub(crate) use validation::RecoveryTransaction;
+pub use validation::{RecoveredInstance, RecoveryValidation, validate_recovery};
 #[cfg(test)]
 #[path = "catalog_observation.rs"]
 mod catalog_observation;
@@ -32,6 +36,7 @@ pub struct RecoveryPending {
     complete: CompleteBackup,
     package: VerifiedPackage,
     assets: AssetRestoreReport,
+    expected: crate::full_restore::data::ExpectedRecoveryRows,
 }
 impl RecoveryPending {
     pub(crate) fn target_mut(&mut self) -> &mut ImportedTarget {
@@ -159,12 +164,14 @@ struct OwnedRestoreAdmission {
     expected: WriterExpected,
     birth_sha256: [u8; 32],
     inspection_sha256: [u8; 32],
+    recovery_admin: PgPool,
 }
 impl OwnedRestoreAdmission {
     async fn from_preflight(
         mut admitted: preflight::RestorePreflight,
         config: RestorePreflightConfig,
         roles: &[u8],
+        recovery_admin: PgPool,
     ) -> Result<Self, BackupError> {
         let result=async {
         let control = BackupDir::open_trusted_private_root(&config.control_root)?;
@@ -212,6 +219,7 @@ impl OwnedRestoreAdmission {
                 expected,
                 birth_sha256,
                 inspection_sha256,
+                recovery_admin,
             }),
             Err(error) => {
                 admitted.bound_target.child_usable.set(false);
@@ -262,8 +270,60 @@ pub struct ImportedTarget {
     admission: Option<OwnedRestoreAdmission>,
     runtime: tokio::runtime::Handle,
     quarantined: bool,
+    recovery_binding: serde_json::Value,
+    recovery_directory: Option<BackupDir>,
+    recovery_fence: Arc<validation::RecoveryFence>,
+    recovery_metadata_budget: Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
+    recovery_supervision: Option<(watch::Receiver<bool>, Instant)>,
+    #[cfg(test)]
+    rehearsal_validation_receipt: Option<String>,
 }
 impl ImportedTarget {
+    fn new(
+        admission: OwnedRestoreAdmission,
+        package: &VerifiedPackage,
+    ) -> Result<Self, BackupError> {
+        let claim = &admission.preflight.bound_target.claim;
+        let recovery_binding = serde_json::json!({
+            "format_version": 1, "capability": "held_recovery_target_v1",
+            "backup_id": package.manifest.backup_id,
+            "manifest_sha256": package.manifest.canonical_sha256()?,
+            "source": package.manifest.source,
+            "database": claim.database, "database_oid": claim.database_oid,
+            "system_identifier": claim.system_identifier,
+            "container_id": claim.container_id, "network_id": claim.network_id,
+            "daemon_id": claim.daemon_id, "volume_name": claim.volume_name,
+            "mount_dev": claim.mount_dev, "mount_ino": claim.mount_ino,
+            "birth_sha256": hex::encode(admission.birth_sha256),
+            "inspection_sha256": hex::encode(admission.inspection_sha256),
+            "control_identity": admission.control.identity()?,
+            "assets_identity": admission.assets.identity()?,
+            "complete_backed": matches!(package.authority, PackageAuthority::Complete { .. }),
+        });
+        let recovery_fence = Arc::new(validation::RecoveryFence::new(claim.clone()));
+        let recovery_metadata_budget = match &package.authority {
+            PackageAuthority::Complete {
+                _destination: destination,
+                ..
+            } => Arc::clone(&destination.lease.budget),
+            #[cfg(test)]
+            PackageAuthority::Fresh(_) => {
+                Arc::new(std::sync::Mutex::new(crate::registry::ScanBudget::default()))
+            }
+        };
+        Ok(Self {
+            admission: Some(admission),
+            runtime: tokio::runtime::Handle::current(),
+            quarantined: false,
+            recovery_binding,
+            recovery_directory: None,
+            recovery_fence,
+            recovery_metadata_budget,
+            recovery_supervision: None,
+            #[cfg(test)]
+            rehearsal_validation_receipt: None,
+        })
+    }
     fn admitted(&mut self) -> &mut OwnedRestoreAdmission {
         self.admission.as_mut().expect("owned target")
     }
@@ -287,10 +347,56 @@ impl ImportedTarget {
         self.admitted().preflight.sql_session.lease_mut()
     }
     pub(crate) async fn recheck(&mut self) -> Result<(), BackupError> {
+        self.recovery_fence.require_usable()?;
+        self.recovery_operation_gate()?;
         self.admitted()
             .recheck(Instant::now() + Duration::from_secs(15))
             .await
             .map_err(error)
+    }
+    pub(crate) async fn begin_recovery_transaction(
+        &mut self,
+    ) -> Result<RecoveryTransaction, BackupError> {
+        validation::begin_recovery_transaction(self).await
+    }
+    pub(crate) fn recovery_identity(&self) -> serde_json::Value {
+        self.recovery_binding.clone()
+    }
+    pub(crate) fn recovery_metadata_budget(
+        &self,
+    ) -> Arc<std::sync::Mutex<crate::registry::ScanBudget>> {
+        Arc::clone(&self.recovery_metadata_budget)
+    }
+    fn recovery_operation_gate(&self) -> Result<(), BackupError> {
+        if let Some((cancel, deadline)) = &self.recovery_supervision {
+            gate(cancel, *deadline).map_err(error)?;
+        }
+        Ok(())
+    }
+    fn recovery_phase_deadline(&self, maximum: Duration) -> Instant {
+        let local = Instant::now() + maximum;
+        self.recovery_supervision
+            .as_ref()
+            .map_or(local, |(_, end)| local.min(*end))
+    }
+    pub(crate) fn recovery_reading_transaction(
+        &mut self,
+    ) -> &mut sqlx::Transaction<'static, sqlx::Postgres> {
+        self.admitted().preflight.sql_session.lease_mut()
+    }
+    pub(crate) fn recovery_control(&mut self) -> Result<BackupDir, BackupError> {
+        validation::recovery_control(self)
+    }
+    pub(crate) async fn quarantine(&mut self) -> Result<(), BackupError> {
+        self.recovery_fence.fail(&self.runtime);
+        if self.recovery_fence.wait().await {
+            self.quarantined = true;
+            Ok(())
+        } else {
+            Err(BackupError::Invalid(
+                "recovery target isolation unconfirmed",
+            ))
+        }
     }
 }
 impl Drop for ImportedTarget {
@@ -299,8 +405,15 @@ impl Drop for ImportedTarget {
             return;
         }
         if let Some(mut admission) = self.admission.take() {
+            let fence = Arc::clone(&self.recovery_fence);
             self.runtime.spawn(async move {
-                admission.quarantine().await;
+                if fence.started() {
+                    let _ = fence.wait().await;
+                } else {
+                    admission.quarantine().await;
+                }
+                // Keep the original locks/session alive until its cleanup owner settled.
+                drop(admission);
             });
         }
     }
@@ -342,12 +455,8 @@ async fn restore_owned(
     let package = VerifiedPackage::open_complete(&complete, &config)?;
     let preflight = crate::preflight_restore(&complete, &config, &admin).await?;
     let admission =
-        OwnedRestoreAdmission::from_preflight(preflight, config, &package.roles).await?;
-    let mut imported = ImportedTarget {
-        admission: Some(admission),
-        runtime: tokio::runtime::Handle::current(),
-        quarantined: false,
-    };
+        OwnedRestoreAdmission::from_preflight(preflight, config, &package.roles, admin).await?;
+    let mut imported = ImportedTarget::new(admission, &package)?;
     let result = async {
         gate(&cancel, Instant::now() + Duration::from_secs(900)).map_err(error)?;
         let spool = imported
@@ -363,7 +472,7 @@ async fn restore_owned(
             .ok_or(BackupError::Invalid("missing full dump"))?;
         let frozen = freeze_full_dump(&mut dump, record, &spool)?;
         let input = validate_full_dump(frozen, &SchemaContract::embedded()?, &spool).await?;
-        import_verified(
+        let expected = import_verified(
             &mut imported,
             input,
             &package,
@@ -375,11 +484,11 @@ async fn restore_owned(
         let assets = restore_originals(&mut imported, &package).await?;
         imported.recheck().await?;
         gate(&cancel, Instant::now() + Duration::from_secs(1)).map_err(error)?;
-        Ok::<_, BackupError>(assets)
+        Ok::<_, BackupError>((assets, expected))
     }
     .await;
-    let assets = match result {
-        Ok(assets) => assets,
+    let (assets, expected) = match result {
+        Ok(value) => value,
         Err(error) => {
             imported.stop().await?;
             return Err(error);
@@ -390,6 +499,7 @@ async fn restore_owned(
         complete,
         package,
         assets,
+        expected,
     })
 }
 
@@ -399,8 +509,18 @@ async fn import_verified(
     package: &VerifiedPackage,
     origin: FullOrigin<'_>,
     cancel: watch::Receiver<bool>,
-) -> Result<(), BackupError> {
+) -> Result<crate::full_restore::data::ExpectedRecoveryRows, BackupError> {
     let deadline = Instant::now() + Duration::from_secs(900);
+    let scratch = target
+        .admitted()
+        .control
+        .create_dir(&format!("recovery-rows-{}", uuid::Uuid::new_v4()))?;
+    let (input, expected) = tokio::task::spawn_blocking(move || {
+        let expected = crate::full_restore::data::capture_expected(&input, &scratch)?;
+        Ok::<_, BackupError>((input, expected))
+    })
+    .await
+    .map_err(|_| BackupError::Invalid("recovery row capture owner lost"))??;
     let roles = package.roles.clone();
     #[cfg(test)]
     full_stage(Stage::Payload);
@@ -434,7 +554,8 @@ async fn import_verified(
     if let Some(failure) = report.failure {
         return Err(error(failure));
     }
-    Ok(())
+    validation::bind_import_attempt(target, package)?;
+    Ok(expected)
 }
 struct FullPayload {
     input: VerifiedFullImport,
@@ -1396,6 +1517,7 @@ impl FreshTargetFixture {
             .await?;
         drop(guard);
         full_stage(Stage::CandidateAdmission);
+        let recovery_admin = pool.clone();
         let original = linux::admit_full_candidate_target(self.config, pool, current_audit())
             .await
             .map_err(error)?;
@@ -1410,13 +1532,14 @@ impl FreshTargetFixture {
             .into_full_preflight(package.manifest.clone(), package.plan.clone())
             .await?;
         full_stage(Stage::OwnedAdmission);
-        let admission =
-            OwnedRestoreAdmission::from_preflight(preflight, config, &package.roles).await?;
-        Ok(ImportedTarget {
-            admission: Some(admission),
-            runtime: tokio::runtime::Handle::current(),
-            quarantined: false,
-        })
+        let admission = OwnedRestoreAdmission::from_preflight(
+            preflight,
+            config,
+            &package.roles,
+            recovery_admin,
+        )
+        .await?;
+        ImportedTarget::new(admission, package)
     }
 }
 #[cfg(test)]
@@ -1491,7 +1614,7 @@ async fn rehearse_fresh_local_capture(
         if let Ok(test_receiver) = FULL_TEST.try_with(|control| control.cancel.subscribe()) {
             receiver = test_receiver;
         }
-        import_verified(
+        let expected = import_verified(
             &mut imported,
             input,
             &package,
@@ -1503,7 +1626,7 @@ async fn rehearse_fresh_local_capture(
         let assets = restore_originals(&mut imported, &package).await?;
         full_stage(Stage::Recheck);
         imported.recheck().await?;
-        recovery_tests::after_import(&mut imported, &package).await?;
+        recovery_tests::after_import(&mut imported, &package, &assets, &expected).await?;
         Ok::<_, BackupError>(assets)
     }
     .await;
@@ -1525,6 +1648,7 @@ async fn rehearse_fresh_local_capture(
         .settle_async(Stage::Stop, imported.stop())
         .await?;
     let assets = result?;
+    validation::finish_rehearsal_receipt(&mut imported, &package)?;
     Ok(RehearsalReport {
         assets,
         stopped: true,
@@ -1544,7 +1668,7 @@ async fn real_full_import_rehearsal_inner(
 ) -> Result<(), BackupError> {
     diagnostic.enter(Stage::Fixture);
     let mut fixture = crate::source::lifecycle_tests::live::Fixture::new().await;
-    recovery_tests::seed(&fixture.pool).await?;
+    recovery_tests::seed(&fixture.pool, &fixture.assets).await?;
     let source = diagnostic
         .run_async(Stage::Capture, FreshLocalCapture::capture(&mut fixture))
         .await?;

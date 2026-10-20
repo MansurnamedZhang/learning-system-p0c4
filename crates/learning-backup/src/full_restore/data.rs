@@ -1,10 +1,16 @@
 //! Deterministic primary-key ordering for the full recovery row barrier.
 //! These content observations never grant import or usable authority.
+#![cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
 use super::{SchemaContract, schema::Table};
 use crate::BackupError;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::io::BufRead;
+
+mod rows;
+#[cfg(target_os = "linux")]
+pub(crate) use rows::verify_target_rows;
+pub(crate) use rows::{ExpectedRecoveryRows, capture_expected};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum KeyPart {
@@ -285,7 +291,7 @@ fn row_digest(table: &Table, row: &[u8]) -> Result<[u8; 32], BackupError> {
     Ok(hash.finalize().into())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize)]
 struct TableObservation {
     table: String,
     rows: u64,

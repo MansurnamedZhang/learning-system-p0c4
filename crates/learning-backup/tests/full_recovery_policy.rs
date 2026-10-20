@@ -97,3 +97,45 @@ fn recovery_rejects_queued_checkpoint_instead_of_accepting_invalid_db_projection
         );
     }
 }
+
+#[test]
+fn snapshot_checkpoint_never_substitutes_for_external_receipt_or_bytes() {
+    for state in ["snapshot_running", "snapshot_retry_wait", "succeeded"] {
+        let mut row = job(state, true, 1, Effect::Unknown);
+        row.checkpoint_present = true;
+        assert_eq!(
+            classify_restored_job(&row).unwrap(),
+            Action::AwaitExternalReconciliation
+        );
+        assert!(
+            row.checkpoint_present,
+            "classification must preserve the checkpoint"
+        );
+    }
+}
+
+#[test]
+fn terminal_receipts_are_not_reclassified_as_retry_work() {
+    for state in ["succeeded", "failed", "cancelled"] {
+        let mut row = job(state, false, 2, Effect::Unknown);
+        row.checkpoint_present = true;
+        assert_eq!(classify_restored_job(&row).unwrap(), Action::LeaveTerminal);
+        assert_eq!(row.attempt_count, 2);
+        assert!(row.checkpoint_present);
+    }
+}
+
+#[test]
+fn positive_effect_enum_cannot_authorize_wrong_job_family_or_retry_budget() {
+    for mut row in [
+        job("running", true, 1, Effect::ConfirmedNoEffect),
+        job("snapshot_running", false, 1, Effect::AlreadyCommitted),
+        job("snapshot_retry_wait", true, 3, Effect::ConfirmedNoEffect),
+        job("snapshot_queued", true, 1, Effect::ConfirmedNoEffect),
+        job("running", false, 4, Effect::Unknown),
+    ] {
+        assert!(classify_restored_job(&row).is_err());
+        row.external_effect = Effect::Unknown;
+        assert!(classify_restored_job(&row).is_err());
+    }
+}

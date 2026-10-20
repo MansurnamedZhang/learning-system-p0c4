@@ -2,7 +2,9 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-20：Root已正式采纳Task5代码与规定单机补验收尾，范围严格为TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ONLY。source85c九项native均逐项接受，native full9/9；三组最终Linux Rust实际回归已独审并获Root采纳。Task5单机补验在此限定范围CLOSED；Task6–9及C4整关仍OPEN。受控11/11仍为10历史c749＋1当前85c，不是当前源码重跑十一项；无独立备份存储、CompleteBackup或生产恢复/激活结论。 三组分别报告：R1 full_restore_contract为2 passed/0 failed/0 ignored、0 filtered、0.01秒；R2 controlled_import单元为115/0/17 ignored、320 filtered、6.09秒；R3 full_restore单元为92/0/13 ignored、347 filtered、3.37秒。各组typed exit0、完整唯一libtest summary与原stdout/stderr闭合。ignored不计live/native信用，不将2/115/92拼成全项目或语义独立覆盖总数；打印239条测试名仅核对固定源符号来源。 各原案例限制逐项保留：CU业务结果仍UNKNOWN，不是commit success或known rollback；wrong-endpoint仅different_database_route_only_not_same_id_clone。asset-corrupt是DBcatalog已提交后原件失败、无可用恢复回执，zeroDBwrites=false。角色SQL stdout、独立SQL/marker、raw full-negative正文、reader旧raw投影、运行时cache/write-order及TAR现场inode/nlink等原观察缺口不升级；各负例summary＋Suite entry闭合不等于负例正文或独立SQL读取。**
+**最新同步：2026-10-20。Task6 恢复归一化与校验基础已提交。固定 Linux 格式、类型检查、严格 Clippy 通过；四组测试分别 21/15/3/7 通过，Python 封套 33 项通过。新 PostgreSQL 现场场景仍 0/5；snapshot 正面字节证明未完成，缺证据的导出作业保留 Unknown/HOLD。Task5 代码与规定单机补验已限定收尾；Task6–9、C4、CompleteBackup 与生产激活仍未完成。**
+
+[Task6 实现、验证与剩余门](docs/p0c4-recovery-normalization.md)。
 
 ## 进度与文档
 
@@ -17,7 +19,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭、Task3单机；Task5代码＋规定单机补验限定CLOSED（native9/9＋实际三组2/115/92分别保留）；受控11仍10历史c749＋1当前85c；Task6–9/C4 OPEN，无独立存储/CompleteBackup/生产结论 |
+| P0-C4 | Task2关闭、Task3单机；Task5代码＋规定单机补验限定CLOSED（native9/9，三组2/115/92分别记录）；Task6基础代码与Linux分项检查已过，现场PG 0/5，正面snapshot字节证明待补；受控11仍10历史c749＋1当前85c；Task6–9/C4 OPEN，无独立存储/CompleteBackup/生产结论 |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 

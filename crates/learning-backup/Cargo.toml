@@ -22,5 +22,8 @@ tokio = { workspace = true, features = ["process", "io-util"] }
 ring = "0.17.14"
 hex = "0.4"
 
+[dev-dependencies]
+learning-core = { path = "../learning-core" }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"

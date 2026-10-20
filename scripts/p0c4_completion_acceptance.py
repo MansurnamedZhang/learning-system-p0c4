@@ -48,6 +48,12 @@ LIFECYCLE_PASS='SOURCE_LIFECYCLE_EIGHT_CURRENT_PASSED_NOT_COMPLETE'
 SOURCE_PASS='SOURCE_ENDPOINT_TASK2_CASE_PASSED_NOT_COMPLETE'
 DESTINATION_PASS='DESTINATION_TASK3_CASE_PASSED_NOT_COMPLETE'
 FULL_PASS='FULL_IMPORT_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
+RECOVERY_PASS='RECOVERY_FOUNDATION_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_TASK6_COMPLETE'
+
+def full_case_pass_status(case):
+    require(case in full_lane.CASE_TESTS,'FULL_FIXED_CASE_STATUS')
+    return RECOVERY_PASS if case in full_lane.RECOVERY_CASE_TESTS else FULL_PASS
+
 
 def validate_source_fault_transitions(case,name):
     rows=case.get('source_fault_transitions');count=6 if name=='source-cancel' else 2
@@ -144,7 +150,7 @@ def run(plan_path,case):
     lifecycle=case==LIFECYCLE_CASE
     deadline=time.monotonic()+7200
     schedule=[(driver.completion_case_identity(row['case_id']),row['subnet'],name,index==0) for index,(row,name) in enumerate(zip(plan['cases'],driver.PG_TESTS))] if lifecycle else [(driver.completion_case_identity(plan['case_id']),plan['subnet'],ALL_CASE_TESTS[case],True)]
-    pass_status=FULL_PASS if full_context is not None else LIFECYCLE_PASS if lifecycle else SOURCE_PASS if case in envelope.SOURCE_CASE_TESTS else DESTINATION_PASS if case in envelope.DESTINATION_CASE_TESTS else 'REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE'
+    pass_status=full_case_pass_status(case) if full_context is not None else LIFECYCLE_PASS if lifecycle else SOURCE_PASS if case in envelope.SOURCE_CASE_TESTS else DESTINATION_PASS if case in envelope.DESTINATION_CASE_TESTS else 'REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE'
     result=dict(status='FAILED',cleanup_verified=False,cases=[],helpers=[],batch_id=plan['batch_id'],base_commit=plan['source']['application_commit'],archive_sha256=plan['source']['archive']['sha256'],current_source=True,root_trust_scope='fixed_fresh_completion_case')
     raw_budget=[0]
     batch=None;runner=None;images=None;source=None;raw_index=None;status='UNCONFIRMED_UNUSABLE'
@@ -323,14 +329,14 @@ def _verify_envelope(root,receipt,*,raw_budget=None,reserve_recheck=False):
     for key in ('batch_id','case_id','case_name','test_name','status'):
         require(type(receipt[key]) is str,'RESULT_FIELD_TYPE')
     require(receipt['case_name'] in ALL_CASE_TESTS and receipt['case_name'] not in schema_lane.CASE_TESTS,'RESULT_FIXED_CASE')
-    expected_pass=FULL_PASS if receipt['case_name'] in full_lane.CASE_TESTS else SOURCE_PASS if receipt['case_name'] in envelope.SOURCE_CASE_TESTS else DESTINATION_PASS if receipt['case_name'] in envelope.DESTINATION_CASE_TESTS else 'REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE'
+    expected_pass=full_case_pass_status(receipt['case_name']) if receipt['case_name'] in full_lane.CASE_TESTS else SOURCE_PASS if receipt['case_name'] in envelope.SOURCE_CASE_TESTS else DESTINATION_PASS if receipt['case_name'] in envelope.DESTINATION_CASE_TESTS else 'REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE'
     require(receipt['status'] in (expected_pass,'FAILED_UNUSABLE','UNCONFIRMED_UNUSABLE'),'RESULT_CASE_STATUS')
     for key in ('batch_id','case_id'):
         try:registry.v4(receipt[key])
         except registry.RegistryError as error:raise CompletionError('RESULT_UUID') from error
     for key in ('plan_sha256','registry_provisioning_sha256','source_archive_sha256','source_manifest_sha256','application_build_sha256','binary_sha256'):
         require(type(receipt[key]) is str and registry.HEX64.fullmatch(receipt[key]),'RESULT_DIGEST')
-    require(all(registry.integer(receipt[k],0,100000) for k in ('passed','failed','ignored')) and registry.integer(receipt['test_exit'],-255,255) and receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,'FAILED_UNUSABLE','UNCONFIRMED_UNUSABLE'),'RESULT_STATUS')
+    require(all(registry.integer(receipt[k],0,100000) for k in ('passed','failed','ignored')) and registry.integer(receipt['test_exit'],-255,255) and receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,'FAILED_UNUSABLE','UNCONFIRMED_UNUSABLE'),'RESULT_STATUS')
     evidence.validate_ref(receipt['driver_result'],32*1024**2);evidence.validate_ref(receipt['raw_index'],driver.raw_evidence_limits(1)[1])
     plan_raw=private_read(root/'case-plan.json',65536);plan=validate_plan(registry.parse_record(plan_raw),receipt['case_name'])
     require(digest(plan_raw)==receipt['plan_sha256'] and all(receipt[k]==plan[k] for k in ('batch_id','case_id','case_name')) and receipt['test_name']==ALL_CASE_TESTS[receipt['case_name']],'RESULT_PLAN_LINK')
@@ -348,10 +354,10 @@ def _verify_envelope(root,receipt,*,raw_budget=None,reserve_recheck=False):
     require(type(other) is str and other.startswith(prefix) and other!=case['identity']['database'],'RESULT_CASE_IDENTITY')
     try:registry.v4(other[len(prefix):])
     except registry.RegistryError as error:raise CompletionError('RESULT_CASE_IDENTITY') from error
-    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS) or 'compile_source' in case:
+    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS) or 'compile_source' in case:
         require(case.get('compile_source')==dict(application_commit=source['application_commit'],application_build_sha256=source['application_build_sha256'],source_binding_sha256=issuer['source_binding_sha256']),'RESULT_COMPILE_SOURCE_LINK')
     _verify_raw_evidence(root,receipt,nested,raw_budget,reserve_recheck,case_count=1)
-    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS):
+    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS):
         require(receipt['test_exit']==0 and (receipt['passed'],receipt['failed'],receipt['ignored'])==(1,0,0) and nested['status']==receipt['status'] and nested.get('current_source') is True and nested.get('cleanup_verified') is True and len(nested['cases'])==1,'RESULT_NO_FALSE_PASS')
         case=nested['cases'][0];require(case['test']==receipt['test_name'] and all(case.get(k) is True for k in ('stopped','execs_absent','transports_reaped','retained_network_empty')) and canonical(case.get('audit_after'))==canonical(case.get('audit_final')) and case['compiled']['lib']['sha256']==receipt['binary_sha256'] and all(type(case['outcome'][k]) is int and case['outcome'][k]==v for k,v in dict(exit_code=0,passed=1,failed=0,ignored=0).items()),'RESULT_NESTED_CASE')
         if case['test'] in driver.REGISTRY_INCOMPLETE_TESTS:
@@ -404,7 +410,7 @@ def main(argv=None):
     args=parser.parse_args(argv)
     try:
         receipt=run(args.plan,args.case) if args.operation=='run' else verify(args.result)
-        print(canonical(receipt).decode());return 0 if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',LIFECYCLE_PASS,SOURCE_PASS,DESTINATION_PASS,FULL_PASS,schema_lane.PASS) else 1
+        print(canonical(receipt).decode());return 0 if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',LIFECYCLE_PASS,SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,schema_lane.PASS) else 1
     except BaseException as error:
         print(canonical(dict(status='UNCONFIRMED_UNUSABLE',reason=str(error) if isinstance(error,(CompletionError,registry.RegistryError,driver.GateError,resources.ResourceError)) else 'UNEXPECTED_ERROR')).decode());return 1
 if __name__=='__main__':sys.exit(main())

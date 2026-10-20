@@ -16,7 +16,7 @@ mod queries;
 pub use placement_migration::MigrationStore;
 pub use queries::QueryStore;
 mod reading;
-pub use reading::ReadingStore;
+pub use reading::{ReadingStore, RecoveryReadingReport};
 mod read;
 mod references;
 mod relations;

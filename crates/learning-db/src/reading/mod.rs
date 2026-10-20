@@ -1,6 +1,8 @@
 mod projection;
 pub(crate) use projection::project as project_for_impact;
 mod read;
+mod recovery;
+pub use recovery::RecoveryReadingReport;
 pub(crate) mod selection;
 mod write;
 use sqlx::PgPool;
