@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-20：full-import与full-precommit-eof两项实际测试均已独审并获Root逐项采纳，full 2/9，其余七项没有信用。EOF精确测试1通过、0失败/ignored、451 filtered、20.96秒；首full-import仍为27.72秒，两者时长各只属于本项测试。受控11/11仍为10历史c749＋1当前85c，不能解释为当前源码重跑十一项。Task2关闭、Task3仅单机；Task5及Task6–9/C4 OPEN，无独立备份存储、CompleteBackup或生产恢复/部署结论。**
+**最新同步：2026-10-20：full-import、full-precommit-eof与full-cancel三项实际测试均已独审并获Root逐项采纳，full 3/9，其余六项没有已接受案例信用。cancel精确测试1通过、0失败/ignored、451 filtered、20.98秒；该时长只属于本项native测试，不是整体流程或性能评测。受控11/11仍为10历史c749＋1当前85c，不能解释为当前源码重跑十一项。Task2关闭、Task3仅单机；Task5及Task6–9/C4 OPEN，无独立备份存储、CompleteBackup或生产恢复/部署结论。 限制完整保留：实际角色SQL stdout未独立读取；rollback、零对象及marker语义来自源绑定的精确native断言，不是第二次SQL或marker读取。reader旧投影仅由精确guard断言支持，未另读raw snapshot；运行时cache及写入顺序未独立观测。dump/TOC/catalog/asset验证来自固定native body和hash绑定proof，未第二次下载dump或读取数据库。tar header不能独立证明现场inode/nlink连续性。没有独立存储、CompleteBackup或生产恢复结论。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；受控11/11＝10历史c749＋1当前85c；full-import＋EOF实际独审/Root采纳，full2/9，其余七项无信用，Task5/C4 OPEN |
+| P0-C4 | Task2关闭；受控11/11＝10历史c749＋1当前85c；full-import＋EOF＋cancel实际独审/Root采纳，full3/9，其余六项无已接受案例信用，Task5/C4 OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 
