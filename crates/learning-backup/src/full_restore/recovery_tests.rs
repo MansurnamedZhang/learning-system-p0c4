@@ -98,7 +98,7 @@ async fn seed_job(
     snapshot: bool,
     state: InitialState,
 ) -> Result<SourceJob, BackupError> {
-    let id = Uuid::new_v4();
+    let outbox_id = Uuid::new_v4();
     let block = Uuid::new_v4();
     let revision = Uuid::new_v4();
     let (event, payload, key) = if snapshot {
@@ -122,18 +122,47 @@ async fn seed_job(
             format!("asset-integrity:v1:{space}:{block}:{revision}"),
         )
     };
-    sqlx::query("INSERT INTO public.job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,$3,1,$4,$5,1)").bind(id).bind(&key).bind(event).bind(payload).bind(actor).execute(pool).await?;
-    sqlx::query(
-        "INSERT INTO public.job(id,outbox_id,idempotency_key,status) VALUES($1,$1,$2,'queued')",
+    // The dispatcher scans all pending events. Refuse unexpected fixture work
+    // rather than consuming another event and changing the coverage roster.
+    let pending: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM public.job_outbox WHERE dispatched_at IS NULL")
+            .fetch_one(pool)
+            .await?;
+    require(
+        pending == 0,
+        "recovery fixture has unexpected pending events",
+    )?;
+    sqlx::query("INSERT INTO public.job_outbox(id,business_key,event_type,payload_version,payload,actor_id,processor_version) VALUES($1,$2,$3,1,$4,$5,1)").bind(outbox_id).bind(&key).bind(event).bind(payload).bind(actor).execute(pool).await?;
+    // Job insertion and its outbox dispatch marker must commit together: the
+    // deferred dispatch constraint rejects a half-dispatched autocommit INSERT.
+    require(
+        JobStore::new(pool.clone())
+            .dispatch_pending(1)
+            .await
+            .map_err(|_| BackupError::Invalid("recovery fixture dispatch failed"))?
+            == 1,
+        "recovery fixture exact job dispatch",
+    )?;
+    // C2 dispatch creates an independent job ID; the C3 trigger chooses its
+    // outbox ID and snapshot state family. Always use the actual committed row.
+    let (id, status, attempts, dispatched): (Uuid, String, i32, bool) = sqlx::query_as(
+        "SELECT j.id,j.status,j.attempt_count,e.dispatched_at IS NOT NULL \
+         FROM public.job j JOIN public.job_outbox e ON e.id=j.outbox_id \
+         WHERE e.id=$1 AND e.business_key=$2 AND j.idempotency_key=e.business_key",
     )
-    .bind(id)
-    .bind(key)
-    .execute(pool)
+    .bind(outbox_id)
+    .bind(&key)
+    .fetch_one(pool)
     .await?;
-    sqlx::query("UPDATE public.job_outbox SET dispatched_at=clock_timestamp() WHERE id=$1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    let queued = if snapshot {
+        "snapshot_queued"
+    } else {
+        "queued"
+    };
+    require(
+        status == queued && attempts == 0 && dispatched,
+        "recovery fixture committed dispatch differs",
+    )?;
     if matches!(state, InitialState::Queued | InitialState::Cancelled) {
         if matches!(state, InitialState::Cancelled) {
             let sql = if snapshot {
@@ -370,12 +399,15 @@ pub(super) async fn seed(
     let Some(case) = current_case() else {
         return Ok(());
     };
-    let existing: i64 = sqlx::query_scalar("SELECT count(*) FROM public.job")
-        .fetch_one(pool)
-        .await?;
+    let (existing, pending): (i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM public.job),\
+         (SELECT count(*) FROM public.job_outbox WHERE dispatched_at IS NULL)",
+    )
+    .fetch_one(pool)
+    .await?;
     require(
-        existing == 0,
-        "recovery fixture requires no historical jobs",
+        existing == 0 && pending == 0,
+        "recovery fixture requires no historical jobs or pending events",
     )?;
     let (actor, space): (Uuid, Uuid) =
         sqlx::query_as("SELECT owner_id,id FROM public.space ORDER BY id LIMIT 1")
