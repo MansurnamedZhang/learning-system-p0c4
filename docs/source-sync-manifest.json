@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "date": "2026-10-20",
+  "date": "2026-10-21",
   "source_commit": "1521cfeac821072f95fa46d3637c97a3f553343b",
-  "previous_public_commit": "9b767dd7f56ec4282852c464d9cb57559db089e5",
+  "previous_public_commit": "78c97c9fe6527b3d2d181c2b3849e76ea59570c8",
   "source_archive_sha256": "b477633a964e8a9b6ee17af940b9b4576bffb1f612f5e12d770ac0873a88df82",
   "source_manifest_sha256": "18e0817cf85df335172a03e0278f61ac8d23824abadb1c7a3e7529b61c288788",
   "source_file_count": 558,
@@ -344,8 +344,8 @@
     },
     {
       "path": "crates/learning-backup/src/full_restore/recovery_tests.rs",
-      "bytes": 36893,
-      "sha256": "710f0ec5e9309236cc2c391a308a80a15b8a163c1585a2231d1e2b1b4e0e34f8",
+      "bytes": 46954,
+      "sha256": "fc913ad3487547e1708932330b4e68715ceb479071e9c00dc79d0cd19e1fef91",
       "source_blob_sha256": "710f0ec5e9309236cc2c391a308a80a15b8a163c1585a2231d1e2b1b4e0e34f8",
       "source_bytes_preserved": true
     },
@@ -3263,8 +3263,8 @@
     },
     {
       "path": "docs/p0c4-recovery-normalization.md",
-      "bytes": 8886,
-      "sha256": "f1ed610a826d49d16f8f0de93add9d40962c29f31a307e53a51c5aee09f2d525",
+      "bytes": 10048,
+      "sha256": "7d4f578d0baf8da708fdacfe17ad584ceb42c3f809e5138add74a6e5938d7b3e",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3444,8 +3444,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 1512,
-      "sha256": "912202aeb5deba0a26a4c6ba552cec2ce16f2d89a7e815863059734d93d7302f",
+      "bytes": 1847,
+      "sha256": "e258abf56762b711e50c0b15e78ebaf3760435aaf3451d69b96c4d76c0193683",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3493,8 +3493,8 @@
     },
     {
       "path": "docs/项目最新进度.md",
-      "bytes": 30386,
-      "sha256": "95fd4a5ea6d70e5da8759db29be36f63d70768930b065cf1f4c8a6688a3cbd30",
+      "bytes": 31548,
+      "sha256": "e728b5c41fd18270e6c0cc23e33c320f5ac6851f40489e0b09e8db48627758f9",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4115,7 +4115,7 @@
       "source_bytes_preserved": true
     }
   ],
-  "progress_as_of": "2026-10-20",
+  "progress_as_of": "2026-10-21",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
   "task5_current": {
@@ -7792,7 +7792,7 @@
       "production_activation_accepted": false
     }
   },
-  "source_capture_method": "COMMITTED_GIT_BLOBS_CANONICAL_1521_WITH_NINE_SOURCE_PATH_CHANGES_AND_DOCUMENTATION_TRANSFORM",
+  "source_capture_method": "COMMITTED_S1_1521_BASE_WITH_EXPLICIT_RUNTIME_FIXTURE_SINGLE_FILE_OVERLAY_AND_DOCUMENTATION_TRANSFORM",
   "previous_source_archive_sha256": "ba6f5c29b77edf5a6f569e835bfa34b918a0960a74e39e8d2ef31fe0806bc9ef",
   "source_archive_status": "TASK6_COMMITTED_CANDIDATE_PACKET_NOT_NATIVE_ACCEPTANCE",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
@@ -7875,7 +7875,8 @@
     "third_foundation_nonempty_unbound_db_receipts": 1,
     "s1_real_ro_leaf_deployment_passed": false,
     "s1_real_ro_leaf_deployment_clients_created": 0,
-    "s1_real_ro_leaf_deployment_failed_result_sha256": "37331f0d302c080e6d2ee12e48bd3b79711f7466ed4d40b1a3c6e1d62cf205d4"
+    "s1_real_ro_leaf_deployment_failed_result_sha256": "37331f0d302c080e6d2ee12e48bd3b79711f7466ed4d40b1a3c6e1d62cf205d4",
+    "latest_fixture_code_commit": "0df5128a296eacec9358e8e5468750412b284ecf"
   },
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "task6_snapshot_broker": {
@@ -7887,8 +7888,28 @@
     "linux_root_fixture_passed": 6,
     "linux_result_sha256": "d84f9b0d369166fce2563addf824b57be41ceed2b2d03b9b0580e6e9fe05a873",
     "independent_actual_review_sha256": "d188563ee48958b27e1b5a40725ab4deb84dd67fbd926848c17b1c26d19c0653",
-    "ro_leaf_mount_deployment": "NOT_RUN",
+    "ro_leaf_mount_deployment": "SECOND_ATTEMPT_PARTIAL_CLIENT_78_THEN_EXTERNAL_NETWORK_PROTECTION_HOLD_NOT_ACCEPTED",
     "positive_effect_authority": false,
+    "task6_complete": false
+  },
+  "source_overlays": [
+    {
+      "path": "crates/learning-backup/src/full_restore/recovery_tests.rs",
+      "source_commit": "0df5128a296eacec9358e8e5468750412b284ecf",
+      "sha256": "fc913ad3487547e1708932330b4e68715ceb479071e9c00dc79d0cd19e1fef91",
+      "scope": "CFG_TEST_LINUX_RUNTIME_LOGIN_FIX_ONLY"
+    }
+  ],
+  "task6_runtime_fixture": {
+    "source_commit": "0df5128a296eacec9358e8e5468750412b284ecf",
+    "code_sha256": "fc913ad3487547e1708932330b4e68715ceb479071e9c00dc79d0cd19e1fef91",
+    "linux_result_sha256": "e2e7e29397ce5a5dd6f5ccb5121dcb53b13b8b4b97deb926a41aea177cae63a7",
+    "linux_independent_review_sha256": "baffc3a9d1fe7148b5dbd434bdc0a94282a86b56a6e8a0b8df9a6ff39efee836",
+    "pure_passed": 3,
+    "future_layout_passed": 1,
+    "actual_new_pg_cases_accepted": 0,
+    "failed_derived_sqlstate": "28P01",
+    "old_unknown_preserved": true,
     "task6_complete": false
   }
 }
