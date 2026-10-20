@@ -1,12 +1,18 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
+2026-10-21 最新：基础恢复现场已独立复核 **4/5**。前三项（旧令牌、重试上限、未知快照副作用）来源为 `509956e`；第四项非空派生结果与阅读校验来源为夹具登录修复后的 `0df5128`，分别保留源码和现场身份，尚未合并为同一最终集成版本回归。
+
+第四项精确 Rust 测试 1 passed / 0 failed / 0 ignored，34 份原件闭合；2 个任务、4 次旧令牌拒绝，非空 Result-v1 的27字节内容摘要已独立复算一致。原管理事务内的完整性及三种阅读投影、当前/历史修订和拒绝路径先通过，再注入一次 digest 不一致，目标保持不可用并隔离。该例没有实际删除 Result-v1、破坏已存摘要或验证普通 runtime CONNECT；阅读正文、64表COPY/归一化侧文件和新一轮实时停机观察仍保留各自核验边界。
+
+第五项恢复收据同步失败正在新批次运行，未计通过。数据库观察组件通过 Linux 编译与纯单元；首轮真实PG尝试在初始健康检查静默采样前停止，未创建本批资源，正在复审限定时间采样脚本。字节日志后端源码独审通过，Linux Root 文件专项待跑。上述组件仍不授予正向 snapshot 字节权威；Task6、CompleteBackup、C4整关及生产验收保持 OPEN。旧失败和 UNKNOWN 原样保留。
+
 ## Task6 当前检查点
 
-2026-10-20：Task6 恢复归一化与校验基础已提交。固定 Linux 格式、类型检查、严格 Clippy 通过；四组测试分别 21/15/3/7 通过，Python 封套 33 项通过。基础 PostgreSQL 现场场景已复核3/5；snapshot 正面字节证明未完成，缺证据的导出作业保留 Unknown/HOLD。Task5 代码与规定单机补验已限定收尾；Task6–9、C4、CompleteBackup 与生产激活仍未完成。 详见[Task6 进度](p0c4-recovery-normalization.md)。以下保留各阶段原有收尾结论与历史。
+2026-10-20：Task6 恢复归一化与校验基础已提交。固定 Linux 格式、类型检查、严格 Clippy 通过；四组测试分别 21/15/3/7 通过，Python 封套 33 项通过。基础 PostgreSQL 现场场景已复核4/5；snapshot 正面字节证明未完成，缺证据的导出作业保留 Unknown/HOLD。Task5 代码与规定单机补验已限定收尾；Task6–9、C4、CompleteBackup 与生产激活仍未完成。 详见[Task6 进度](p0c4-recovery-normalization.md)。以下保留各阶段原有收尾结论与历史。
 
 > Task5单机补验限定收尾（2026-10-20）：Root已正式接受source85c代码与规定单机补验；native9/9，实际三组分别2/115/92通过、ignored0/17/13，不拼语义覆盖或新增native。Task6–9/C4仍OPEN，受控11仍10历史c749＋1当前85c。 outer SSH过程exit0、62.453秒、无timeout/unknown且outer stderr为0；三组Rust命令自身stderr分别4746/226/936字节，包含编译和通过的负例诊断。R3 FULL_REHEARSAL_FAILURE属于通过的unit反例诊断，不是新business live恢复结果。本次只接受既有三组回归，新增native/full案例信用为0。六项P1–P6为非测试预检；仅核对五workspace metadata与208 lock checksum结构，未独立验证dependency cache全部字节。 各原案例限制逐项保留：CU业务结果仍UNKNOWN，不是commit success或known rollback；wrong-endpoint仅different_database_route_only_not_same_id_clone。asset-corrupt是DBcatalog已提交后原件失败、无可用恢复回执，zeroDBwrites=false。角色SQL stdout、独立SQL/marker、raw full-negative正文、reader旧raw投影、运行时cache/write-order及TAR现场inode/nlink等原观察缺口不升级；各负例summary＋Suite entry闭合不等于负例正文或独立SQL读取。
 
-更新：2026-10-20。当前状态：Task2/3/5 按各自限定范围收尾；Task6 基础实现与指定 Linux 检查通过，基础PG现场3/5；C4 整关 OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
+更新：2026-10-21。当前状态：Task2/4/5 按各自限定范围收尾；Task6 基础实现与指定 Linux 检查通过，基础PG现场4/5；C4 整关 OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -59,7 +65,7 @@ flowchart LR
 | P0-C1 原件、图片与附件 | 已验收 | 不可变原字节、资源版本定位、v3 图片/附件及精确使用授权。 | 独立卷原字节核验；中断/损坏/回滚/撤权；四套旧程序升级。 | [328 通过 / 3 忽略；已验收](p0c1-verification.md) |
 | P0-C2 持久任务与受限 Worker | 已验收 | 同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。 | 专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。 | [388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致](p0c2-verification.md) |
 | P0-C3 融合快照交换 | 已验收 | 精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。 | 授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。 | [整关隔离验收与 602 份证据哈希复核通过；未生产部署](p0c3-verification.md) |
-| P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task1已验收；Task2：ba96561代码与单机补验收尾完成；准入5/5、绑定4+2、新端点5/5、fresh life8/8独审接受；Task3单机完成；Task4内容3/3；Task5代码与规定单机补验已限定收尾；Task6基础检查通过、基础PG3/5；整关尚未闭合](p0c4-verification.md) |
+| P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task1已验收；Task2：ba96561代码与单机补验收尾完成；准入5/5、绑定4+2、新端点5/5、fresh life8/8独审接受；Task3单机完成；Task4内容3/3；Task5代码与规定单机补验已限定收尾；Task6基础检查通过、基础PG4/5；整关尚未闭合](p0c4-verification.md) |
 | P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [待建设；首次形成浏览器内容工作台](设计批准与实施路线.md) |
 | P1-B 学习与实践闭环 | 待建设 | 学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。 | 今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。 | [待建设；通过后形成完整学习系统试用版](学习系统设计方案.md) |
 | P2 批量演进与多领域复用 | 待建设 | 批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。 | 真实资料更新保留旧事实；第二领域不新增专属核心业务流程。 | [待建设](学习系统设计方案.md) |
@@ -71,7 +77,7 @@ flowchart LR
 
 历史说明（2026-10-18当时状态；当前进度见顶部）：2026-10-18更新：Task2代码与单机补验收尾完成。当前ba96561固定同包准入5/5、绑定4/4及首例两项live回归、全新replacement端点5/5、fresh生命周期8/8已分别独审接受，交付证据独立留档。旧normal/clone各保留来源，旧clone外层UNKNOWN_RETAINED不提升、不重放。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍OPEN，缺独立存储，未签发CompleteBackup，未生产部署。
 
-当前下一步：新Task6五场景与正面snapshot证据，随后Task7–8整链、升级和回归；Task9待独立存储与密钥托管。历史UNKNOWN和失败现场保留，不复用旧卷。
+当前下一步：收据失败场景的独立复核与正面snapshot证据，随后Task7–8整链、升级和回归；Task9待独立存储与密钥托管。历史UNKNOWN和失败现场保留，不复用旧卷。
 
 固定源码ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1的canonical ZIP为2278129字节、541个raw Git文件，SHA-256 0c2e70b7a6347bce0c409aa0b095ffe01bcbee25dc4dc9e21a528b9701ad6ae0；manifest e8152a2d7b873f7b5470b4d8fe649fbd0b871acef44435ccb936d33e4c996f54，source digest d9aeafa54dfa1d6275eed9466d4668120e8cd02d49a1939c68b35149fc71f203。Linux整库实际360通过/0失败/80忽略，maintenance4+1与strict Clippy退出0；fmt按固定helper/构建链退出记录接受，未导出的独立空输出process日志不补造。Windows startup15/15、整库326/326单列。新replacement五项独审整组报告e82561eeccde4be0dd1fde2db8956fc65b1234f9d7af9b9f90e1059469e733b0、INDEX5aea40b5a8f130d5fccab344c5ad865e09509c5450d318df054e0cbb5e90ff5b；锁失实证是session lock loss而非postmaster重启，cancel的9观测generation/6转换仅计一项。fresh life8和技术综合必须由当前同包真实原件及各自独立接受报告支持；不能借旧49528/5fcc生命周期信用。旧clone内部正文通过但outer exit1/UNKNOWN、79c normal45b4的libtest101及native_exit=null/native_wait未观察、旧9日志覆盖丢失均保留，旧public/private5/5预算不重置。
 
@@ -82,7 +88,7 @@ flowchart LR
     C4T3["Task 3<br/>保留校验与完成收据<br/>单机补验收尾完成，Task9开放"]
     C4T4["Task 4<br/>全量模式与有界 COPY 数据<br/>内容三门已验收"]
     C4T5["Task 5<br/>受控整库导入与原件恢复<br/>代码与规定单机补验限定收尾"]
-    C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>基础与Linux检查通过，基础PG3/5"]
+    C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>基础与Linux检查通过，基础PG4/5"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>未开始"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>未开始"]
     C4T9["Task 9<br/>真实独立故障域闭合<br/>待具备独立存储"]
@@ -105,11 +111,11 @@ flowchart LR
 | 任务 | 状态 | 工作与验收依据 |
 | --- | --- | --- |
 | Task 1 · 持久登记与原件保护 | 限定分项已验收 | 登记资产与本地 pin 根身份；独立发现保留保护，缺失或不完整时拒绝清理候选。 固定 Linux/PG 登记保护门 11/11 与五项文件系统门通过；本任务不签发完整备份，也不关闭 C4。 |
-| Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN与原预算保留；Task5已限定收尾，Task6基础与指定Linux检查通过，基础PG3/5，C4仍开放。 |
+| Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN与原预算保留；Task5已限定收尾，Task6基础与指定Linux检查通过，基础PG4/5，C4仍开放。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
 | Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
 | Task 5 · 受控整库导入与原件恢复 | Task5代码＋规定单机补验限定CLOSED；native9/9＋三组实际Rust回归，C4 OPEN | Root限定接受Task5代码与规定单机补验：native9/9；full_restore_contract 2通过/0忽略、controlled_import单元115通过/17忽略、full_restore单元92通过/13忽略，各组失败0、typed exit0/唯一完整summary。各组分别保留，不合计语义独立覆盖，ignored无native/live信用。 Task5仅代码＋规定单机补验范围CLOSED；Task6–9/C4整关OPEN，未证明独立备份存储、CompleteBackup或生产恢复/激活。未来共享协议变化仍按conditional149规则重新判断回归。 各原案例限制逐项保留：CU业务结果仍UNKNOWN，不是commit success或known rollback；wrong-endpoint仅different_database_route_only_not_same_id_clone。asset-corrupt是DBcatalog已提交后原件失败、无可用恢复回执，zeroDBwrites=false。角色SQL stdout、独立SQL/marker、raw full-negative正文、reader旧raw投影、运行时cache/write-order及TAR现场inode/nlink等原观察缺口不升级；各负例summary＋Suite entry闭合不等于负例正文或独立SQL读取。 |
-| Task 6 · 作业归一化与恢复资格校验 | 基础实现及三项现场门通过；两项待验 | 固定代码 `5b0fa3157a0e6c688d54006c53b10e949434b106`：64表行摘要及真实目标COPY/外部排序、另绑顶层归一化事务、原guard保留、旧租约清除、完整性及应用读取校验、提交/取消与回执隔离均已接入。Linux格式/类型/严格Clippy及21/15/3/7四组分别通过并独审；基础PG已复核3/5，正面snapshot字节权威未实现，Task6全范围OPEN。 |
+| Task 6 · 作业归一化与恢复资格校验 | 基础实现及四项现场门通过；收据失败待复核 | 固定代码 `5b0fa3157a0e6c688d54006c53b10e949434b106`：64表行摘要及真实目标COPY/外部排序、另绑顶层归一化事务、原guard保留、旧租约清除、完整性及应用读取校验、提交/取消与回执隔离均已接入。Linux格式/类型/严格Clippy及21/15/3/7四组分别通过并独审；基础PG已复核4/5，正面snapshot字节权威未实现，Task6全范围OPEN。 |
 | Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
 | Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6全范围验收尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |
 | Task 9 · 真实独立故障域闭合 | 待具备独立存储 | 使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。 用户选择先完成代码与单机整链，目前没有真实独立备份目标；P0-C4整体、CompleteBackup与生产继续开放。 |
@@ -123,7 +129,7 @@ flowchart LR
 | 原 Task 1 · 全量备份契约与资产清单 | 分项已验收 | 版本化 manifest、规范摘要与全部 ready 资产目录；规划不冒充完成备份。 独立复审及全新 PG18 专项通过，含普通角色拒绝；C4 整关未验收。 |
 | 原 Task 2 · 安全封存与目标端校验 | 分项已验收 | 私有 staging、流式复制核哈希、no-follow 与封存；中断不发布可恢复包。 Linux 专项及 SIGKILL/部分写入故障门通过；同步故障使用测试钩子，非真实掉电证明。 |
 | 原 Task 3 · 维护窗与一致性数据库备份 | 实施中 | 受控写闸、在途排空、一致 dump 与资产清单；由补齐计划Task1–3继续完成。 历史源生命周期八主门与legacy、单机传输分项已接受；当前源端补验、独立目标、完成收据及父里程碑仍开放。 |
-| 原 Task 4 · 干净实例恢复 | 实施中，父里程碑OPEN | 目标准入、出生证明、精确端点绑定与完整导入由补齐计划Task4–6推进。Task5指定单机补验已有限收尾；Task6归一化和校验基础已接入，Linux格式、类型、严格Clippy与21/15/3/7四组通过，基础PostgreSQL现场3/5，正面snapshot字节权威仍待实现。父里程碑尚未验收。 |
+| 原 Task 4 · 干净实例恢复 | 实施中，父里程碑OPEN | 目标准入、出生证明、精确端点绑定与完整导入由补齐计划Task4–6推进。Task5指定单机补验已有限收尾；Task6归一化和校验基础已接入，Linux格式、类型、严格Clippy与21/15/3/7四组通过，基础PostgreSQL现场4/5，正面snapshot字节权威仍待实现。父里程碑尚未验收。 |
 | 原 Task 5 · 完整场景与故障注入验收 | 未开始 | 完整 Attention、当前完整回归、四套旧版升级与整分支审查；由补齐计划Task7–9闭合。 当前整链、全量回归与独立故障域尚未闭合，仍未生产部署。 |
 
 ## C3 历史：七任务实施线
@@ -402,7 +408,7 @@ flowchart TB
 - 2026-10-18更新：Task2代码与单机补验收尾完成。当前ba96561固定同包准入5/5、绑定4/4及首例两项live回归、全新replacement端点5/5、fresh生命周期8/8已分别独审接受，交付证据独立留档。旧normal/clone各保留来源，旧clone外层UNKNOWN_RETAINED不提升、不重放。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍OPEN，缺独立存储，未签发CompleteBackup，未生产部署。
 - 继续推进Task5当前11门、Task6–8现场/升级/全回归/整分支审查，以及Task9独立存储和密钥托管。C4整关保持OPEN，无CompleteBackup和生产部署。旧UNKNOWN、历史失败与同包新验收分别留档，既有执行与修复预算不重置。
 - 早期 C4 源端、Linux 封存/单机传输、目标准入与精确子进程只读子门记录保留；历史受控小型 dump 计划中的 Task6 只覆盖固定合成夹具，与当前九任务计划的 Task6 作业恢复不同。历史维护三门、准入五门、绑定四门及两项回归分别绑定原源码/批次，不能累计为当前源码组合通过数。
-- 历史 Task5 九门覆盖完整导入、提交前 EOF、取消、提交结果未知、错误数据库路由、坏输入、坏角色、脏目标与损坏原件；错误路由门不是同身份物理克隆门。当前Task6基础代码与指定Linux检查已过，基础PG已复核3/5；正面snapshot字节证明及完整资格未完成。
+- 历史 Task5 九门覆盖完整导入、提交前 EOF、取消、提交结果未知、错误数据库路由、坏输入、坏角色、脏目标与损坏原件；错误路由门不是同身份物理克隆门。当前Task6基础代码与指定Linux检查已过，基础PG已复核4/5；正面snapshot字节证明及完整资格未完成。
 - C4 首先恢复现有内容事实；P1-B 后还必须把学习任务、尝试、产物、验收与计划历史加入完整恢复闭包。
 
 ## 06 · 目标部署与存储边界
@@ -465,7 +471,7 @@ flowchart TB
 - [C4 当前九任务补齐计划](superpowers/plans/2026-10-04-p0c4-completion.md)
 - Task5 九项现场原件核验汇总（私有或未公开参考）
 - Task6 本地检查点与未完成边界（私有或未公开参考）
-- [当前Task2/3/5补验与收尾](P0-C4补验与收尾.md)
+- [当前Task2/4/5补验与收尾](P0-C4补验与收尾.md)
 - [C4 父设计（2026-09-28）](superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md)
 - [C4 原五任务父计划（里程碑编号）](superpowers/plans/2026-09-28-p0c4-backup-recovery.md)
 - [C4 历史验证台账（原源码/批次）](p0c4-verification.md)
