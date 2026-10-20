@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-19：首个实际full-import已独审并由Root正式采纳，full 1/9，仅本项获得信用；精确测试1通过、0失败/ignored、451 filtered、27.72秒。prepare/install/plan/run/verify五阶段、原件与完整保护投影闭合；其余八项未计信用。受控11/11仍为10历史c749＋1当前85c，不能理解为当前源码重跑十一项。Task5及Task6–9/C4 OPEN，Task2关闭、Task3仅单机，无独立备份存储、CompleteBackup或生产恢复/部署结论。**
+**最新同步：2026-10-20：full-import与full-precommit-eof两项实际测试均已独审并获Root逐项采纳，full 2/9，其余七项没有信用。EOF精确测试1通过、0失败/ignored、451 filtered、20.96秒；首full-import仍为27.72秒，两者时长各只属于本项测试。受控11/11仍为10历史c749＋1当前85c，不能解释为当前源码重跑十一项。Task2关闭、Task3仅单机；Task5及Task6–9/C4 OPEN，无独立备份存储、CompleteBackup或生产恢复/部署结论。**
 
 ## 进度与文档
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2关闭；受控11/11＝10历史c749＋1当前85c；首full-import实际已独审/Root采纳，full1/9，其余八项无信用，Task5/C4 OPEN |
+| P0-C4 | Task2关闭；受控11/11＝10历史c749＋1当前85c；full-import＋EOF实际独审/Root采纳，full2/9，其余七项无信用，Task5/C4 OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 

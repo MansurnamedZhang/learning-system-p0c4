@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "date": "2026-10-19",
+  "date": "2026-10-20",
   "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
-  "previous_public_commit": "a907254879687ea6f7ccb29322cf5b9529dacd9e",
+  "previous_public_commit": "b39754ba6f02e777907c14d884dac59d61f0d5aa",
   "source_archive_sha256": "c77e6766c3e11f66bec8f10ed95a2f5489cbab77da3e85a600540179bd490baa",
   "source_manifest_sha256": "87aa19662f1d9b93a79dae02ddaf4f7abd3b836d8a49687ab63f891785a8dbd4",
   "source_file_count": 549,
@@ -10,7 +10,7 @@
     ".artifacts/.gitignore",
     "docs/architecture/KnowWeave架构设计.html.qa.json"
   ],
-  "scope": "CONTROLLED11_MIXED_SOURCE_AND_FIRST_FULL_IMPORT_ACCEPTED_FULL1_OF9_TASK5_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
+  "scope": "CONTROLLED11_MIXED_SOURCE_FULL_IMPORT_AND_PRECOMMIT_EOF_ACCEPTED_FULL2_OF9_TASK5_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "documentation_transform": "redact machine locations, resolve published links, add current progress; private references remain labels",
   "files": [
     {
@@ -50,8 +50,8 @@
     },
     {
       "path": "KnowWeave实施路线与架构.html",
-      "bytes": 113005,
-      "sha256": "bb975ea3c26ac8b0e87c5af3659dc6a92460864a65657e1f1abb70b5f7d5e906",
+      "bytes": 113104,
+      "sha256": "7b8dd8f2e37ecd1328a8161b86c8bcd7b1427b8a4f6ce4f2580b993b15e9ef51",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -65,7 +65,7 @@
     {
       "path": "README.md",
       "bytes": 3910,
-      "sha256": "d9775667a2f083fa41ec10d036bbc4fe0086ec9b360c8634393f6f84fc2053ba",
+      "sha256": "356cee547cdc4798e31153612192523d7e841e901bd47341bf3221dbff1e465c",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -2696,8 +2696,8 @@
     },
     {
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "bytes": 45521,
-      "sha256": "ad6269a08971021c4c1ef4c45c8d3aab37384ffa406ea13b8d1bfeaa01a9293f",
+      "bytes": 45623,
+      "sha256": "9af0cca517100cec2107b2b661dbcebaa6d9984e5235703493583e04a59b75c7",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -2718,7 +2718,7 @@
     {
       "path": "docs/P0-C4补验与收尾.md",
       "bytes": 30151,
-      "sha256": "5313b494a3ed1cd8fa9f4c5ad62df7dbb0c96a67fcad3dd8e0ce1f9c770a4773",
+      "sha256": "90c7500e4108cc7088f6e54d351d9261bb4789e11ddbc6a5ca663d49ff897d8a",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3368,8 +3368,8 @@
     },
     {
       "path": "docs/公开同步说明.md",
-      "bytes": 3795,
-      "sha256": "6f703429cf8c4be75568a0b9d2921c688771d69b326ee298522fd13832f77bb7",
+      "bytes": 3789,
+      "sha256": "d57598bfcedce4e5a2e47bc52e9b552958a1e5a3c72b21301d064aaa834ac8c5",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -3418,7 +3418,7 @@
     {
       "path": "docs/项目最新进度.md",
       "bytes": 25469,
-      "sha256": "a9e8656c03ea6e96b556b3e809e19cfad2b1efd387da7eba4cd5930a86e0fbef",
+      "sha256": "69665fe4c243b7c07f02e912d4f07ae3a1f077994b49f8bbb44fe534363657d4",
       "source_blob_sha256": null,
       "source_bytes_preserved": null
     },
@@ -4032,13 +4032,13 @@
       "source_bytes_preserved": true
     }
   ],
-  "progress_as_of": "2026-10-19",
+  "progress_as_of": "2026-10-20",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
   "task5_current": {
     "legacy_passed": 11,
     "legacy_total": 11,
-    "full_passed": 1,
+    "full_passed": 2,
     "full_total": 9,
     "protected_entries_implemented": 11,
     "protected_entries_total": 11,
@@ -4098,7 +4098,7 @@
       "prior_operator_batch": "UNIT_PASS_OUTER_PROTECTION_REJECTED_RETAINED"
     },
     "production_helper_caps_attestation": false,
-    "full_ops_fix": "FIRST_FULL_IMPORT_ACTUAL_ROOT_ACCEPTED_ONE_OF_NINE_FUTURE_EIGHT_INACTIVE_PREPARATION_ONLY",
+    "full_ops_fix": "FULL_IMPORT_AND_PRECOMMIT_EOF_ACTUAL_ROOT_ACCEPTED_TWO_OF_NINE_REMAINING_SEVEN_NO_CREDIT",
     "current11_ops_scope": "Eleven controlled cases accepted: ten historical c749 and one current 85c wrong-endpoint; not eleven rerun at 85c; full0/9 Task5/C4 OPEN; consumed UNKNOWN preserved",
     "success_installation": {
       "status": "ACCEPTED_INSTALLATION_ONLY_NOT_IMPORT",
@@ -4220,7 +4220,7 @@
       "removed": true,
       "native_credit": 0
     },
-    "reader_compatibility_next": "FIRST_FULL_READERS_ACTUAL_REMOVED_NEXT_EOF_LOCAL_PATH_OPEN_BLOCKED_BEFORE_SSH_NO_EOF_NATIVE_CREDIT",
+    "reader_compatibility_next": "EOF_TWO_NEVER_STARTED_READERS_ACTUAL_REMOVED_EXACT_DELTA_LOCAL_REUSE_NEW_BODY_PROVENANCE_OPTIONAL_CANCEL_CU_INACTIVE_NO_ACTUAL_CREDIT",
     "guard_owned_reader": {
       "source_commit": "a844889c78eeab506f112c2425852e0a687ab7b9",
       "source_parent": "dfbd4fcb70a26989a81d58093bc33749d3b727ba",
@@ -5221,7 +5221,8 @@
       "reader_compatibility_next": "FIRST85C_READER_METADATA_APPROVED_OLD_PLAN_STOP_HELD_NEW_UUID_FRESH_BASELINE_ATTEMPT_PENDING_NO_BODY_CREDIT"
     },
     "accepted_full_cases": [
-      "full-import"
+      "full-import",
+      "full-precommit-eof"
     ],
     "actual_full_import_85c49af": {
       "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
@@ -5330,6 +5331,169 @@
       "actual_eof_executed": false,
       "native_credit": 0,
       "full_credit": 0
+    },
+    "prior_full_status_before_actual_eof": {
+      "full_passed": 1,
+      "full_ops_fix": "FIRST_FULL_IMPORT_ACTUAL_ROOT_ACCEPTED_ONE_OF_NINE_FUTURE_EIGHT_INACTIVE_PREPARATION_ONLY",
+      "reader_compatibility_next": "FIRST_FULL_READERS_ACTUAL_REMOVED_NEXT_EOF_LOCAL_PATH_OPEN_BLOCKED_BEFORE_SSH_NO_EOF_NATIVE_CREDIT"
+    },
+    "actual_full_precommit_eof_85c49af": {
+      "source_commit": "85c49af0fa8c6b64234061ff1e7f7d7e8aee5705",
+      "status": "ROOT_ACCEPTED_FULL_NATIVE_CASE",
+      "case": "full-precommit-eof",
+      "actual_case_id": "0b422ca8-0810-4a71-aee2-120438e37ca6",
+      "actual_batch_id": "4ad7efe5-f2e7-4ad8-b4d8-c8c44c4d7b8e",
+      "exact_test": "full_restore::live_tests::full_import_eof_before_commit_leaves_zero_objects",
+      "outcome": {
+        "exit_code": 0,
+        "failed": 0,
+        "filtered": 451,
+        "ignored": 0,
+        "passed": 1,
+        "seconds": 20.96
+      },
+      "binary_sha256": "d138bd7141838b284f1d7540552748c219b99ac1f3724a39ad6c3b728b0f6f34",
+      "target_birth_sha256": "d348b101ca2b44e13a31be71bee2060b498c5a2160b7ac74cc277010c6671480",
+      "independent_index_sha256": "3e08f63c5e2f3816ba997e319a7d7e2e705a600d91ce8889fc5f7b0915c87384",
+      "root_adoption_index_sha256": "bc667f713f0ceae959e9c99e12603893700884c05332ff448d312a5e62e3f74d",
+      "fixed_whole_case_join_sha256": "4848cf15c1ac8e52124b4a1b242c25c22cef8692991f23b49eb0c25d4e7e73df",
+      "independent_final_facts_sha256": "d0175dc8d1a43289888b9ae02bda5bc62036d04ec9bf16d6c89882144537f648",
+      "independent_report_sha256": "dac735b6d595489dc22b4573701c7c41ac5fbc0ae667bc7ecd722dfb9ca909c2",
+      "independent_completed_audit_checks": 150803,
+      "independent_targeted_actual_checks": 1566,
+      "independent_final_sealing_checks": 275,
+      "independent_unique_inputs": 46035,
+      "independent_sealed_refs": 46040,
+      "root_adoption_sealed_refs": 46041,
+      "limitations": [
+        "ACTUAL_ROLE_PROBE_STDOUT_NOT_INDEPENDENTLY_READ",
+        "ROLLBACK_ZERO_OBJECT_AND_MARKER_SEMANTICS_FROM_FIXED_NATIVE_ASSERTIONS_NOT_SECOND_SQL_OR_MARKER_READ",
+        "DUMP_TOC_CATALOG_ASSET_VALIDATION_FROM_FIXED_NATIVE_BODY_AND_HASH_BOUND_PROOF_NOT_SECOND_DOWNLOAD",
+        "TAR_HEADERS_DO_NOT_INDEPENDENTLY_PROVE_LIVE_INODE_NLINK_CONTINUITY",
+        "NO_INDEPENDENT_STORAGE_OR_COMPLETE_BACKUP_OR_PRODUCTION_RESTORE"
+      ],
+      "five_known_phases": [
+        "prepare",
+        "install",
+        "plan",
+        "run",
+        "verify"
+      ],
+      "phase_export_originals": [
+        237,
+        456,
+        675,
+        906,
+        1125
+      ],
+      "reader_originals": 1164,
+      "suite_selected_originals": 27,
+      "target_control_selected_originals": 5,
+      "never_started_readers_removed": 2,
+      "known_native_helpers_removed": 23,
+      "source_target_stopped": true,
+      "volumes_retained": 7,
+      "old_complete_cnv_projection_preserved": true,
+      "commit_attempted": false,
+      "rollback_verified": true,
+      "import_catalog_verified": false,
+      "originals_verified": false,
+      "target_stopped": true,
+      "dump_bytes": 325214,
+      "dump_sha256": "a7266fcd6ec0c788d452160e9f370162fa0185b2d00a8b1d54307e71708b6cd7",
+      "logical_assets": 4,
+      "unique_asset_files": 3,
+      "unique_asset_bytes": 96,
+      "assets_scope": "SOURCE_BOUND_INPUT_MATERIALS_NOT_TARGET_IMPORT_ACCEPTANCE",
+      "role_sql_stdout": "NOT_INDEPENDENTLY_READ",
+      "tar_live_inode_nlink": "NOT_INDEPENDENTLY_PROVEN",
+      "rollback_scope": "SOURCE_BOUND_EXACT_NATIVE_ASSERTIONS_NOT_INDEPENDENT_SQL_OR_MARKER_READ",
+      "dump_or_database_bytes_independently_read": false,
+      "native_credit": 1,
+      "future_cases_credit": 0,
+      "complete_backup": false,
+      "independent_storage_proven": false,
+      "production_restore_proven": false,
+      "task5_open": true,
+      "c4_open": true
+    },
+    "actual_eof_reader_delta_export": {
+      "status": "ACTUAL_EOF_EVIDENCE_TRANSFER_PROVENANCE_ONLY_NOT_SEPARATE_NATIVE_CREDIT",
+      "strategy": "EXACT_DELTA_LOCAL_REUSE_NEW_FILES_ONLY",
+      "previous_verify_index_files": 1125,
+      "final_reader_index_files": 1164,
+      "reused_local_files": 1125,
+      "reused_origin": "REUSED_KNOWN_LOCAL_BYTES_NOT_REMOTE_REREAD",
+      "old_local_bytes_rehashed": true,
+      "old_remote_inventory_rows_unchanged": true,
+      "new_remote_body_files": 39,
+      "inventory_rpcs": 2,
+      "total_export_rpcs": 41,
+      "raw_pure_provenance_preserved": true,
+      "logical_to_actual_rpc_mapping_preserved": true,
+      "complete_index_written_last": true,
+      "previous_verify_index_sha256": "4c898c5d87a1343ee32405b0b252ded20de42bc2d4dd8bd18ee7bbbd3d6775f0",
+      "pure_delta_provenance_sha256": "e452b686d309b182a73f9180f3345fa0d119fd19a1455a031e27d82bc5f9e7b3",
+      "mapped_delta_provenance_sha256": "10054f75b3318800d4bf60d182737916e35d2ae323bfe058c723e115937afadf",
+      "before_inventory_stdout_sha256": "7c7cdc69019b01ae6e53e6e16a8ac648b3f611a6c1c2d7518befd40885a9be37",
+      "after_inventory_stdout_sha256": "7c7cdc69019b01ae6e53e6e16a8ac648b3f611a6c1c2d7518befd40885a9be37",
+      "logical_to_actual_rpc_labels": {
+        "reader-export-0000": "reader-delta-export-0000",
+        "reader-export-0001": "reader-delta-export-0001",
+        "reader-export-0002": "reader-delta-export-0002",
+        "reader-export-0003": "reader-delta-export-0003",
+        "reader-export-0004": "reader-delta-export-0004",
+        "reader-export-0005": "reader-delta-export-0005",
+        "reader-export-0006": "reader-delta-export-0006",
+        "reader-export-0007": "reader-delta-export-0007",
+        "reader-export-0008": "reader-delta-export-0008",
+        "reader-export-0009": "reader-delta-export-0009",
+        "reader-export-0010": "reader-delta-export-0010",
+        "reader-export-0011": "reader-delta-export-0011",
+        "reader-export-0012": "reader-delta-export-0012",
+        "reader-export-0013": "reader-delta-export-0013",
+        "reader-export-0014": "reader-delta-export-0014",
+        "reader-export-0015": "reader-delta-export-0015",
+        "reader-export-0016": "reader-delta-export-0016",
+        "reader-export-0017": "reader-delta-export-0017",
+        "reader-export-0018": "reader-delta-export-0018",
+        "reader-export-0019": "reader-delta-export-0019",
+        "reader-export-0020": "reader-delta-export-0020",
+        "reader-export-0021": "reader-delta-export-0021",
+        "reader-export-0022": "reader-delta-export-0022",
+        "reader-export-0023": "reader-delta-export-0023",
+        "reader-export-0024": "reader-delta-export-0024",
+        "reader-export-0025": "reader-delta-export-0025",
+        "reader-export-0026": "reader-delta-export-0026",
+        "reader-export-0027": "reader-delta-export-0027",
+        "reader-export-0028": "reader-delta-export-0028",
+        "reader-export-0029": "reader-delta-export-0029",
+        "reader-export-0030": "reader-delta-export-0030",
+        "reader-export-0031": "reader-delta-export-0031",
+        "reader-export-0032": "reader-delta-export-0032",
+        "reader-export-0033": "reader-delta-export-0033",
+        "reader-export-0034": "reader-delta-export-0034",
+        "reader-export-0035": "reader-delta-export-0035",
+        "reader-export-0036": "reader-delta-export-0036",
+        "reader-export-0037": "reader-delta-export-0037",
+        "reader-export-0038": "reader-delta-export-0038",
+        "reader-export-inventory": "reader-delta-export-inventory",
+        "reader-export-readback": "reader-delta-export-readback"
+      },
+      "reader_result_sha256": "1d0fa10bb626fc6f0f6fa397f473df7378e0faa7b4bad7318327e0b441a61a09",
+      "reader_index_sha256": "8d668724845770b7f416761201b5bd381920f608e23e394166bbfce10736512b",
+      "performance_speedup_claimed": false,
+      "native_credit": 0,
+      "cancel_cu_actual_credit": 0
+    },
+    "second_actual_full_eof_root_adoption": {
+      "index_sha256": "bc667f713f0ceae959e9c99e12603893700884c05332ff448d312a5e62e3f74d",
+      "case": "full-precommit-eof",
+      "accepted_full_cases": 2,
+      "total_full_cases": 9,
+      "remaining_seven_accepted": false,
+      "old_eof_local_path_failure_history_unchanged": true,
+      "old_plan_stop_history_unchanged": true
     }
   },
   "source_capture_method": "FIXED_PARENT_LEDGER_PLUS_EXACT_TWO_GIT_BLOBS_SAME_549_TREE_CLOSED",
