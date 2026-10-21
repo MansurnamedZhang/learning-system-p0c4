@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 115279,
+      "bytes": 115321,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "fb3a15d6faa894e247c38bac6a1d7b29e5b6239f5c70e859fa7d882147cac937",
+      "sha256": "c115d82f78ddc79df54c0665850c3752f95dba515c5b4dc9bdf0994e23969c2c",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,9 +57,9 @@
       "source_bytes_preserved": null
     },
     {
-      "bytes": 5210,
+      "bytes": 5314,
       "path": "README.md",
-      "sha256": "65a92c2faf80ba7cd44c790380aae8788c90ba168d1131a6e858fede020b55d8",
+      "sha256": "3047cc61b46c8b000de9b1d4795911d0d78c39dc3c96e3e34ada32a378f40aeb",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false
     },
@@ -1522,24 +1522,45 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 2415,
+      "bytes": 2432,
       "path": "crates/learning-db/src/snapshot_broker/catalog.rs",
-      "sha256": "c55a0d5d3db584dc2e3fd49580885ce9958e3c4c2781d72673e8fdba2b7c809a",
-      "source_blob_sha256": "c55a0d5d3db584dc2e3fd49580885ce9958e3c4c2781d72673e8fdba2b7c809a",
+      "sha256": "517ba9dbf396bb55144574367cb5bfd2a0a02319c08a792c2fc380e95ad66083",
+      "source_blob_sha256": "517ba9dbf396bb55144574367cb5bfd2a0a02319c08a792c2fc380e95ad66083",
       "source_bytes_preserved": true
     },
     {
-      "bytes": 3208,
+      "bytes": 32639,
+      "path": "crates/learning-db/src/snapshot_broker/history.rs",
+      "sha256": "10952c2d5cdab1927a9ddf20a543192f69d3fd42787fb4d1a462453c4d1172b6",
+      "source_blob_sha256": "10952c2d5cdab1927a9ddf20a543192f69d3fd42787fb4d1a462453c4d1172b6",
+      "source_bytes_preserved": true
+    },
+    {
+      "bytes": 3563,
       "path": "crates/learning-db/src/snapshot_broker/mod.rs",
-      "sha256": "864b944f20287ae6b2a5902a66b106a984289722b8ce594bca887b4f483f05f9",
-      "source_blob_sha256": "864b944f20287ae6b2a5902a66b106a984289722b8ce594bca887b4f483f05f9",
+      "sha256": "bfb3e27d3c20169925b1ac37362e53250ed9e454c34441b84c0a323499136e4f",
+      "source_blob_sha256": "bfb3e27d3c20169925b1ac37362e53250ed9e454c34441b84c0a323499136e4f",
       "source_bytes_preserved": true
     },
     {
-      "bytes": 12982,
+      "bytes": 13019,
       "path": "crates/learning-db/src/snapshot_broker/transaction.rs",
-      "sha256": "97c5e48e4c09185b1732219eae0ba8e2d542463fe1a0b6a4f6477990ca769283",
-      "source_blob_sha256": "97c5e48e4c09185b1732219eae0ba8e2d542463fe1a0b6a4f6477990ca769283",
+      "sha256": "cbdb7606da5e4f6ec89a27f1b8d6ca50a1a7bf474d31fbc28124eaff69609a81",
+      "source_blob_sha256": "cbdb7606da5e4f6ec89a27f1b8d6ca50a1a7bf474d31fbc28124eaff69609a81",
+      "source_bytes_preserved": true
+    },
+    {
+      "bytes": 9231,
+      "path": "crates/learning-db/src/snapshot_broker/transition.rs",
+      "sha256": "a2da036a066d13b935929292312e899c599c4481beb116339adfd566bc77bbe1",
+      "source_blob_sha256": "a2da036a066d13b935929292312e899c599c4481beb116339adfd566bc77bbe1",
+      "source_bytes_preserved": true
+    },
+    {
+      "bytes": 18624,
+      "path": "crates/learning-db/src/snapshot_broker/transition_tests.rs",
+      "sha256": "dbfe975e562b2649d645b2f0857509dad4a610369f0f018fe7323e7163ad147e",
+      "source_blob_sha256": "dbfe975e562b2649d645b2f0857509dad4a610369f0f018fe7323e7163ad147e",
       "source_bytes_preserved": true
     },
     {
@@ -3320,9 +3341,9 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 13976,
+      "bytes": 14424,
       "path": "docs/p0c4-recovery-normalization.md",
-      "sha256": "c167f50f69f6f9f14ad1b26f82f6bea999f1be40114e0af27ebd1e3ae206996e",
+      "sha256": "09c835b275e3e92d23e6446609700d46c6cbc893a0b1cf091cf70bb02f2507b9",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3354,10 +3375,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 7316,
+      "bytes": 10811,
       "path": "docs/p0c4-snapshot-components.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "e7055e23d3f3908225f5eabc159c9665adc663443c194068ef3c5afbbfd2f6b8",
+      "sha256": "dfe40c2d34c547daee812e8474d89ffb9c2b1c5a5ba2590d19459ba78a38e8fc",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3558,9 +3579,9 @@
       "source_bytes_preserved": null
     },
     {
-      "bytes": 35601,
+      "bytes": 36049,
       "path": "docs/项目最新进度.md",
-      "sha256": "1f977e4511cc6abb9152af02d613f15d428345718fb2e4d99f5c43bbdbea6d58",
+      "sha256": "7a2c64dffdcfa3cf7508bf20d8ac2c5270e42145f3a283a2adeabbc84f96136f",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4197,20 +4218,20 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "previous_component_base_source_archive_sha256": "4f74641a2be6e521d42bdb2d43666b20d233814580cfd8cc1eecd7581e81c81c",
-  "previous_public_commit": "cb6ccb717ae1a14da30ad0993d2391693a19a78b",
+  "previous_component_base_source_archive_sha256": "aa2b954a95f04083adb4081c5d26bfeb42fbb97a0e79a9107097367570ee487c",
+  "previous_public_commit": "620f28dea555cd85995641293e27ff145e617e60",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "ba6f5c29b77edf5a6f569e835bfa34b918a0960a74e39e8d2ef31fe0806bc9ef",
   "progress_as_of": "2026-10-21",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK6_C0_OPTIONAL_ROLLBACK_OBSERVATION_COMPONENT_ACCEPTED_POSITIVE_CHAIN_OPEN",
-  "source_archive_sha256": "aa2b954a95f04083adb4081c5d26bfeb42fbb97a0e79a9107097367570ee487c",
-  "source_archive_status": "SOURCE_BOUND_COMPONENT_LINUX_AND_FOUR_PG_TESTS_NOT_FINAL_SAME_SOURCE_INTEGRATION",
-  "source_capture_method": "COMMITTED_C0_SEVEN_FILES_WITH_EXPLICIT_PRIOR_0DF_FIXTURE_AND_PUBLIC_DOCUMENT_OVERLAYS",
-  "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602",
-  "source_file_count": 569,
-  "source_manifest_sha256": "266a00afe19161651db19ae2e6dea886911d98cb6838ac06987f828a15d53c0d",
+  "scope": "TASK6_C1_P1_PRIVATE_FRESH_CLAIM_HISTORY_COMPONENT_VALIDATED_TASK6_OPEN",
+  "source_archive_sha256": "cab89f03e27bf1248eed28d014f41b65fdd6b222f23a0bbe3f833ceb8fd616eb",
+  "source_archive_status": "NINE_PG_COMPONENT_CASES_NOT_FINAL_SAME_SOURCE_INTEGRATION",
+  "source_capture_method": "COMMITTED_SIX_C1_P1_FILES_WITH_EXPLICIT_PRIOR_0DF_FIXTURE_AND_PUBLIC_DOCUMENT_OVERLAYS",
+  "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f",
+  "source_file_count": 572,
+  "source_manifest_sha256": "64c36917484eb4aabba7029b6257799806b4c66947177e49991b54ebb1e3be22",
   "source_overlays": [
     {
       "path": "crates/learning-backup/src/full_restore/recovery_tests.rs",
@@ -4261,24 +4282,6 @@
       "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
     },
     {
-      "path": "crates/learning-db/src/snapshot_broker/mod.rs",
-      "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
-      "sha256": "864b944f20287ae6b2a5902a66b106a984289722b8ce594bca887b4f483f05f9",
-      "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
-    },
-    {
-      "path": "crates/learning-db/src/snapshot_broker/catalog.rs",
-      "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
-      "sha256": "c55a0d5d3db584dc2e3fd49580885ce9958e3c4c2781d72673e8fdba2b7c809a",
-      "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
-    },
-    {
-      "path": "crates/learning-db/src/snapshot_broker/transaction.rs",
-      "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
-      "sha256": "97c5e48e4c09185b1732219eae0ba8e2d542463fe1a0b6a4f6477990ca769283",
-      "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
-    },
-    {
       "path": "crates/learning-db/tests/snapshot_claim.rs",
       "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
       "sha256": "87138a9bbd2dae0162875d12736650d32e843a768b388dc2f5932f47936c2e46",
@@ -4295,6 +4298,42 @@
       "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
       "sha256": "65189fc093922dc1e92a9c70c4105fe9cc9273df5b29ebae83dc3882ac5be915",
       "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/transaction.rs",
+      "scope": "C1_P1_PRIVATE_FRESH_CLAIM_NOT_PRODUCTION_ADMISSION",
+      "sha256": "cbdb7606da5e4f6ec89a27f1b8d6ca50a1a7bf474d31fbc28124eaff69609a81",
+      "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/mod.rs",
+      "scope": "C1_P1_PRIVATE_FRESH_CLAIM_NOT_PRODUCTION_ADMISSION",
+      "sha256": "bfb3e27d3c20169925b1ac37362e53250ed9e454c34441b84c0a323499136e4f",
+      "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/history.rs",
+      "scope": "C1_P1_PRIVATE_FRESH_CLAIM_NOT_PRODUCTION_ADMISSION",
+      "sha256": "10952c2d5cdab1927a9ddf20a543192f69d3fd42787fb4d1a462453c4d1172b6",
+      "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/transition.rs",
+      "scope": "C1_P1_PRIVATE_FRESH_CLAIM_NOT_PRODUCTION_ADMISSION",
+      "sha256": "a2da036a066d13b935929292312e899c599c4481beb116339adfd566bc77bbe1",
+      "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/transition_tests.rs",
+      "scope": "C1_P1_PRIVATE_FRESH_CLAIM_NOT_PRODUCTION_ADMISSION",
+      "sha256": "dbfe975e562b2649d645b2f0857509dad4a610369f0f018fe7323e7163ad147e",
+      "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/catalog.rs",
+      "scope": "C1_P1_PRIVATE_FRESH_CLAIM_NOT_PRODUCTION_ADMISSION",
+      "sha256": "517ba9dbf396bb55144574367cb5bfd2a0a02319c08a792c2fc380e95ad66083",
+      "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f"
     }
   ],
   "superseded_source_overlays": [
@@ -4309,6 +4348,24 @@
       "scope": "A1_OPTIONAL_COMPONENT_NOT_POSITIVE_AUTHORITY",
       "sha256": "34351cb9662f3a9b44048db3ed99a16b7c62937dee297b27c651eff64202e2c7",
       "source_commit": "9944c023ac582cd3daa53af40c63646bdda8613d"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/mod.rs",
+      "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
+      "sha256": "864b944f20287ae6b2a5902a66b106a984289722b8ce594bca887b4f483f05f9",
+      "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/catalog.rs",
+      "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
+      "sha256": "c55a0d5d3db584dc2e3fd49580885ce9958e3c4c2781d72673e8fdba2b7c809a",
+      "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/transaction.rs",
+      "scope": "C0_OPTIONAL_ROLLBACK_COMPONENT_NO_CLAIM_OR_WRITER",
+      "sha256": "97c5e48e4c09185b1732219eae0ba8e2d542463fe1a0b6a4f6477990ca769283",
+      "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602"
     }
   ],
   "task2_accepted_source_commit": "ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1",
@@ -8062,7 +8119,7 @@
     "historical_actual_pg_attempted_at_first_case_publication": 3,
     "historical_actual_pg_test_bodies_executed_at_first_case_publication": 3,
     "latest_code_commit": "1521cfeac821072f95fa46d3637c97a3f553343b",
-    "latest_component_source_commit": "a6e23483f3078954465d08778d6afab05b4ff602",
+    "latest_component_source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f",
     "latest_fixture_code_commit": "0df5128a296eacec9358e8e5468750412b284ecf",
     "layout_is_not_native_cure_proof": true,
     "layout_recovery_future_bytes_after": 64,
@@ -8121,6 +8178,22 @@
       "source_commit": "a6e23483f3078954465d08778d6afab05b4ff602",
       "source_manifest_sha256": "ec1704a9a8fdd0985402cc7a85998890f0b6a3a54151ba20e61f0815c25cc48d",
       "source_predicate_passed": 1
+    },
+    "c1_p1": {
+      "actual_c0_pg_regression_passed": 3,
+      "actual_p1_pg_root_passed": 6,
+      "closed_originals": 322,
+      "final_same_source_integration": false,
+      "linux_ignored_real_p1": 6,
+      "linux_pure_passed": 11,
+      "positive_effect_authority": false,
+      "private_durable_claim_history": true,
+      "production_admission": false,
+      "real_pg_result_sha256": "261c9d039c7d442f3494c439d8e3fea700b6ddc546342b89247825505a9106fb",
+      "root_acceptance_sha256": "10305b1e35c1bdfd38e0122d6017ac12a9eda21ce6cc888e9732409039baeb1a",
+      "source_commit": "a8cabaf2f6fb21d12b652456df44c0fbb496196f",
+      "source_manifest_sha256": "de435f794ffdc4644c88f2bce8cda50fe83da7206f87c9c1ea8701a9c1a02178",
+      "task6_complete": false
     },
     "s2b": {
       "actual_review_sha256": "5e07399d995c00f5880709073dee794f701fe9286f12e10a18b542a8a100ed3b",

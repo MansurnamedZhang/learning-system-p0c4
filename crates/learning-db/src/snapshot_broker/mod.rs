@@ -1,11 +1,24 @@
-//! Optional C0 profile and owned observation only. Never installed by startup.
+//! Optional C0 profile/public owned observation. Never installed by startup.
 //!
 //! The separate broker role has exactly the three canonical EXECUTE grants
-//! required by its versioned profile, but this component does not call those
-//! functions. It has no claim/capability/journal/writer/daemon/source admission.
+//! required by its versioned profile. C0 stays observation/rollback only;
+//! private P1 component code has no public factory, writer or source admission.
 //! A1 and A2 ObservationV1 contracts are not aliases for this unsupported schema.
 mod catalog;
+#[cfg_attr(
+    any(not(test), not(target_os = "linux")),
+    expect(dead_code, reason = "C1-P1 has no production admission factory")
+)]
+mod history;
 mod transaction;
+#[cfg(target_os = "linux")]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "C1-P1 has no production admission factory")
+)]
+mod transition;
+#[cfg(all(test, target_os = "linux"))]
+mod transition_tests;
 
 pub use transaction::{ObservationBudget, ObservationTransaction};
 

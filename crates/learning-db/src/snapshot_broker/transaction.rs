@@ -49,7 +49,7 @@ impl ObservationBudget {
             .map_err(|_| ObservationError::Capacity)?
             .used)
     }
-    fn charge(&self, amount: u64) -> Result<(), ObservationError> {
+    pub(super) fn charge(&self, amount: u64) -> Result<(), ObservationError> {
         let mut meter = self.local.lock().map_err(|_| ObservationError::Capacity)?;
         if meter.exhausted {
             return Err(ObservationError::Capacity);
@@ -98,36 +98,15 @@ impl ObservationTransaction {
         }
         let deadline = Instant::now() + duration;
         budget.charge(HEADER_CHARGE + catalog::profile()?.len() as u64)?;
-        timeout_at(deadline, async {
-            let mut tx = pool.begin().await?;
-            for sql in [
-                "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
-                "SET LOCAL search_path=pg_catalog",
-                "SET LOCAL lock_timeout='5s'",
-                "SET LOCAL statement_timeout='15s'",
-                "SET LOCAL TimeZone='UTC'",
-            ] {
-                sqlx::query(sql).execute(&mut *tx).await?;
-            }
-            let identity: (String, String) =
-                sqlx::query_as("SELECT session_user::text,current_user::text")
-                    .fetch_one(&mut *tx)
-                    .await?;
-            if identity != (BROKER_ROLE.into(), BROKER_ROLE.into()) {
-                return Err(ObservationError::Invalid(
-                    "snapshot claim observation requires real broker login",
-                ));
-            }
-            catalog::verify(&mut tx, catalog::Phase::Observe).await?;
-            Ok(Self {
-                tx,
-                budget,
-                deadline,
-                poisoned: false,
-            })
+        let tx = timeout_at(deadline, begin_owned(pool))
+            .await
+            .map_err(|_| ObservationError::Timeout)??;
+        Ok(Self {
+            tx,
+            budget,
+            deadline,
+            poisoned: false,
         })
-        .await
-        .map_err(|_| ObservationError::Timeout)?
     }
 
     pub async fn observe(
@@ -161,55 +140,7 @@ impl ObservationTransaction {
         &mut self,
         id: Uuid,
     ) -> Result<Option<SnapshotObservation>, ObservationError> {
-        let profile_size = catalog::profile()?.len() as u64;
-        self.budget.charge(HEADER_CHARGE + profile_size)?;
-        catalog::verify(&mut self.tx, catalog::Phase::Observe).await?;
-        let header: Option<Raw> =
-            sqlx::query_as("SELECT * FROM public.p0c4_snapshot_claim_locked_observation($1,false)")
-                .bind(id)
-                .fetch_optional(&mut *self.tx)
-                .await?;
-        let Some(header) = header else {
-            return Ok(None);
-        };
-        if header.job_row.is_some() || header.outbox_row.is_some() {
-            return Err(ObservationError::Invalid(
-                "snapshot claim observation header contains body",
-            ));
-        }
-        let job_size = u64::try_from(header.job_octets).map_err(|_| ObservationError::Capacity)?;
-        let event_size =
-            u64::try_from(header.outbox_octets).map_err(|_| ObservationError::Capacity)?;
-        if job_size == 0 || event_size == 0 || job_size > ROW_CAP || event_size > ROW_CAP {
-            return Err(ObservationError::Capacity);
-        }
-        let bytes = job_size
-            .checked_add(event_size)
-            .and_then(|bytes| bytes.checked_add(HEADER_CHARGE + profile_size))
-            .ok_or(ObservationError::Capacity)?;
-        self.budget.charge(bytes)?;
-        let row: Raw =
-            sqlx::query_as("SELECT * FROM public.p0c4_snapshot_claim_locked_observation($1,true)")
-                .bind(id)
-                .fetch_one(&mut *self.tx)
-                .await?;
-        if (row.job_octets, row.outbox_octets) != (header.job_octets, header.outbox_octets) {
-            return Err(ObservationError::Invalid(
-                "snapshot claim observation changed under lock",
-            ));
-        }
-        let (Some(Json(job)), Some(Json(outbox))) = (row.job_row, row.outbox_row) else {
-            return Err(ObservationError::Invalid(
-                "snapshot claim observation body missing",
-            ));
-        };
-        validate_binding(id, &job, &outbox)?;
-        catalog::verify(&mut self.tx, catalog::Phase::Observe).await?;
-        Ok(Some(SnapshotObservation {
-            job,
-            outbox,
-            observed_at: row.observed_at,
-        }))
+        read_locked(&mut self.tx, &self.budget, id).await
     }
 
     pub async fn rollback(self) -> Result<(), ObservationError> {
@@ -218,6 +149,86 @@ impl ObservationTransaction {
             .map_err(|_| ObservationError::Timeout)??;
         Ok(())
     }
+}
+
+// Fixed internal mechanisms. C0 exposes no executor or write conversion.
+pub(super) async fn begin_owned(
+    pool: &PgPool,
+) -> Result<Transaction<'static, Postgres>, ObservationError> {
+    let mut tx = pool.begin().await?;
+    for sql in [
+        "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
+        "SET LOCAL search_path=pg_catalog",
+        "SET LOCAL lock_timeout='5s'",
+        "SET LOCAL statement_timeout='15s'",
+        "SET LOCAL TimeZone='UTC'",
+    ] {
+        sqlx::query(sql).execute(&mut *tx).await?;
+    }
+    let identity: (String, String) = sqlx::query_as("SELECT session_user::text,current_user::text")
+        .fetch_one(&mut *tx)
+        .await?;
+    if identity != (BROKER_ROLE.into(), BROKER_ROLE.into()) {
+        return Err(ObservationError::Invalid(
+            "snapshot claim observation requires real broker login",
+        ));
+    }
+    catalog::verify(&mut tx, catalog::Phase::Observe).await?;
+    Ok(tx)
+}
+pub(super) async fn read_locked(
+    tx: &mut Transaction<'static, Postgres>,
+    budget: &ObservationBudget,
+    id: Uuid,
+) -> Result<Option<SnapshotObservation>, ObservationError> {
+    let profile_size = catalog::profile()?.len() as u64;
+    budget.charge(HEADER_CHARGE + profile_size)?;
+    catalog::verify(tx, catalog::Phase::Observe).await?;
+    let header: Option<Raw> =
+        sqlx::query_as("SELECT * FROM public.p0c4_snapshot_claim_locked_observation($1,false)")
+            .bind(id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let Some(header) = header else {
+        return Ok(None);
+    };
+    if header.job_row.is_some() || header.outbox_row.is_some() {
+        return Err(ObservationError::Invalid(
+            "snapshot claim observation header contains body",
+        ));
+    }
+    let job_size = u64::try_from(header.job_octets).map_err(|_| ObservationError::Capacity)?;
+    let event_size = u64::try_from(header.outbox_octets).map_err(|_| ObservationError::Capacity)?;
+    if job_size == 0 || event_size == 0 || job_size > ROW_CAP || event_size > ROW_CAP {
+        return Err(ObservationError::Capacity);
+    }
+    let bytes = job_size
+        .checked_add(event_size)
+        .and_then(|bytes| bytes.checked_add(HEADER_CHARGE + profile_size))
+        .ok_or(ObservationError::Capacity)?;
+    budget.charge(bytes)?;
+    let row: Raw =
+        sqlx::query_as("SELECT * FROM public.p0c4_snapshot_claim_locked_observation($1,true)")
+            .bind(id)
+            .fetch_one(&mut **tx)
+            .await?;
+    if (row.job_octets, row.outbox_octets) != (header.job_octets, header.outbox_octets) {
+        return Err(ObservationError::Invalid(
+            "snapshot claim observation changed under lock",
+        ));
+    }
+    let (Some(Json(job)), Some(Json(outbox))) = (row.job_row, row.outbox_row) else {
+        return Err(ObservationError::Invalid(
+            "snapshot claim observation body missing",
+        ));
+    };
+    validate_binding(id, &job, &outbox)?;
+    catalog::verify(tx, catalog::Phase::Observe).await?;
+    Ok(Some(SnapshotObservation {
+        job,
+        outbox,
+        observed_at: row.observed_at,
+    }))
 }
 
 fn validate_binding(

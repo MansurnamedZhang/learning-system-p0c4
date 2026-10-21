@@ -58,7 +58,7 @@ pub(super) async fn verify(
     phase: Phase,
 ) -> Result<(), ObservationError> {
     set_phase(tx, phase).await?;
-    sqlx::raw_sql(profile()?).execute(&mut **tx).await?;
+    sqlx::Executor::execute(&mut **tx, sqlx::raw_sql(profile()?)).await?;
     Ok(())
 }
 
