@@ -1,5 +1,47 @@
 # Task6 正向快照依赖组件
 
+## C2+D0：有限首写组件，Task6 / C4 保持 OPEN
+
+本片将真实非空 ReadingCopy 的首写接在原 P1 操作内。它只形成私有 `PACKAGE_STAGED` 事实，不代表完整 C2/D、业务发布或生产接入。实现来源为 `c4cf09afeb8e5a8140941353502c1022c4369e5f`（开发仓库来源身份；公开仓库使用独立的连续快照历史）。本次冻结 13 个源码路径；最新 Linux 和 PG 使用该 R5 源码，OS 文件组件采用下述逐字等价的 R4 实测结果。当前 577 个 Git archive 成员正文与 R5 受验包逐字相同。
+
+真实执行链为：
+
+1. **真实队列与原 P1 claim。** 通过原域 API 创建非空阅读，调用原 `SnapshotStore::enqueue_export` 生成 request/key/outbox，再由原 `JobStore::dispatch_pending` 入队。原 supervisor 在登记、排队、spawn 之前，从同一 fresh Root custody 独立打开两份 SH：一份随真正 writer，另一份由原 `OwnerGuard` 保持至结果或错误实际收束。这些 OS guard 自身不签发业务权限。
+2. **保留同一个原操作。** 原 P1 在真实 C LOGIN、同一事务中完成锁读、durable intent、canonical claim、after 核对、原 commit 已知成功及 durable committed 两帧；随后在结果发布前继续为私有 `Claimed`。它不从已发布或已关闭的 slot 续用能力，也不从 `JobLease`、JSON 或磁盘重建能力。原 single-flight、绝对 deadline、HOLD/poison、owner 和累计 budget 均不重置。
+3. **由原运行角色准备副本，再锁读全绑定。** 使用真实受限 `learning_runtime` LOGIN，核对原始认证身份、session/current role、配置与实际 endpoint、database OID 和 postmaster，调用原 `SnapshotStore::prepare_export`，取得非空 ReadingCopy。调用者不能自报 copy、actor 或 payload；`include_personal=true` 的 exact 请求在 issue 与文件创建前拒绝。随后由原 C role helper 重新锁读完整 **13 列 job + 9 列 outbox**，用真实 DB clock 核对原 token、attempt、expiry、完整输入与原 claim/owner/slot 的绑定。
+4. **sticky issue 先于首次文件写入。** 在原 slot 的短 gate 内，先永久设置 issued，再通过原 S2-B journal 与原共享 budget durable append typed `WRITE_AUTHORITY_ISSUED`。只有原 append 的已知 durable 返回和已收束的 rollback 才能形成私有 permit；锁不跨长 copy。append 失败或不明、取消、空目录、写失败或清理，都不能撤回 issued。
+5. **真正 blocking copy，完整等待。** 私有 permit 移入实际 `spawn_blocking`，调用 custody 专用 `stage_copy_metered`。同一个 `SharedJournalBudget` 在首个 job-directory mkdir 前计长、检查文件边界并完成不可退款的保守工作预付款，覆盖有界 render、四个文件、hash、manifest 编码/解析和两轮原 verifier；预付款不是 actual I/O 计数。原 owner 完整等待已经启动的真实 handle；caller Drop、timeout 或取消 drain 都不会把 blocking writer 脱离 supervisor。额外 SH 覆盖 consumed writer 返回错误后的收束窗口。
+6. **verifier 后只记录暂存观察。** 实际 `verify_snapshot` 核对包，Root custody 在相关边界重新核验。成功只追加独立 typed `PACKAGE_STAGED`，绑定原 issue/claim/permit nonce、manifest SHA 及 verifier 实际校验的 payload 文件 count/bytes。ReadingCopy 的 payload 为 `reading.md`、`reading.html`、`validation.json` 三个文件，`manifest.json` 另有已核验 SHA。私有 `StagedComponent` 保持 staged/SH，不暴露 guard 或 capture 权限。
+
+这里**不签发 `WRITE_CLOSED(success)`、`BUSINESS_COMMIT_KNOWN`、NoEffect 或 AlreadyCommitted**，也不调用普通 export-failure 池的 autocommit 来补结论。未完成 publish、DB receipt 与 business commit，`PACKAGE_STAGED` 不能被解释为业务成功。失败保留 issued/HOLD，不返回正面结果。
+
+### 实际验证与限定结论
+
+| 项目 | 实际结果与适用范围 |
+| --- | --- |
+| Linux | 最新 R5 源码的三 crate all-target 类型检查、严格 Clippy 和格式通过；30 项纯测试通过。32 项 ignored、测试列举和 no-run 均不计为现场通过。 |
+| Root 文件专项 | 采用已接受的 R4 批次 fdc60fff 的 10 项精确正文结果：三个无网络 actor 自然退出并精确移除，旧资源投影不变。R5 的全部 assets/core 依赖成员和两个实际文件专项 ELF 与 R4 逐字相同，独立核对后仅复用该文件组件证据。 |
+| PostgreSQL 18 | 最新 R5 源码的六项 C2 首写用例、六项 P1 回归、三项 C0 回归，共 15 个独立空库，每项 1 passed / 0 failed / 0 ignored。 |
+
+Linux 结果 `102c31b99d35ebb0b778ea92bf0d63c8f30ac89d49043dd5229dba8e9be6826f`；采用的 R4 文件结果 `bd797f6ec484976faaa8d6ad0ed6c68e5dbaf8a2da04a6c1d4ce65d5c0e2fcaa`；PG 结果 `e7e161bbbe0423f9d0b595f1f7bc4a55a2579860e8cc1b2c4cf05a632adf04d7`。脱敏原件与来源、授权、终止、旧资源投影已独立复核；本批 PG 停机留卷，旧失败/HOLD 资源保留。
+
+R5 文件重跑 eade5627 的 10 个测试正文虽通过，但无关同步容器在运行期间启动，旧资源投影改变，因此该批保持 HOLD，不宣称操作验收通过。以上分项证据复用也不代表全项目最终同源恢复整链通过。
+
+早期 Linux 闭包编译错误、跨库测试授权未收尾、负例直接变更 token 被真实状态机拒绝的失败记录均保留。最终负例使用原运行角色通过 canonical renew 制造实际 expiry 漂移，保留完整拒绝断言；这不是自然过期或 token 接管的现场验证。预算预付款为保守工作预算，不是实际 I/O 计数。
+
+### 当前边界与源码导航
+
+**Task6 / C4 继续 OPEN。** 完整 C schema 导出、production factory、最终同源 capture → 独立复制 → 恢复 → delivery 整链均未完成；本片也未完成 heartbeat/renewal、attempt2/3、revoke、最终 publish/receipt 或正面恢复分类。默认 worker 的业务生产入口没有因此启用。
+
+以下使用绝对 GitHub/main 导航链接，避免文档发布目录中不存在 `crates/` 时的相对路径失效。main 链接仅作源码导航，受验版本仍以上述实际提交和冻结清单为准；发布时将核对 GitHub main 的实际文件正文。
+
+- [原 owner、single-flight、deadline 与 SH 收束](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/history.rs)
+- [原 P1 known-commit 与私有 Claimed 继续](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/transition.rs)
+- [有限 issue → stage → PACKAGE_STAGED 接线](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/writer.rs)
+- [Root OS custody 与真正 writer](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-assets/src/snapshot/custody.rs)
+- [同一累计 budget 的首写预付款](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-assets/src/snapshot/copy_meter.rs)
+
+
 本页记录可选组件的分项实现与验证，Task6 整体保持 OPEN。五项基础恢复场景已独立复核5/5，来源仍为三项509956e和两项0df5128；最终同源整链回归尚未运行。
 
 ## C1-P1：原事务中的持久化领取历史
@@ -10,13 +52,13 @@
 
 Linux格式、db/backup两包all-target类型检查、严格Clippy和11项纯测试通过。六项真实PG18/Root测试与三项C0回归在九个独立空库各为1 passed / 0 failed / 0 ignored；第5项实际跨越10秒原截止时间。322份脱敏原件已核对。两客户端自然退出0后精确移除，PG一次TERM/wait0停机并保留网络/卷。原451容器、450网络、1500卷观测条目逐值不变；after另增本批停机PG/网络/卷各一项，完整before/after文件并不相同。
 
-六个实现文件：[内部模块](../crates/learning-db/src/snapshot_broker/mod.rs)、[原事务](../crates/learning-db/src/snapshot_broker/transaction.rs)、[权限执行接口](../crates/learning-db/src/snapshot_broker/catalog.rs)、[原操作监督与历史](../crates/learning-db/src/snapshot_broker/history.rs)、[固定状态变更](../crates/learning-db/src/snapshot_broker/transition.rs)、[真实测试](../crates/learning-db/src/snapshot_broker/transition_tests.rs)。权限SQL、15迁移、64表和C0公开只读API保持；Linux初次编译失败及后续一行兼容修复均保留记录。
+六个实现文件：[内部模块](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/mod.rs)、[原事务](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/transaction.rs)、[权限执行接口](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/catalog.rs)、[原操作监督与历史](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/history.rs)、[固定状态变更](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/transition.rs)、[真实测试](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/transition_tests.rs)。权限SQL、15迁移、64表和C0公开只读API保持；Linux初次编译失败及后续一行兼容修复均保留记录。
 
 实际结果摘要 `261c9d039c7d442f3494c439d8e3fea700b6ddc546342b89247825505a9106fb`；Root限定接受摘要 `10305b1e35c1bdfd38e0122d6017ac12a9eda21ce6cc888e9732409039baeb1a`。编译包 `cab89f03e27bf1248eed28d014f41b65fdd6b222f23a0bbe3f833ceb8fd616eb`，572文件。提交的Git archive全部成员正文与测试包一致，六个源码Git blob与测试正文逐字一致。公开快照仍显式保留先前0df测试夹具覆盖，不能称最终同源整链。
 
 本片没有生产准入工厂。INTENT来源字段为 `UNENROLLED_COMPONENT_EXTERNAL_RUN_ONLY`，执行绑定摘要仅是外部引用，不能转换为生产构建、租约、写入许可、NoEffect或AlreadyCommitted。私有tmpfs上的真实同步/读回不证明断电持久性或独立备份；前缀拒绝、私有阶段屏障与主动丢失提交知识也不等同网络COMMIT确认丢失或所有fsync故障。中间Docker inspect和含合成凭据SQL未导出原文，断言/脱敏RPC记录不等同独立系统调用追踪。
 
-Task6仍OPEN：完整业务分支、文件写入与快照字节效果证明、完整C schema/角色导出合同，以及最终同源恢复归一化和完整校验仍待完成。基础恢复5/5与Task2/3/5的限定结果不变。
+C1 阶段后的首写与文件观察进展见上方 C2+D0 记录。完整业务发布、形式化效果分类、完整 C schema/角色导出合同和最终同源恢复归一化仍待完成；Task6 OPEN，基础恢复 5/5 与 Task2/3/5 的限定结果不变。
 
 ## 独立权限 profile 与回滚观察组件 C0
 
@@ -24,7 +66,7 @@ C0 使用独立真实 LOGIN、原顶层 READ COMMITTED 事务和固定锁定观�
 
 权限检查限于当前数据库全 namespace 的直接 broker ACL、有效应用/序列权限，以及 pg_authid/pg_shadow 表与列的有效 SELECT 元数据。PUBLIC MAINTAIN、敏感目录读取和取消后的拒绝复用均已在真实 PG 验证；这不等于全部系统 PUBLIC ACL 或特权 builtin 白名单。源端两次最早预检均拒绝 C0 helper 的任意签名，安装此扩展的数据库仍不是可导出的完整 C schema。
 
-七个源码路径：[可选权限 profile](../extensions/snapshot-claim-v1/install.sql)、[显式 installer](../crates/learning-db/src/snapshot_broker/mod.rs)、[catalog核对](../crates/learning-db/src/snapshot_broker/catalog.rs)、[owned观察事务](../crates/learning-db/src/snapshot_broker/transaction.rs)、[真实PG夹具](../crates/learning-db/tests/snapshot_claim.rs)、[库入口](../crates/learning-db/src/lib.rs)、[源端拒绝](../crates/learning-backup/src/source.rs)。原15迁移、64表和 A1/S2-B 行为保留。
+七个源码路径：[可选权限 profile](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/extensions/snapshot-claim-v1/install.sql)、[显式 installer](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/mod.rs)、[catalog核对](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/catalog.rs)、[owned观察事务](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/transaction.rs)、[真实PG夹具](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/tests/snapshot_claim.rs)、[库入口](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/lib.rs)、[源端拒绝](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-backup/src/source.rs)。原15迁移、64表和 A1/S2-B 行为保留。
 
 Linux 格式、两包 all-target 类型检查及严格 Clippy、6项纯测试通过。三项真实 PG 与一项源端拒绝用例在四个独立空数据库中各为1 passed / 0 failed / 0 ignored，210份原件已独立复核并由 Root 限定接受。原450容器、449网络、1499卷的观测条目逐值相同；after完整投影另含本批停机PG、保留网络和卷各一项，不能称两个完整文件字节相同。客户端自然退出0后精确移除，PG一次TERM及wait0后停机留卷。
 
@@ -50,12 +92,12 @@ Linux 格式、类型检查、严格 Clippy 与三项纯测试通过。8 项 Roo
 
 ## 下一步
 
-1. 真实 claim/renew/fail 的独立版本权限 profile、同事务前后观察与持久业务历史。
-2. 完整观察扩展 schema 的真实 dump/TOC/ACL 夹具与恢复端禁用角色合同；当前有限 catalog audit 不能替代此门。
-3. 文件写入许可、捕获排空，以及 NoEffect/AlreadyCommitted 的正向字节证据。
-4. 最终冻结同一源码，重跑归一化、全表完整性、阅读及故障整链，再决定 Task6 是否关闭。
+1. 完整 publish/receipt、原业务 COMMIT 已知结果与 WRITE_CLOSED 的持久收束。
+2. 捕获排空、原写入许可与文件事实连接的 NoEffect/AlreadyCommitted 正向分类。
+3. 完整 C schema 与禁用目标角色的版本化导出/恢复合同，以及生产准入工厂。
+4. 冻结同一源码重跑归一化、全表完整性、阅读和故障整链，完成 Task6 后再推进 Task7–9。
 
-旧失败、未知结果和隔离资源保留。独立备份存储、CompleteBackup、C4 整关与生产部署另行验收。
+Task6/C4 保持 OPEN；独立备份存储、CompleteBackup 和生产另行验收。旧失败及未知结果保留。
 
 ## 本轮验证与来源
 

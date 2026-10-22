@@ -22,6 +22,10 @@ use std::{
 use thiserror::Error;
 use uuid::Uuid;
 
+mod copy_meter;
+mod custody;
+pub use custody::{CustodyCaptureGuard, CustodyStaged, CustodyWriter, RootSnapshotCustody};
+
 #[derive(Debug, Error)]
 pub enum SnapshotIoError {
     #[error("invalid snapshot package")]
@@ -98,18 +102,8 @@ pub struct SnapshotJobDirectory {
 impl SnapshotJobDirectory {
     pub fn open(root: &Path, job: Uuid) -> Result<Self, SnapshotIoError> {
         let root = Dir::open_private_root(root)?;
-        let name = job.to_string();
-        let dir = match root.open_dir(&name) {
-            Ok(dir) => dir,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => match root.create_dir(&name) {
-                Ok(dir) => dir,
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                    root.open_dir(&name)?
-                }
-                Err(error) => return Err(error.into()),
-            },
-            Err(error) => return Err(error.into()),
-        };
+        root.reject_custody_ancestry()?;
+        let dir = open_job_directory(&root, job)?;
         Ok(Self { dir, copy_id: job })
     }
     pub fn stage_exact(
@@ -127,6 +121,7 @@ impl SnapshotJobDirectory {
             assets,
             files,
         )
+        .map(|staged| staged.directory)
     }
     pub fn stage_copy(
         &self,
@@ -144,6 +139,7 @@ impl SnapshotJobDirectory {
             &manifest,
             copy,
         )
+        .map(|staged| staged.directory)
     }
     /// Reopen after restart, requiring the winning database manifest digest.
     pub fn reopen(
@@ -151,12 +147,26 @@ impl SnapshotJobDirectory {
         token: Uuid,
         expected_sha256: &str,
     ) -> Result<SnapshotDirectory, SnapshotIoError> {
+        self.dir.reject_custody_ancestry()?;
         let stage = SnapshotDirectory {
             dir: self.dir.open_dir(&format!("{token}.ready"))?,
             manifest_sha256: expected_sha256.into(),
         };
         verify_snapshot(&stage)?;
         Ok(stage)
+    }
+}
+
+fn open_job_directory(root: &Dir, job: Uuid) -> Result<Dir, SnapshotIoError> {
+    let name = job.to_string();
+    match root.open_dir(&name) {
+        Ok(dir) => Ok(dir),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => match root.create_dir(&name) {
+            Ok(dir) => Ok(dir),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(root.open_dir(&name)?),
+            Err(error) => Err(error.into()),
+        },
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -231,6 +241,7 @@ pub fn stage_snapshot(
         assets,
         files,
     )
+    .map(|staged| staged.directory)
 }
 
 fn stage_exact_writer(
@@ -239,7 +250,7 @@ fn stage_exact_writer(
     rows: &[SnapshotRow],
     assets: &[SnapshotAssetUse],
     files: &FsAssetStore,
-) -> Result<SnapshotDirectory, SnapshotIoError> {
+) -> Result<WrittenStage, SnapshotIoError> {
     let result = (|| {
         if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
             return Err(SnapshotIoError::InvalidPackage);
@@ -307,13 +318,14 @@ pub fn stage_reading_copy(
     copy: &ReadingCopy,
 ) -> Result<SnapshotDirectory, SnapshotIoError> {
     stage_copy_writer(StageWriter::new(root, copy_id)?, copy_id, manifest, copy)
+        .map(|staged| staged.directory)
 }
 fn stage_copy_writer(
     mut writer: StageWriter,
     copy_id: Uuid,
     manifest: &ReadingCopyManifest,
     copy: &ReadingCopy,
-) -> Result<SnapshotDirectory, SnapshotIoError> {
+) -> Result<WrittenStage, SnapshotIoError> {
     let result = (|| {
         if manifest.format_version != SNAPSHOT_FORMAT_VERSION
             || manifest.copy_id != copy_id
@@ -379,7 +391,7 @@ pub fn stage_incoming(
     if result.is_err() {
         writer.discard();
     }
-    result
+    result.map(|staged| staged.directory)
 }
 
 pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, SnapshotIoError> {
@@ -506,6 +518,11 @@ struct StageWriter {
     json_bytes: usize,
     asset_bytes: usize,
     names: BTreeSet<String>,
+    custody: Option<custody::CustodyGuard>,
+}
+struct WrittenStage {
+    directory: SnapshotDirectory,
+    custody: Option<custody::CustodyGuard>,
 }
 impl StageWriter {
     fn new(root: &Path, id: Uuid) -> Result<Self, SnapshotIoError> {
@@ -521,6 +538,24 @@ impl StageWriter {
         }
     }
     fn in_directory(root: Dir, id: Uuid) -> Result<Self, SnapshotIoError> {
+        root.reject_custody_ancestry()?;
+        Self::create(root, id, None)
+    }
+    /// Only the custody module can reach this private bypass with its live
+    /// move-only OS guard. Legacy path/Dir admission never calls it.
+    fn in_custody_directory(
+        root: Dir,
+        id: Uuid,
+        guard: custody::CustodyGuard,
+    ) -> Result<Self, SnapshotIoError> {
+        guard.revalidate()?;
+        Self::create(root, id, Some(guard))
+    }
+    fn create(
+        root: Dir,
+        id: Uuid,
+        custody: Option<custody::CustodyGuard>,
+    ) -> Result<Self, SnapshotIoError> {
         let partial_name = format!("{id}.partial-{}", Uuid::new_v4());
         let partial = root.create_dir(&partial_name)?;
         Ok(Self {
@@ -532,15 +567,24 @@ impl StageWriter {
             json_bytes: 0,
             asset_bytes: 0,
             names: BTreeSet::new(),
+            custody,
         })
     }
+    fn revalidate_custody(&self) -> Result<(), SnapshotIoError> {
+        if let Some(guard) = &self.custody {
+            guard.revalidate()?;
+        }
+        Ok(())
+    }
     fn write_stream(&mut self, name: &str, source: &mut dyn Read) -> Result<(), SnapshotIoError> {
+        self.revalidate_custody()?;
         self.begin(name)?;
         let limit = size_limit(name)?;
         let (parent, leaf) = self.file_parent(name)?;
         let mut target = parent.create_file(&leaf)?;
         let (sha256, size) = copy_hash_bounded(source, &mut target, limit)?;
         target.sync_all()?;
+        self.revalidate_custody()?;
         self.record(name, size, sha256)?;
         Ok(())
     }
@@ -550,6 +594,7 @@ impl StageWriter {
         asset: &SnapshotAssetUse,
         store: &FsAssetStore,
     ) -> Result<(), SnapshotIoError> {
+        self.revalidate_custody()?;
         self.begin(name)?;
         if asset.byte_size > SNAPSHOT_MAX_ASSET_FILE_BYTES as u64
             || name != format!("assets/sha256/{}/{}", &asset.sha256[..2], asset.sha256)
@@ -567,6 +612,7 @@ impl StageWriter {
             )
             .map_err(map_asset)?;
         target.sync_all()?;
+        self.revalidate_custody()?;
         self.record(name, asset.byte_size, asset.sha256.clone())
     }
     fn begin(&mut self, name: &str) -> Result<(), SnapshotIoError> {
@@ -619,10 +665,7 @@ impl StageWriter {
         }
         Ok(())
     }
-    fn finish(
-        &mut self,
-        manifest: &SnapshotManifest,
-    ) -> Result<SnapshotDirectory, SnapshotIoError> {
+    fn finish(&mut self, manifest: &SnapshotManifest) -> Result<WrittenStage, SnapshotIoError> {
         self.files.sort_by(|a, b| a.path.cmp(&b.path));
         if self.files.len() + 1 > SNAPSHOT_MAX_FILES {
             return Err(SnapshotIoError::LimitExceeded);
@@ -642,7 +685,8 @@ impl StageWriter {
         &mut self,
         manifest: &SnapshotManifest,
         hash: String,
-    ) -> Result<SnapshotDirectory, SnapshotIoError> {
+    ) -> Result<WrittenStage, SnapshotIoError> {
+        self.revalidate_custody()?;
         self.files.sort_by(|a, b| a.path.cmp(&b.path));
         if manifest_files(manifest) != self.files || !self.names.contains("manifest.json") {
             return Err(SnapshotIoError::InvalidPackage);
@@ -654,10 +698,15 @@ impl StageWriter {
             manifest_sha256: hash.clone(),
         };
         verify_snapshot(&stage)?;
+        self.revalidate_custody()?;
         self.root.rename(&self.partial_name, &self.ready_name)?;
-        Ok(SnapshotDirectory {
-            dir: self.partial.try_clone()?,
-            manifest_sha256: hash,
+        self.revalidate_custody()?;
+        Ok(WrittenStage {
+            directory: SnapshotDirectory {
+                dir: self.partial.try_clone()?,
+                manifest_sha256: hash,
+            },
+            custody: self.custody.take(),
         })
     }
     fn discard(&self) {
@@ -954,12 +1003,16 @@ fn push_revision(
 }
 fn render_markdown(copy: &ReadingCopy) -> String {
     let mut out = String::new();
+    render_markdown_to(copy, &mut out).expect("String rendering cannot fail");
+    out
+}
+fn render_markdown_to(copy: &ReadingCopy, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     for item in &copy.items {
         match item {
             CopyItem::Heading { title } => {
-                out.push_str("## ");
-                out.push_str(&escape_markdown(title));
-                out.push_str("\n\n");
+                out.write_str("## ")?;
+                escape_markdown_to(title, out)?;
+                out.write_str("\n\n")?;
             }
             CopyItem::Content {
                 title,
@@ -967,80 +1020,80 @@ fn render_markdown(copy: &ReadingCopy) -> String {
                 ..
             } => {
                 if !title.is_empty() {
-                    out.push_str("### ");
-                    out.push_str(&escape_markdown(title));
-                    out.push_str("\n\n");
+                    out.write_str("### ")?;
+                    escape_markdown_to(title, out)?;
+                    out.write_str("\n\n")?;
                 }
-                out.push_str(&escape_markdown(display_text));
-                out.push_str("\n\n");
+                escape_markdown_to(display_text, out)?;
+                out.write_str("\n\n")?;
             }
-            CopyItem::Omitted => out.push_str("[Content omitted]\n\n"),
+            CopyItem::Omitted => out.write_str("[Content omitted]\n\n")?,
         }
     }
     for value in &copy.evidence {
-        out.push_str("- ");
-        out.push_str(&escape_markdown(value));
-        out.push('\n');
+        out.write_str("- ")?;
+        escape_markdown_to(value, out)?;
+        out.write_char('\n')?;
     }
-    out
+    Ok(())
 }
-fn escape_markdown(value: &str) -> String {
-    // Escape brackets/links and markup so user text cannot create an external URL.
-    value
-        .chars()
-        .flat_map(|ch| {
-            if "\\`*_{}[]()#+-.!<>".contains(ch) {
-                vec!['\\', ch]
-            } else {
-                vec![ch]
-            }
-        })
-        .collect()
+fn escape_markdown_to(value: &str, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+    // Identical escaping for legacy Strings, paid counters and bounded buffers.
+    for ch in value.chars() {
+        if "\\`*_{}[]()#+-.!<>".contains(ch) {
+            out.write_char('\\')?;
+        }
+        out.write_char(ch)?;
+    }
+    Ok(())
 }
 fn render_html(copy: &ReadingCopy) -> String {
-    let mut out = String::from("<!doctype html><meta charset=\"utf-8\"><main>");
+    let mut out = String::new();
+    render_html_to(copy, &mut out).expect("String rendering cannot fail");
+    out
+}
+fn render_html_to(copy: &ReadingCopy, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+    out.write_str("<!doctype html><meta charset=\"utf-8\"><main>")?;
     for item in &copy.items {
         match item {
             CopyItem::Heading { title } => {
-                out.push_str("<h2>");
-                out.push_str(&escape_html(title));
-                out.push_str("</h2>");
+                out.write_str("<h2>")?;
+                escape_html_to(title, out)?;
+                out.write_str("</h2>")?;
             }
             CopyItem::Content {
                 title,
                 display_text,
                 ..
             } => {
-                out.push_str("<article><h3>");
-                out.push_str(&escape_html(title));
-                out.push_str("</h3><p>");
-                out.push_str(&escape_html(display_text));
-                out.push_str("</p></article>");
+                out.write_str("<article><h3>")?;
+                escape_html_to(title, out)?;
+                out.write_str("</h3><p>")?;
+                escape_html_to(display_text, out)?;
+                out.write_str("</p></article>")?;
             }
-            CopyItem::Omitted => out.push_str("<p>Content omitted</p>"),
+            CopyItem::Omitted => out.write_str("<p>Content omitted</p>")?,
         }
     }
     for value in &copy.evidence {
-        out.push_str("<p>");
-        out.push_str(&escape_html(value));
-        out.push_str("</p>");
+        out.write_str("<p>")?;
+        escape_html_to(value, out)?;
+        out.write_str("</p>")?;
     }
-    out.push_str("</main>");
-    out
+    out.write_str("</main>")
 }
-fn escape_html(value: &str) -> String {
-    let mut out = String::new();
+fn escape_html_to(value: &str, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     for ch in value.chars() {
         match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&#39;"),
-            _ => out.push(ch),
+            '&' => out.write_str("&amp;")?,
+            '<' => out.write_str("&lt;")?,
+            '>' => out.write_str("&gt;")?,
+            '"' => out.write_str("&quot;")?,
+            '\'' => out.write_str("&#39;")?,
+            _ => out.write_char(ch)?,
         }
     }
-    out
+    Ok(())
 }
 
 #[cfg(test)]

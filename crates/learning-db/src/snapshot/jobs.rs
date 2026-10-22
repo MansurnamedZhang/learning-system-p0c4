@@ -30,6 +30,22 @@ pub struct StagedSnapshotExport {
     prepared: PreparedSnapshotExport,
     directory: SnapshotDirectory,
 }
+
+#[cfg(target_os = "linux")]
+impl PreparedSnapshotExport {
+    /// Read-only adapter for the private first-write component. The plan still
+    /// comes exclusively from the existing runtime collector, never a caller.
+    pub(crate) fn broker_reading_copy(&self) -> Result<&ReadingCopy, ContentError> {
+        match &self.plan {
+            ExportPlan::Copy { copy, .. }
+                if !self.request.include_personal && !copy.items.is_empty() =>
+            {
+                Ok(copy)
+            }
+            _ => Err(ContentError::Invalid("broker_reading_copy_required".into())),
+        }
+    }
+}
 enum ExportPlan {
     Exact {
         plan: SnapshotPlan,

@@ -2,6 +2,10 @@
 //! Other platforms refuse staging until an equivalent security contract exists.
 use std::{fs::File, io, path::Path};
 
+/// A persistent OS refusal fence only; its presence is never C3 authority.
+#[cfg(target_os = "linux")]
+pub(crate) const SNAPSHOT_CUSTODY_MARKER: &str = ".snapshot-root-custody-v2";
+
 #[cfg(any(target_os = "linux", test))]
 fn trusted_ancestor(uid: u32, mode: u32) -> bool {
     uid == 0 && mode & 0o022 == 0
@@ -102,6 +106,43 @@ mod platform {
                 ));
             }
             Ok(current)
+        }
+        /// Refuse every registered ancestor by walking handles, including when
+        /// a legacy caller supplies a job/attempt subdirectory as its root.
+        pub(crate) fn reject_custody_ancestry(&self) -> io::Result<()> {
+            let mut current = self.try_clone()?;
+            let marker = Self::name(SNAPSHOT_CUSTODY_MARKER)?;
+            for _ in 0..256 {
+                let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+                let result = unsafe {
+                    libc::fstatat(
+                        current.file.as_raw_fd(),
+                        marker.as_ptr(),
+                        stat.as_mut_ptr(),
+                        libc::AT_SYMLINK_NOFOLLOW,
+                    )
+                };
+                if result == 0 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "legacy writer refused registered snapshot custody subtree",
+                    ));
+                }
+                let error = io::Error::last_os_error();
+                if error.kind() != io::ErrorKind::NotFound {
+                    return Err(error);
+                }
+                // '..' is deliberately private to this bounded ancestor walk.
+                let parent = current.open_dir_bytes(b"..")?;
+                if parent.identity()? == current.identity()? {
+                    return Ok(());
+                }
+                current = parent;
+            }
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "snapshot ancestor depth limit",
+            ))
         }
         pub(crate) fn open_owned_root(path: &Path) -> io::Result<Self> {
             if !path.is_absolute() {
@@ -209,6 +250,33 @@ mod platform {
             }
             let file = unsafe { File::from_raw_fd(fd) };
             if !file.metadata()?.is_file() {
+                return Err(invalid());
+            }
+            Ok(file)
+        }
+        /// Independent open-file-description, never a dup of a flock handle.
+        pub(crate) fn control_file(&self, name: &str, create: bool) -> io::Result<File> {
+            let name = Self::name(name)?;
+            let flags = libc::O_RDWR
+                | libc::O_NOFOLLOW
+                | libc::O_CLOEXEC
+                | libc::O_NONBLOCK
+                | if create {
+                    libc::O_CREAT | libc::O_EXCL
+                } else {
+                    0
+                };
+            let fd = unsafe { libc::openat(self.file.as_raw_fd(), name.as_ptr(), flags, 0o600) };
+            if fd < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            let file = unsafe { File::from_raw_fd(fd) };
+            let meta = file.metadata()?;
+            if !meta.is_file()
+                || meta.uid() != 0
+                || meta.nlink() != 1
+                || meta.mode() & 0o7777 != 0o600
+            {
                 return Err(invalid());
             }
             Ok(file)
@@ -488,6 +556,9 @@ mod platform {
             unsupported()
         }
         pub(crate) fn open_private_root(_: &Path) -> io::Result<Self> {
+            unsupported()
+        }
+        pub(crate) fn reject_custody_ancestry(&self) -> io::Result<()> {
             unsupported()
         }
         pub(crate) fn open_owned_root(_: &Path) -> io::Result<Self> {

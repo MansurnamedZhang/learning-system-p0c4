@@ -1,5 +1,5 @@
 //! Private P1 records and original-operation supervision. No public factory,
-//! JobLease conversion, disk adoption, writer permit or effect classification.
+//! JobLease-to-authority conversion, disk adoption or effect classification.
 use super::ObservationError;
 use crate::snapshot_observation::{JobObservation, OutboxObservation, SnapshotObservation};
 use chrono::{DateTime, Utc};
@@ -280,6 +280,11 @@ pub(super) mod runtime {
         AfterCommit,
         BeforeOutcome,
         AfterOutcome,
+        BeforeIssue,
+        AfterIssue,
+        BeforeStageSpawn,
+        AfterStageCopy,
+        AfterStageError,
     }
     #[cfg(test)]
     pub(in super::super) struct Hooks {
@@ -303,8 +308,27 @@ pub(super) mod runtime {
         state: Mutex<State>,
         pub(in super::super) deadline: Instant,
         epoch_hold: Arc<AtomicBool>,
+        issued: AtomicBool,
     }
     impl Slot {
+        // The same short state gate used by cancellation/publication. This bit
+        // is permanent, including if the original append never becomes known.
+        pub(in super::super) fn issue_sticky(&self) -> Result<()> {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|_| rejected("C2 gate poisoned"))?;
+            if *state != State::Live
+                || self.epoch_hold.load(Ordering::SeqCst)
+                || Instant::now() >= self.deadline
+                || self.issued.swap(true, Ordering::SeqCst)
+            {
+                *state = State::Hold;
+                self.epoch_hold.store(true, Ordering::SeqCst);
+                return Err(rejected("C2 issue fence closed"));
+            }
+            Ok(())
+        }
         pub(in super::super) fn poison(&self) {
             self.epoch_hold.store(true, Ordering::SeqCst);
             if let Ok(mut state) = self.state.lock() {
@@ -360,6 +384,58 @@ pub(super) mod runtime {
             request: Uuid,
             duration: Duration,
         ) -> Result<Pending> {
+            self.start_owned(
+                job,
+                request,
+                duration,
+                None,
+                move |owner, slot| async move {
+                    super::super::transition::drive(owner, slot, job, request).await
+                },
+            )
+        }
+        pub(in super::super) fn start_copy(
+            &mut self,
+            job: Uuid,
+            request: Uuid,
+            duration: Duration,
+            runtime: PgPool,
+            custody: &learning_assets::RootSnapshotCustody,
+        ) -> Result<Pending<super::super::writer::StagedComponent>> {
+            // A distinct OS open+SH precedes registry insertion, queueing and
+            // spawn. It moves through the original owner into its writer.
+            let writer = custody
+                .writer()
+                .map_err(|_| rejected("C2 fresh custody unavailable"))?;
+            // A consumed writer may fail and drop its own guard before the
+            // JoinHandle returns. The original supervisor retains a separate
+            // independent SH until its entire error/result settlement ends.
+            let retention = custody
+                .writer()
+                .map_err(|_| rejected("C2 owner custody unavailable"))?;
+            self.start_owned(
+                job,
+                request,
+                duration,
+                Some(retention),
+                move |owner, slot| async move {
+                    super::super::writer::drive(owner, slot, job, request, runtime, writer).await
+                },
+            )
+        }
+        fn start_owned<T, F, Fut>(
+            &mut self,
+            job: Uuid,
+            request: Uuid,
+            duration: Duration,
+            retention: Option<learning_assets::CustodyWriter>,
+            drive: F,
+        ) -> Result<Pending<T>>
+        where
+            T: Send + 'static,
+            F: FnOnce(Arc<Original>, Arc<Slot>) -> Fut + Send + 'static,
+            Fut: Future<Output = Result<T>> + Send + 'static,
+        {
             if job.is_nil()
                 || request.is_nil()
                 || duration.is_zero()
@@ -388,6 +464,7 @@ pub(super) mod runtime {
                 state: Mutex::new(State::Live),
                 deadline: Instant::now() + duration,
                 epoch_hold: self.original.hold.clone(),
+                issued: AtomicBool::new(false),
             });
             registry.jobs.insert(job, slot.clone());
             registry.requests.insert(request, job);
@@ -409,10 +486,9 @@ pub(super) mod runtime {
                     original: owner.clone(),
                     slot: task_slot.clone(),
                     completed: false,
+                    _custody: retention,
                 };
-                let result =
-                    super::super::transition::drive(owner.clone(), task_slot.clone(), job, request)
-                        .await;
+                let result = drive(owner.clone(), task_slot.clone()).await;
                 match result {
                     Ok(record) => publish(&task_slot, sender, record),
                     Err(error) => {
@@ -484,6 +560,7 @@ pub(super) mod runtime {
         original: Arc<Original>,
         slot: Arc<Slot>,
         completed: bool,
+        _custody: Option<learning_assets::CustodyWriter>,
     }
     impl Drop for OwnerGuard {
         fn drop(&mut self) {
@@ -493,14 +570,14 @@ pub(super) mod runtime {
             }
         }
     }
-    pub(in super::super) struct Pending {
-        receiver: oneshot::Receiver<Result<DurableTransition>>,
+    pub(in super::super) struct Pending<T = DurableTransition> {
+        receiver: oneshot::Receiver<Result<T>>,
         timer: Pin<Box<Sleep>>,
         slot: Arc<Slot>,
         armed: bool,
     }
-    impl Future for Pending {
-        type Output = Result<DurableTransition>;
+    impl<T> Future for Pending<T> {
+        type Output = Result<T>;
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             if self.timer.as_mut().poll(cx).is_ready() {
                 self.slot.poison();
@@ -533,18 +610,14 @@ pub(super) mod runtime {
             }
         }
     }
-    impl Drop for Pending {
+    impl<T> Drop for Pending<T> {
         fn drop(&mut self) {
             if self.armed {
                 self.slot.poison();
             }
         }
     }
-    fn publish(
-        slot: &Slot,
-        sender: oneshot::Sender<Result<DurableTransition>>,
-        result: DurableTransition,
-    ) {
+    fn publish<T>(slot: &Slot, sender: oneshot::Sender<Result<T>>, result: T) {
         if slot.live().is_err() {
             slot.poison();
             let _ = sender.send(Err(rejected("P1 late outcome HOLD")));
@@ -596,6 +669,23 @@ pub(super) mod runtime {
         result
     }
     impl Original {
+        #[cfg(test)]
+        pub(in super::super) fn issued_for(&self, job: Uuid) -> bool {
+            self.registry
+                .lock()
+                .unwrap()
+                .jobs
+                .get(&job)
+                .is_some_and(|slot| slot.issued.load(Ordering::SeqCst))
+        }
+        #[cfg(test)]
+        pub(in super::super) fn held(&self) -> bool {
+            self.hold.load(Ordering::SeqCst)
+        }
+        #[cfg(test)]
+        pub(in super::super) fn active(&self) -> bool {
+            self.registry.lock().unwrap().active
+        }
         pub(in super::super) fn preflight(&self) -> Result<()> {
             let used = self
                 .budget

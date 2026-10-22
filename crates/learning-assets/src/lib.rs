@@ -9,6 +9,7 @@ pub use fs::{
     VerifiedBlob,
 };
 pub use snapshot::{
-    SnapshotDirectory, SnapshotIoError, SnapshotJobDirectory, VerifiedSnapshot,
-    sanitize_reading_copy, stage_incoming, stage_reading_copy, stage_snapshot, verify_snapshot,
+    CustodyCaptureGuard, CustodyStaged, CustodyWriter, RootSnapshotCustody, SnapshotDirectory,
+    SnapshotIoError, SnapshotJobDirectory, VerifiedSnapshot, sanitize_reading_copy, stage_incoming,
+    stage_reading_copy, stage_snapshot, verify_snapshot,
 };

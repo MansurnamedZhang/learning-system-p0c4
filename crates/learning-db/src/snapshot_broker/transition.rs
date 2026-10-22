@@ -22,6 +22,41 @@ pub(super) struct DurableTransition {
     intent: RecordRef,
     outcome: RecordRef,
 }
+// Constructed only after this same original operation's known commit and both
+// durable frames. Neither serialization nor a JobLease can construct it.
+pub(super) struct Claimed {
+    transition: DurableTransition,
+    output: Outcome,
+    original: Arc<Original>,
+    slot: Arc<Slot>,
+    request: Uuid,
+}
+impl Claimed {
+    pub(super) fn check_original(&self, owner: &Arc<Original>, slot: &Arc<Slot>) -> Result<()> {
+        if !Arc::ptr_eq(&self.original, owner) || !Arc::ptr_eq(&self.slot, slot) {
+            return Err(history::rejected("C2 original claim owner mismatch"));
+        }
+        slot.live()
+    }
+    pub(super) fn output(&self) -> &Outcome {
+        &self.output
+    }
+    pub(super) fn records(&self) -> (RecordRef, RecordRef) {
+        (self.transition.intent, self.transition.outcome)
+    }
+    pub(super) fn request(&self) -> Uuid {
+        self.request
+    }
+    pub(super) fn lease(&self) -> crate::JobLease {
+        let claim = &self.output.claim;
+        crate::JobLease {
+            job_id: claim.job_id,
+            token: claim.token,
+            attempt_count: claim.attempts,
+            lease_expires_at: claim.expires_at,
+        }
+    }
+}
 #[cfg(test)]
 impl DurableTransition {
     pub(super) fn sequences(&self) -> (u64, u64) {
@@ -115,6 +150,14 @@ pub(super) async fn drive(
     job: Uuid,
     request: Uuid,
 ) -> Result<DurableTransition> {
+    Ok(claim(owner, slot, job, request).await?.transition)
+}
+pub(super) async fn claim(
+    owner: Arc<Original>,
+    slot: Arc<Slot>,
+    job: Uuid,
+    request: Uuid,
+) -> Result<Claimed> {
     slot.live()?;
     owner
         .observation
@@ -132,11 +175,11 @@ pub(super) async fn drive(
 }
 async fn inner(
     owner: &Arc<Original>,
-    slot: &Slot,
+    slot: &Arc<Slot>,
     owned: &mut Option<Transaction<'static, Postgres>>,
     job: Uuid,
     request: Uuid,
-) -> Result<DurableTransition> {
+) -> Result<Claimed> {
     slot.live()?;
     let tx = owned
         .as_mut()
@@ -241,7 +284,7 @@ async fn inner(
         identity: after_identity,
         commit: history::CommitState::OriginalKnown,
     };
-    let output = history::encode(&output, &owner.budget)?;
+    let output_bytes = history::encode(&output, &owner.budget)?;
     owner.stage(slot, Stage::BeforeCommit).await?;
     let known = consume_commit(
         owned
@@ -261,11 +304,17 @@ async fn inner(
         return Err(history::rejected("P1 commit knowledge deliberately lost"));
     }
     owner.stage(slot, Stage::BeforeOutcome).await?;
-    let outcome_ref = append_committed(known, owner, slot, output).await?;
+    let outcome_ref = append_committed(known, owner, slot, output_bytes).await?;
     owner.stage(slot, Stage::AfterOutcome).await?;
     slot.live()?;
-    Ok(DurableTransition {
-        intent: intent_ref,
-        outcome: outcome_ref,
+    Ok(Claimed {
+        transition: DurableTransition {
+            intent: intent_ref,
+            outcome: outcome_ref,
+        },
+        output,
+        original: owner.clone(),
+        slot: slot.clone(),
+        request,
     })
 }
