@@ -1478,7 +1478,7 @@ class Fix3Tests(unittest.TestCase):
             self.assertEqual(source.stat().st_ino,old.st_ino);self.assertEqual(source.stat().st_nlink,2)
             self.assertEqual(alias.read_bytes(),raw)
             # Pass actual newly materialized bytes through UNCHANGED helper.
-            _,binding,_=driver.load_public_helpers(Path(__file__).parent)
+            _,binding,_=current_public_helpers()
             retained=destination.with_name('retained')
             result=subprocess.run([sys.executable,'-c',binding.COPY_BINARY,str(destination),str(retained)],capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
@@ -1759,11 +1759,13 @@ class RegistryFaultAuditProtocolTests(unittest.TestCase):
     def test_final_registry_audit_reloads_original_proof_and_rechecks_partial_bytes(self):
         from unittest.mock import patch
         from scripts import p0c4_storage_registry as registry
+        try:import p0c4_storage_registry as borrowed_registry
+        except ModuleNotFoundError:borrowed_registry=registry
         from scripts.test_p0c4_storage_registry import FaultRegistryFixture
         with FaultRegistryFixture() as f:
             test=driver.REGISTRY_INCOMPLETE_TESTS[0];baseline=registry.capture_fault_audit_baseline(f.receipt,test);f.retained();tx,_=f.residue(test)
             observed=registry.audit_incomplete_publication(baseline)
-            with patch.object(driver,'read_fault_baseline',return_value=baseline):
+            with patch.object(driver,'read_fault_baseline',return_value=baseline),patch.object(borrowed_registry,'audit_incomplete_publication',side_effect=registry.audit_incomplete_publication):
                 self.assertEqual(driver.final_fault_registry_audit(observed),observed)
                 changed=dict(observed,reason='READY')
                 with self.assertRaisesRegex(driver.GateError,'FINAL_REGISTRY_UNUSABLE_CHANGED'):driver.final_fault_registry_audit(changed)

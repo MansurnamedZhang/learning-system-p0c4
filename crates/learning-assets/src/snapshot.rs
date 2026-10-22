@@ -509,6 +509,26 @@ pub fn stage_incoming(
     result.map(|staged| staged.directory)
 }
 
+#[cfg(any(test, target_os = "linux"))]
+const READING_COPY_MEMBER_NAMES: [&str; 4] = [
+    "manifest.json",
+    "reading.html",
+    "reading.md",
+    "validation.json",
+];
+
+#[cfg(any(test, target_os = "linux"))]
+fn reading_member_names_match(names: &mut [String]) -> bool {
+    if names.len() != READING_COPY_MEMBER_NAMES.len() {
+        return false;
+    }
+    names.sort_unstable();
+    names
+        .iter()
+        .map(String::as_str)
+        .eq(READING_COPY_MEMBER_NAMES)
+}
+
 // The metered path parses the closed shallow wire directly. An internally
 // tagged enum would first materialize arbitrary Content before rejecting it.
 #[cfg(any(test, target_os = "linux"))]
@@ -570,6 +590,38 @@ fn parse_reading_manifest(
 #[cfg(test)]
 mod fixed_reading_manifest_tests {
     use super::*;
+
+    #[test]
+    fn reading_members_accept_every_readdir_order_and_refuse_different_rosters() {
+        for a in 0..4 {
+            for b in 0..4 {
+                for c in 0..4 {
+                    for d in 0..4 {
+                        let indices = [a, b, c, d];
+                        if indices.iter().copied().collect::<BTreeSet<_>>().len() == 4 {
+                            let mut names =
+                                indices.map(|i| READING_COPY_MEMBER_NAMES[i].to_owned());
+                            assert!(
+                                reading_member_names_match(&mut names),
+                                "permutation {indices:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let mut missing = READING_COPY_MEMBER_NAMES[..3]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect::<Vec<_>>();
+        assert!(!reading_member_names_match(&mut missing));
+        let mut extra = READING_COPY_MEMBER_NAMES.map(str::to_owned).to_vec();
+        extra.push("extra".into());
+        assert!(!reading_member_names_match(&mut extra));
+        let mut duplicate = READING_COPY_MEMBER_NAMES.map(str::to_owned);
+        duplicate[0] = duplicate[1].clone();
+        assert!(!reading_member_names_match(&mut duplicate));
+    }
 
     #[test]
     fn fixed_reading_parser_keeps_exact_wire_sizes_and_three_file_shape() {
@@ -760,12 +812,7 @@ mod reading_budget {
         os::unix::fs::{FileExt, MetadataExt},
         sync::atomic::{AtomicU8, Ordering},
     };
-    const NAMES: [&str; 4] = [
-        "manifest.json",
-        "reading.html",
-        "reading.md",
-        "validation.json",
-    ];
+    const NAMES: [&str; 4] = READING_COPY_MEMBER_NAMES;
     // Includes fixed table/list/fingerprint work, the small metadata trees,
     // and <=4*64KiB reads past a concurrently truncated/grown stream's bound.
     const METADATA_WORK: u64 = 512 * 1024;
@@ -851,7 +898,7 @@ mod reading_budget {
                 || metadata.gid() != 0
                 || !metadata.is_dir()
                 || !matches!(metadata.mode() & 0o7777, 0o500 | 0o700)
-                || dir.list_bounded(4)? != NAMES
+                || !reading_member_names_match(&mut dir.list_bounded(4)?)
             {
                 return Err(SnapshotIoError::InvalidPackage);
             }
@@ -908,7 +955,7 @@ mod reading_budget {
         }
         pub(super) fn recheck(&self) -> Result<(), SnapshotIoError> {
             if Fingerprint::of(&self.dir.root_metadata()?) != self.directory
-                || self.dir.list_bounded(4)? != NAMES
+                || !reading_member_names_match(&mut self.dir.list_bounded(4)?)
             {
                 return Err(SnapshotIoError::InvalidPackage);
             }

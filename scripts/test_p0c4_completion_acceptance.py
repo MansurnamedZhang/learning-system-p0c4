@@ -4,6 +4,9 @@ from pathlib import Path
 from unittest.mock import patch
 from scripts import p0c4_completion_acceptance as runner
 from scripts.test_p0c4_storage_registry import receipt_fixture
+# Match publish_raw_index's local import, including the scripts-only path.
+try:import p0c4_storage_registry as driver_registry
+except ModuleNotFoundError:from scripts import p0c4_storage_registry as driver_registry
 
 class CompletionTests(unittest.TestCase):
     def test_eight_schedule_publishes_and_verifies_real_8201_logs(self):
@@ -37,7 +40,7 @@ class CompletionTests(unittest.TestCase):
                 patch.object(runner.driver.os,'fstat',side_effect=metadata),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'fsync'),
                 patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),
                 patch.object(runner.driver,'new_private',side_effect=lambda path,raw:path.write_bytes(raw)),
-                patch.object(runner.registry,'rename_no_replace',side_effect=lambda a,old,b,new:(batch/'evidence'/old).rename(batch/'evidence'/new)),
+                patch.object(driver_registry,'rename_no_replace',side_effect=lambda a,old,b,new:(batch/'evidence'/old).rename(batch/'evidence'/new)),
                 patch.object(runner,'relative_ref',side_effect=relative)]
             try:
                 with contextlib.ExitStack() as stack:
@@ -64,7 +67,7 @@ class CompletionTests(unittest.TestCase):
         owned=SimpleNamespace(logs=logs,ownership=SimpleNamespace(children=[]));written=[];caps=[]
         runner.driver.LOG_RESERVATIONS[str(logs)]=dict(case_count=8,producer_identities={Path(row['path']).name:(row['dev'],row['ino']) for row in files})
         try:
-            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files) as producer,patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda path,cap,**kw:(caps.append(cap) or written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
+            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files) as producer,patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda path,cap,**kw:(caps.append(cap) or written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(driver_registry,'rename_no_replace'):
                 ref=runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=[0])
             self.assertGreater(len(written[0]),2*1024**2);self.assertLessEqual(len(written[0]),16*1024**2)
             self.assertEqual(caps,[16*1024**2]);self.assertEqual([call.kwargs for call in producer.call_args_list],[dict(case_count=8)]*3)
@@ -668,7 +671,7 @@ class CompletionTests(unittest.TestCase):
             self.assertIs(actual_budget,budget);budget[0]+=4;seen.append(budget[0]);return files
         runner.driver.LOG_RESERVATIONS[str(logs)]=dict(producer_identities={'0001.stdout':(1,2)})
         try:
-            with patch.object(runner.driver,'expected_raw_logs',return_value={'0001.stdout'}),patch.object(runner.driver,'raw_log_records',side_effect=scan),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda *a,**kw:(written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
+            with patch.object(runner.driver,'expected_raw_logs',return_value={'0001.stdout'}),patch.object(runner.driver,'raw_log_records',side_effect=scan),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda *a,**kw:(written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(driver_registry,'rename_no_replace'):
                 runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=budget)
             self.assertEqual(seen,[12,16,20]);self.assertEqual(runner.registry.parse_record(written[0])['scan_bytes'],12)
         finally:runner.driver.LOG_RESERVATIONS.pop(str(logs),None)
@@ -684,7 +687,7 @@ class CompletionTests(unittest.TestCase):
         runner.driver.LOG_RESERVATIONS[str(logs)]=dict(
             producer_identities={name:(1,number) for number,name in enumerate(sorted(names),1)})
         try:
-            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda path,cap,**kw:(read_caps.append(cap) or written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
+            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda path,cap,**kw:(read_caps.append(cap) or written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(driver_registry,'rename_no_replace'):
                 ref=runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=[0])
             self.assertGreater(len(written[0]),512*1024)
             self.assertLessEqual(len(written[0]),2*1024**2)
@@ -727,7 +730,7 @@ class CompletionTests(unittest.TestCase):
             producer_identities={name:(maximum,maximum-number)
                                  for number,name in enumerate(sorted(names),1)})
         try:
-            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda *a,**kw:(written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(runner.registry,'rename_no_replace'):
+            with patch.object(runner.driver,'expected_raw_logs',return_value=names),patch.object(runner.driver,'raw_log_records',return_value=files),patch.object(runner.driver,'new_private',side_effect=lambda path,raw:written.append(raw)),patch.object(runner.driver,'private_read',side_effect=lambda *a,**kw:(written[0],None)),patch.object(runner.driver.os,'open',return_value=10),patch.object(runner.driver.os,'close'),patch.object(runner.driver.os,'geteuid',return_value=0,create=True),patch.object(runner.driver.os,'O_DIRECTORY',0,create=True),patch.object(runner.driver.os,'O_NOFOLLOW',0,create=True),patch.object(driver_registry,'rename_no_replace'):
                 runner.driver.publish_raw_index(batch,owned,dict(cases=[]),budget=[0])
             self.assertEqual(len(runner.registry.parse_record(written[0])['files']),8192)
             self.assertLessEqual(len(written[0]),2*1024**2)
