@@ -2,15 +2,21 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-23 · Task6候选代码 64755f6，最终同源native 0/16。Task6、Task7–9与C4仍OPEN；未签发CompleteBackup，未开放生产。**
+**最新同步：2026-10-23 · Task6候选代码 90dcc39，最终同源native 0/16。Task6、Task7–9与C4仍OPEN；未签发CompleteBackup，未开放生产。**
 
-候选源码检查点：`64755f651e3c0a30fbce1da132a5bec77ed9eb70`；前提交 `2741d3d59986649242c4b6a7a6ed04c662f0cf3f`。这是开发源码身份，公开仓库保持自己的快照提交历史，不把来源 ID 当作公开仓库同名提交。
+候选源码检查点：`90dcc39a0b595d5504daa35ff1565f9e5d1bbb1f`；前提交 `02885c4e36bcce96073c3cf40a2ef9994edb17ab`。这是开发源码身份，公开仓库保持自己的快照提交历史，不把来源 ID 当作公开仓库同名提交。
 
-64755f6 有限前置已独审通过：新执行严格 Rust 542通过、0失败，133项ignored未执行；Root Python 12模块300项（299通过、1项DAC跳过），ordinary Python DAC另1通过。两批新执行均使用64755f6包，自然退出0、精确移除本批容器且旧资源图不变。Root OS三项仍为2741d3d的实际各1/0/0；其完整598项未变源输入（含381项Rust/Cargo/toolchain及SQL/fixture）已逐字比对兼容，不声称64755f6重跑RootOS。这些均非native，accepted仍0/16；不授全774、Task8或生产资格。
+90dcc39有限前置已独审通过：新执行严格Rust 542通过、0失败，133项ignored未执行；Root Python 12模块308项（307通过、1项UID0 DAC跳过），ordinary Python DAC另1通过。两批新执行均使用90dcc39包，自然退出0、精确移除本批容器且旧资源图不变。Root OS三项仍为2741d3d的实际各1/0/0；381项Rust/Cargo/toolchain及全部526项非Python源输入已逐字比对兼容，不声称90dcc39重跑RootOS。这些均非native通过，accepted仍0/16；不授全774、Task8或生产资格。
 
-旧2741d3d首轮P6在source容器created／准备阶段因PG_BINDS_MODE失败，未进入业务测试；失败与HOLD原件保留。64755f6的R3仅修固定snapshot socket RW挂载的资源规范适配，缺失、null或空Binds均拒绝；不在控制capsule访问未挂载的宿主卷，不签发原FD或业务效果权威。新647 P6在独立消费者构建阶段失败并HOLD；尚未进入精确测试，仍0/16。
+90dcc39在已审的fresh full-C源库TEMP权限准备之上，仅补齐/var/lib/knowweave-c4与/run/kwc4两处全新容器父目录：先核目录、非链接及Root所有权，再固定0700并复核；不改mounted sfx、Rust守卫、迁移或C0/D1 profile。此次两叶修复已独审77项相关纯测及直接入口18项，不能替代native现场通过。
 
-另两项formal quiesce取消组件实际2/0/0并独审接受，实际源码与原sealed ELF仍属2741d3d；64755f6仅经完整输入字节比对后兼容保留该组件信用，不是新ELF执行或native场景通过。
+新90dcc39精确P6已进入body，退出101、0通过／1失败／0忽略（另516项过滤），诊断CAPTURE／INVALID／UNKNOWN，原因待查。源与目标已停止并确认无exec，teardown错误为空；Root run capsule仍保留HOLD、不复用，同源native仍0/16。
+
+此前02885c4真实迁移及C0/D1安装退出0并返回C4_TASK3_MIGRATED；其精确P6已进入body，退出101、0通过／1失败／0忽略（另516项过滤），诊断CAPTURE／IO／UNKNOWN并保留HOLD。后续只读原件显示/run/kwc4为Root 0755，与既有精确0700守卫不符；未据此伪造系统调用errno或给新源转授成功。
+
+旧2741d3d首轮P6在source容器created／准备阶段因PG_BINDS_MODE失败，未进入业务测试；失败与HOLD原件保留。64755f6的R3仅修固定snapshot socket RW挂载的资源规范适配，缺失、null或空Binds均拒绝；不在控制capsule访问未挂载的宿主卷，不签发原FD或业务效果权威。旧64755f6 P6在独立消费者构建准备阶段失败并HOLD；后续原件明确其迁移安装被C0有效权限检查拒绝，未进入精确测试。
+
+另两项formal quiesce取消组件实际2/0/0并独审接受，实际源码与原sealed ELF仍属2741d3d；90dcc39仅经381项Rust/Cargo/toolchain及全部526项非Python输入字节比对后兼容保留该组件信用，不是新ELF执行或native场景通过。
 
 正常公开恢复资格仍必须持有真实 CompleteBackup。本轮私有管理流程以同源 SourceLocalPin／不透明效果对象进行单机 rehearsal；不签发 CompleteBackup，不开放生产恢复或服务。缺少有效效果证明仍 Unknown/HOLD，禁止回源猜测、领养或重发。
 
@@ -33,7 +39,7 @@
 | --- | --- |
 | P0-A、B1–B4 | 各阶段隔离验收通过；非生产 |
 | P0-C1、C2、C3 | 各阶段隔离验收通过；非生产 |
-| P0-C4 | Task2/3/5保留原限定范围；Task6候选64755f6，最终同源native0/16（五基础＋十一快照）；旧5/5与D1组件为分源历史；Task6–9/C4/Complete与生产OPEN |
+| P0-C4 | Task2/3/5保留原限定范围；Task6候选90dcc39，最终同源native0/16（五基础＋十一快照）；旧5/5与D1组件为分源历史；Task6–9/C4/Complete与生产OPEN |
 | P1-A / P1-B | HTTP、登录、浏览器内容工作台与学习闭环待建设 |
 | P2 / P3 | 多领域演进及按需增强待建设 |
 

@@ -1908,6 +1908,61 @@ def _prepare_source_control_system_privileges(runner,container,ident,full_contex
         require(code==0 and out==b't|t\n' and err==b'','FULL_SOURCE_CONTROL_PRIVILEGES')
 
 
+
+def _prepare_fresh_full_c_source_role(runner,container,ident,full_context,record):
+    if full_context is None or not full_context._full_c():return False
+    v4(ident['case_id'])
+    require(ident['database']=='learning_backup_c4_task3_'+ident['case_id'] and
+            full_context._plan['case_id']==ident['case_id'] and
+            container==record['container_id'] and ident==record['identity'],
+            'FULL_C_SOURCE_FRESH_BINDING')
+    record['stage']='source-full-c-fresh-privileges'
+    require(sql(runner,container,"SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname='learning_snapshot_claim_broker';")=='0','FULL_C_SOURCE_ROLE_MUST_BE_ABSENT')
+    # This private call occurs only on this case's newly created source volume,
+    # before MIGRATOR and either helper installer. It is not an old-DB repair.
+    # Keep the two original effective TEMP privileges before removing PUBLIC's
+    # native default; the later broker role must not inherit PUBLIC TEMP.
+    statement=f"""BEGIN;
+SET LOCAL statement_timeout='5000ms';
+DO $full_c_fresh_source_temp_v1$
+DECLARE db_oid oid;
+BEGIN
+ SELECT d.oid INTO STRICT db_oid FROM pg_catalog.pg_database d
+ WHERE d.datname=current_database() AND d.datdba=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='learning_admin');
+ IF current_database()<>'{ident['database']}' OR session_user<>'learning_admin' OR current_user<>'learning_admin'
+    OR current_setting('server_version_num')::int/10000<>18
+    OR EXISTS(SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public')
+    OR EXISTS(SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public')
+    OR EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='learning_snapshot_claim_broker')
+    OR NOT pg_catalog.has_database_privilege('learning_admin',db_oid,'TEMPORARY')
+    OR NOT pg_catalog.has_database_privilege('learning_runtime',db_oid,'TEMPORARY')
+    OR (SELECT count(*) FROM pg_catalog.pg_database d,pg_catalog.aclexplode(coalesce(d.datacl,pg_catalog.acldefault('d',d.datdba))) a WHERE d.oid=db_oid)<>5
+    OR NOT EXISTS(SELECT 1 FROM pg_catalog.pg_database d,pg_catalog.aclexplode(coalesce(d.datacl,pg_catalog.acldefault('d',d.datdba))) a WHERE d.oid=db_oid AND a.grantee=0 AND a.privilege_type='TEMPORARY')
+    OR EXISTS(SELECT 1 FROM pg_catalog.pg_database d,pg_catalog.aclexplode(coalesce(d.datacl,pg_catalog.acldefault('d',d.datdba))) a WHERE d.oid=db_oid AND
+       (a.grantor<>d.datdba OR a.is_grantable OR NOT (
+         (a.grantee=0 AND a.privilege_type='TEMPORARY') OR
+         (a.grantee=d.datdba AND a.privilege_type IN ('CONNECT','CREATE','TEMPORARY')) OR
+         (a.grantee=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='learning_runtime') AND a.privilege_type='CONNECT'))))
+ THEN RAISE EXCEPTION 'fresh full-C source TEMP prerequisites differ' USING ERRCODE='23514'; END IF;
+ EXECUTE format('GRANT TEMPORARY ON DATABASE %I TO learning_admin,learning_runtime',current_database());
+ EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC',current_database());
+ IF NOT pg_catalog.has_database_privilege('learning_admin',db_oid,'TEMPORARY')
+    OR NOT pg_catalog.has_database_privilege('learning_runtime',db_oid,'TEMPORARY')
+    OR EXISTS(SELECT 1 FROM pg_catalog.pg_database d,pg_catalog.aclexplode(coalesce(d.datacl,pg_catalog.acldefault('d',d.datdba))) a WHERE d.oid=db_oid AND (a.grantor<>d.datdba OR a.is_grantable))
+    OR EXISTS(SELECT 1 FROM pg_catalog.pg_database d,pg_catalog.aclexplode(coalesce(d.datacl,pg_catalog.acldefault('d',d.datdba))) a WHERE d.oid=db_oid AND a.grantee=0 AND a.privilege_type='TEMPORARY')
+ THEN RAISE EXCEPTION 'fresh full-C source TEMP postconditions differ' USING ERRCODE='23514'; END IF;
+END
+$full_c_fresh_source_temp_v1$;
+SELECT 'FULL_C_SOURCE_TEMP_READY';
+COMMIT;"""
+    code,out,err=pg_exec(runner,container,['psql','-X','-qAt','-v','ON_ERROR_STOP=1',
+                                        '-U','learning_admin','-d',ident['database']],stdin=statement.encode())
+    require(code==0 and out==b'FULL_C_SOURCE_TEMP_READY\n' and err==b'','FULL_C_SOURCE_TEMP_PRIVILEGES')
+    sql(runner,container,'CREATE ROLE learning_snapshot_claim_broker LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 4;')
+    record['full_c_source_role_created_fresh']=True
+    return True
+
+
 def case_source_rpc(runner,record,container,operation,call):
     require(container==record['container_id'] and HEX64.fullmatch(container),'SOURCE_OPERATION_IDENTITY')
     require(operation in ('tools_before','migration_setup','migration_readback','tools_after'),'SOURCE_OPERATION_NAME')
@@ -2594,12 +2649,10 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         record['pg_binary_before']=audit_binaries_in_pg(runner,container,record['compiled']);record['tools_before']=tool_check(runner,container,record=record,operation='tools_before')
         migration=record['compiled']['example']['binary']
         migration_script='export TEST_ADMIN_DATABASE_URL="$(cat /var/lib/knowweave-source/secrets/admin.dsn)"; export TEST_C4_TASK3_DATABASE_NAME="$1"; exec "$2"'
-        if _full_context is not None and _full_context._full_c():
-            require(sql(runner,container,"SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname='learning_snapshot_claim_broker';")=='0','FULL_C_SOURCE_ROLE_MUST_BE_ABSENT')
-            sql(runner,container,'CREATE ROLE learning_snapshot_claim_broker LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 4;')
-            record['full_c_source_role_created_fresh']=True
+        if _prepare_fresh_full_c_source_role(runner,container,ident,_full_context,record):
             migration_script='export TEST_C4_TASK3_FULL_SCHEMA_PROFILE=snapshot_c0_d1_v1; '+migration_script
         if snapshot_effects:snapshot_driver.prepare_source_container(runner,record,passwords['admin'])
+        if _full_context is not None and _full_context._full_c():record['stage']='source-migration-install'
         code,out,err=case_source_rpc(runner,record,container,'migration_setup',lambda:pg_exec(runner,container,['/bin/sh','-ec',migration_script,'migrate',ident['database'],migration],timeout=90))
         require(code==0 and out==b'C4_TASK3_MIGRATED\n' and err==b'','GENUINE_MIGRATOR_EXIT')
         record['migration_setup']=dict(exit_code=code,stdout_sha256=digest(out),stderr_sha256=digest(err),secret_scope='only_short_lived_inside_pg_setup_environment')

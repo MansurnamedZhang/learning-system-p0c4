@@ -247,11 +247,11 @@ def prepare_source_container(runner,record,admin_secret):
     for role in ('learning_runtime','learning_snapshot_claim_broker'):
         statement+="\nALTER ROLE "+role+" PASSWORD '"+login_password(admin_secret,role)+"';"
     d.sql(runner,record['container_id'],statement)
-    # Only this new PG container's writable-layer parent is adjusted. The
-    # two mounted roots already have their separately proved fresh FDs.
-    recipe='set -eu; p=/var/lib/knowweave-c4; test -d "$p"; test ! -L "$p"; test "$(stat -c "%u %g" "$p")" = "0 0"; chmod 700 "$p"; test "$(stat -c "%u %g %a" "$p")" = "0 0 700"; printf "SNAPSHOT_PRIVATE_CONTAINER_PARENT_READY\\n"'
-    _,out,err=d.pg_exec(runner,record['container_id'],['/bin/sh','-ec',recipe])
-    require(out==b'SNAPSHOT_PRIVATE_CONTAINER_PARENT_READY\n' and err==b'','SNAPSHOT_CONTAINER_PARENT')
+    # Only these two fixed writable-layer parents in this fresh PG container
+    # are adjusted; mounted roots, including /run/kwc4/sfx, remain unchanged.
+    recipe='set -eu; for p in /var/lib/knowweave-c4 /run/kwc4; do test -d "$p"; test ! -L "$p"; test "$(stat -c "%u %g" "$p")" = "0 0"; chmod 700 "$p"; test "$(stat -c "%u %g %a" "$p")" = "0 0 700"; done; printf "SNAPSHOT_PRIVATE_CONTAINER_PARENT_READY\\n"'
+    code,out,err=d.pg_exec(runner,record['container_id'],['/bin/sh','-ec',recipe])
+    require(code==0 and out==b'SNAPSHOT_PRIVATE_CONTAINER_PARENT_READY\n' and err==b'','SNAPSHOT_CONTAINER_PARENT')
     record['snapshot_source_login_setup']=dict(scram_configured=True,container_private_parent=True,classification='FRESH_TEST_FIXTURE_ADMINISTRATION_NOT_CAPTURE')
 
 class Worker:

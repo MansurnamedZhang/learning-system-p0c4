@@ -120,5 +120,109 @@ class FullSourcePrivilegeBehavior(unittest.TestCase):
                 self.assert_rejected(DRIVER.GateError('NATIVE_COMMAND_FAILED'), index)
 
 
+
+class FullCSourceTempFixtureBehavior(unittest.TestCase):
+    def context(self, case, full_c=True):
+        from scripts.p0c4_completion import full_import as full
+        plan=dict(case_name=case,case_id=DATABASES[0].removeprefix('learning_backup_c4_task3_'))
+        if full_c:plan['schema_profile']='snapshot_c0_d1_v1'
+        if case in full.SNAPSHOT_CASE_TESTS:
+            plan.update(format_version=3,snapshot_profile='root_snapshot_broker_v2')
+        else:plan['format_version']=2 if full_c else 1
+        return full.FullRehearsalContext(full._TOKEN,plan)
+
+    def record(self):
+        ident=dict(IDENTITY,case_id=DATABASES[0].removeprefix('learning_backup_c4_task3_'))
+        return ident,dict(identity=ident.copy(),container_id=CONTAINER,stage='independent-consumer-build')
+
+    def prepare(self, runner, context, ident=None, record=None):
+        if ident is None:ident,record=self.record()
+        return DRIVER._prepare_fresh_full_c_source_role(runner,CONTAINER,ident,context,record),record
+
+    def test_all_sixteen_fresh_full_c_cases_pay_owner_temp_transaction_before_broker_create(self):
+        from scripts.p0c4_completion import full_import as full
+        cases=[*full.RECOVERY_CASE_TESTS,*full.SNAPSHOT_CASE_TESTS]
+        self.assertEqual(len(cases),16)
+        for case in cases:
+            with self.subTest(case=case):
+                runner=RecordingRunner([(0,b'0\n',b''),(0,b'FULL_C_SOURCE_TEMP_READY\n',b''),(0,b'',b'')])
+                prepared,record=self.prepare(runner,self.context(case))
+                self.assertTrue(prepared)
+                self.assertEqual(len(runner.calls),3,'owner TEMP transaction must precede broker creation')
+                self.assertEqual(runner.replies,[])
+                self.assertEqual(runner.calls[0][0],command('postgres','postgres'))
+                self.assertIn(b'SELECT count(*)',runner.calls[0][1]['stdin'])
+                argv,options=runner.calls[1]
+                self.assertEqual(argv,command(DATABASES[0],'learning_admin'))
+                self.assertEqual(options['timeout'],5)
+                self.assertEqual(options['allowed'],(0,))
+                statement=options['stdin'].decode()
+                self.assertTrue(statement.startswith('BEGIN;'))
+                self.assertTrue(statement.endswith('COMMIT;'))
+                self.assertIn("current_database()<>'"+DATABASES[0]+"'",statement)
+                self.assertNotIn(DATABASES[1],statement)
+                for guard in ("session_user<>'learning_admin'","current_user<>'learning_admin'",'pg_catalog.pg_class','pg_catalog.pg_proc',"rolname='learning_snapshot_claim_broker'","current_setting('server_version_num')::int/10000<>18",'d.datdba','has_database_privilege','TEMPORARY'):
+                    self.assertIn(guard,statement)
+                grant='GRANT TEMPORARY ON DATABASE %I TO learning_admin,learning_runtime'
+                revoke='REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC'
+                self.assertLess(statement.index(grant),statement.index(revoke))
+                self.assertLess(statement.index(revoke),statement.index('FULL_C_SOURCE_TEMP_READY'))
+                for wide in ('GRANT ALL','WITH GRANT OPTION','GRANT CREATE','GRANT CONNECT','ALTER ROLE','GRANT EXECUTE'):
+                    self.assertNotIn(wide,statement)
+                self.assertEqual(statement.count('GRANT '),1)
+                self.assertEqual(statement.count('REVOKE '),1)
+                self.assertEqual(statement.count('a.grantor<>d.datdba'),2)
+                self.assertEqual(statement.count('a.is_grantable'),2)
+                import re
+                self.assertEqual(re.findall(r"EXECUTE format\('([^']+)',current_database\(\)\);",statement),[grant,revoke])
+                self.assertEqual(runner.calls[2][0],command('postgres','postgres'))
+                self.assertEqual(runner.calls[2][1]['stdin'],b'CREATE ROLE learning_snapshot_claim_broker LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 4;')
+                self.assertTrue(record['full_c_source_role_created_fresh'])
+                self.assertEqual(record['stage'],'source-full-c-fresh-privileges')
+
+    def test_legacy_none_and_non_c_full_do_not_execute_temp_or_broker_sql(self):
+        for context in (None,self.context('recovery-leases',False)):
+            runner=RecordingRunner([])
+            prepared,record=self.prepare(runner,context)
+            self.assertFalse(prepared)
+            self.assertEqual(runner.calls,[])
+            self.assertEqual(record['stage'],'independent-consumer-build')
+            self.assertNotIn('full_c_source_role_created_fresh',record)
+
+    def test_existing_broker_refuses_before_owner_acl_transaction(self):
+        for output in (b'1\n',b'2\n',b'',b'0|1\n'):
+            with self.subTest(output=output):
+                runner=RecordingRunner([(0,output,b'')])
+                with self.assertRaisesRegex(DRIVER.GateError,'FULL_C_SOURCE_ROLE_MUST_BE_ABSENT'):
+                    self.prepare(runner,self.context('snapshot-p6'))
+                self.assertEqual(len(runner.calls),1)
+                self.assertNotIn(b'GRANT ',runner.calls[0][1]['stdin'])
+
+    def test_unknown_nonfresh_or_owner_transaction_failure_never_creates_broker(self):
+        replies=[(1,b'',b'fresh database required'),(0,b'',b''),(0,b'FULL_C_SOURCE_TEMP_READY\n',b'warning'),(0,b'other\n',b'')]
+        for reply in replies:
+            with self.subTest(reply=reply):
+                runner=RecordingRunner([(0,b'0\n',b''),reply])
+                ident,record=self.record()
+                with self.assertRaisesRegex(DRIVER.GateError,'FULL_C_SOURCE_TEMP_PRIVILEGES'):
+                    self.prepare(runner,self.context('snapshot-p6'),ident,record)
+                self.assertEqual(len(runner.calls),2)
+                self.assertEqual(runner.calls[1][0],command(DATABASES[0],'learning_admin'))
+                self.assertNotIn('full_c_source_role_created_fresh',record)
+                self.assertEqual(record['stage'],'source-full-c-fresh-privileges')
+
+    def test_wrong_current_database_case_or_container_binding_refuses_without_sql(self):
+        for change in ('database','context_case','container'):
+            with self.subTest(change=change):
+                ident,record=self.record();context=self.context('snapshot-p6')
+                if change=='database':ident['database']=DATABASES[1];record['identity']=ident.copy()
+                elif change=='context_case':context._plan['case_id']=DATABASES[1].removeprefix('learning_backup_c4_task3_')
+                else:record['container_id']='2'*64
+                runner=RecordingRunner([])
+                with self.assertRaisesRegex(DRIVER.GateError,'FULL_C_SOURCE_FRESH_BINDING'):
+                    self.prepare(runner,context,ident,record)
+                self.assertEqual(runner.calls,[])
+
+
 if __name__ == '__main__':
     unittest.main()

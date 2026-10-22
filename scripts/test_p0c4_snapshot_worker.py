@@ -299,4 +299,62 @@ class SnapshotSourceBindAdapterTests(unittest.TestCase):
                     legacy.assert_not_called()
 
 
+class SnapshotFixedParentRecipeTests(unittest.TestCase):
+    MARKER=b'SNAPSHOT_PRIVATE_CONTAINER_PARENT_READY\n'
+
+    class Driver:
+        def __init__(self,reply):self.reply=reply;self.events=[]
+        def sql(self,runner,container,statement):self.events.append(('sql',container,statement))
+        def pg_exec(self,runner,container,command):
+            self.events.append(('pg_exec',container,command))
+            if isinstance(self.reply,Exception):raise self.reply
+            return self.reply
+
+    def prepare(self,reply=None):
+        driver=self.Driver((0,self.MARKER,b'')if reply is None else reply)
+        record=dict(container_id='a'*64)
+        with patch.object(worker,'_driver',return_value=driver):
+            worker.prepare_source_container(object(),record,'b'*64)
+        return driver,record
+
+    def test_both_fixed_parents_are_guarded_and_hardened_before_ready(self):
+        import re
+        import shlex
+        driver,record=self.prepare()
+        self.assertEqual([x[0]for x in driver.events],['sql','pg_exec'])
+        command=driver.events[1][2]
+        self.assertEqual(command[:2],['/bin/sh','-ec'])
+        recipe=command[2]
+        loop=re.fullmatch(r'set -eu; for p in ([^;]+); do (.+); done; printf "SNAPSHOT_PRIVATE_CONTAINER_PARENT_READY\\n"',recipe)
+        self.assertIsNotNone(loop,'both fixed fresh parent paths must be guarded before READY')
+        self.assertEqual(shlex.split(loop.group(1)),['/var/lib/knowweave-c4','/run/kwc4'])
+        operations=loop.group(2).split('; ')
+        self.assertEqual(operations,['test -d "$p"','test ! -L "$p"','test "$(stat -c "%u %g" "$p")" = "0 0"','chmod 700 "$p"','test "$(stat -c "%u %g %a" "$p")" = "0 0 700"'])
+        self.assertNotIn('mkdir',recipe)
+        self.assertNotIn('/run/kwc4/sfx',recipe)
+        self.assertNotIn('chmod -R',recipe)
+        self.assertEqual(record['snapshot_source_login_setup'],dict(scram_configured=True,container_private_parent=True,classification='FRESH_TEST_FIXTURE_ADMINISTRATION_NOT_CAPTURE'))
+
+    def test_ready_requires_known_zero_exact_marker_and_no_stderr(self):
+        for reply in [(1,self.MARKER,b''),(0,self.MARKER,b'warning'),(0,b'',b''),(0,self.MARKER+b'extra',b''),(0,self.MARKER.replace(b'\n',b'\r\n'),b'')]:
+            with self.subTest(reply=reply):
+                driver=self.Driver(reply);record=dict(container_id='a'*64)
+                with patch.object(worker,'_driver',return_value=driver),self.assertRaises(worker.SnapshotDriverError):
+                    worker.prepare_source_container(object(),record,'b'*64)
+                self.assertNotIn('snapshot_source_login_setup',record)
+                self.assertEqual([x[0]for x in driver.events],['sql','pg_exec'])
+
+    def test_login_role_and_container_binding_stay_fixed_without_parent_retry(self):
+        driver,record=self.prepare()
+        self.assertTrue(all(event[1]==record['container_id']for event in driver.events))
+        expected=''.join("\nALTER ROLE "+role+" PASSWORD '"+worker.login_password('b'*64,role)+"';"for role in ('learning_runtime','learning_snapshot_claim_broker'))
+        self.assertEqual(driver.events[0][2],expected)
+        error=RuntimeError('synthetic parent precondition rejection')
+        driver=self.Driver(error);record=dict(container_id='a'*64)
+        with patch.object(worker,'_driver',return_value=driver),self.assertRaises(RuntimeError)as caught:
+            worker.prepare_source_container(object(),record,'b'*64)
+        self.assertIs(caught.exception,error)
+        self.assertEqual(len(driver.events),2)
+        self.assertNotIn('snapshot_source_login_setup',record)
+
 if __name__=='__main__':unittest.main()
