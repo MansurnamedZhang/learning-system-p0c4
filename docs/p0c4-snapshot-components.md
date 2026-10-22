@@ -1,5 +1,19 @@
 # Task6 正向快照依赖组件
 
+## 2026-10-23 · Task6 候选代码 ebbe90f，native 0/16
+
+Task6 候选代码 ebbe90f 已冻结；最终同源 native 当前 0/16（五项基础＋十一项快照）。严格 Linux 结果须按本轮实际原件与独审另记，当前不宣称通过；Task6、Task7–9、C4、CompleteBackup 与生产继续 OPEN。
+
+候选源码检查点：`ebbe90f14739a59897c4426ecc599fd6b52a8144`；前提交 `29086f162ccb1208caa863ec7783c6351fce4c5e`。这是开发源码身份，公开仓库保持自己的快照提交历史，不把来源 ID 当作公开仓库同名提交。
+
+候选已接通完整C（C0＋D1）角色／模式合同、不透明源端效果捕获与复制、归一化后全表核对、原持锁副本交付和隔离收尾。代码与定向纯测不替代最终同源16项现场验收。
+
+正常公开恢复资格仍必须持有真实 CompleteBackup。本轮私有管理流程以同源 SourceLocalPin／不透明效果对象进行单机 rehearsal；不签发 CompleteBackup，不开放生产恢复或服务。缺少有效效果证明仍 Unknown/HOLD，禁止回源猜测、领养或重发。
+
+旧基础5/5仍分属509956e三项与0df5128两项；D1 PG24＋旧publisher3保留原分项信用，不能拼接成新候选的同源通过。失败、UNKNOWN与HOLD记录保持原样。
+
+以下此前分源／组件结果按原源码与批次保留，不提升旧证据或生产资格。
+
 ## 2026-10-23 · D1 阅读副本发布与持久收束组件
 
 本轮打通同一原操作内的领取、持有 Prepared 值的快照写入、runtime 原事务业务发布、原 COMMIT 成功知识，以及 `BUSINESS_COMMIT_KNOWN` → `WRITE_CLOSED` 的持久收束。没有从路径、返回的 staged 对象或日志内容重建写入能力；旧 stage-only 行为继续保留。
@@ -119,13 +133,13 @@ Linux 格式、类型检查、严格 Clippy 及两项纯测试通过。真实 Po
 
 Linux 格式、类型检查、严格 Clippy 与三项纯测试通过。8 项 Root 文件专项均实际通过，并完成独立原件复核及 Root 限定接受。它尚不是具有业务含义的 claim 历史，也不能单独提供 NoEffect 或 AlreadyCommitted 结论。
 
-## 下一步
+## 当前下一门（候选，native 0/16）
 
-1. 把捕获排空、原写入许可、完整文件事实与持久关闭记录接成正式 NoEffect／AlreadyCommitted 分类。
-2. 完整 C schema 与禁用目标角色的版本化导出／恢复合同，以及生产准入工厂。
-3. 冻结同一源码重跑恢复归一化、全表完整性、阅读与故障整链；完成 Task6 后再推进 Task7–9。
+1. Root冻结最终同源包并核来源、fresh Linux与真实ELF；代码候选和纯测不授native信用。
+2. 在固定完整C profile运行五基础＋十一快照场景，逐case自然1/0/0、原件、隔离停机与独审闭合，未知保持HOLD。
+3. Root限定接受后仅更新Task6代码＋规定单机结论；Task7/8/9、C4、CompleteBackup与生产仍OPEN。
 
-Task6/C4 保持 OPEN；独立备份存储、CompleteBackup 与生产另行验收。历史分项和失败／HOLD 证据均保留。
+正常公开恢复资格仍必须持有真实 CompleteBackup。本轮私有管理流程以同源 SourceLocalPin／不透明效果对象进行单机 rehearsal，不能借 Pin、组件回执或测试通过生成 CompleteBackup，也不能开放生产恢复或服务。缺少有效效果证明时仍 Unknown/HOLD，禁止回源猜测、领养或重发。
 
 ## 本轮验证与来源
 

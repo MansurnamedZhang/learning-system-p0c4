@@ -118,7 +118,12 @@ struct TargetBirthAttestation {
     template_database: String,
     baseline_cast_count: u64,
     public_schema: PublicSchemaState,
+    #[serde(skip)]
+    full_c_profile: Option<full_c_birth::FullCBirthProfile>,
 }
+
+#[cfg(any(target_os = "linux", test))]
+mod full_c_birth;
 
 #[cfg(any(target_os = "linux", test))]
 #[derive(Deserialize)]
@@ -265,6 +270,14 @@ fn parse_pinned_birth(
         return Err(BackupError::Invalid(
             "target birth attestation is not pinned",
         ));
+    }
+    let version: serde_json::Value = serde_json::from_slice(bytes)?;
+    if version
+        .get("format_version")
+        .and_then(serde_json::Value::as_u64)
+        == Some(2)
+    {
+        return full_c_birth::parse(bytes);
     }
     let birth: TargetBirthAttestation = serde_json::from_slice(bytes)?;
     if serde_json::to_vec(&birth)? != bytes {
@@ -430,6 +443,8 @@ pub struct RestorePreflight {
     bound_target: target_binding::BoundTargetGuard<File, Option<File>>,
     #[cfg(target_os = "linux")]
     sql_session: target_binding::LockChallenge<Transaction<'static, Postgres>>,
+    #[cfg(target_os = "linux")]
+    full_c_birth: Option<full_c_birth::FullCBirthProfile>,
 }
 
 impl RestorePreflight {
@@ -696,13 +711,29 @@ async fn preflight_linux(
     let assets = BackupDir::open_trusted_private_root(&config.asset_root)?;
     let facts = target_facts(sql_session.lease_mut(), assets.list()?.len()).await?;
     facts.validate()?;
-    verify_target_birth(sql_session.lease_mut(), config, &lock_root, &assets).await?;
+    let full_c_birth =
+        verify_target_birth(sql_session.lease_mut(), config, &lock_root, &assets).await?;
+    match (
+        crate::restore_policy::role_recipe_profile(&roles)?,
+        &full_c_birth,
+    ) {
+        (crate::restore_policy::RoleProfile::BaseV1, None) => {}
+        (crate::restore_policy::RoleProfile::C0D1V1, Some(profile)) => {
+            profile.bind_roles(&roles)?
+        }
+        _ => {
+            return Err(BackupError::Invalid(
+                "target birth and package schema profile differ",
+            ));
+        }
+    }
     let sql_session = bound_target.verify_sql_session(sql_session, backend_pid, database_oid)?;
     Ok(RestorePreflight {
         manifest,
         plan,
         bound_target,
         sql_session,
+        full_c_birth,
     })
 }
 
@@ -712,7 +743,7 @@ async fn verify_target_birth(
     config: &RestorePreflightConfig,
     control: &BackupDir,
     assets: &BackupDir,
-) -> Result<(), BackupError> {
+) -> Result<Option<full_c_birth::FullCBirthProfile>, BackupError> {
     // This pin is installed in the reviewed build *before* restore. A
     // same-run caller cannot provide the expected IDs or digest in config.
     let pinned = option_env!("KNOWWEAVE_C4_TARGET_BIRTH_SHA256").ok_or(BackupError::Invalid(
@@ -731,7 +762,9 @@ async fn verify_import_source_birth(
     let pinned = option_env!("KNOWWEAVE_C4_IMPORT_SOURCE_BIRTH_SHA256").ok_or(
         BackupError::Invalid("fixture source birth is not build-pinned"),
     )?;
-    verify_birth_with_pin(conn, config, control, assets, pinned).await
+    verify_birth_with_pin(conn, config, control, assets, pinned)
+        .await
+        .map(|_| ())
 }
 
 // Both pins enter this complete verifier. Production still obtains its sole
@@ -743,7 +776,7 @@ async fn verify_birth_with_pin(
     control: &BackupDir,
     assets: &BackupDir,
     pinned: &str,
-) -> Result<(), BackupError> {
+) -> Result<Option<full_c_birth::FullCBirthProfile>, BackupError> {
     let name = format!("{}.birth.json", config.expected_database);
     let file = control.open_file(&name)?;
     let meta = file.metadata()?;
@@ -804,7 +837,11 @@ async fn verify_birth_with_pin(
         public_schema: public_schema.0,
         runtime_can_create_public: public_schema.1,
     };
-    birth.validate(&config.expected_database, &live)
+    birth.validate(&config.expected_database, &live)?;
+    if let Some(profile) = &birth.full_c_profile {
+        profile.verify_live(conn).await?;
+    }
+    Ok(birth.full_c_profile)
 }
 
 #[cfg(target_os = "linux")]
@@ -1193,6 +1230,7 @@ mod tests {
             template_database: "template0".into(),
             baseline_cast_count: 203,
             public_schema: sample_public_schema(),
+            full_c_profile: None,
         };
         let live = ObservedTargetBirth {
             database_oid: 16385,
@@ -1243,6 +1281,7 @@ mod tests {
             template_database: "template0".into(),
             baseline_cast_count: 203,
             public_schema: sample_public_schema(),
+            full_c_profile: None,
         };
         let canonical = serde_json::to_vec(&birth).unwrap();
         let pinned = format!("{:x}", sha2::Sha256::digest(&canonical));
@@ -1511,6 +1550,7 @@ mod tests {
             template_database: "template0".into(),
             baseline_cast_count: 203,
             public_schema: sample_public_schema(),
+            full_c_profile: None,
         };
         let mut live = ObservedTargetBirth {
             database_oid: 16385,

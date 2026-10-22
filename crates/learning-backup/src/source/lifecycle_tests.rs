@@ -344,6 +344,79 @@ pub(crate) mod live {
         rejected_nonready: crate::AssetRow,
     }
     impl Fixture {
+        /// A separate fixed native fixture for text-only snapshot recovery.
+        /// Root mounts these already-created empty asset roots read-only;
+        /// unlike new(), this constructor never uploads or writes an original.
+        pub async fn text_only() -> Self {
+            assert_eq!(unsafe { libc::geteuid() }, 0);
+            assert_eq!(unsafe { libc::getegid() }, 0);
+            let database = env("DATABASE");
+            assert!(crate::maintenance::valid_c4_database(&database));
+            let dsn = String::from_utf8(private_file(&path("ADMIN_DSN_FILE"))).unwrap();
+            let pool = PgPoolOptions::new()
+                .max_connections(1)
+                .min_connections(0)
+                .connect(dsn.trim())
+                .await
+                .expect("fresh management PG18 text-only fixture");
+            let control = path("CONTROL_ROOT");
+            let (_, binding) = binding::preissued_fixture(&control);
+            let pin = path("PIN_ROOT");
+            let asset = path("ASSETS_ROOT");
+            let stage = path("ASSET_STAGING_ROOT");
+            let proof_root = path("PROOF_ROOT");
+            for root in [&pin, &asset, &stage] {
+                assert!(
+                    BackupDir::open_trusted_private_root(root)
+                        .unwrap()
+                        .list()
+                        .unwrap()
+                        .is_empty()
+                );
+            }
+            BackupDir::open_trusted_private_root(&proof_root).unwrap();
+            let counts: (i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM public.asset),(SELECT count(*) FROM public.job),(SELECT count(*) FROM public.job_outbox)",
+            ).fetch_one(&pool).await.unwrap();
+            assert_eq!(counts, (0, 0, 0));
+            // Existing directories are opened only. create_dir_all in the store
+            // constructor is a no-op on these real read-only mount roots.
+            let assets = FsAssetStore::new(asset, stage).unwrap();
+            let id = Uuid::new_v4();
+            let config = SourceBackupConfig {
+                backup_id: id,
+                expected_database: database,
+                expected_compose_project: env("COMPOSE_PROJECT"),
+                isolation_attestation: proof_root.join(format!("isolation-{id}.json")),
+                control_root: control,
+                local_pin_root: pin,
+                pg_dump_executable: "/usr/lib/postgresql/18/bin/pg_dump".into(),
+                pgpassfile: path("PGPASSFILE"),
+                pg_host: "localhost".into(),
+                pg_port: 5432,
+                drain_timeout: Duration::from_secs(15),
+            };
+            let mut fixture = Self {
+                pool,
+                config,
+                assets,
+                originals: Vec::new(),
+                binding,
+                proof_root,
+                ready_rows: Vec::new(),
+                linked_ready: (Uuid::nil(), Uuid::nil()),
+                // Legacy retained() is deliberately not used by this fixture.
+                rejected_nonready: crate::AssetRow {
+                    space_id: Uuid::nil(),
+                    id: Uuid::nil(),
+                    sha256: "0".repeat(64),
+                    byte_size: 0,
+                    storage_key: String::new(),
+                },
+            };
+            fixture.refresh().await;
+            fixture
+        }
         pub async fn new() -> Self {
             assert_eq!(
                 unsafe { libc::geteuid() },

@@ -390,7 +390,7 @@ impl Read for DeadlineRead<'_> {
 #[cfg(target_os = "linux")]
 pub use crate::restore_preflight::target_binding::controlled_import::full::{
     AssetRestoreReport, ImportedTarget, RecoveredInstance, RecoveryPending, RecoveryValidation,
-    restore_complete_backup, validate_recovery,
+    restore_complete_backup, validate_recovery, validate_recovery_with_snapshot_effects,
 };
 
 #[cfg(not(target_os = "linux"))]
@@ -458,6 +458,11 @@ pub fn verified_complete_role_recipe(_: uuid::Uuid) -> Result<Vec<u8>, BackupErr
 #[cfg(any(test, target_os = "linux"))]
 pub(crate) fn trusted_ownership() -> Result<String, BackupError> {
     let contract = SchemaContract::embedded()?;
+    trusted_ownership_for(&contract)
+}
+
+#[cfg(any(test, target_os = "linux"))]
+pub(crate) fn trusted_ownership_for(contract: &SchemaContract) -> Result<String, BackupError> {
     let text = std::str::from_utf8(contract.ownership_template())
         .map_err(|_| BackupError::Invalid("embedded ownership utf8"))?;
     const REVOKE: &str = "REVOKE ALL ON FUNCTION public.lock_space_grant(requested_actor uuid, requested_space uuid) FROM PUBLIC;";

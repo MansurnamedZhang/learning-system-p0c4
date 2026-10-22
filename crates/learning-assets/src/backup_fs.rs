@@ -19,6 +19,10 @@ impl BackupDir {
     pub(crate) fn from_held(dir: Dir) -> Self {
         Self(dir)
     }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn clone_inner(&self) -> io::Result<Dir> {
+        self.0.try_clone()
+    }
     /// Restore target boundary, including every ancestor from `/`.
     pub fn open_trusted_private_root(path: &Path) -> io::Result<Self> {
         Dir::open_trusted_private_root(path).map(Self)

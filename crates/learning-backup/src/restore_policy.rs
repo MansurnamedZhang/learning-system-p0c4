@@ -184,6 +184,42 @@ struct RoleMembership {
 /// The role recipe contains only names and non-sensitive flags. Passwords
 /// and unknown roles are not accepted from backup content.
 pub fn validate_role_recipe(bytes: &[u8]) -> Result<(), BackupError> {
+    role_recipe_profile(bytes).map(|_| ())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RoleProfile {
+    BaseV1,
+    C0D1V1,
+}
+
+#[derive(Deserialize)]
+struct RoleVersion {
+    format_version: u32,
+}
+
+pub(crate) fn role_recipe_profile(bytes: &[u8]) -> Result<RoleProfile, BackupError> {
+    if bytes.len() > 16 * 1024 || bytes.is_empty() {
+        return Err(BackupError::Invalid("role recipe size"));
+    }
+    let version: RoleVersion = serde_json::from_slice(bytes)?;
+    match version.format_version {
+        1 => {
+            validate_base_role_recipe(bytes)?;
+            Ok(RoleProfile::BaseV1)
+        }
+        2 => {
+            validate_c0_d1_role_recipe(
+                bytes,
+                crate::full_restore::SchemaContract::c0_d1_contract_sha256()?,
+            )?;
+            Ok(RoleProfile::C0D1V1)
+        }
+        _ => Err(BackupError::Invalid("unknown role recipe version")),
+    }
+}
+
+fn validate_base_role_recipe(bytes: &[u8]) -> Result<(), BackupError> {
     if bytes.len() > 16 * 1024 || bytes.is_empty() {
         return Err(BackupError::Invalid("role recipe size"));
     }
@@ -220,6 +256,166 @@ pub fn validate_role_recipe(bytes: &[u8]) -> Result<(), BackupError> {
         return Err(BackupError::Invalid("unsafe restore role membership"));
     }
     Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FullCRoleRecipe {
+    format_version: u32,
+    roles: Vec<Role>,
+    memberships: Vec<RoleMembership>,
+    components: Vec<FullCComponent>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FullCComponent {
+    id: String,
+    version: u32,
+    schema_contract_sha256: String,
+}
+
+fn validate_c0_d1_role_recipe(bytes: &[u8], expected: &str) -> Result<(), BackupError> {
+    let recipe: FullCRoleRecipe = serde_json::from_slice(bytes)?;
+    if !crate::valid_digest(expected)
+        || recipe.format_version != 2
+        || recipe.roles.len() != 4
+        || recipe.memberships.len() != 1
+        || recipe.components.len() != 1
+    {
+        return Err(BackupError::Invalid("C0+D1 role recipe shape"));
+    }
+    for (role, name) in recipe.roles.iter().zip([
+        "learning_admin",
+        "learning_auth_lock",
+        "learning_runtime",
+        "learning_snapshot_claim_broker",
+    ]) {
+        if role.name != name
+            || role.login != (name != "learning_auth_lock")
+            || role.superuser
+            || role.createdb
+            || role.createrole
+            || role.bypassrls
+            || role.replication
+            || role.connection_limit < -1
+            || (name == "learning_snapshot_claim_broker"
+                && (role.inherit || role.connection_limit != 4))
+        {
+            return Err(BackupError::Invalid("C0+D1 fixed source role flags"));
+        }
+    }
+    let membership = &recipe.memberships[0];
+    let component = &recipe.components[0];
+    if membership.role != "learning_auth_lock"
+        || membership.member != "learning_admin"
+        || membership.inherit
+        || !membership.set
+        || membership.admin
+        || component.id != "snapshot_c0_d1"
+        || component.version != 1
+        || component.schema_contract_sha256 != expected
+    {
+        return Err(BackupError::Invalid("C0+D1 role component binding"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod c0_d1_role_tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    fn source_recipe() -> Value {
+        let roles = [
+            "learning_admin",
+            "learning_auth_lock",
+            "learning_runtime",
+            "learning_snapshot_claim_broker",
+        ]
+        .map(|name| {
+            json!({"name":name,"login":name!="learning_auth_lock",
+                "inherit":name!="learning_snapshot_claim_broker","superuser":false,
+                "createdb":false,"createrole":false,"bypassrls":false,"replication":false,
+                "connection_limit":if name=="learning_snapshot_claim_broker" {4}else{-1}})
+        });
+        json!({"format_version":2,"roles":roles,"memberships":[{"role":"learning_auth_lock",
+            "member":"learning_admin","inherit":false,"set":true,"admin":false}],
+            "components":[{"id":"snapshot_c0_d1","version":1,"schema_contract_sha256":"a".repeat(64)}]})
+    }
+
+    #[test]
+    fn full_c_roles_bind_one_component_and_reject_every_source_broker_escalation() {
+        let original = source_recipe();
+        validate_c0_d1_role_recipe(&serde_json::to_vec(&original).unwrap(), &"a".repeat(64))
+            .unwrap();
+        for (key, value) in [
+            ("login", json!(false)),
+            ("inherit", json!(true)),
+            ("superuser", json!(true)),
+            ("createdb", json!(true)),
+            ("createrole", json!(true)),
+            ("bypassrls", json!(true)),
+            ("replication", json!(true)),
+            ("connection_limit", json!(-1)),
+            ("name", json!("learning_snapshot_broker")),
+            ("password", json!("forbidden")),
+        ] {
+            let mut changed = original.clone();
+            changed["roles"][3][key] = value;
+            assert!(
+                validate_c0_d1_role_recipe(&serde_json::to_vec(&changed).unwrap(), &"a".repeat(64))
+                    .is_err(),
+                "{key}"
+            );
+        }
+        for (key, value) in [
+            ("id", json!("observation_v1")),
+            ("version", json!(2)),
+            ("schema_contract_sha256", json!("b".repeat(64))),
+            ("target_login", json!(true)),
+        ] {
+            let mut changed = original.clone();
+            changed["components"][0][key] = value;
+            assert!(
+                validate_c0_d1_role_recipe(&serde_json::to_vec(&changed).unwrap(), &"a".repeat(64))
+                    .is_err(),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
+    fn full_c_roles_do_not_widen_base_v1_or_accept_ambiguous_versions() {
+        let original = source_recipe();
+        for changed in [original.clone(), {
+            let mut x = original.clone();
+            x["format_version"] = json!(1);
+            x
+        }] {
+            assert!(validate_base_role_recipe(&serde_json::to_vec(&changed).unwrap()).is_err());
+        }
+        for raw in [
+            br#"{"format_version":true}"#.as_slice(),
+            br#"{"format_version":1,"format_version":2}"#.as_slice(),
+            br#"{"format_version":3}"#.as_slice(),
+        ] {
+            assert!(role_recipe_profile(raw).is_err());
+        }
+        let mut base = original;
+        base["format_version"] = json!(1);
+        base["roles"].as_array_mut().unwrap().pop();
+        base.as_object_mut().unwrap().remove("components");
+        let bytes = serde_json::to_vec(&base).unwrap();
+        assert_eq!(role_recipe_profile(&bytes).unwrap(), RoleProfile::BaseV1);
+        assert_eq!(
+            crate::full_restore::SchemaContract::for_role_recipe(&bytes)
+                .unwrap()
+                .table_names()
+                .count(),
+            64
+        );
+    }
 }
 
 /// A job row read from the restored DB before any Worker is allowed to start.

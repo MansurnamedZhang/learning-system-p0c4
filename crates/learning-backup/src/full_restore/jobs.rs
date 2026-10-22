@@ -1,5 +1,6 @@
 //! Management-only job normalization. No external-effect authority is inferred
 //! from the current registry: its v1 roster contains no snapshot export root.
+//! Positive findings require the original captured-and-independently-copied v2 capability.
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 use crate::{
@@ -50,27 +51,68 @@ const INTENT_FILES: [&str; 5] = [
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct JobInventory {
+pub(crate) struct JobInventory {
     tables: BTreeMap<String, Vec<Value>>,
 }
+impl JobInventory {
+    pub(crate) fn tables(&self) -> &BTreeMap<String, Vec<Value>> {
+        &self.tables
+    }
+}
 
-/// Observation only. Its private construction always classifies every snapshot
-/// effect as Unknown; neither a caller enum nor a directory path is accepted.
+/// No caller enum or directory can create positive reconciliation. Only the
+/// independently copied v2 capability can populate the private finding map.
 pub(crate) struct ExternalReconciliation {
     identity: Value,
     before: JobInventory,
     observations: Value,
     holds: Vec<Value>,
+    findings: BTreeMap<Uuid, ExternalEffectFinding>,
+    #[cfg(target_os = "linux")]
+    copied: Option<crate::destination::snapshot_effects::CopiedSnapshotEffectsV2>,
 }
 
 /// A committed normalization delta, never recovery/activation eligibility.
 /// Source tokens and complete row images occur only in private sidecar evidence.
 pub(crate) struct JobRecoveryReport {
     evidence: Value,
+    committed: JobInventory,
     #[cfg(test)]
     held: usize,
     has_holds: bool,
     budget: MetadataBudget,
+}
+
+/// Re-read all six job/reference tables after the remaining application checks.
+/// Only the original committed report supplies the expected rows.
+#[cfg(target_os = "linux")]
+pub(crate) async fn verify_committed_rows(
+    target: &mut ImportedTarget,
+    report: &JobRecoveryReport,
+) -> Result<Value, BackupError> {
+    target.recheck().await?;
+    let current = inventory(target.connection(), &report.budget).await?;
+    require_committed_rows(&current, &report.committed)?;
+    target.recheck().await?;
+    Ok(
+        json!({"format_version":1,"capability":"recovery_committed_job_rows_rechecked_v1",
+        "tables":TABLES.map(|(name,_)|name),"rows_sha256":digest_charged(&current,Some(&report.budget))?,
+        "normalization_report_sha256":report.canonical_sha256()?,"all_columns_compared":true}),
+    )
+}
+
+fn require_committed_rows(
+    current: &JobInventory,
+    committed: &JobInventory,
+) -> Result<(), BackupError> {
+    validate_inventory_budget(current)?;
+    validate_inventory_budget(committed)?;
+    if current != committed {
+        return Err(BackupError::Invalid(
+            "recovery normalized rows changed after commit",
+        ));
+    }
+    Ok(())
 }
 
 impl JobRecoveryReport {
@@ -299,10 +341,27 @@ fn policy_row(job: &Value, event_type: &str) -> Result<RestoredJob, BackupError>
     })
 }
 
+#[cfg(test)]
 fn plan_changes(inventory: &JobInventory) -> Result<Vec<PlannedChange>, BackupError> {
+    plan_changes_with_findings(inventory, &BTreeMap::new())
+}
+
+fn plan_changes_with_findings(
+    inventory: &JobInventory,
+    findings: &BTreeMap<Uuid, ExternalEffectFinding>,
+) -> Result<Vec<PlannedChange>, BackupError> {
     validate_inventory_budget(inventory)?;
     let jobs = indexed(rows(inventory, "job")?, "id")?;
     let events = indexed(rows(inventory, "job_outbox")?, "id")?;
+    if findings.iter().any(|(job, finding)| {
+        !jobs.contains_key(job)
+            || !matches!(
+                finding,
+                ExternalEffectFinding::ConfirmedNoEffect | ExternalEffectFinding::AlreadyCommitted
+            )
+    }) {
+        return Err(BackupError::Invalid("positive snapshot finding roster"));
+    }
     let mut seen_outbox = std::collections::BTreeSet::new();
     let mut changes = Vec::new();
     for (job_id, job) in jobs {
@@ -316,9 +375,27 @@ fn plan_changes(inventory: &JobInventory) -> Result<Vec<PlannedChange>, BackupEr
         {
             return Err(BackupError::Invalid("recovery job outbox binding"));
         }
-        let row = policy_row(job, text(event, "event_type")?)?;
+        let mut row = policy_row(job, text(event, "event_type")?)?;
+        if row.event_type == "snapshot_export_requested" {
+            row.external_effect = findings
+                .get(&job_id)
+                .copied()
+                .unwrap_or(ExternalEffectFinding::Unknown);
+        } else if findings.contains_key(&job_id) {
+            return Err(BackupError::Invalid(
+                "snapshot finding attached to another job family",
+            ));
+        }
         let change = match classify_restored_job(&row)? {
-            JobRecoveryAction::RetryWait => Some(("retry_wait", true, "recovery_interrupted")),
+            JobRecoveryAction::RetryWait => Some((
+                if row.event_type == "snapshot_export_requested" {
+                    "snapshot_retry_wait"
+                } else {
+                    "retry_wait"
+                },
+                true,
+                "recovery_interrupted",
+            )),
             JobRecoveryAction::FailedRetryBudget => Some(("failed", false, "recovery_interrupted")),
             JobRecoveryAction::AwaitExternalReconciliation
                 if matches!(
@@ -473,8 +550,27 @@ fn unknown_effects_metered(
     registry_observation: Value,
     budget: Option<&MetadataBudget>,
 ) -> Result<ExternalReconciliation, BackupError> {
-    // Validate the real DB projection before it can become normalization input.
-    plan_changes(&before)?;
+    assemble_effects(
+        identity,
+        before,
+        registry_observation,
+        budget,
+        BTreeMap::new(),
+        None,
+    )
+}
+
+// Private assembly is also exercised by policy tests. Production positive maps
+// originate only in inspect_copied_external_effects, never in a caller payload.
+fn assemble_effects(
+    identity: Value,
+    before: JobInventory,
+    registry_observation: Value,
+    budget: Option<&MetadataBudget>,
+    findings: BTreeMap<Uuid, ExternalEffectFinding>,
+    captured_evidence: Option<Value>,
+) -> Result<ExternalReconciliation, BackupError> {
+    plan_changes_with_findings(&before, &findings)?;
     let mut jobs = BTreeMap::new();
     for job in rows(&before, "job")? {
         jobs.insert(id(job, "outbox_id")?, job);
@@ -494,6 +590,14 @@ fn unknown_effects_metered(
             .push(result.clone());
     }
     let mut holds = reconciliation_join_holds_metered(&before, budget)?;
+    if !findings.is_empty() && !holds.is_empty() {
+        // A wrong request may name a different job while sharing this outbox;
+        // checking only hold.job_id would miss that conflict. No positive
+        // normalization begins until the whole imported join roster closes.
+        return Err(BackupError::Invalid(
+            "positive finding conflicts with imported join",
+        ));
+    }
     for event in rows(&before, "job_outbox")? {
         if text(event, "event_type")? != "snapshot_export_requested" {
             continue;
@@ -505,8 +609,11 @@ fn unknown_effects_metered(
         let results = job_id
             .and_then(|value| results_by_job.remove(&value))
             .unwrap_or_default();
+        if job_id.is_some_and(|id| findings.contains_key(&id)) {
+            continue;
+        }
         holds.push(json!({
-            "finding":"UNKNOWN", "reason":"SNAPSHOT_EXPORT_ROOT_NOT_ENROLLED_IN_REGISTRY_V1",
+            "finding":"UNKNOWN", "reason":if captured_evidence.is_some() {"SNAPSHOT_V2_EVIDENCE_INCOMPLETE"} else {"SNAPSHOT_EXPORT_ROOT_NOT_ENROLLED_IN_REGISTRY_V1"},
             "outbox_id":outbox_id, "job_id":job_id,
             "imported_job":job, "imported_outbox":event,
             "imported_requests":requests, "imported_results":results,
@@ -517,15 +624,24 @@ fn unknown_effects_metered(
         "format_version":1, "capability":"recovery_external_effect_observation_v1",
         "identity":identity, "before_sha256":digest_charged(&before, budget)?,
         "registry_observation":registry_observation,
-        "export_authority_available":false, "positive_snapshot_findings":0,
-        "snapshot_effects_are_unknown":true, "external_artifacts_opened":0,
+        "export_authority_available":captured_evidence.is_some(),
+        "positive_snapshot_findings":findings.len(),
+        "snapshot_effects_are_unknown":findings.is_empty(),
+        "snapshot_capture":captured_evidence,
         "hold_count":holds.len()
     });
+    let mut observations = observations;
+    if findings.is_empty() && observations["snapshot_capture"].is_null() {
+        observations["external_artifacts_opened"] = json!(0);
+    }
     Ok(ExternalReconciliation {
         identity,
         before,
         observations,
         holds,
+        findings,
+        #[cfg(target_os = "linux")]
+        copied: None,
     })
 }
 
@@ -611,7 +727,7 @@ fn compare_delta(
 }
 
 #[cfg(target_os = "linux")]
-async fn inventory(
+pub(crate) async fn inventory(
     conn: &mut sqlx::PgConnection,
     budget: &MetadataBudget,
 ) -> Result<JobInventory, BackupError> {
@@ -711,6 +827,197 @@ pub(crate) async fn inspect_external_effects_without_export_authority(
     }
     .await;
     isolate_error(target, result).await
+}
+
+/// Bind the independently copied, frozen v2 evidence to the actual imported
+/// six-table projection. A current registry/path/receipt is never a substitute.
+#[cfg(target_os = "linux")]
+pub(crate) fn inspect_copied_external_effects<'a>(
+    target: &'a mut ImportedTarget,
+    registry: &'a crate::RegistryLease,
+    copied: crate::destination::snapshot_effects::CopiedSnapshotEffectsV2,
+) -> Pin<Box<dyn Future<Output = Result<ExternalReconciliation, BackupError>> + Send + 'a>> {
+    Box::pin(async move {
+        let result = async {
+            let budget = target.recovery_metadata_budget();
+            registry.recheck()?;
+            target.recheck().await?;
+            let before = inventory(target.connection(), &budget).await?;
+            let identity = target.recovery_identity();
+            let verified = copied.reconcile_with_budget(&identity, &before, &budget)?;
+            let mut findings = BTreeMap::new();
+            for row in rows(&before, "job")? {
+                let job_id = id(row, "id")?;
+                let finding = verified.finding(job_id);
+                if matches!(
+                    finding,
+                    ExternalEffectFinding::ConfirmedNoEffect
+                        | ExternalEffectFinding::AlreadyCommitted
+                ) {
+                    findings.insert(job_id, finding);
+                }
+            }
+            let observation = verified.evidence().clone();
+            charge(&budget, serde_json::to_vec(&observation)?.len() as u64)?;
+            registry.recheck()?;
+            target.recheck().await?;
+            let mut effects = assemble_effects(
+                identity,
+                before,
+                json!({"generation":registry.generation().generation,
+                    "generation_sha256":digest_charged(registry.generation(),Some(&budget))?,
+                    "snapshot_export_root_enrolled":true}),
+                Some(&budget),
+                findings,
+                Some(observation),
+            )?;
+            effects.copied = Some(copied);
+            Ok(effects)
+        }
+        .await;
+        isolate_error(target, result).await
+    })
+}
+
+/// Real application delivery against the original held management transaction.
+/// Every file comes from the independently copied destination-only package. The
+/// private authorization and iterator keep grant locks alive for all byte reads.
+#[cfg(target_os = "linux")]
+pub(crate) async fn verify_copied_deliveries(
+    target: &mut ImportedTarget,
+    effects: &ExternalReconciliation,
+) -> Result<Value, BackupError> {
+    let budget = target.recovery_metadata_budget();
+    if effects.identity != target.recovery_identity() {
+        return Err(BackupError::Invalid("snapshot delivery target changed"));
+    }
+    let Some(copied) = &effects.copied else {
+        if !effects.findings.is_empty() {
+            return Err(BackupError::Invalid(
+                "positive finding lost copied authority",
+            ));
+        }
+        return Ok(
+            json!({"count":0,"files":0,"bytes":0,"execution":"NO_POSITIVE_SNAPSHOT_FINDING"}),
+        );
+    };
+    let deadline = target.recovery_phase_deadline(std::time::Duration::from_secs(60));
+    let identity = target.recovery_identity();
+    let delivery_root = target.recovery_control()?.create_dir("snapshot-delivery")?;
+    let restored =
+        tokio::task::block_in_place(|| copied.restore_deliveries(&identity, &delivery_root))?;
+    if restored.target_identity() != &identity || std::time::Instant::now() >= deadline {
+        return Err(BackupError::Invalid(
+            "snapshot restored delivery target or deadline differs",
+        ));
+    }
+    target.recheck().await?;
+    let mut delivered = Vec::new();
+    for (job_id, finding) in &effects.findings {
+        if *finding != ExternalEffectFinding::AlreadyCommitted {
+            continue;
+        }
+        target.recheck().await?;
+        let job = rows(&effects.before, "job")?
+            .iter()
+            .find(|row| id(row, "id").ok() == Some(*job_id))
+            .ok_or(BackupError::Invalid("snapshot delivery job absent"))?;
+        let outbox_id = id(job, "outbox_id")?;
+        let event = rows(&effects.before, "job_outbox")?
+            .iter()
+            .find(|row| id(row, "id").ok() == Some(outbox_id))
+            .ok_or(BackupError::Invalid("snapshot delivery event absent"))?;
+        let actor = learning_core::Principal {
+            actor_id: id(event, "actor_id")?,
+        };
+        let authorization = learning_db::SnapshotStore::authorize_recovery_delivery(
+            target.recovery_reading_transaction(),
+            actor,
+            *job_id,
+        )
+        .await
+        .map_err(|_| BackupError::Invalid("held snapshot delivery authorization failed"))?;
+        let token = authorization.stage_token();
+        let manifest = authorization.manifest_sha256().to_owned();
+        let receipt = rows(&effects.before, "snapshot_export_result")?
+            .iter()
+            .find(|row| id(row, "job_id").ok() == Some(*job_id))
+            .ok_or(BackupError::Invalid("snapshot delivery receipt absent"))?;
+        if id(receipt, "stage_token")? != token || text(receipt, "manifest_sha256")? != manifest {
+            return Err(BackupError::Invalid(
+                "snapshot delivery winning receipt differs",
+            ));
+        }
+        let files = restored.with_package(*job_id, |package| {
+            authorization
+                .open_files(package)
+                .map_err(|_| BackupError::Invalid("snapshot copied delivery package differs"))
+        })?;
+        let file_evidence = tokio::task::block_in_place(|| {
+            let mut records = Vec::new();
+            let mut buffer = [0_u8; 65536];
+            for file in files {
+                let (name, mut file) = file.map_err(|_| {
+                    BackupError::Invalid("snapshot copied file verification failed")
+                })?;
+                let expected_size = file.metadata()?.len();
+                charge(
+                    &budget,
+                    expected_size.checked_add(1).ok_or(BackupError::Overflow)?,
+                )?;
+                let mut hash = Sha256::new();
+                let mut bytes = 0_u64;
+                loop {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(BackupError::Capacity("snapshot delivery deadline"));
+                    }
+                    let count = file.read(&mut buffer)?;
+                    if std::time::Instant::now() >= deadline {
+                        return Err(BackupError::Capacity("snapshot delivery deadline"));
+                    }
+                    if count == 0 {
+                        break;
+                    }
+                    bytes = bytes
+                        .checked_add(count as u64)
+                        .ok_or(BackupError::Overflow)?;
+                    hash.update(&buffer[..count]);
+                }
+                if std::time::Instant::now() >= deadline {
+                    return Err(BackupError::Capacity("snapshot delivery deadline"));
+                }
+                if bytes != expected_size {
+                    return Err(BackupError::Invalid(
+                        "snapshot sealed delivery size changed",
+                    ));
+                }
+                records
+                    .push(json!({"path":name,"bytes":bytes,"sha256":hex::encode(hash.finalize())}));
+            }
+            if records.is_empty() {
+                return Err(BackupError::Invalid("snapshot delivered no package files"));
+            }
+            Ok::<_, BackupError>(records)
+        })?;
+        // No borrow of the original transaction survives the completed reader.
+        if std::time::Instant::now() >= deadline {
+            return Err(BackupError::Capacity("snapshot delivery deadline"));
+        }
+        target.recheck().await?;
+        if std::time::Instant::now() >= deadline {
+            return Err(BackupError::Capacity("snapshot delivery deadline"));
+        }
+        delivered.push(json!({"job_id":job_id,"stage_token":token,"manifest_sha256":manifest,"files":file_evidence}));
+    }
+    let evidence = json!({"count":delivered.len(),"deliveries":delivered,
+        "execution":"REAL_SNAPSHOT_DELIVERY_CORE_ON_HELD_MANAGEMENT_TRANSACTION_RECOVERY_CONTROL_COPY",
+        "recovery_copy_receipt_sha256":restored.receipt_sha256(),
+        "source_access":false,"runtime_reconnected":false,"republished":false});
+    charge(&budget, serde_json::to_vec(&evidence)?.len() as u64)?;
+    if std::time::Instant::now() >= deadline {
+        return Err(BackupError::Capacity("snapshot delivery deadline"));
+    }
+    Ok(evidence)
 }
 
 #[cfg(target_os = "linux")]
@@ -822,7 +1129,7 @@ async fn normalize_inner(
         return Err(BackupError::Invalid("recovery effect target differs"));
     }
     let micros = recovery_micros(recovery_time)?;
-    let changes = plan_changes(&effects.before)?;
+    let changes = plan_changes_with_findings(&effects.before, &effects.findings)?;
     let root = target.recovery_control()?;
     // create-exclusive directory is the irreversible no-replay fence, including
     // partial writes and a crash before any SQL. No existing directory is repaired.
@@ -914,12 +1221,14 @@ async fn normalize_inner(
         "identity":identity,"before":effects.before,"after":committed,
         "recovery_epoch_micros":micros,"planned_delta":changes,"applied_delta":deltas,
         "holds":effects.holds,"held_jobs":held,"has_holds":!effects.holds.is_empty(),
-        "external_snapshot_bytes_verified":false,"normalization_commit_known":true,
+        "external_snapshot_bytes_verified":effects.findings.values().any(|finding| *finding == ExternalEffectFinding::AlreadyCommitted),
+        "positive_snapshot_findings":effects.findings.len(),"normalization_commit_known":true,
         "native_old_token_rejection_verified":false,"usable":false
     });
     persist(&dir, "committed.json", &evidence, &budget)?;
     Ok(JobRecoveryReport {
         evidence,
+        committed,
         #[cfg(test)]
         held,
         has_holds: !effects.holds.is_empty(),
@@ -930,6 +1239,41 @@ async fn normalize_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn final_committed_rows_reject_any_job_column_change_or_reference_table_residue() {
+        let committed = fixture("snapshot_retry_wait", true, 2);
+        require_committed_rows(&committed, &committed).unwrap();
+        for field in [
+            "attempts",
+            "updated_at",
+            "status",
+            "claim_token",
+            "last_error_class",
+        ] {
+            let mut changed = committed.clone();
+            changed.tables.get_mut("job").unwrap()[0][field] = json!("changed");
+            assert!(
+                require_committed_rows(&changed, &committed).is_err(),
+                "{field}"
+            );
+        }
+        for (name, _) in TABLES {
+            if name == "job" {
+                continue;
+            }
+            let mut changed = committed.clone();
+            changed
+                .tables
+                .get_mut(name)
+                .unwrap()
+                .push(json!({"unexpected":"row"}));
+            assert!(
+                require_committed_rows(&changed, &committed).is_err(),
+                "{name}"
+            );
+        }
+    }
 
     fn fixture(status: &str, snapshot: bool, attempts: i32) -> JobInventory {
         let job_id = Uuid::from_u128(1);
@@ -957,6 +1301,55 @@ mod tests {
             assert_eq!(plan[0].status, "cancelled");
             assert!(!plan[0].retry_at_recovery_time);
         }
+    }
+
+    #[test]
+    fn private_planner_consumes_findings_without_refunding_attempts_or_republishing() {
+        // Policy-only inputs, deliberately not evidence/authority constructors.
+        // The live adapter must obtain this map from an opaque verified copy.
+        let job = Uuid::from_u128(1);
+        for attempt in 1..=3 {
+            let before = fixture("snapshot_running", true, attempt);
+            let findings = BTreeMap::from([(job, ExternalEffectFinding::ConfirmedNoEffect)]);
+            let changes = plan_changes_with_findings(&before, &findings).unwrap();
+            assert_eq!(changes.len(), 1);
+            assert_eq!(
+                changes[0].status,
+                if attempt < 3 {
+                    "snapshot_retry_wait"
+                } else {
+                    "failed"
+                }
+            );
+            assert_eq!(changes[0].retry_at_recovery_time, attempt < 3);
+            assert_eq!(before.tables["job"][0]["attempt_count"], attempt);
+        }
+        let mut terminal = fixture("succeeded", true, 1);
+        terminal.tables.get_mut("job").unwrap()[0]["output_digest"] = json!("a".repeat(64));
+        let findings = BTreeMap::from([(job, ExternalEffectFinding::AlreadyCommitted)]);
+        assert!(
+            plan_changes_with_findings(&terminal, &findings)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn private_planner_rejects_foreign_job_family_or_unrecognized_finding_roster() {
+        let valid =
+            BTreeMap::from([(Uuid::from_u128(1), ExternalEffectFinding::ConfirmedNoEffect)]);
+        assert!(plan_changes_with_findings(&fixture("running", false, 1), &valid).is_err());
+        let foreign = BTreeMap::from([(
+            Uuid::from_u128(99),
+            ExternalEffectFinding::ConfirmedNoEffect,
+        )]);
+        assert!(
+            plan_changes_with_findings(&fixture("snapshot_running", true, 1), &foreign).is_err()
+        );
+        let conflict = BTreeMap::from([(Uuid::from_u128(1), ExternalEffectFinding::Conflict)]);
+        assert!(
+            plan_changes_with_findings(&fixture("snapshot_running", true, 1), &conflict).is_err()
+        );
     }
 
     #[test]
@@ -1099,6 +1492,46 @@ mod tests {
         let request_sha256 = digest(&event["payload"]).unwrap();
         inv.tables.get_mut("request_key").unwrap().push(json!({"actor_id":actor,"request_id":request,"operation":"snapshot_export","request_sha256":request_sha256}));
         inv.tables.get_mut("snapshot_export_request").unwrap().push(json!({"actor_id":actor,"request_id":request,"outbox_id":Uuid::from_u128(1),"job_id":requested_job_id}));
+    }
+
+    #[test]
+    fn positive_private_assembly_removes_only_its_generic_unknown_hold() {
+        let id = Uuid::from_u128(1);
+        let mut inventory = fixture("snapshot_running", true, 2);
+        add_snapshot_request(&mut inventory, id);
+        let effects = assemble_effects(
+            json!({"target":"one"}),
+            inventory,
+            json!({}),
+            None,
+            BTreeMap::from([(id, ExternalEffectFinding::ConfirmedNoEffect)]),
+            Some(json!({"policy_test_only":true})),
+        )
+        .unwrap();
+        assert!(effects.holds.is_empty());
+        assert_eq!(effects.observations["positive_snapshot_findings"], 1);
+        let planned = plan_changes_with_findings(&effects.before, &effects.findings).unwrap();
+        assert_eq!(planned.len(), 1);
+        assert_eq!(planned[0].status, "snapshot_retry_wait");
+        assert_eq!(effects.before.tables["job"][0]["attempt_count"], 2);
+    }
+
+    #[test]
+    fn positive_private_assembly_cannot_erase_request_join_conflict() {
+        let id = Uuid::from_u128(1);
+        let mut inventory = fixture("snapshot_running", true, 1);
+        add_snapshot_request(&mut inventory, Uuid::from_u128(99));
+        assert!(
+            assemble_effects(
+                json!({}),
+                inventory,
+                json!({}),
+                None,
+                BTreeMap::from([(id, ExternalEffectFinding::ConfirmedNoEffect)]),
+                Some(json!({"policy_test_only":true}))
+            )
+            .is_err()
+        );
     }
 
     #[test]

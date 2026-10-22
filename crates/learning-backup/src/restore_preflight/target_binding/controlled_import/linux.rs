@@ -262,6 +262,7 @@ pub(super) struct OwnedCandidateAdmission {
     batch: uuid::Uuid,
     birth_sha256: [u8; 32],
     inspection_sha256: [u8; 32],
+    full_c_birth: Option<preflight::full_c_birth::FullCBirthProfile>,
 }
 
 impl OwnedCandidateAdmission {
@@ -285,6 +286,7 @@ impl OwnedCandidateAdmission {
                 plan,
                 bound_target: self.guard,
                 sql_session: self.challenge,
+                full_c_birth: self.full_c_birth,
             },
             self.config,
         ))
@@ -416,7 +418,7 @@ async fn admit_owned_with_audit(
             }
             return Err(ImportFailure::Identity);
         }
-        tokio::time::timeout_at(
+        let full_c_birth = tokio::time::timeout_at(
             deadline.into(),
             preflight::verify_target_birth(lease.lease_mut(), &config, &control, &assets),
         )
@@ -462,25 +464,34 @@ async fn admit_owned_with_audit(
             batch,
             Sha256::digest(birth).into(),
             inspection_sha256,
+            full_c_birth,
         ))
     }
     .await;
     match result {
-        Ok((control, assets, destination, expected, batch, birth_sha256, inspection_sha256)) => {
-            Ok(OwnedCandidateAdmission {
-                guard,
-                challenge: challenge.ok_or(ImportFailure::Session)?,
-                config,
-                admin,
-                control: Some(control),
-                _assets: assets,
-                _destination: destination,
-                expected,
-                batch,
-                birth_sha256,
-                inspection_sha256,
-            })
-        }
+        Ok((
+            control,
+            assets,
+            destination,
+            expected,
+            batch,
+            birth_sha256,
+            inspection_sha256,
+            full_c_birth,
+        )) => Ok(OwnedCandidateAdmission {
+            guard,
+            challenge: challenge.ok_or(ImportFailure::Session)?,
+            config,
+            admin,
+            control: Some(control),
+            _assets: assets,
+            _destination: destination,
+            expected,
+            batch,
+            birth_sha256,
+            inspection_sha256,
+            full_c_birth,
+        }),
         Err(error) => {
             guard.child_usable.set(false);
             let isolated = linux_child::candidate_quarantine(&guard.claim).await;

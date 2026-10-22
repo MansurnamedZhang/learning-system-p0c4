@@ -117,9 +117,10 @@ impl FullRehearsalProfile {
     }
     fn validate(&self) -> Result<(), BackupError> {
         let r = &self.record;
-        if r.format_version != 1
-            || r.capability != "full_rehearsal_profile_v1"
-            || !crate::registry::v4(&r.source_case_id)
+        if !matches!(
+            (r.format_version, r.capability.as_str()),
+            (1, "full_rehearsal_profile_v1") | (2, "full_rehearsal_snapshot_profile_v2")
+        ) || !crate::registry::v4(&r.source_case_id)
             || !crate::registry::v4(&r.target_case_id)
             || r.source_case_id == r.target_case_id
             || !crate::valid_digest(&r.application_build_sha256)
@@ -146,7 +147,7 @@ impl FullRehearsalProfile {
         }
         let source = format!("kwc4c-{}", r.source_case_id.replace('-', ""));
         let target = format!("learning-system-p0c4-restore-{}", r.target_case_id);
-        let expected = [
+        let mut expected = vec![
             ("source_pg", format!("{source}-pg")),
             ("source_data", format!("{source}-source")),
             ("source_build", format!("{source}-build")),
@@ -155,6 +156,12 @@ impl FullRehearsalProfile {
             ("target_control", format!("{target}_control")),
             ("target_socket", format!("{target}_socket")),
         ];
+        if r.format_version == 2 {
+            expected.extend([
+                ("snapshot_effects", format!("{source}-snapshot-effects")),
+                ("snapshot_export", format!("{source}-snapshot-export")),
+            ]);
+        }
         if r.volumes.len() != expected.len() {
             return Err(BackupError::Invalid("full rehearsal volume set"));
         }
@@ -173,6 +180,11 @@ impl FullRehearsalProfile {
                 || !identities.insert((v.dev, v.ino))
             {
                 return Err(BackupError::Invalid("full rehearsal volume binding"));
+            }
+            if matches!(key, "snapshot_effects" | "snapshot_export")
+                && (v.uid != 0 || v.gid != 0 || v.mode != 0o700)
+            {
+                return Err(BackupError::Invalid("snapshot root owner or mode"));
             }
         }
         if r.volumes["target_socket"].uid != 999
@@ -342,6 +354,28 @@ impl FullRehearsalProfile {
         ] {
             rows.push(serde_json::json!({"destination":dest,"source":source,"kind":"bind","rw":false,"name":""}));
         }
+        if r.format_version == 2 {
+            for (name, destination, rw) in [
+                ("assets", "/var/lib/knowweave-source/assets", false),
+                ("snapshot-sockets", "/run/kwc4/sfx", true),
+            ] {
+                rows.push(serde_json::json!({"destination":destination,
+                    "source":format!("{}/{name}",r.volumes["source_data"].path),"kind":"bind","rw":rw,"name":""}));
+            }
+            for (key, destination) in [
+                (
+                    "snapshot_effects",
+                    "/var/lib/knowweave-c4/snapshot-effects-v2",
+                ),
+                (
+                    "snapshot_export",
+                    "/var/lib/knowweave-c4/snapshot-export-v2",
+                ),
+            ] {
+                let volume = &r.volumes[key];
+                rows.push(serde_json::json!({"destination":destination,"source":volume.path,"kind":"volume","rw":true,"name":volume.name}));
+            }
+        }
         rows.sort_by(|a, b| a["destination"].as_str().cmp(&b["destination"].as_str()));
         Ok(hex::encode(Sha256::digest(serde_json::to_vec(&rows)?)))
     }
@@ -390,6 +424,36 @@ mod tests {
     fn parse(value: &serde_json::Value) -> Result<FullRehearsalProfile, BackupError> {
         let raw = serde_json::to_vec(value).unwrap();
         FullRehearsalProfile::parse(&raw, &hex::encode(Sha256::digest(&raw)))
+    }
+    #[test]
+    fn snapshot_profile_has_separate_exact_volume_contract() {
+        let mut value = record();
+        value["format_version"] = serde_json::json!(2);
+        value["capability"] = serde_json::json!("full_rehearsal_snapshot_profile_v2");
+        assert!(parse(&value).is_err());
+        for (key, suffix, ino) in [
+            ("snapshot_effects", "snapshot-effects", 107),
+            ("snapshot_export", "snapshot-export", 108),
+        ] {
+            let name = format!("kwc4c-550e8400e29b41d4a716446655440000-{suffix}");
+            value["volumes"][key] = serde_json::json!({"path":format!("/var/lib/docker/volumes/{name}/_data"),"name":name,"dev":10,"ino":ino,"uid":0,"gid":0,"mode":448});
+        }
+        let parsed = parse(&value).unwrap();
+        assert_eq!(
+            parsed.source_mount_hash().unwrap(),
+            "cb8235889fc1c610b09a94b05b58963b7e80621f02386dd9ac7ab4ab697f4037"
+        );
+        assert_ne!(
+            parsed.source_mount_hash().unwrap(),
+            parse(&record()).unwrap().source_mount_hash().unwrap()
+        );
+        let mut weak = value.clone();
+        weak["volumes"]["snapshot_export"]["path"] =
+            value["volumes"]["source_data"]["path"].clone();
+        assert!(parse(&weak).is_err());
+        value["format_version"] = serde_json::json!(1);
+        value["capability"] = serde_json::json!("full_rehearsal_profile_v1");
+        assert!(parse(&value).is_err());
     }
     #[test]
     fn exact_pin_and_canonical_bytes_are_mandatory() {

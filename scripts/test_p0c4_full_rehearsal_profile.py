@@ -22,6 +22,85 @@ def profile():
         docker_socket=inode('/var/run/docker.sock',mode=0o660))
 
 class FullProfileGate(unittest.TestCase):
+    def test_snapshot_profile_requires_two_independent_volume_roots_and_exact_mounts(self):
+        value=profile();value.update(format_version=2,capability='full_rehearsal_snapshot_profile_v2')
+        with self.assertRaises(full.FullImportError):full._validate_profile(value)
+        prefix='kwc4c-'+S.replace('-','')
+        for key,suffix,ino in [('snapshot_effects','snapshot-effects',107),('snapshot_export','snapshot-export',108)]:
+            name=prefix+'-'+suffix
+            value['volumes'][key]=dict(name=name,path='/var/lib/docker/volumes/'+name+'/_data',dev=10,ino=ino,uid=0,gid=0,mode=0o700)
+        full._validate_profile(value)
+        actual=full._mounts(value,'source');self.assertEqual(len(actual),18)
+        self.assertIn(('volume',value['volumes']['snapshot_effects']['path'],'/var/lib/knowweave-c4/snapshot-effects-v2',True),actual)
+        self.assertIn(('bind',value['volumes']['source_data']['path']+'/assets','/var/lib/knowweave-source/assets',False),actual)
+        changed=actual.copy();changed.remove(('volume',value['volumes']['snapshot_effects']['path'],'/var/lib/knowweave-c4/snapshot-effects-v2',True))
+        changed.append(('bind',value['volumes']['source_data']['path']+'/snapshot-effects-v2','/var/lib/knowweave-c4/snapshot-effects-v2',True))
+        with self.assertRaises(full.FullImportError):full._require_mounts(changed,value,'source')
+        old=copy.deepcopy(value);old.update(format_version=1,capability='full_rehearsal_profile_v1')
+        with self.assertRaises(full.FullImportError):full._validate_profile(old)
+
+    def test_snapshot_plan_does_not_allow_zero_originals_on_foundations(self):
+        _,value=Fix1AuthorityTests().issued()
+        value.update(format_version=3,capability='c4_full_snapshot_import_plan_v2',case_name='snapshot-p6',schema_profile='snapshot_c0_d1_v1',snapshot_profile='root_snapshot_broker_v2')
+        full.validate_plan(value,'snapshot-p6')
+        context=full.FullRehearsalContext(full._TOKEN,value)
+        self.assertTrue(context._snapshot_effects());self.assertTrue(context._full_c())
+        for key,replacement in [('format_version',2),('snapshot_profile','caller'),('case_name','recovery-leases')]:
+            bad=copy.deepcopy(value);bad[key]=replacement
+            with self.assertRaises(full.FullImportError):full.validate_plan(bad,bad['case_name'])
+        self.assertEqual(len(full.RECOVERY_CASE_TESTS),5)
+        from scripts.p0c4_completion import plan as envelope
+        envelope.validate_plan(value,'snapshot-p6')
+        with self.assertRaises(envelope.CompletionError):envelope.validate_plan(value,'snapshot-arbitrary')
+        _,base,target,imported=RecoveryFoundationProofTests().inputs()
+        zero=dict(imported,logical_assets=0,unique_asset_bytes=0)
+        full._validate_body_proof(zero,full._import_proof_plan(value),target)
+        with self.assertRaises(full.FullImportError):full._validate_body_proof(zero,full._import_proof_plan(base),target)
+
+    def test_original_five_foundations_accept_full_c_without_snapshot_topology(self):
+        from scripts.p0c4_completion import plan as envelope
+        for case in full.RECOVERY_CASE_TESTS:
+            proof,plan,target,imported=RecoveryFoundationProofTests().inputs(case)
+            plan.update(format_version=2,capability='c4_full_c_import_plan_v1',schema_profile='snapshot_c0_d1_v1')
+            envelope.validate_plan(plan,case)
+            context=full.FullRehearsalContext(full._TOKEN,plan)
+            self.assertTrue(context._full_c());self.assertFalse(context._snapshot_effects())
+            full._validate_recovery_proof(proof,plan,target,imported)
+            with self.assertRaises(full.FullImportError):full._validate_recovery_proof(proof,plan,target,dict(imported,logical_assets=0,unique_asset_bytes=0))
+
+    def test_snapshot_compile_pins_bind_measured_docker_hash_only_on_new_profile(self):
+        context,base=Fix1AuthorityTests().issued()
+        context._profile=profile();context._profile_sha='9'*64
+        record=dict(test=full.CASE_TESTS['full-import'],container_id='a'*64)
+        expected=dict(KNOWWEAVE_C4_FULL_PROFILE_SHA256='9'*64,KNOWWEAVE_C4_TARGET_BIRTH_SHA256='f'*64)
+        self.assertEqual(context._compile_pins(record),expected)
+        new=dict(base,format_version=3,capability='c4_full_snapshot_import_plan_v2',case_name='snapshot-p1',schema_profile='snapshot_c0_d1_v1',snapshot_profile='root_snapshot_broker_v2')
+        full.validate_plan(new,new['case_name'])
+        context=full.FullRehearsalContext(full._TOKEN,new)
+        context._profile=profile();context._profile_sha='9'*64
+        record['test']=full.CASE_TESTS['snapshot-p1']
+        self.assertEqual(context._compile_pins(record),dict(expected,KNOWWEAVE_C4_DOCKER_CLI_SHA256='1'*64))
+        with self.assertRaises(full.FullImportError):context._compile_pins(dict(record,container_id='b'*64))
+
+    def test_snapshot_container_adapter_requires_eighteen_mounts_and_new_volumes_nocopy(self):
+        from pathlib import Path
+        from types import SimpleNamespace
+        _,base=Fix1AuthorityTests().issued()
+        base.update(format_version=3,capability='c4_full_snapshot_import_plan_v2',case_name='snapshot-p1',schema_profile='snapshot_c0_d1_v1',snapshot_profile='root_snapshot_broker_v2')
+        context=full.FullRehearsalContext(full._TOKEN,base);p=profile()
+        context._ident={'pg_name':'fixed-source-pg'};context._target_root=Path(p['volumes']['target_control']['path'])
+        context._target_volumes={key:dict(Name=p['volumes'][other]['name'],Mountpoint=p['volumes'][other]['path'])for key,other in [('control','target_control'),('socket','target_socket')]}
+        context._snapshot_volumes={key:dict(Name='kwc4c-'+S.replace('-','')+'-'+suffix,Mountpoint='/volumes/'+suffix)for key,suffix in [('snapshot_effects','snapshot-effects'),('snapshot_export','snapshot-export')]}
+        extra=context._source_extra_mounts();mounts=extra|{('bind','/fixed/'+str(i),'/fixed/'+str(i),False)for i in range(18-len(extra))}
+        expected=dict(builder=False,name='fixed-source-pg',mounts=mounts)
+        volumes=[(str(context._target_root),context._target_volumes['control']['Name']),('/var/run/knowweave-target',context._target_volumes['socket']['Name']),('/var/lib/knowweave-c4/snapshot-effects-v2',context._snapshot_volumes['snapshot_effects']['Name']),('/var/lib/knowweave-c4/snapshot-export-v2',context._snapshot_volumes['snapshot_export']['Name'])]
+        facts={'HostConfig':{'Mounts':[dict(Target=d,Source=n,VolumeOptions={'NoCopy':True})for d,n in volumes]}}
+        adapter=full._FullContainerAdapter(SimpleNamespace(validate_container=lambda f,e:None),context)
+        adapter.validate_container(facts,expected)
+        for index in (2,3):
+            bad=copy.deepcopy(facts);bad['HostConfig']['Mounts'][index]['VolumeOptions']={'NoCopy':False}
+            with self.assertRaises(full.FullImportError):adapter.validate_container(bad,expected)
+
     def test_recovery_lease_body_requires_same_closed_full_context(self):
         from scripts import p0c4_completion_acceptance as runner
         name = runner.ALL_CASE_TESTS['recovery-leases']

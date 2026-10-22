@@ -1587,4 +1587,109 @@ mod linux {
         r.no_result(job).await;
         r.close().await;
     }
+
+    #[tokio::test]
+    #[ignore = "fresh PG18 four actual LOGINs and Root0 /run; no skip"]
+    async fn formal_quiesce_cancellation_retains_original_append_and_effect_sh_until_settled() {
+        let r = Rig::new().await;
+        let mut h = hooks(Stage::AfterQuiesceAppend);
+        Arc::get_mut(&mut h).unwrap().blocking_return = true;
+        let _release = Release(h.clone());
+        let (work, custody, path) = fixture(&r, Some(h.clone()));
+        let original = work.owner();
+        let retention = custody.writer().unwrap();
+        let pending = work
+            .start_quiesce(move |mut work, owner, slot| async move {
+                work.drain().await?;
+                let _retention = retention;
+                let bytes = super::super::history::encode(
+                    &serde_json::json!({"test_component":"original_control_append"}),
+                    &owner.budget,
+                )?;
+                owner.append(&slot, bytes).await?;
+                slot.live()
+            })
+            .unwrap();
+        arrived(&h).await;
+        assert_eq!(
+            frames(&path).len(),
+            1,
+            "real durable frame exists before its original append returns"
+        );
+        assert!(custody.try_capture().is_err());
+        drop(pending);
+        assert!(original.held());
+        let waiting_original = original.clone();
+        let mut waiting = tokio::spawn(async move { waiting_original.settle_control().await });
+        assert!(
+            timeout(Duration::from_millis(100), &mut waiting)
+                .await
+                .is_err(),
+            "outer cancellation must not detach the real append"
+        );
+        assert!(
+            custody.try_capture().is_err(),
+            "retained SH prevents EX while actual append is blocked"
+        );
+        *h.blocking_release.0.lock().unwrap() = true;
+        h.blocking_release.1.notify_all();
+        waiting.await.unwrap().unwrap();
+        assert!(original.held());
+        assert_eq!(frames(&path).len(), 1);
+        assert!(custody.try_capture().is_ok());
+        r.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "fresh PG18 four actual LOGINs and Root0 /run; no skip"]
+    async fn formal_quiesce_cancellation_drains_original_blocking_worker_before_releasing_sh() {
+        let r = Rig::new().await;
+        let (job, request) = r.enqueue(false).await;
+        let h = hooks(Stage::AfterStageCopy);
+        let _release = Release(h.clone());
+        let (mut work, custody, path) = fixture(&r, Some(h.clone()));
+        let original = work.owner();
+        let worker = work
+            .start_copy(
+                job,
+                request,
+                Duration::from_secs(60),
+                r.runtime.clone(),
+                &custody,
+            )
+            .unwrap();
+        arrived(&h).await;
+        let pending = work
+            .start_quiesce(|mut work, _owner, slot| async move {
+                work.drain().await?;
+                slot.live()
+            })
+            .unwrap();
+        drop(pending);
+        drop(worker);
+        let waiting_original = original.clone();
+        let mut waiting = tokio::spawn(async move { waiting_original.settle_control().await });
+        assert!(
+            timeout(Duration::from_millis(100), &mut waiting)
+                .await
+                .is_err()
+        );
+        assert!(
+            custody.try_capture().is_err(),
+            "real worker still owns its staged package SH and supervisor SH"
+        );
+        *h.blocking_release.0.lock().unwrap() = true;
+        h.blocking_release.1.notify_all();
+        waiting.await.unwrap().unwrap();
+        assert!(original.held());
+        assert!(original.issued_for(job));
+        assert_eq!(
+            frames(&path).len(),
+            3,
+            "cancelled issued worker cannot append package or CUT"
+        );
+        r.no_result(job).await;
+        assert!(custody.try_capture().is_ok());
+        r.close().await;
+    }
 }

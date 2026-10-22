@@ -627,6 +627,7 @@ version = "0.1.0"
 dependencies = [
  "learning-core",
  "libc",
+ "serde",
  "serde_json",
  "sha2",
  "thiserror",
@@ -671,6 +672,7 @@ dependencies = [
  "chrono",
  "learning-assets",
  "learning-core",
+ "libc",
  "serde",
  "serde_json",
  "sqlx",

@@ -4,10 +4,13 @@
 mod admission;
 #[cfg(any(target_os = "linux", test))]
 pub(crate) mod binding;
+pub(crate) mod c0_d1;
 #[cfg(any(target_os = "linux", test))]
 pub(crate) mod lifecycle;
 #[cfg(test)]
 pub(crate) mod lifecycle_tests;
+#[cfg(target_os = "linux")]
+pub(crate) mod snapshot_effects;
 #[cfg(target_os = "linux")]
 pub(crate) use admission::SourceAdmission;
 #[cfg(all(test, target_os = "linux"))]
@@ -188,7 +191,8 @@ pub async fn force_close_release_ready(
         let enrolled = lease.admit_control_source(&root, expected_database)?;
         let _protection = crate::CaptureProtection::reopen(&lease, &enrolled, backup_id)?;
         lease.recheck()?;
-        compensate_release(&mut admission, &database).await?;
+        let profile = c0_d1::SourceProfile::from_broker_oid(journal.full_c_broker_oid());
+        compensate_release_profile(&mut admission, &database, profile).await?;
         let dir = root.create_dir(&format!("{backup_id}.release-recovery"))?;
         let bytes = serde_json::to_vec(&serde_json::json!({
             "format_version": 1,
@@ -209,6 +213,16 @@ async fn prepare_linux(
     assets: &FsAssetStore,
     config: &SourceBackupConfig,
 ) -> Result<SourceLocalPin, BackupError> {
+    prepare_linux_with_effects(admin, assets, config, None).await
+}
+
+#[cfg(target_os = "linux")]
+pub(super) async fn prepare_linux_with_effects(
+    admin: &PgPool,
+    assets: &FsAssetStore,
+    config: &SourceBackupConfig,
+    mut effects: Option<&mut snapshot_effects::CaptureInput>,
+) -> Result<SourceLocalPin, BackupError> {
     if config.backup_id.is_nil()
         || config.drain_timeout.is_zero()
         || config.drain_timeout > Duration::from_secs(60)
@@ -228,9 +242,23 @@ async fn prepare_linux(
     // This inspection is read-only on the already admitted session. Reject
     // unsafe prepared work/roles before requiring any orchestration evidence;
     // isolation remains mandatory before every journal, ACL, and dump mutation.
-    require_base_snapshot_claim_schema(admission.connection()).await?;
-    require_base_snapshot_observation_schema(admission.connection()).await?;
-    let before = inspect_gate(admission.connection()).await?;
+    let profile = c0_d1::SourceProfile::admit(admission.connection()).await?;
+    if effects.is_some() && profile == c0_d1::SourceProfile::BaseV1 {
+        return Err(BackupError::Invalid(
+            "snapshot effect capture requires the full-C source profile",
+        ));
+    }
+    if profile == c0_d1::SourceProfile::BaseV1 {
+        require_base_snapshot_claim_schema(admission.connection()).await?;
+        require_base_snapshot_observation_schema(admission.connection()).await?;
+    }
+    let mut before = inspect_gate(admission.connection()).await?;
+    if profile.broker_oid().is_some() {
+        before.other_login_writers = before
+            .other_login_writers
+            .checked_sub(1)
+            .ok_or(BackupError::Invalid("full-C broker writer count"))?;
+    }
     if !before.admin_is_database_owner
         || !before.runtime_can_connect
         || before.public_can_connect
@@ -269,9 +297,23 @@ async fn prepare_linux(
         endpoint::admit_source_endpoint(admission, &enrolled, &lease, isolation, config).await?;
     // Repeat the original role/prepared preflight after orchestration proof;
     // the earlier read-only rejection does not authorize a later mutation.
-    require_base_snapshot_claim_schema(endpoint.connection()).await?;
-    require_base_snapshot_observation_schema(endpoint.connection()).await?;
-    let before = inspect_gate(endpoint.connection()).await?;
+    let repeated = c0_d1::SourceProfile::admit(endpoint.connection()).await?;
+    if repeated != profile {
+        return Err(BackupError::Invalid(
+            "source profile changed after admission",
+        ));
+    }
+    if profile == c0_d1::SourceProfile::BaseV1 {
+        require_base_snapshot_claim_schema(endpoint.connection()).await?;
+        require_base_snapshot_observation_schema(endpoint.connection()).await?;
+    }
+    let mut before = inspect_gate(endpoint.connection()).await?;
+    if profile.broker_oid().is_some() {
+        before.other_login_writers = before
+            .other_login_writers
+            .checked_sub(1)
+            .ok_or(BackupError::Invalid("full-C broker writer count"))?;
+    }
     if !before.admin_is_database_owner
         || !before.runtime_can_connect
         || before.public_can_connect
@@ -284,9 +326,12 @@ async fn prepare_linux(
     endpoint = endpoint.recheck().await?;
     let protection = crate::begin_capture_protection(&lease, &enrolled, config.backup_id)?;
     endpoint = endpoint.attach_capture(protection)?;
-    let mut journal = SourceGateJournal::start_in(&control, config.backup_id)?;
+    let mut journal = match profile.broker_oid() {
+        None => SourceGateJournal::start_in(&control, config.backup_id)?,
+        Some(oid) => SourceGateJournal::start_full_c_in(&control, config.backup_id, oid)?,
+    };
     let source = control.create_dir(&format!("{}.source", config.backup_id))?;
-    let revoke = format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
+    let revoke = profile.revoke_statement(&database);
     endpoint = endpoint.recheck().await?;
     sqlx::query(&revoke).execute(endpoint.connection()).await?;
     journal.advance(GatePhase::Closed, None)?;
@@ -295,6 +340,7 @@ async fn prepare_linux(
     loop {
         let facts = inspect_gate(endpoint.connection()).await?;
         if !facts.runtime_can_connect && facts.other_sessions == 0 {
+            profile.recheck(endpoint.connection(), false).await?;
             facts.validate()?;
             break;
         }
@@ -306,10 +352,19 @@ async fn prepare_linux(
     }
     journal.advance(GatePhase::Drained, None)?;
 
+    if let Some(input) = effects.as_deref_mut() {
+        input
+            .capture_closed(endpoint.connection(), config, &enrolled, &lease)
+            .await?;
+    }
+
     let plan = crate::catalog::plan_assets_on(endpoint.connection()).await?;
     endpoint.protection()?.bind_catalog(&plan)?;
     let identity = collect_source_identity(endpoint.connection()).await?;
-    let role_bytes = role_recipe(endpoint.connection()).await?;
+    let role_bytes = match profile {
+        c0_d1::SourceProfile::BaseV1 => role_recipe(endpoint.connection()).await?,
+        c0_d1::SourceProfile::C0D1 { .. } => c0_d1::role_recipe(endpoint.connection()).await?,
+    };
     let mut roles_write = source.create_file("roles.json")?;
     roles_write.write_all(&role_bytes)?;
     roles_write.sync_all()?;
@@ -347,6 +402,7 @@ async fn prepare_linux(
     let manifest_sha256 = manifest.canonical_sha256()?;
     write_bytes(&source, "manifest.json", &manifest.canonical_bytes()?)?;
     inspect_gate(endpoint.connection()).await?.validate()?;
+    profile.recheck(endpoint.connection(), false).await?;
     journal.advance(GatePhase::DumpAndIndexDurable, Some(&manifest_sha256))?;
     #[cfg(test)]
     lifecycle_tests::hook("capture_dump_durable")?;
@@ -359,9 +415,13 @@ async fn prepare_linux(
     let pin = SourceLocalPin { sealed, manifest };
     endpoint.protection()?.retain_pin(&pin)?;
     journal.advance(GatePhase::PinsDurable, Some(&manifest_sha256))?;
+    if let Some(input) = effects {
+        input.bind_pin(&pin).await?;
+    }
     #[cfg(test)]
     lifecycle_tests::hook("capture_pins_durable")?;
     inspect_gate(endpoint.connection()).await?.validate()?;
+    profile.recheck(endpoint.connection(), false).await?;
     endpoint.protection()?.recheck_before_release()?;
     endpoint = endpoint.recheck().await?;
     let (admission, witness) = endpoint.release_parts();
@@ -555,6 +615,8 @@ async fn release_runtime_connect_inner(
     before_grant: impl FnOnce() -> Result<(), BackupError>,
     witness: impl SourceReleaseCheck,
 ) -> Result<(), BackupError> {
+    let profile = c0_d1::SourceProfile::from_broker_oid(journal.full_c_broker_oid());
+    profile.recheck(admission.connection(), false).await?;
     journal.advance(GatePhase::ReleaseReady, None)?;
     #[cfg(test)]
     lifecycle_tests::hook("capture_release_ready")?;
@@ -562,40 +624,45 @@ async fn release_runtime_connect_inner(
     lifecycle_tests::checkpoint("capture_before_grant").await;
     before_grant()?;
     witness.recheck(admission).await?;
-    let grant = format!("GRANT CONNECT ON DATABASE \"{database}\" TO learning_runtime");
+    let grant = profile.grant_statement(database);
     let granted = sqlx::query(&grant).execute(admission.connection()).await;
     if granted.is_err() {
-        compensate_release(admission, database).await?;
+        compensate_release_profile(admission, database, profile).await?;
         return Err(BackupError::Invalid("runtime CONNECT grant failed"));
     }
     #[cfg(test)]
     lifecycle_tests::checkpoint("capture_after_grant").await;
     if let Err(error) = witness.recheck(admission).await {
-        compensate_release(admission, database).await?;
+        compensate_release_profile(admission, database, profile).await?;
+        return Err(error);
+    }
+    if let Err(error) = profile.recheck(admission.connection(), true).await {
+        compensate_release_profile(admission, database, profile).await?;
         return Err(error);
     }
     match inspect_gate(admission.connection()).await {
         Ok(after) if after.runtime_can_connect && !after.public_can_connect => {}
         _ => {
-            compensate_release(admission, database).await?;
+            compensate_release_profile(admission, database, profile).await?;
             return Err(BackupError::Invalid(
                 "runtime CONNECT release could not be verified",
             ));
         }
     }
     if let Err(error) = journal.advance(GatePhase::Released, None) {
-        compensate_release(admission, database).await?;
+        compensate_release_profile(admission, database, profile).await?;
         return Err(error);
     }
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
-async fn compensate_release(
+async fn compensate_release_profile(
     admission: &mut SourceAdmission,
     database: &str,
+    profile: c0_d1::SourceProfile,
 ) -> Result<(), BackupError> {
-    let revoke = format!("REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime");
+    let revoke = profile.revoke_statement(database);
     if sqlx::query(&revoke)
         .execute(admission.connection())
         .await
@@ -605,6 +672,7 @@ async fn compensate_release(
             "source gate outcome ambiguous; manual recovery required",
         ));
     }
+    profile.recheck(admission.connection(), false).await?;
     match inspect_gate(admission.connection()).await {
         Ok(facts) if facts.validate().is_ok() => Ok(()),
         _ => Err(BackupError::Invalid(

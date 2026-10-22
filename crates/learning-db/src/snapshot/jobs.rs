@@ -18,6 +18,178 @@ pub struct SnapshotDelivery {
     pub files: Vec<(String, File)>,
 }
 
+/// An application authorization observation made in the management executor's
+/// original transaction. It is not an external-effect finding or a restore
+/// permit. No pool, transaction commit or publication can be created from it.
+///
+/// The authorization cannot be kept after its grant-holding transaction ends:
+/// ```compile_fail,E0505
+/// # use learning_db::SnapshotStore;
+/// # use learning_core::Principal;
+/// # use learning_assets::SnapshotDirectory;
+/// # use sqlx::{Postgres, Transaction};
+/// # use uuid::Uuid;
+/// async fn rejected(mut tx: Transaction<'static, Postgres>, actor: Principal,
+///                   job: Uuid, package: &SnapshotDirectory) {
+///     let authorization = SnapshotStore::authorize_recovery_delivery(&mut tx, actor, job)
+///         .await.unwrap();
+///     tx.commit().await.unwrap();
+///     let _files = authorization.open_files(package).unwrap();
+/// }
+/// ```
+/// Nor can opening the iterator release the transaction borrow before reads:
+/// ```compile_fail,E0505
+/// # use learning_db::SnapshotStore;
+/// # use learning_core::Principal;
+/// # use learning_assets::SnapshotDirectory;
+/// # use sqlx::{Postgres, Transaction};
+/// # use uuid::Uuid;
+/// async fn rejected(mut tx: Transaction<'static, Postgres>, actor: Principal,
+///                   job: Uuid, package: &SnapshotDirectory) {
+///     let authorization = SnapshotStore::authorize_recovery_delivery(&mut tx, actor, job)
+///         .await.unwrap();
+///     let mut files = authorization.open_files(package).unwrap();
+///     tx.rollback().await.unwrap();
+///     let _first_sealed_handle = files.next();
+/// }
+/// ```
+/// An extracted reader retains that same borrow after its iterator is dropped:
+/// ```compile_fail,E0505
+/// # use learning_db::SnapshotStore;
+/// # use learning_core::Principal;
+/// # use learning_assets::SnapshotDirectory;
+/// # use sqlx::{Postgres, Transaction};
+/// # use std::io::Read;
+/// # use uuid::Uuid;
+/// async fn rejected(mut tx: Transaction<'static, Postgres>, actor: Principal,
+///                   job: Uuid, package: &SnapshotDirectory) {
+///     let authorization = SnapshotStore::authorize_recovery_delivery(&mut tx, actor, job)
+///         .await.unwrap();
+///     let mut files = authorization.open_files(package).unwrap();
+///     let (_, mut file) = files.next().unwrap().unwrap();
+///     drop(files);
+///     tx.commit().await.unwrap();
+///     let _ = file.read(&mut [0; 1]);
+/// }
+/// ```
+pub struct RecoverySnapshotAuthorization<'held> {
+    job_id: Uuid,
+    saved: SavedDelivery,
+    // The lifetime originates in the actual &mut Transaction argument. Keeping
+    // this observation (or its file iterator) prevents commit/rollback/reuse.
+    _grant_locks: std::marker::PhantomData<&'held mut ()>,
+}
+
+pub struct RecoverySnapshotFiles<'held> {
+    files: learning_assets::SnapshotFileIter,
+    _authorization: RecoverySnapshotAuthorization<'held>,
+}
+
+/// A sealed read-only delivery file bound to the original grant-holding
+/// transaction. No raw descriptor, inner File, constructor or conversion is
+/// exposed, so extracting a reader cannot escape the authorization lifetime.
+pub struct RecoverySnapshotFile<'held> {
+    file: File,
+    _grant_locks: std::marker::PhantomData<&'held mut ()>,
+}
+impl RecoverySnapshotFile<'_> {
+    pub fn metadata(&self) -> io::Result<std::fs::Metadata> {
+        self.file.metadata()
+    }
+}
+impl io::Read for RecoverySnapshotFile<'_> {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        io::Read::read(&mut self.file, bytes)
+    }
+}
+impl<'held> Iterator for RecoverySnapshotFiles<'held> {
+    type Item = Result<(String, RecoverySnapshotFile<'held>), ContentError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.files.next().map(|result| {
+            result
+                .map(|(name, file)| {
+                    (
+                        name,
+                        RecoverySnapshotFile {
+                            file,
+                            _grant_locks: std::marker::PhantomData,
+                        },
+                    )
+                })
+                .map_err(storage)
+        })
+    }
+}
+
+impl<'held> RecoverySnapshotAuthorization<'held> {
+    pub fn stage_token(&self) -> Uuid {
+        self.saved.token
+    }
+    pub fn manifest_sha256(&self) -> &str {
+        &self.saved.manifest_sha256
+    }
+    /// Use on a supervised blocking owner while the original management
+    /// transaction retains its grant locks. Opens a single sealed file per
+    /// iterator step, using the same package verification as ordinary delivery.
+    pub fn open_files(
+        self,
+        directory: &SnapshotDirectory,
+    ) -> Result<RecoverySnapshotFiles<'held>, ContentError> {
+        if directory.manifest_sha256() != self.saved.manifest_sha256 {
+            return Err(ContentError::NotFound);
+        }
+        let verified = verify_snapshot(directory).map_err(storage)?;
+        let valid = match &verified.manifest {
+            SnapshotManifest::ReadingCopyV1(value) => {
+                self.saved.capability == "reading_copy_v1" && value.copy_id == self.job_id
+            }
+            SnapshotManifest::ExactImportV1(_) => self.saved.capability == "exact_import_v1",
+        };
+        if !valid {
+            return Err(ContentError::NotFound);
+        }
+        Ok(RecoverySnapshotFiles {
+            files: directory.open_verified_file_iter().map_err(storage)?,
+            _authorization: self,
+        })
+    }
+}
+
+struct SavedDelivery {
+    token: Uuid,
+    manifest_sha256: String,
+    capability: String,
+}
+
+// Shared by normal delivery and the held-target adapter: identical actor,
+// current plan, required-space, capability and grant-lock checks.
+async fn checked_delivery(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    job_id: Uuid,
+) -> Result<SavedDelivery, ContentError> {
+    let saved: Option<(serde_json::Value, Uuid, String, String, Vec<Uuid>, String)> = sqlx::query_as(
+        "SELECT e.payload,r.stage_token,r.manifest_sha256,r.plan_sha256,r.required_spaces,r.capability FROM public.snapshot_export_result r JOIN public.job j ON j.id=r.job_id JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND j.status='succeeded' AND j.output_digest=r.manifest_sha256 AND e.actor_id=$2")
+        .bind(job_id).bind(actor.actor_id).fetch_optional(&mut **tx).await.map_err(storage)?;
+    let (payload, token, manifest_sha256, plan_sha256, spaces, capability) =
+        saved.ok_or(ContentError::NotFound)?;
+    let JobInput::SnapshotExport {
+        space_id, request, ..
+    } = JobInput::from_value(payload)?
+    else {
+        return Err(ContentError::NotFound);
+    };
+    let plan = recheck_locked(tx, actor, space_id, &request, &plan_sha256, &spaces).await?;
+    if plan.capability() != capability {
+        return Err(ContentError::NotFound);
+    }
+    Ok(SavedDelivery {
+        token,
+        manifest_sha256,
+        capability,
+    })
+}
+
 // Prepared data has no public constructor: neither a client-supplied closure nor
 // a stage path can be substituted at the publication boundary.
 pub struct PreparedSnapshotExport {
@@ -34,6 +206,31 @@ pub struct StagedSnapshotExport {
 
 #[cfg(target_os = "linux")]
 impl PreparedSnapshotExport {
+    /// Apply only a renewal already committed and durably recorded by the
+    /// original broker owner. This changes no actor, request or plan and grants
+    /// no claim/write authority by itself.
+    pub(crate) fn broker_apply_known_renewal(
+        &mut self,
+        previous: &JobLease,
+        renewed: JobLease,
+    ) -> Result<(), ContentError> {
+        if self.lease.job_id != previous.job_id
+            || self.lease.token != previous.token
+            || self.lease.attempt_count != previous.attempt_count
+            || self.lease.lease_expires_at != previous.lease_expires_at
+            || renewed.job_id != previous.job_id
+            || renewed.token != previous.token
+            || renewed.attempt_count != previous.attempt_count
+            || renewed.lease_expires_at < previous.lease_expires_at
+        {
+            return Err(ContentError::Invalid(
+                "broker_known_renewal_mismatch".into(),
+            ));
+        }
+        self.lease = renewed;
+        Ok(())
+    }
+
     /// Read-only adapter for the private first-write component. The plan still
     /// comes exclusively from the existing runtime collector, never a caller.
     pub(crate) fn broker_reading_copy(&self) -> Result<&ReadingCopy, ContentError> {
@@ -607,22 +804,11 @@ impl SnapshotStore {
         job_id: Uuid,
     ) -> Result<SnapshotDelivery, ContentError> {
         let mut tx = request::begin(&self.pool, actor, job_id).await?;
-        let saved: Option<(serde_json::Value, Uuid, String, String, Vec<Uuid>, String)> = sqlx::query_as(
-            "SELECT e.payload,r.stage_token,r.manifest_sha256,r.plan_sha256,r.required_spaces,r.capability FROM public.snapshot_export_result r JOIN public.job j ON j.id=r.job_id JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND j.status='succeeded' AND j.output_digest=r.manifest_sha256 AND e.actor_id=$2")
-            .bind(job_id).bind(actor.actor_id).fetch_optional(&mut *tx).await.map_err(storage)?;
-        let (payload, token, manifest_sha256, plan_sha256, spaces, capability) =
-            saved.ok_or(ContentError::NotFound)?;
-        let JobInput::SnapshotExport {
-            space_id, request, ..
-        } = JobInput::from_value(payload)?
-        else {
-            return Err(ContentError::NotFound);
-        };
-        let plan =
-            recheck_locked(&mut tx, actor, space_id, &request, &plan_sha256, &spaces).await?;
-        if plan.capability() != capability {
-            return Err(ContentError::NotFound);
-        }
+        let SavedDelivery {
+            token,
+            manifest_sha256,
+            ..
+        } = checked_delivery(&mut tx, actor, job_id).await?;
         let (root, _) = self.export_storage.as_ref().ok_or(ContentError::NotFound)?;
         let root = root.clone();
         let hash = manifest_sha256.clone();
@@ -640,6 +826,34 @@ impl SnapshotStore {
         Ok(SnapshotDelivery {
             manifest_sha256,
             files,
+        })
+    }
+
+    /// Observe delivery authorization in the caller's original held management
+    /// transaction. This executes SELECT/locks only: it never commits, writes a
+    /// job, grants CONNECT or opens a replacement runtime connection. The bound
+    /// recovery executor separately verifies Docker/session isolation and the
+    /// full before/after database barrier; this observation grants none of those
+    /// capabilities. Read-only here describes the operations, not a PostgreSQL
+    /// READ ONLY transaction (grant row locks require a writable transaction).
+    pub async fn authorize_recovery_delivery<'held>(
+        tx: &'held mut Transaction<'_, Postgres>,
+        actor: Principal,
+        job_id: Uuid,
+    ) -> Result<RecoverySnapshotAuthorization<'held>, ContentError> {
+        let actual: (String, String, bool) = sqlx::query_as(
+            "SELECT current_user::text,session_user::text,pg_catalog.has_database_privilege('learning_runtime',current_database(),'CONNECT')")
+            .fetch_one(&mut **tx).await.map_err(storage)?;
+        if actual != ("learning_admin".into(), "learning_admin".into(), false) {
+            return Err(ContentError::Invalid(
+                "recovery_snapshot_management_context".into(),
+            ));
+        }
+        let saved = checked_delivery(tx, actor, job_id).await?;
+        Ok(RecoverySnapshotAuthorization {
+            job_id,
+            saved,
+            _grant_locks: std::marker::PhantomData,
         })
     }
 }

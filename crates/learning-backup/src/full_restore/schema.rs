@@ -5,6 +5,8 @@ use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufRead, Read};
 
+mod c0_d1_v1;
+
 #[cfg(test)]
 pub(super) fn validate_toc_observed(
     raw: &[u8],

@@ -243,6 +243,60 @@ impl RootJournalBytes {
             |f| f.head,
         ))
     }
+    /// Read the complete original known prefix through one borrowed read-only
+    /// stream at a time. A stream must be fully consumed. Any error poisons
+    /// this original owner; disk bytes never restore append/capture authority.
+    pub fn visit_known_files(
+        &mut self,
+        visitor: &mut dyn FnMut(&str, u64, &mut dyn Read) -> io::Result<()>,
+    ) -> io::Result<ByteJournalHead> {
+        let head = self.known_byte_head()?;
+        self.poisoned = true;
+        self.verify_prefix(None)?;
+        struct Metered<'a> {
+            file: File,
+            remaining: u64,
+            budget: &'a SharedJournalBudget,
+        }
+        impl Read for Metered<'_> {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                let count = buffer.len().min(64 * 1024).min(self.remaining as usize);
+                if count == 0 {
+                    return Ok(0);
+                }
+                self.budget.charge(count as u64, 0)?;
+                let count = self.file.read(&mut buffer[..count])?;
+                if count == 0 {
+                    return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
+                }
+                self.remaining -= count as u64;
+                Ok(count)
+            }
+        }
+        let mut visit = |name: &str, size: u64| -> io::Result<()> {
+            let mut reader = Metered {
+                file: self.root.file(name, false)?,
+                remaining: size,
+                budget: &self.budget,
+            };
+            visitor(name, size, &mut reader)?;
+            if reader.remaining != 0 {
+                return Err(invalid());
+            }
+            Ok(())
+        };
+        visit("epoch.header", self.epoch_bytes.len() as u64)?;
+        for frame in &self.prefix {
+            visit(&format!("{:020}.frame", frame.head.sequence), frame.size)?;
+        }
+        self.verify_prefix(None)?;
+        self.poisoned = false;
+        if self.known_byte_head()? != head {
+            self.poisoned = true;
+            return Err(invalid());
+        }
+        Ok(head)
+    }
     pub fn append_uninterpreted(
         &mut self,
         body: OpaqueJournalBody<'_>,

@@ -156,6 +156,15 @@ pub(super) async fn begin_owned(
     pool: &PgPool,
 ) -> Result<Transaction<'static, Postgres>, ObservationError> {
     let mut tx = pool.begin().await?;
+    if let Err(error) = initialize_owned(&mut tx).await {
+        let _ = tx.rollback().await;
+        return Err(error);
+    }
+    Ok(tx)
+}
+pub(super) async fn initialize_owned(
+    tx: &mut Transaction<'static, Postgres>,
+) -> Result<(), ObservationError> {
     for sql in [
         "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
         "SET LOCAL search_path=pg_catalog",
@@ -163,18 +172,18 @@ pub(super) async fn begin_owned(
         "SET LOCAL statement_timeout='15s'",
         "SET LOCAL TimeZone='UTC'",
     ] {
-        sqlx::query(sql).execute(&mut *tx).await?;
+        sqlx::query(sql).execute(&mut **tx).await?;
     }
     let identity: (String, String) = sqlx::query_as("SELECT session_user::text,current_user::text")
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
     if identity != (BROKER_ROLE.into(), BROKER_ROLE.into()) {
         return Err(ObservationError::Invalid(
             "snapshot claim observation requires real broker login",
         ));
     }
-    catalog::verify(&mut tx, catalog::Phase::Observe).await?;
-    Ok(tx)
+    catalog::verify(tx, catalog::Phase::Observe).await?;
+    Ok(())
 }
 pub(super) async fn read_locked(
     tx: &mut Transaction<'static, Postgres>,

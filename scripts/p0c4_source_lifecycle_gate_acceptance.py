@@ -845,8 +845,9 @@ def materialize_build_data(source,destination):
 def materialize_main():
     require(len(sys.argv)==3,'MATERIALIZE_ARGUMENTS')
     source,destination=sys.argv[1:]
-    require(re.fullmatch(r'/target/build/debug/(?:deps/(?:learning_backup|learning_assets)-[0-9a-f]+|examples/c4_task3_migrate)',source) and
-            re.fullmatch(r'/target/materialized/[0-9a-f-]{36}-(?:lib|example|assets)',destination),'MATERIALIZE_ARGUMENTS')
+    legacy=re.fullmatch(r'/target/build/debug/(?:deps/(?:learning_backup|learning_assets)-[0-9a-f]+|examples/c4_task3_migrate)',source) and re.fullmatch(r'/target/materialized/[0-9a-f-]{36}-(?:lib|example|assets)',destination)
+    worker=source=='/target/build/debug/learning-worker' and re.fullmatch(r'/target/materialized/[0-9a-f-]{36}-worker',destination)
+    require(legacy or worker,'MATERIALIZE_ARGUMENTS')
     v4(Path(destination).name.rsplit('-',1)[0],'MATERIALIZE_ARGUMENTS')
     # /target is the fresh named volume. Hold its trusted directory while creating the private child.
     fd=os.open('/target',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
@@ -1176,7 +1177,7 @@ def broker_main():
     for path in (Path('/'),Path('/var'),Path('/var/lib'),root):
         meta=path.lstat()
         require(stat.S_ISDIR(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022,'BROKER_ANCESTOR')
-    ident=None;ledger=None;last=None;partial={};root_pins={};control_fd=None;pin_fd=None;approved_requests={};observation_counts={};fault_baseline=None;fault_test_exit=False;fault_audited=False
+    ident=None;ledger=None;last=None;partial={};root_pins={};control_fd=None;pin_fd=None;approved_requests={};observation_counts={};fault_baseline=None;fault_test_exit=False;fault_audited=False;snapshot_protocol=None
     clone_setup=None;clone_observation=None;clone_observation_done=False;clone_refresh_seen=False
     source_fault_test=None;source_fault_seen={};source_fault_pending=None;source_fault_paused=None
     while True:
@@ -1184,18 +1185,33 @@ def broker_main():
         if not line:break
         require(len(line)<=1024**2 and line.endswith(b'\n'),'BROKER_FRAME_BUDGET')
         message=json.loads(line,object_pairs_hook=unique_pairs)
-        require(type(message) is dict and message.get('op') in ('init','poll','refresh','denial','observe','audit','audit-incomplete-publication','inventory','stop','source-clone-setup','source-clone-poll','source-clone-observed','source-clone-result','source-fault-enable','source-fault-poll','source-fault-observed'),'BROKER_OPERATION')
+        require(type(message) is dict and message.get('op') in ('init','poll','refresh','denial','observe','audit','audit-incomplete-publication','inventory','stop','source-clone-setup','source-clone-poll','source-clone-observed','source-clone-result','source-fault-enable','source-fault-poll','source-fault-observed','snapshot-poll','snapshot-worker-result'),'BROKER_OPERATION')
         operation=message['op']
+        if snapshot_protocol is not None:snapshot_protocol.audit_credentials()
         if operation=='init':
-            require(set(message)=={'op','identity','sql','admin_password','registry_case'} and ident is None and not list(root.iterdir()),'ISSUER_FRESH_ROOT')
+            snapshot=message.get('snapshot_profile')=='root_snapshot_broker_v2'
+            require(set(message)=={'op','identity','sql','admin_password','registry_case'}|({'snapshot_profile'}if snapshot else set()) and ident is None,'ISSUER_FRESH_ROOT')
+            require(sorted(path.name for path in root.iterdir())==(['assets','snapshot-sockets']if snapshot else []),'ISSUER_FRESH_ROOT')
+            if snapshot:
+                for name in ('assets','snapshot-sockets'):
+                    path=root/name;meta=path.lstat()
+                    require(stat.S_ISDIR(meta.st_mode) and meta.st_uid==meta.st_gid==0 and stat.S_IMODE(meta.st_mode)==0o700 and meta.st_nlink==2 and not list(path.iterdir()),'SNAPSHOT_PREPARED_PRIVATE_EMPTY_ROOT')
             ident=message['identity'];v4(ident['case_id'])
             require(ident['project'] in ('learning-system-p0c4-'+uuid.UUID(ident['case_id']).hex,'kwc4c-'+uuid.UUID(ident['case_id']).hex) and ident['database']=='learning_backup_c4_task3_'+ident['case_id'],'ISSUER_CASE_IDENTITY')
             password=message['admin_password']
             require(re.fullmatch('[0-9a-f]{64}',password),'ISSUER_SECRET_FORMAT')
             root.chmod(0o700)
             for name in ('control','pins','assets','asset-staging','proofs','secrets','regressions'):
-                (root/name).mkdir(mode=0o700);sync_dir(root)
+                if name!='assets' or not snapshot:(root/name).mkdir(mode=0o700);sync_dir(root)
                 meta=(root/name).lstat();root_pins[name]=(meta.st_dev,meta.st_ino)
+            if snapshot:
+                from p0c4_completion.snapshot_worker import BrokerProtocol,login_password
+                meta=(root/'snapshot-sockets').lstat();root_pins['snapshot-sockets']=(meta.st_dev,meta.st_ino)
+                snapshot_protocol=BrokerProtocol(root,ident)
+                for role,name in [('learning_snapshot_claim_broker','broker-dsn'),('learning_runtime','runtime-dsn')]:
+                    secret=login_password(password,role)
+                    new_private(root/name,f'postgresql://{role}:{secret}@localhost:5432/{ident["database"]}?sslmode=disable'.encode())
+                snapshot_protocol.pin_credentials()
             control_fd=os.open(root/'control',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
             pin_fd=os.open(root/'pins',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
             sql=message['sql'];meta=os.fstat(control_fd)
@@ -1222,6 +1238,12 @@ def broker_main():
             new_private(root/'secrets/pgpass',f'localhost:5432:{ident["database"]}:learning_admin:{password}\n'.encode())
             ledger=GenerationLedger(ident)
             answer=dict(binding=binding,binding_sha256=digest(raw),sql=sql,issuer_euid=0,classification='INDEPENDENT_PRECOMPILE_BINDING',registry_provisioning=registry_receipt)
+        elif operation=='snapshot-poll':
+            require(set(message)=={'op'} and snapshot_protocol is not None,'SNAPSHOT_BROKER_PROFILE')
+            answer=snapshot_protocol.poll()
+        elif operation=='snapshot-worker-result':
+            require(snapshot_protocol is not None,'SNAPSHOT_BROKER_PROFILE')
+            answer=snapshot_protocol.result(message)
         elif operation=='poll':
             require(set(message)=={'op'} and ident is not None,'BROKER_POLL')
             found=[]
@@ -1407,7 +1429,7 @@ def broker_main():
             if operation=='audit-incomplete-publication':answer=dict(audit=answer,registry_unusable=unusable)
         elif operation=='inventory':
             require(set(message)=={'op'} and ident is not None,'BROKER_INVENTORY')
-            answer=bounded_inventory(root)
+            answer=bounded_inventory(root,snapshot=snapshot_protocol is not None)
         else:
             require(set(message)=={'op'},'BROKER_STOP')
             if control_fd is not None:os.close(control_fd)
@@ -1416,12 +1438,15 @@ def broker_main():
         print(canonical(answer).decode(),flush=True)
 
 
-def bounded_inventory(root):
+def bounded_inventory(root,*,snapshot=False):
     entries={};total=0
     for path in sorted(root.rglob('*')):
         require(len(entries)<4096,'INVENTORY_COUNT')
         meta=path.lstat();relative=path.relative_to(root).as_posix()
         fs_evidence=re.fullmatch(r'fs-[0-9a-f-]{36}',relative.split('/')[0]) is not None
+        if snapshot and stat.S_ISSOCK(meta.st_mode):
+            require(re.fullmatch(r'snapshot-sockets/[0-9a-f-]{36}/[0-9a-f-]{36}/(?:work|management)\.sock',relative) and meta.st_uid==0 and meta.st_nlink==1 and (meta.st_gid,stat.S_IMODE(meta.st_mode))==((65532,0o660)if path.name=='work.sock'else(0,0o600)),'SNAPSHOT_INVENTORY_SOCKET')
+            entries[relative]=dict(type='socket',dev=meta.st_dev,ino=meta.st_ino,uid=meta.st_uid,gid=meta.st_gid,mode=stat.S_IMODE(meta.st_mode));continue
         if fs_evidence and (stat.S_ISLNK(meta.st_mode) or stat.S_ISFIFO(meta.st_mode)):
             entries[relative]=dict(type='symlink' if stat.S_ISLNK(meta.st_mode) else 'fifo',mode=stat.S_IMODE(meta.st_mode),uid=meta.st_uid)
             if stat.S_ISLNK(meta.st_mode):entries[relative]['target']=os.readlink(path)
@@ -2440,7 +2465,12 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         _full_context._admit_call(ident,subnet,name,archive_sha)
     else:
         require(name==LEGACY_TEST if legacy else name in (*PG_TESTS,*REGISTRY_TESTS,*SOURCE_ENDPOINT_TESTS,*DESTINATION_TESTS),'CASE_TEST_IDENTITY')
-    log_capacity(runner.logs,93)
+    snapshot_effects=_full_context is not None and _full_context._snapshot_effects()
+    snapshot_driver=None
+    if snapshot_effects:
+        if __package__:from .p0c4_completion import snapshot_worker as snapshot_driver
+        else:from p0c4_completion import snapshot_worker as snapshot_driver
+    log_capacity(runner.logs,221 if snapshot_effects else 93)
     registry=runner.ownership;registry.case_id=ident['case_id'];registry.deadline=None;child_start=len(registry.children)
     require((source_clone is not None)==(name==SOURCE_CLONE_TEST),'SOURCE_CLONE_FIXED_CASE')
     registry.source_clone_pg_names={ident['pg_name'],completion_case_identity(source_clone['case_id'])['pg_name']} if source_clone is not None else None
@@ -2477,16 +2507,13 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         'environment':pg_environment,'volumes':[*[dict(type='volume',source=key,target=target,read_only=ro,volume={'nocopy':True}) for key,(_,target,ro) in volume_spec.items()],*binds],
         'networks':['test']}},'networks':{'test':{'name':ident['network'],'internal':True,'ipam':{'config':[{'subnet':subnet}]}}},
         'volumes':{key:{'name':v[0],'external':True} for key,v in volume_spec.items()}}
-    if _full_context is not None:
-        _full_context._extend_source_document(document,binds,volume_spec)
-    expected=None;broker=None;anchors={};consumer=None;runtime=None;holder=None;pg_owner=None;clone_peer=None;source_fault=None
+    expected=None;broker=None;anchors={};consumer=None;runtime=None;holder=None;pg_owner=None;clone_peer=None;source_fault=None;snapshot_controller=None
     try:
         if source_clone is not None:
             from p0c4_completion.resources import SourceClone
             clone_peer=SourceClone(h,b,runner,batch,source_clone,result)
             document['volumes']['clonepg']={'name':clone_peer.ident['volume'],'external':True}
             document['services']['pg']['volumes'].append(dict(type='volume',source='clonepg',target=clone_peer.COPY_ROOT,volume={'nocopy':True}))
-        h.write_new(case/'compose.json',canonical(document))
         for key in ('volume','source_volume','build_volume','registry_volume'):
             result['resource_creation_unknown']=True
             labels={'com.docker.compose.project':ident['project'],'knowweave.source-lifecycle.batch':result['batch_id']}
@@ -2495,9 +2522,12 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
             record['volumes'][key]=creation_call(runner,owner,lambda:b.create_volume(h,runner,ident[key],labels))
             registry.known(owner,ident[key]);registry.release(owner,'retained');record.pop('pending_volume')
             result['resource_creation_unknown']=False
+        if snapshot_effects:snapshot_driver.prepare_volumes(h,b,runner,result,images[h.BUILDER],source,ident,record,_full_context)
+        if _full_context is not None:_full_context._extend_source_document(document,binds,volume_spec)
+        h.write_new(case/'compose.json',canonical(document))
         compose=[DOCKER,'compose','--project-name',ident['project'],'--project-directory',str(case),'-f',str(case/'compose.json')]
         record['stage']='compose-create';result['resource_creation_unknown']=True
-        expected_mounts={('bind',item['source'],item['target'],False) for item in binds}
+        expected_mounts={('bind',item['source'],item['target'],not item.get('read_only',False)) for item in binds}
         for key,(_,target,ro) in volume_spec.items():
             saved=record['volumes'][{'pg':'volume','source':'source_volume','build':'build_volume','registry':'registry_volume'}[key]]
             expected_mounts.add(('volume',saved['Mountpoint'],target,not ro))
@@ -2536,7 +2566,10 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         broker_container=HelperContainer(h,b,runner,result,images[h.BUILDER],mounts(source,ident,False,True),['python3','-u','-c',BROKER],interactive=True)
         broker=BrokerClient(broker_container,batch/'evidence/logs',budget)
         record['stage']='independent-issuer'
-        record['issuer']=validate_issuer(broker.call(dict(op='init',identity=ident,sql=observed,admin_password=passwords['admin'],registry_case=dict(batch_id=result['batch_id'],case_id=ident['case_id'],source_package_sha256=archive_sha,application_commit=manifest['base_commit'],application_build_sha256=archive_sha))),observed)
+        init=dict(op='init',identity=ident,sql=observed,admin_password=passwords['admin'],registry_case=dict(batch_id=result['batch_id'],case_id=ident['case_id'],source_package_sha256=archive_sha,application_commit=manifest['base_commit'],application_build_sha256=archive_sha))
+        if snapshot_effects:init['snapshot_profile']='root_snapshot_broker_v2'
+        record['issuer']=validate_issuer(broker.call(init),observed)
+        if snapshot_effects:record['snapshot_credential_pins_before']=snapshot_driver.audit_credentials(runner,record)
         if name in SOURCE_FAULT_TESTS:
             broker.call(dict(op='source-fault-enable',test=name))
             source_fault=SourceFaultController(h,runner,record,expected,isolation,broker)
@@ -2547,6 +2580,7 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         if _full_context is not None:_full_context._finalize_profile(record,expected)
         record['stage']='independent-consumer-build'
         env=compile_case(h,b,runner,result,images[h.BUILDER],source,ident,manifest,archive_sha,record,_full_context=_full_context)
+        if snapshot_effects:snapshot_driver.compile_worker(h,b,runner,result,images[h.BUILDER],source,ident,env,record)
         if first:fs_and_contract_gates(h,b,runner,result,images[h.BUILDER],source,ident,env,record)
         binaries=[row['binary'] for row in record['compiled'].values()]
         before_message=dict(op='audit',binaries=binaries)
@@ -2560,6 +2594,12 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         record['pg_binary_before']=audit_binaries_in_pg(runner,container,record['compiled']);record['tools_before']=tool_check(runner,container,record=record,operation='tools_before')
         migration=record['compiled']['example']['binary']
         migration_script='export TEST_ADMIN_DATABASE_URL="$(cat /var/lib/knowweave-source/secrets/admin.dsn)"; export TEST_C4_TASK3_DATABASE_NAME="$1"; exec "$2"'
+        if _full_context is not None and _full_context._full_c():
+            require(sql(runner,container,"SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname='learning_snapshot_claim_broker';")=='0','FULL_C_SOURCE_ROLE_MUST_BE_ABSENT')
+            sql(runner,container,'CREATE ROLE learning_snapshot_claim_broker LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 4;')
+            record['full_c_source_role_created_fresh']=True
+            migration_script='export TEST_C4_TASK3_FULL_SCHEMA_PROFILE=snapshot_c0_d1_v1; '+migration_script
+        if snapshot_effects:snapshot_driver.prepare_source_container(runner,record,passwords['admin'])
         code,out,err=case_source_rpc(runner,record,container,'migration_setup',lambda:pg_exec(runner,container,['/bin/sh','-ec',migration_script,'migrate',ident['database'],migration],timeout=90))
         require(code==0 and out==b'C4_TASK3_MIGRATED\n' and err==b'','GENUINE_MIGRATOR_EXIT')
         record['migration_setup']=dict(exit_code=code,stdout_sha256=digest(out),stderr_sha256=digest(err),secret_scope='only_short_lived_inside_pg_setup_environment')
@@ -2605,6 +2645,7 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
             command=[DOCKER,'exec','--user','0:0',container,'/usr/bin/env','-i',*[key+'='+value for key,value in values.items()],record['compiled']['lib']['binary'],'--ignored','--exact',name,'--test-threads=1']
         else:command=consumer_command(container,record['compiled']['lib']['binary'],name,consumer_env(ident,_full_context=_full_context),_full_context=_full_context)
         consumer=MonitoredChild(command,batch/'evidence/logs',timeout=budget.remaining())
+        if snapshot_effects:snapshot_controller=snapshot_driver.Controller(h,b,runner,result,images[h.BUILDER],record,broker)
         if legacy:
             # pg_database is locked: no SQL observation until this SAME owned
             # holder commits. Actual proc/Docker state, never fabricated data.
@@ -2629,6 +2670,7 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         active=None;denied=False;last_anchor_check=0;last_acl_poll=0
         while not legacy and consumer.p.poll() is None:
             consumer.check()
+            if snapshot_controller is not None:snapshot_controller.service()
             if source_fault is not None:
                 source_fault.service()
                 if source_fault.pending is not None:
@@ -2705,6 +2747,8 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
                 last_anchor_check=now
             time.sleep(0.05)
         code,out,err=consumer.finish(terminate_on_error=False);consumer=None
+        if snapshot_controller is not None:
+            snapshot_controller.service();snapshot_controller.completed()
         if clone_peer is not None:
             record['source_clone_prewrite_result']=broker.call(dict(op='source-clone-result'))
             if code!=0:
@@ -2720,16 +2764,24 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         elif not legacy and clone_peer is None:require(record['generations'] and any(g['denial'] is not None for g in record['generations']) and
                               (not first or record.get('drain_committed_after_denial') is True),'ACTUAL_REFRESH_DRAIN_EVIDENCE')
         completed_case_audit(broker,record,binaries,code,out,err)
+        if snapshot_effects:
+            record['snapshot_credential_pins_after']=snapshot_driver.audit_credentials(runner,record)
+            equal_audit(record['snapshot_credential_pins_before'],record['snapshot_credential_pins_after'])
         immutable_before={key:value for key,value in record['audit_before'].items() if key!='roots'}
         immutable_after={key:value for key,value in record['audit_after'].items() if key!='roots'}
         equal_audit(immutable_before,immutable_after)
         record['pg_root_after']=root_audit(runner,container,record['audit_after']['roots']['control']['path'])
         equal_audit(record['pg_root_before'],record['pg_root_after'])
         equal_audit(record['pg_binary_before'],audit_binaries_in_pg(runner,container,record['compiled']))
+        if snapshot_effects:
+            record['snapshot_worker_binary_after']=snapshot_driver.audit_worker(h,b,runner,result,images[h.BUILDER],source,ident,record)
+            equal_audit(record['snapshot_worker_binary_before'],record['snapshot_worker_binary_after'])
         equal_audit(record['tools_before'],tool_check(runner,container,record=record,operation='tools_after'))
         inventory=broker.call(dict(op='inventory'));h.write_new(case/'inventory.json',canonical(inventory));record['inventory_sha256']=digest(canonical(inventory))
         runner.namespace.archives(container,inventory);runner.namespace.finalize()
-        if first and name not in (*REGISTRY_TESTS,*SOURCE_FAULT_TESTS,*DESTINATION_TESTS,SOURCE_CLONE_TEST):record['independent_capture_audit']=real_index_postcheck(runner,container,record,inventory)
+        if snapshot_effects:
+            if _full_context._case_name!='snapshot-history-gap':record['snapshot_capture_byte_audit']=snapshot_driver.capture_postcheck(runner,container,record,inventory)
+        elif first and name not in (*REGISTRY_TESTS,*SOURCE_FAULT_TESTS,*DESTINATION_TESTS,SOURCE_CLONE_TEST):record['independent_capture_audit']=real_index_postcheck(runner,container,record,inventory)
         record['acl_after']=sql(runner,container,"SELECT has_database_privilege('learning_runtime',oid,'CONNECT') FROM pg_database WHERE datname='"+ident['database']+"';")
         if name in DESTINATION_TESTS:
             record['destination_source_after']=destination_source_inventory(inventory)
@@ -2766,6 +2818,9 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
                 record['clone_cleanup_error']=str(error) if isinstance(error,(GateError,ValueError)) else 'SOURCE_CLONE_STOP_UNCONFIRMED'
         record['phase_budget_history']=budget.history
         cleanup_errors=[]
+        if snapshot_controller is not None:
+            try:snapshot_controller.close()
+            except BaseException:cleanup_errors.append('SNAPSHOT_WORKER_CLEANUP_UNKNOWN')
         if _full_context is not None:
             try:_full_context._cleanup_target(record)
             except BaseException:cleanup_errors.append('FULL_TARGET_STOP_UNCONFIRMED')

@@ -152,6 +152,123 @@ ACL_SQL="""SELECT json_build_object(
  'constraints',(SELECT json_agg(json_build_object('table',c.relname,'name',p.conname,'type',p.contype,'definition',pg_get_constraintdef(p.oid,true)) ORDER BY c.relname,p.conname) FROM pg_constraint p JOIN pg_class c ON c.oid=p.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'),
  'triggers',(SELECT json_agg(json_build_object('table',c.relname,'name',t.tgname,'definition',pg_get_triggerdef(t.oid,true),'enabled',t.tgenabled) ORDER BY c.relname,t.tgname) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal));"""
 
+C0_D1_PROFILE = 'snapshot_c0_d1_v1'
+C0_D1_ACL_SQL = ACL_SQL.replace(
+    "WHERE rolname IN ('learning_admin','learning_runtime','learning_auth_lock')",
+    "WHERE rolname IN ('learning_admin','learning_runtime','learning_auth_lock','learning_snapshot_claim_broker')")
+# Capture facts only, never execute either helper or read a password. All
+# definitions remain independent native evidence for subsequent source review.
+C0_D1_FACTS_SQL = """SELECT pg_catalog.jsonb_build_object(
+ 'helpers',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+  'schema',n.nspname,'name',p.proname,'owner',pg_catalog.pg_get_userbyid(p.proowner),
+  'kind',p.prokind,'language',(SELECT l.lanname FROM pg_catalog.pg_language l WHERE l.oid=p.prolang),
+  'definition',CASE WHEN p.prokind IN ('f','p') THEN pg_catalog.pg_get_functiondef(p.oid) ELSE NULL END,
+  'body',p.prosrc,'input_types',p.proargtypes::pg_catalog.text,'all_types',p.proallargtypes::pg_catalog.text,
+  'arg_names',p.proargnames,'arg_modes',p.proargmodes,'security_definer',p.prosecdef,
+  'strict',p.proisstrict,'leakproof',p.proleakproof,'volatility',p.provolatile,
+  'parallel',p.proparallel,'config',p.proconfig,'acl',p.proacl::pg_catalog.text,
+  'nargs',p.pronargs,'defaults',p.pronargdefaults,'variadic',p.provariadic::pg_catalog.int8,
+  'support',p.prosupport::pg_catalog.int8,'cost',p.procost,'rows',p.prorows,
+  'bin_null',p.probin IS NULL,'sqlbody_null',p.prosqlbody IS NULL,
+  'argdefaults_null',p.proargdefaults IS NULL,'trftypes_null',p.protrftypes IS NULL,
+  'returns_set',p.proretset,'return_type',p.prorettype::pg_catalog.int8,
+  'extension_member',EXISTS(SELECT FROM pg_catalog.pg_depend d WHERE d.classid='pg_catalog.pg_proc'::pg_catalog.regclass AND d.objid=p.oid AND d.deptype='e'),
+  'comment',pg_catalog.obj_description(p.oid,'pg_proc')) ORDER BY n.nspname,p.proname,p.proargtypes)
+  FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+  WHERE p.proname IN ('p0c4_snapshot_claim_locked_observation','p0c4_snapshot_publication_observe_v1','p0c4_snapshot_locked_observation')
+   AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_'),
+ 'broker',(SELECT pg_catalog.jsonb_build_object('name',r.rolname,'login',r.rolcanlogin,
+  'inherit',r.rolinherit,'superuser',r.rolsuper,'createdb',r.rolcreatedb,'createrole',r.rolcreaterole,
+  'replication',r.rolreplication,'bypassrls',r.rolbypassrls,'connection_limit',r.rolconnlimit,
+  'valid_until_null',r.rolvaliduntil IS NULL,
+  'connect',pg_catalog.has_database_privilege(r.oid,pg_catalog.current_database(),'CONNECT'),
+  'create',pg_catalog.has_database_privilege(r.oid,pg_catalog.current_database(),'CREATE'),
+  'temp',pg_catalog.has_database_privilege(r.oid,pg_catalog.current_database(),'TEMP'),
+  'memberships',(SELECT pg_catalog.count(*) FROM pg_catalog.pg_auth_members m WHERE m.member=r.oid OR m.roleid=r.oid),
+  'settings',(SELECT pg_catalog.count(*) FROM pg_catalog.pg_db_role_setting s WHERE s.setrole=r.oid),
+  'ownerships',(SELECT pg_catalog.count(*) FROM pg_catalog.pg_shdepend d WHERE d.refclassid='pg_catalog.pg_authid'::pg_catalog.regclass AND d.refobjid=r.oid AND d.deptype='o'),
+  'direct_relation_acls',(SELECT pg_catalog.count(*) FROM pg_catalog.pg_class c,LATERAL pg_catalog.aclexplode(c.relacl) a WHERE a.grantee=r.oid),
+  'direct_column_acls',(SELECT pg_catalog.count(*) FROM pg_catalog.pg_attribute c,LATERAL pg_catalog.aclexplode(c.attacl) a WHERE a.grantee=r.oid),
+  'default_acls',(SELECT pg_catalog.count(*) FROM pg_catalog.pg_default_acl d,LATERAL pg_catalog.aclexplode(d.defaclacl) a WHERE a.grantee=r.oid),
+  'schema_acls',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('schema',n.nspname,'grantor_is_owner',a.grantor=n.nspowner,'privilege',a.privilege_type,'grantable',a.is_grantable) ORDER BY n.nspname,a.privilege_type) FROM pg_catalog.pg_namespace n,LATERAL pg_catalog.aclexplode(n.nspacl) a WHERE a.grantee=r.oid),
+  'function_acls',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('schema',n.nspname,'name',p.proname,'types',p.proargtypes::pg_catalog.text,'owner',pg_catalog.pg_get_userbyid(p.proowner),'grantor',pg_catalog.pg_get_userbyid(a.grantor),'privilege',a.privilege_type,'grantable',a.is_grantable) ORDER BY n.nspname,p.proname,p.proargtypes,a.privilege_type) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace,LATERAL pg_catalog.aclexplode(p.proacl) a WHERE a.grantee=r.oid),
+  'database_acls',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('current_database',d.datname=pg_catalog.current_database(),'grantor',pg_catalog.pg_get_userbyid(a.grantor),'privilege',a.privilege_type,'grantable',a.is_grantable) ORDER BY d.datname,a.privilege_type) FROM pg_catalog.pg_database d,LATERAL pg_catalog.aclexplode(d.datacl) a WHERE a.grantee=r.oid),
+  'extra_schema_access',EXISTS(SELECT FROM pg_catalog.pg_namespace n WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_' AND (pg_catalog.has_schema_privilege(r.oid,n.oid,'CREATE') OR (n.nspname<>'public' AND pg_catalog.has_schema_privilege(r.oid,n.oid,'USAGE')))),
+  'extra_definer_execute',EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_' AND p.prosecdef AND pg_catalog.has_function_privilege(r.oid,p.oid,'EXECUTE') AND p.oid NOT IN ('public.p0c3_claim_snapshot_job(uuid,bigint)'::pg_catalog.regprocedure,'public.p0c3_renew_snapshot_job(uuid,uuid,bigint)'::pg_catalog.regprocedure,'public.p0c3_fail_snapshot_job(uuid,uuid,text,boolean)'::pg_catalog.regprocedure,'public.p0c4_snapshot_claim_locked_observation(uuid,boolean)'::pg_catalog.regprocedure)))
+  FROM pg_catalog.pg_roles r WHERE r.rolname='learning_snapshot_claim_broker'));
+"""
+
+def capture_profile(plan):
+    keys={'format_version','case_id','container_id','database','source_root','application_commit','application_build_sha256','output_directory'}
+    require(type(plan)is dict and type(plan.get('format_version'))is int,'PLAN_FIELDS')
+    if plan['format_version']==1:
+        require(set(plan)==keys,'PLAN_FIELDS')
+        return 'base_v1'
+    require(plan['format_version']==2 and set(plan)==keys|{'profile'}
+            and plan['profile']==C0_D1_PROFILE,'PLAN_FIELDS')
+    return C0_D1_PROFILE
+
+def validate_c0_d1_capture_facts(facts, source):
+    require(type(facts)is dict and set(facts)=={'helpers','broker'},'C0_D1_FACTS')
+    broker=facts['broker']
+    require(broker==dict(name='learning_snapshot_claim_broker',login=True,inherit=False,
+        superuser=False,createdb=False,createrole=False,replication=False,bypassrls=False,
+        connection_limit=4,valid_until_null=True,connect=True,create=False,temp=False,memberships=0,settings=0,
+        ownerships=0,direct_relation_acls=0,direct_column_acls=0,default_acls=0,
+        schema_acls=[dict(schema='public',grantor_is_owner=True,privilege='USAGE',grantable=False)],
+        database_acls=[dict(current_database=True,grantor='learning_admin',privilege='CONNECT',grantable=False)],
+        function_acls=[dict(schema='public',name=name,types=types,owner='learning_admin',grantor='learning_admin',privilege='EXECUTE',grantable=False)
+            for name,types in [('p0c3_claim_snapshot_job','2950 20'),('p0c3_fail_snapshot_job','2950 2950 25 16'),('p0c3_renew_snapshot_job','2950 2950 20'),('p0c4_snapshot_claim_locked_observation','2950 16')]],
+        extra_schema_access=False,extra_definer_execute=False),
+        'C0_D1_SOURCE_BROKER')
+    expected={
+        'p0c4_snapshot_claim_locked_observation':
+            ('extensions/snapshot-claim-v1/install.sql','$snapshot_claim_observation_v1$',
+             '2950 16','{2950,16,20,20,1184,3802,3802}',
+             ['p_job_id','p_include_body','job_octets','outbox_octets','observed_at','job_row','outbox_row'],
+             'learning_snapshot_claim_broker'),
+        'p0c4_snapshot_publication_observe_v1':
+            ('crates/learning-db/src/snapshot_broker/writer/publication/observation.sql',
+             '$snapshot_publication_observation_v1$','2950 2950 2950 1184 25 16',
+             '{2950,2950,2950,1184,25,16,20,20,20,20,20,1184,3802,3802,3802,3802,3802}',
+             ['p_job_id','p_token','p_request','p_expiry','p_phase','p_include_body',
+              'job_octets','outbox_octets','request_octets','key_octets','receipt_octets',
+              'observed_at','job_row','outbox_row','request_row','key_row','receipt_row'],
+             'learning_runtime')}
+    helpers=facts['helpers']
+    require(type(helpers)is list and len(helpers)==2
+            and {h['name']for h in helpers}==set(expected),'C0_D1_EXACT_HELPERS')
+    for helper in helpers:
+        path,marker,types,all_types,names,grantee=expected[helper['name']]
+        sql=(source/path).read_text(encoding='utf-8')
+        parts=sql.split(marker)
+        require(len(parts)==3 and parts[0].endswith('AS ') and parts[2].startswith(';'),
+                'C0_D1_FIXED_SOURCE_BODY')
+        require(helper['schema']=='public' and helper['owner']=='learning_admin'
+                and helper['kind']=='f' and helper['language']=='plpgsql' and helper['body']==parts[1]
+                and helper['input_types']==types and helper['all_types']==all_types
+                and helper['arg_names']==names
+                and helper['arg_modes']==['i']*len(types.split())+['t']*(len(names)-len(types.split()))
+                and helper['security_definer']is True and helper['strict']is False
+                and helper['leakproof']is False and helper['volatility']=='v'
+                and helper['parallel']=='u' and sorted(helper['config'])==
+                    ['TimeZone=UTC','row_security=on','search_path=pg_catalog']
+                and helper['nargs']==len(types.split()) and helper['defaults']==0
+                and helper['variadic']==helper['support']==0 and helper['cost']==100 and helper['rows']==1000
+                and helper['bin_null']is True and helper['sqlbody_null']is True
+                and helper['argdefaults_null']is True and helper['trftypes_null']is True
+                and helper['returns_set']is True and helper['return_type']==2249
+                and helper['extension_member']is False
+                and helper['comment']==('knowweave.snapshot-claim.v1:C0_OBSERVATION_ONLY_NOT_EXPORTABLE'
+                    if grantee=='learning_snapshot_claim_broker' else None)
+                and helper['acl']=='{learning_admin=X/learning_admin,'+grantee+'=X/learning_admin}',
+                'C0_D1_HELPER_PROFILE')
+        definition=helper['definition']
+        require(type(definition)is str and definition.startswith('CREATE OR REPLACE FUNCTION public.'+helper['name']+'(')
+                and definition.count(parts[1])==1
+                and any(definition.endswith(parts[1]+'$function$'+end)for end in ('\n',';\n')),
+                'C0_D1_NATIVE_DEFINITION')
+
 def collect(command, output, cap, *, input_file=None, input_bytes=None):
     """Bound both pipes while running; failure kills AND reaps before returning."""
     require(not (input_file is not None and input_bytes is not None),'INPUT_MODE')
@@ -180,8 +297,7 @@ def collect(command, output, cap, *, input_file=None, input_bytes=None):
 
 def capture(plan):
     require(os.name=='posix' and os.geteuid()==0,'ROOT_LINUX_ONLY')
-    keys={'format_version','case_id','container_id','database','source_root','application_commit','application_build_sha256','output_directory'}
-    require(type(plan)is dict and set(plan)==keys and type(plan['format_version'])is int and plan['format_version']==1,'PLAN_FIELDS')
+    profile=capture_profile(plan)
     case=uuid.UUID(plan['case_id']);require(str(case)==plan['case_id'] and case.version==4,'PLAN_CASE')
     require(plan['database']=='learning_backup_c4_task3_'+str(case),'PLAN_DATABASE')
     require(re.fullmatch('[0-9a-f]{40}',plan['application_commit']) and HEX64.fullmatch(plan['application_build_sha256']),'PLAN_SOURCE')
@@ -216,7 +332,10 @@ def capture(plan):
     query='SELECT json_build_array('+','.join('(SELECT count(*) FROM public.'+t['table']+')' for t in columns)+');'
     counts=json.loads(generate('counts.raw.json','catalog',MAX_METADATA,query=query))
     require(counts==[15 if t['table']=='_sqlx_migrations' else 0 for t in columns],'EMPTY_MIGRATED_FIXTURE')
-    acl=json.loads(generate('acl.raw.json','catalog',MAX_METADATA,query=ACL_SQL))
+    acl=json.loads(generate('acl.raw.json','catalog',MAX_METADATA,query=C0_D1_ACL_SQL if profile==C0_D1_PROFILE else ACL_SQL))
+    if profile==C0_D1_PROFILE:
+        profile_before=json.loads(generate('c0-d1-profile.raw.json','catalog',MAX_METADATA,query=C0_D1_FACTS_SQL))
+        validate_c0_d1_capture_facts(profile_before,source)
     generate('database.dump','dump',MAX_DUMP)
     toc=normalize_toc(generate('toc.raw.txt','toc',MAX_METADATA,archive='database.dump'))
     generate('decoded.raw.sql','decode',MAX_DECODE,archive='database.dump')
@@ -226,10 +345,17 @@ def capture(plan):
     template,data=split_copy((out/'decoded.raw.sql').read_bytes(),columns)
     template=normalize_restrict(template)
     owned=normalize_restrict(generate('owned-schema.raw.sql','owned-schema',MAX_METADATA,archive='database.dump'))
+    if profile==C0_D1_PROFILE:
+        profile_after=json.loads(generate('c0-d1-profile-after.raw.json','catalog',MAX_METADATA,query=C0_D1_FACTS_SQL))
+        validate_c0_d1_capture_facts(profile_after,source)
+        require(profile_after==profile_before,'C0_D1_PROFILE_CHANGED_DURING_CAPTURE')
     after=inspect('container',plan['container_id'])
     require(after['Id']==facts['Id'] and after['Image']==facts['Image'] and after['State']['Running'] is True and after['State']['StartedAt']==facts['State']['StartedAt'],'CAPTURE_CONTAINER_CHANGED')
     artifacts={'pg18-schema.sql.in':template,'pg18-toc.json':canonical(toc),'columns.json':canonical(columns),'acl.json':canonical({'catalog':acl,'owned_schema_template':owned.decode()})}
     contract={'format_version':1,'capability':'full_schema_content_v1','postgres_image':PG_IMAGE,'postgres_version':PG_VERSION,'producer_sha256':sha(Path(__file__).read_bytes()),'source':{k:plan[k] for k in ('case_id','container_id','database','application_commit','application_build_sha256')},'migrations':migrations,'migration_fingerprint':sha(json.dumps(migrations,separators=(',',':')).encode()),'files':{name:{'size':len(raw),'sha256':sha(raw)} for name,raw in artifacts.items()},'migration_copy_sha256':sha(data['_sqlx_migrations'])}
+    if profile==C0_D1_PROFILE:
+        contract['format_version']=2
+        contract['capability']='full_schema_content_c0_d1_v1'
     artifacts['contract.json']=canonical(contract)
     for name,raw in artifacts.items():
         with (out/name).open('xb') as stream:stream.write(raw);stream.flush();os.fsync(stream.fileno())

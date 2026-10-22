@@ -24,6 +24,8 @@ use uuid::Uuid;
 
 mod copy_meter;
 mod custody;
+#[cfg(target_os = "linux")]
+pub use custody::InstalledSnapshotBinding;
 pub use custody::{CustodyCaptureGuard, CustodyStaged, CustodyWriter, RootSnapshotCustody};
 
 #[derive(Debug, Error)]
@@ -44,6 +46,8 @@ pub enum SnapshotIoError {
 pub struct SnapshotDirectory {
     dir: Dir,
     manifest_sha256: String,
+    #[cfg(target_os = "linux")]
+    reading_bounds: Option<std::sync::Arc<reading_budget::Bounds>>,
 }
 
 #[derive(Debug)]
@@ -53,43 +57,132 @@ pub struct VerifiedSnapshot {
     pub files: Vec<SnapshotFile>,
 }
 
+/// A verified package's sealed files, opened one at a time. Keeping the iterator
+/// does not keep a descriptor for every package member. Each `next` verifies the
+/// newly opened handle again before returning it.
+pub struct SnapshotFileIter {
+    directory: Dir,
+    files: std::vec::IntoIter<(String, String, Option<u64>)>,
+    failed: bool,
+    #[cfg(target_os = "linux")]
+    reading_bounds: Option<std::sync::Arc<reading_budget::Bounds>>,
+}
+
+impl Iterator for SnapshotFileIter {
+    type Item = Result<(String, File), SnapshotIoError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.failed {
+            return None;
+        }
+        let (name, digest, size) = self.files.next()?;
+        let result = (|| {
+            #[cfg(target_os = "linux")]
+            let (file, limit) = if let Some(bounds) = &self.reading_bounds {
+                (bounds.open_stream(&name)?, bounds.size(&name)?)
+            } else {
+                (
+                    open_staged_file(&self.directory, &name)?,
+                    size_limit(&name)?,
+                )
+            };
+            #[cfg(not(target_os = "linux"))]
+            let (file, limit) = (
+                open_staged_file(&self.directory, &name)?,
+                size_limit(&name)?,
+            );
+            let (file, actual_digest, actual_size) = sealed_delivery(file, limit)?;
+            #[cfg(target_os = "linux")]
+            if let Some(bounds) = &self.reading_bounds {
+                bounds.recheck()?;
+            }
+            if actual_digest != digest || size.is_some_and(|expected| expected != actual_size) {
+                return Err(SnapshotIoError::InvalidPackage);
+            }
+            Ok((name, file))
+        })();
+        self.failed = result.is_err();
+        Some(result)
+    }
+}
+
 impl SnapshotDirectory {
     pub fn manifest_sha256(&self) -> &str {
         &self.manifest_sha256
     }
 
+    /// One fresh, bounded four-file ReadingCopy verification. The original
+    /// handle is retained; the complete actual-size work is paid before reads.
+    #[cfg(target_os = "linux")]
+    pub fn verify_reading_copy_with_budget(
+        &self,
+        budget: &crate::root_journal::SharedJournalBudget,
+    ) -> Result<VerifiedSnapshot, SnapshotIoError> {
+        let bounded = self.budgeted_reading_copy(budget, reading_budget::Mode::Verifier)?;
+        let result = verify_snapshot(&bounded)?;
+        bounded
+            .reading_bounds
+            .as_ref()
+            .expect("bounded constructor")
+            .finish()?;
+        Ok(result)
+    }
+    #[cfg(target_os = "linux")]
+    fn budgeted_reading_copy(
+        &self,
+        budget: &crate::root_journal::SharedJournalBudget,
+        mode: reading_budget::Mode,
+    ) -> Result<Self, SnapshotIoError> {
+        if self.reading_bounds.is_some() {
+            return Err(SnapshotIoError::InvalidPackage);
+        }
+        let bounds = reading_budget::Bounds::observe(&self.dir, budget, mode)?;
+        Ok(Self {
+            dir: self.dir.try_clone()?,
+            manifest_sha256: self.manifest_sha256.clone(),
+            reading_bounds: Some(std::sync::Arc::new(bounds)),
+        })
+    }
+    #[cfg(target_os = "linux")]
+    fn with_reading_copy_capture_budget<T>(
+        &self,
+        budget: &crate::root_journal::SharedJournalBudget,
+        visitor: impl FnOnce(&SnapshotDirectory) -> Result<T, SnapshotIoError>,
+    ) -> Result<T, SnapshotIoError> {
+        let bounded = self.budgeted_reading_copy(budget, reading_budget::Mode::Capture)?;
+        verify_snapshot(&bounded)?;
+        let result = visitor(&bounded)?;
+        bounded
+            .reading_bounds
+            .as_ref()
+            .expect("bounded constructor")
+            .finish()?;
+        Ok(result)
+    }
+
     /// Open only names recorded and freshly verified against the manifest.
     pub fn open_verified_files(&self) -> Result<Vec<(String, File)>, SnapshotIoError> {
+        self.open_verified_file_iter()?.collect()
+    }
+
+    /// Recovery uses the same verification as delivery without opening up to
+    /// SNAPSHOT_MAX_FILES descriptors at once. This performs no writes.
+    pub fn open_verified_file_iter(&self) -> Result<SnapshotFileIter, SnapshotIoError> {
         let verified = verify_snapshot(self)?;
-        let mut names = verified
+        let mut files = verified
             .files
             .into_iter()
-            .map(|f| f.path)
+            .map(|f| (f.path, f.sha256, Some(f.size)))
             .collect::<Vec<_>>();
-        names.push("manifest.json".into());
-        names.sort();
-        names
-            .into_iter()
-            .map(|name| {
-                let file = open_staged_file(&self.dir, &name)?;
-                // Recheck the opened handle after verification; no named-path reopen
-                // can silently swap bytes between validation and delivery.
-                let expected = if name == "manifest.json" {
-                    (self.manifest_sha256.as_str(), None)
-                } else {
-                    let entry = manifest_files(&verified.manifest)
-                        .iter()
-                        .find(|f| f.path == name)
-                        .ok_or(SnapshotIoError::InvalidPackage)?;
-                    (entry.sha256.as_str(), Some(entry.size))
-                };
-                let (file, hash, size) = sealed_delivery(file, size_limit(&name)?)?;
-                if hash != expected.0 || expected.1.is_some_and(|n| n != size) {
-                    return Err(SnapshotIoError::InvalidPackage);
-                }
-                Ok((name, file))
-            })
-            .collect()
+        files.push(("manifest.json".into(), self.manifest_sha256.clone(), None));
+        files.sort_by(|left, right| left.0.cmp(&right.0));
+        Ok(SnapshotFileIter {
+            directory: self.dir.try_clone()?,
+            files: files.into_iter(),
+            failed: false,
+            #[cfg(target_os = "linux")]
+            reading_bounds: self.reading_bounds.clone(),
+        })
     }
 }
 
@@ -104,6 +197,26 @@ impl SnapshotJobDirectory {
         let root = Dir::open_private_root(root)?;
         root.reject_custody_ancestry()?;
         let dir = open_job_directory(&root, job)?;
+        Ok(Self { dir, copy_id: job })
+    }
+    /// Read-only opener for an independently copied recovery package. A missing
+    /// job directory fails; it never invokes the ordinary staging mkdir path.
+    pub fn open_existing(root: &Path, job: Uuid) -> Result<Self, SnapshotIoError> {
+        let root = Dir::open_private_root(root)?;
+        root.reject_custody_ancestry()?;
+        let dir = root.open_dir(&job.to_string())?;
+        Ok(Self { dir, copy_id: job })
+    }
+    /// Hold-relative recovery reader. It never traverses an external pathname
+    /// or creates a missing job directory.
+    #[cfg(target_os = "linux")]
+    pub fn open_existing_in(
+        root: &crate::backup_fs::BackupDir,
+        job: Uuid,
+    ) -> Result<Self, SnapshotIoError> {
+        let root = root.clone_inner()?;
+        root.reject_custody_ancestry()?;
+        let dir = root.open_dir(&job.to_string())?;
         Ok(Self { dir, copy_id: job })
     }
     pub fn stage_exact(
@@ -151,6 +264,8 @@ impl SnapshotJobDirectory {
         let stage = SnapshotDirectory {
             dir: self.dir.open_dir(&format!("{token}.ready"))?,
             manifest_sha256: expected_sha256.into(),
+            #[cfg(target_os = "linux")]
+            reading_bounds: None,
         };
         verify_snapshot(&stage)?;
         Ok(stage)
@@ -394,11 +509,136 @@ pub fn stage_incoming(
     result.map(|staged| staged.directory)
 }
 
+// The metered path parses the closed shallow wire directly. An internally
+// tagged enum would first materialize arbitrary Content before rejecting it.
+#[cfg(any(test, target_os = "linux"))]
+fn parse_reading_manifest(
+    bytes: &[u8],
+    sizes: [u64; 3],
+) -> Result<SnapshotManifest, serde_json::Error> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct FixedFile<'a> {
+        path: &'a str,
+        size: u64,
+        sha256: &'a str,
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct FixedManifest<'a> {
+        capability: &'a str,
+        format_version: u32,
+        copy_id: &'a str,
+        #[serde(borrow)]
+        files: [FixedFile<'a>; 3],
+    }
+    let raw: FixedManifest<'_> = serde_json::from_slice(bytes)?;
+    let invalid =
+        || <serde_json::Error as serde::de::Error>::custom("invalid fixed reading manifest");
+    let copy_id = Uuid::parse_str(raw.copy_id).map_err(|_| invalid())?;
+    if raw.capability != "reading_copy_v1"
+        || raw.format_version != SNAPSHOT_FORMAT_VERSION
+        || raw.copy_id.len() != 36
+        || copy_id.hyphenated().to_string() != raw.copy_id
+        || raw.files.iter().enumerate().any(|(index, file)| {
+            file.path != ["reading.html", "reading.md", "validation.json"][index]
+                || file.size != sizes[index]
+                || file.size > SNAPSHOT_MAX_JSON_FILE_BYTES as u64
+                || file.sha256.len() != 64
+                || !file
+                    .sha256
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+    {
+        return Err(invalid());
+    }
+    Ok(SnapshotManifest::ReadingCopyV1(ReadingCopyManifest {
+        format_version: raw.format_version,
+        copy_id,
+        files: raw
+            .files
+            .map(|file| SnapshotFile {
+                path: file.path.into(),
+                size: file.size,
+                sha256: file.sha256.into(),
+            })
+            .into(),
+    }))
+}
+
+#[cfg(test)]
+mod fixed_reading_manifest_tests {
+    use super::*;
+
+    #[test]
+    fn fixed_reading_parser_keeps_exact_wire_sizes_and_three_file_shape() {
+        let manifest = SnapshotManifest::ReadingCopyV1(ReadingCopyManifest {
+            format_version: SNAPSHOT_FORMAT_VERSION,
+            copy_id: Uuid::nil(),
+            files: ["reading.html", "reading.md", "validation.json"]
+                .map(|path| SnapshotFile {
+                    path: path.into(),
+                    size: 0,
+                    sha256: "a".repeat(64),
+                })
+                .into(),
+        });
+        let value = serde_json::to_value(&manifest).unwrap();
+        let bytes = canonical_json(&value).into_bytes();
+        assert_eq!(parse_reading_manifest(&bytes, [0; 3]).unwrap(), manifest);
+        assert!(parse_reading_manifest(&bytes, [0, 1, 0]).is_err());
+        let mut four = value.clone();
+        let first = four["files"][0].clone();
+        four["files"].as_array_mut().unwrap().push(first);
+        assert!(parse_reading_manifest(canonical_json(&four).as_bytes(), [0; 3]).is_err());
+        let mut unknown = value.clone();
+        unknown["unknown"] = serde_json::json!([]);
+        assert!(parse_reading_manifest(canonical_json(&unknown).as_bytes(), [0; 3]).is_err());
+        let mut bad = value;
+        bad["files"][0]["sha256"] = serde_json::json!("A".repeat(64));
+        assert!(parse_reading_manifest(canonical_json(&bad).as_bytes(), [0; 3]).is_err());
+    }
+
+    #[test]
+    fn fixed_reading_parser_rejects_large_invalid_tree_before_materialization() {
+        let mut bytes = br#"{"capability":"reading_copy_v1","copy_id":"00000000-0000-0000-0000-000000000000","files":[["#.to_vec();
+        for _ in 0..262_145 {
+            bytes.extend_from_slice(b"[],");
+        }
+        bytes.extend_from_slice(b"[]]],\"format_version\":1}");
+        let error = parse_reading_manifest(&bytes, [0; 3]).unwrap_err();
+        assert!(
+            error.line() == 1 && error.column() < 256,
+            "invalid first file must refuse directly on the original input before scanning its nested tree: {error}"
+        );
+    }
+}
+
 pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, SnapshotIoError> {
-    let manifest_bytes = read_staged(&stage.dir, "manifest.json", SNAPSHOT_MAX_JSON_FILE_BYTES)?;
+    #[cfg(target_os = "linux")]
+    if let Some(bounds) = &stage.reading_bounds {
+        bounds.start_verifier()?;
+    }
+    let manifest_bytes = read_for_verifier(stage, "manifest.json", SNAPSHOT_MAX_JSON_FILE_BYTES)?;
     if hex_digest(&manifest_bytes) != stage.manifest_sha256 {
         return Err(SnapshotIoError::InvalidPackage);
     }
+    #[cfg(target_os = "linux")]
+    let manifest: SnapshotManifest = if let Some(bounds) = &stage.reading_bounds {
+        parse_reading_manifest(
+            &manifest_bytes,
+            [
+                bounds.size("reading.html")? as u64,
+                bounds.size("reading.md")? as u64,
+                bounds.size("validation.json")? as u64,
+            ],
+        )
+        .map_err(|_| SnapshotIoError::InvalidPackage)?
+    } else {
+        serde_json::from_slice(&manifest_bytes).map_err(|_| SnapshotIoError::InvalidPackage)?
+    };
+    #[cfg(not(target_os = "linux"))]
     let manifest: SnapshotManifest =
         serde_json::from_slice(&manifest_bytes).map_err(|_| SnapshotIoError::InvalidPackage)?;
     if canonical_json(
@@ -458,7 +698,7 @@ pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, Sn
                 .checked_add(size as usize)
                 .ok_or(SnapshotIoError::LimitExceeded)?;
         } else {
-            let bytes = read_staged(&stage.dir, &entry.path, limit)?;
+            let bytes = read_for_verifier(stage, &entry.path, limit)?;
             if entry.size != bytes.len() as u64 || entry.sha256 != hex_digest(&bytes) {
                 return Err(SnapshotIoError::InvalidPackage);
             }
@@ -501,12 +741,361 @@ pub fn verify_snapshot(stage: &SnapshotDirectory) -> Result<VerifiedSnapshot, Sn
     if matches!(manifest, SnapshotManifest::ReadingCopyV1(_)) && !rows.is_empty() {
         return Err(SnapshotIoError::InvalidPackage);
     }
+    #[cfg(target_os = "linux")]
+    if let Some(bounds) = &stage.reading_bounds {
+        bounds.recheck()?;
+    }
     let files = entries.to_vec();
     Ok(VerifiedSnapshot {
         manifest,
         rows,
         files,
     })
+}
+
+#[cfg(target_os = "linux")]
+mod reading_budget {
+    use super::*;
+    use std::{
+        os::unix::fs::{FileExt, MetadataExt},
+        sync::atomic::{AtomicU8, Ordering},
+    };
+    const NAMES: [&str; 4] = [
+        "manifest.json",
+        "reading.html",
+        "reading.md",
+        "validation.json",
+    ];
+    // Includes fixed table/list/fingerprint work, the small metadata trees,
+    // and <=4*64KiB reads past a concurrently truncated/grown stream's bound.
+    const METADATA_WORK: u64 = 512 * 1024;
+    #[derive(Clone, Copy)]
+    pub(super) enum Mode {
+        Verifier,
+        Capture,
+    }
+    #[derive(Debug, PartialEq, Eq)]
+    struct Fingerprint(u64, u64, u64, u64, u32, u32, u32, i64, i64, i64, i64);
+    impl Fingerprint {
+        fn of(m: &std::fs::Metadata) -> Self {
+            Self(
+                m.dev(),
+                m.ino(),
+                m.nlink(),
+                m.len(),
+                m.uid(),
+                m.gid(),
+                m.mode(),
+                m.mtime(),
+                m.mtime_nsec(),
+                m.ctime(),
+                m.ctime_nsec(),
+            )
+        }
+    }
+    #[derive(Debug)]
+    pub(super) struct Bounds {
+        dir: Dir,
+        directory: Fingerprint,
+        files: [(Fingerprint, File); 4],
+        verifiers: AtomicU8,
+        streams: AtomicU8,
+    }
+    fn work(sizes: [u64; 4], mode: Mode) -> Result<u64, SnapshotIoError> {
+        // A successful metered manifest is exactly ReadingCopy, three fixed
+        // file declarations, UUID/scalar leaves, and no extra nesting. The
+        // longest canonical leaf has nine character-emission passes (leaf;
+        // file pair/join/object; array join/brackets; root pair/join/object).
+        // 20*n also pays exact buffer zero/read, hash, fixed borrowed parsing,
+        // Value conversion, equality, declarations/verified-file clones.
+        // Payloads pay exact buffer zero/read, hash and UTF-8/equality:4*n.
+        let payload = sizes[1..].iter().try_fold(0u64, |n, s| {
+            n.checked_add(*s).ok_or(SnapshotIoError::LimitExceeded)
+        })?;
+        let one = sizes[0]
+            .checked_mul(20)
+            .and_then(|n| payload.checked_mul(4).and_then(|p| n.checked_add(p)))
+            .ok_or(SnapshotIoError::LimitExceeded)?;
+        match mode {
+            Mode::Verifier => one.checked_add(METADATA_WORK),
+            Mode::Capture => one
+                .checked_mul(2)
+                .and_then(|n| {
+                    sizes
+                        .iter()
+                        .try_fold(0u64, |n, s| n.checked_add(*s))
+                        .and_then(|total| total.checked_mul(3))
+                        .and_then(|stream| n.checked_add(stream))
+                })
+                .and_then(|n| n.checked_add(METADATA_WORK)),
+        }
+        .ok_or(SnapshotIoError::LimitExceeded)
+    }
+    impl Bounds {
+        pub(super) fn observe(
+            dir: &Dir,
+            budget: &crate::root_journal::SharedJournalBudget,
+            mode: Mode,
+        ) -> Result<Self, SnapshotIoError> {
+            // Fixed quotas bound every repeated four-member list/open/stat
+            // before/after each permitted verifier and sealed stream.
+            budget.charge(
+                METADATA_WORK,
+                match mode {
+                    Mode::Verifier => 512,
+                    Mode::Capture => 1024,
+                },
+            )?;
+            let metadata = dir.root_metadata()?;
+            if metadata.uid() != 0
+                || metadata.gid() != 0
+                || !metadata.is_dir()
+                || !matches!(metadata.mode() & 0o7777, 0o500 | 0o700)
+                || dir.list_bounded(4)? != NAMES
+            {
+                return Err(SnapshotIoError::InvalidPackage);
+            }
+            let mut files = Vec::with_capacity(4);
+            let mut sizes = [0u64; 4];
+            for (index, name) in NAMES.iter().enumerate() {
+                let file = dir.open_file(name)?;
+                let m = file.metadata()?;
+                if !m.is_file()
+                    || m.uid() != 0
+                    || m.gid() != 0
+                    || m.nlink() != 1
+                    || m.mode() & 0o7777 != 0o400
+                    || m.len() > SNAPSHOT_MAX_JSON_FILE_BYTES as u64
+                {
+                    return Err(SnapshotIoError::InvalidPackage);
+                }
+                sizes[index] = m.len();
+                files.push((Fingerprint::of(&m), file));
+            }
+            budget.charge(
+                work(sizes, mode)?
+                    .checked_sub(METADATA_WORK)
+                    .ok_or(SnapshotIoError::LimitExceeded)?,
+                0,
+            )?;
+            let bound = Self {
+                dir: dir.try_clone()?,
+                directory: Fingerprint::of(&metadata),
+                files: files
+                    .try_into()
+                    .map_err(|_| SnapshotIoError::InvalidPackage)?,
+                verifiers: AtomicU8::new(match mode {
+                    Mode::Verifier => 1,
+                    Mode::Capture => 2,
+                }),
+                streams: AtomicU8::new(match mode {
+                    Mode::Verifier => 0,
+                    Mode::Capture => 15,
+                }),
+            };
+            bound.recheck()?;
+            Ok(bound)
+        }
+        fn index(name: &str) -> Result<usize, SnapshotIoError> {
+            NAMES
+                .iter()
+                .position(|n| *n == name)
+                .ok_or(SnapshotIoError::InvalidPackage)
+        }
+        pub(super) fn size(&self, name: &str) -> Result<usize, SnapshotIoError> {
+            usize::try_from(self.files[Self::index(name)?].0.3)
+                .map_err(|_| SnapshotIoError::LimitExceeded)
+        }
+        pub(super) fn recheck(&self) -> Result<(), SnapshotIoError> {
+            if Fingerprint::of(&self.dir.root_metadata()?) != self.directory
+                || self.dir.list_bounded(4)? != NAMES
+            {
+                return Err(SnapshotIoError::InvalidPackage);
+            }
+            for (index, name) in NAMES.iter().enumerate() {
+                if Fingerprint::of(&self.files[index].1.metadata()?) != self.files[index].0
+                    || Fingerprint::of(&self.dir.open_file(name)?.metadata()?)
+                        != self.files[index].0
+                {
+                    return Err(SnapshotIoError::InvalidPackage);
+                }
+            }
+            Ok(())
+        }
+        pub(super) fn start_verifier(&self) -> Result<(), SnapshotIoError> {
+            self.verifiers
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+                .map_err(|_| SnapshotIoError::InvalidPackage)?;
+            self.recheck()
+        }
+        pub(super) fn read(&self, name: &str) -> Result<Vec<u8>, SnapshotIoError> {
+            self.recheck()?;
+            let index = Self::index(name)?;
+            let n = self.size(name)?;
+            let mut raw = Vec::new();
+            raw.try_reserve_exact(n)
+                .map_err(|_| SnapshotIoError::LimitExceeded)?;
+            raw.resize(n, 0);
+            self.files[index].1.read_exact_at(&mut raw, 0)?;
+            let mut extra = [0u8];
+            if self.files[index].1.read_at(&mut extra, n as u64)? != 0 {
+                return Err(SnapshotIoError::InvalidPackage);
+            }
+            self.recheck()?;
+            Ok(raw)
+        }
+        pub(super) fn open_stream(&self, name: &str) -> Result<File, SnapshotIoError> {
+            self.recheck()?;
+            let index = Self::index(name)?;
+            let flag = 1u8 << index;
+            self.streams
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |mask| {
+                    if mask & flag == 0 {
+                        None
+                    } else {
+                        Some(mask & !flag)
+                    }
+                })
+                .map_err(|_| SnapshotIoError::InvalidPackage)?;
+            Ok(self.dir.open_file(name)?)
+        }
+        pub(super) fn finish(&self) -> Result<(), SnapshotIoError> {
+            self.recheck()?;
+            if self.verifiers.load(Ordering::SeqCst) != 0
+                || self.streams.load(Ordering::SeqCst) != 0
+            {
+                return Err(SnapshotIoError::InvalidPackage);
+            }
+            Ok(())
+        }
+    }
+    #[cfg(test)]
+    pub(super) fn real_metadata_rejection_cases(parent: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(unsafe { libc::geteuid() }, 0, "explicit Root OS gate");
+        let root = parent.join("bounded-reading-copy");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut declarations = Vec::new();
+        for (name, raw) in [
+            ("reading.html", b"<p>small</p>".to_vec()),
+            ("reading.md", vec![b'x'; 1024 * 1024]),
+            ("validation.json", br#"{"status":"validated"}"#.to_vec()),
+        ] {
+            std::fs::write(root.join(name), &raw).unwrap();
+            std::fs::set_permissions(root.join(name), std::fs::Permissions::from_mode(0o400))
+                .unwrap();
+            declarations.push(SnapshotFile {
+                path: name.into(),
+                size: raw.len() as u64,
+                sha256: hex_digest(&raw),
+            });
+        }
+        let manifest = SnapshotManifest::ReadingCopyV1(ReadingCopyManifest {
+            format_version: 1,
+            copy_id: Uuid::new_v4(),
+            files: declarations,
+        });
+        let raw = canonical_json(&serde_json::to_value(&manifest).unwrap()).into_bytes();
+        std::fs::write(root.join("manifest.json"), &raw).unwrap();
+        std::fs::set_permissions(
+            root.join("manifest.json"),
+            std::fs::Permissions::from_mode(0o400),
+        )
+        .unwrap();
+        let stage = SnapshotDirectory {
+            dir: Dir::open_private_root(&root).unwrap(),
+            manifest_sha256: hex_digest(&raw),
+            reading_bounds: None,
+        };
+        let sizes = NAMES.map(|name| std::fs::metadata(root.join(name)).unwrap().len());
+        let meter = crate::root_journal::SharedJournalBudget::default();
+        assert_eq!(
+            stage
+                .verify_reading_copy_with_budget(&meter)
+                .unwrap()
+                .files
+                .len(),
+            3
+        );
+        assert_eq!(
+            meter.usage().unwrap().charged_bytes,
+            work(sizes, Mode::Verifier).unwrap()
+        );
+        let meter = crate::root_journal::SharedJournalBudget::default();
+        stage
+            .with_reading_copy_capture_budget(&meter, |package| {
+                let mut count = 0;
+                for file in package.open_verified_file_iter()? {
+                    let (_, file) = file?;
+                    let _ = file.metadata()?;
+                    count += 1;
+                }
+                assert_eq!(count, 4);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            meter.usage().unwrap().charged_bytes,
+            work(sizes, Mode::Capture).unwrap()
+        );
+        let meter = crate::root_journal::SharedJournalBudget::default();
+        meter
+            .charge(
+                512 * 1024 * 1024 - work(sizes, Mode::Verifier).unwrap() + 1,
+                0,
+            )
+            .unwrap();
+        assert!(stage.verify_reading_copy_with_budget(&meter).is_err());
+        assert!(meter.charge(0, 0).is_err());
+        let meter = crate::root_journal::SharedJournalBudget::default();
+        let bounded = stage.budgeted_reading_copy(&meter, Mode::Verifier).unwrap();
+        std::fs::set_permissions(
+            root.join("reading.md"),
+            std::fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        std::fs::write(root.join("reading.md"), b"changed size after actual stat").unwrap();
+        std::fs::set_permissions(
+            root.join("reading.md"),
+            std::fs::Permissions::from_mode(0o400),
+        )
+        .unwrap();
+        assert!(
+            verify_snapshot(&bounded).is_err(),
+            "fresh size/inode/time changed before verifier must refuse"
+        );
+        std::fs::write(root.join("extra"), b"not referenced").unwrap();
+        let meter = crate::root_journal::SharedJournalBudget::default();
+        assert!(
+            stage.verify_reading_copy_with_budget(&meter).is_err(),
+            "extra fixed-tree member must refuse before bytes"
+        );
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn verifier_work_is_linear_for_one_large_and_two_small_payloads() {
+            let small = work([512, 32, 64, 22], Mode::Verifier).unwrap();
+            let large = work([512, 8 * 1024 * 1024, 64, 22], Mode::Verifier).unwrap();
+            assert_eq!(large - small, 4 * (8 * 1024 * 1024 - 32));
+            assert_eq!(
+                work([512, 32, 64, 22], Mode::Capture).unwrap(),
+                2 * (small - METADATA_WORK) + 3 * (512 + 32 + 64 + 22) + METADATA_WORK
+            );
+            assert_eq!(
+                work([512, 0, 0, 22], Mode::Verifier).unwrap(),
+                20 * 512 + 4 * 22 + METADATA_WORK
+            );
+            assert_eq!(
+                work([512, 0, 0, 22], Mode::Capture).unwrap(),
+                2 * (20 * 512 + 4 * 22) + 3 * (512 + 22) + METADATA_WORK
+            );
+            assert!(large < 40 * 1024 * 1024);
+            assert!(work([u64::MAX, 1, 1, 1], Mode::Capture).is_err());
+        }
+    }
 }
 
 struct StageWriter {
@@ -696,6 +1285,8 @@ impl StageWriter {
         let stage = SnapshotDirectory {
             dir: self.partial.try_clone()?,
             manifest_sha256: hash.clone(),
+            #[cfg(target_os = "linux")]
+            reading_bounds: None,
         };
         verify_snapshot(&stage)?;
         self.revalidate_custody()?;
@@ -705,6 +1296,8 @@ impl StageWriter {
             directory: SnapshotDirectory {
                 dir: self.partial.try_clone()?,
                 manifest_sha256: hash,
+                #[cfg(target_os = "linux")]
+                reading_bounds: None,
             },
             custody: self.custody.take(),
         })
@@ -793,6 +1386,18 @@ fn hash_reader(source: &mut File, limit: usize) -> Result<(String, u64), Snapsho
     }
     Ok((format!("{:x}", hash.finalize()), size as u64))
 }
+fn read_for_verifier(
+    stage: &SnapshotDirectory,
+    name: &str,
+    limit: usize,
+) -> Result<Vec<u8>, SnapshotIoError> {
+    #[cfg(target_os = "linux")]
+    if let Some(bounds) = &stage.reading_bounds {
+        return bounds.read(name);
+    }
+    read_staged(&stage.dir, name, limit)
+}
+
 fn read_staged(root: &Dir, name: &str, limit: usize) -> Result<Vec<u8>, SnapshotIoError> {
     let mut file = open_staged_file(root, name)?;
     bounded_read(&mut file, limit)

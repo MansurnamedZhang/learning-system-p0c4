@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+case "${C4_FULL_SCHEMA_PROFILE-}" in
+  ''|snapshot_c0_d1_v1) ;;
+  *) exit 1 ;;
+esac
+
 # Dedicated full-restore cluster recipe. The separate root provisioner validates
 # the package first and applies its safe INHERIT/connection limits before birth.
 # Passwords stay in existing private secret mounts. Runtime has no CONNECT.
@@ -24,3 +29,13 @@ GRANT USAGE ON SCHEMA public TO PUBLIC;
 REVOKE ALL ON FUNCTION pg_catalog.pg_control_system() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO learning_admin;
 SQL
+
+if [ "${C4_FULL_SCHEMA_PROFILE-}" = snapshot_c0_d1_v1 ]; then
+  psql -v ON_ERROR_STOP=1 -v "dbname=$C4_TARGET_DATABASE" \
+    --username "$POSTGRES_USER" --dbname postgres <<'SQL'
+BEGIN;
+CREATE ROLE learning_snapshot_claim_broker NOLOGIN NOINHERIT CONNECTION LIMIT 4 PASSWORD NULL NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
+REVOKE ALL ON DATABASE :"dbname" FROM learning_snapshot_claim_broker;
+COMMIT;
+SQL
+fi

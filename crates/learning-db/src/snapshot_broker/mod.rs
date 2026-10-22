@@ -5,7 +5,18 @@
 //! private P1 and C2+D0 FIRST WRITE COMPONENT have no public factory or source
 //! admission. First-write staging is not publication or positive classification.
 //! A1 and A2 ObservationV1 contracts are not aliases for this unsupported schema.
+#[cfg(target_os = "linux")]
+mod attempts;
 mod catalog;
+#[cfg(target_os = "linux")]
+mod lifecycle;
+#[cfg(target_os = "linux")]
+mod wire;
+#[cfg(target_os = "linux")]
+pub use lifecycle::{
+    BeforeWriteTransition, BrokerSignalResult, BrokerSourceDescription, QuiescedSnapshotEpochV2,
+    RootSnapshotBroker,
+};
 #[cfg_attr(
     any(not(test), not(target_os = "linux")),
     expect(dead_code, reason = "C1-P1 has no production admission factory")
@@ -30,6 +41,15 @@ mod writer_tests;
 
 pub use transaction::{ObservationBudget, ObservationTransaction};
 
+/// Explicit owner installation of the fixed D1 observation component.
+/// This does not enable a producer or bypass either component's profile.
+#[cfg(target_os = "linux")]
+pub async fn install_publication_observation(pool: &PgPool) -> Result<(), ObservationError> {
+    writer::install_publication_observation(pool)
+        .await
+        .map_err(|_| ObservationError::Invalid("publication observation owner install rejected"))
+}
+
 use sqlx::PgPool;
 use std::time::Duration;
 use tokio::time::{Instant, timeout_at};
@@ -42,6 +62,7 @@ pub enum ObservationError {
     Capacity,
     Timeout,
     Database(sqlx::Error),
+    RevokedBeforeWrite,
 }
 impl ObservationError {
     /// Safe diagnostic code; no DSN, password or raw server message is exposed.
@@ -64,6 +85,7 @@ impl std::fmt::Display for ObservationError {
             Self::Database(_) => {
                 f.write_str("snapshot claim observation database operation failed")
             }
+            Self::RevokedBeforeWrite => f.write_str("snapshot original claim revoked before write"),
         }
     }
 }

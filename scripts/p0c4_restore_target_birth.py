@@ -160,6 +160,13 @@ def _full_pg_sql():
     return query.replace(before,after)
 
 
+def _full_c_pg_sql():
+    query=_full_pg_sql()
+    before="('postgres','learning_admin','learning_runtime','learning_auth_lock')"
+    require(query.count(before)==1,'full-C birth role template')
+    return query.replace(before,"('postgres','learning_admin','learning_runtime','learning_auth_lock','learning_snapshot_claim_broker')")
+
+
 def probe_pg_facts(identity, container_id, *, _phase=None, _full_profile=None, _controlled_profile=None):
     if _controlled_profile is not None:
         from p0c4_completion.controlled_fixture import ControlledFixtureContext
@@ -173,7 +180,7 @@ def probe_pg_facts(identity, container_id, *, _phase=None, _full_profile=None, _
     output = execute(
         "exec", "--user", "postgres", container_id, "psql", "-XAt",
         "-v", "ON_ERROR_STOP=1", "--dbname", identity["database"],
-        "-c", _pg_sql() if _full_profile is None else _full_pg_sql())
+        "-c", _pg_sql() if _full_profile is None else _full_c_pg_sql() if _full_profile._full_c() else _full_pg_sql())
     if _phase is not None:
         _phase("PG_SQL_PARSE")
     require(output.endswith("\n") and len(output.splitlines()) == 1,
@@ -484,10 +491,10 @@ def _issue_birth_inner(root, target, identity, subnet, before, ids, status,
     phase("PRIVATE_ROOT_CREATION")
     if owned_files:
         return profile._publish_target_birth(status,ids,after['images'][0]['Id'],container_started_at,(mount_dev,mount_ino),facts)
-    return _publish_birth_files(root,target,identity,status,ids,after['images'][0]['Id'],container_started_at,(mount_dev,mount_ino),facts,after['daemon_id'],_phase=phase)
+    return _publish_birth_files(root,target,identity,status,ids,after['images'][0]['Id'],container_started_at,(mount_dev,mount_ino),facts,after['daemon_id'],_phase=phase,_full_c=profile._full_c_birth_input() if _full_profile is not None else None)
 
 
-def _publish_birth_files(root,target,identity,status,ids,image_id,container_started_at,volume_id,facts,daemon_id,*,_phase=None):
+def _publish_birth_files(root,target,identity,status,ids,image_id,container_started_at,volume_id,facts,daemon_id,*,_phase=None,_full_c=None):
     _verify_creation_state(root,target,identity,status)
     roots=[target/name for name in ('destination','control','assets')]
     require(all(not os.path.lexists(path) for path in roots),'restore roots must be new and disjoint')
@@ -499,6 +506,10 @@ def _publish_birth_files(root,target,identity,status,ids,image_id,container_star
     if _phase is not None:_phase("BIRTH_PUBLICATION")
     nonce = str(uuid.uuid4())
     payload = canonical_birth(identity, facts, root_ids[1], root_ids[2], nonce)
+    if _full_c is not None:
+        from p0c4_completion import roles
+        require(type(_full_c)is dict and set(_full_c)=={'source_role_recipe','broker_observations'},'fixed full-C role birth required')
+        payload=roles._full_c_birth_payload(json.loads(payload),_full_c['source_role_recipe'],_full_c['broker_observations'])
     evidence = {
         "state": "BIRTH_SOURCE_REINSPECTED_NOT_RESTORE_ACCEPTANCE",
         "project": identity["project"], "batch_id": status["batch_id"],

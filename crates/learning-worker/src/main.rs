@@ -42,11 +42,21 @@ async fn main() {
 async fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().skip(1).collect();
     if let Some(config) = snapshot_broker::ClientConfig::from_args(&args)? {
+        if args.last().is_some_and(|value| value == "--start-on-stdin") {
+            snapshot_broker::wait_for_stdin_start()
+                .map_err(|_| "snapshot broker start gate unavailable; no signal sent")?;
+        }
         let disposition = snapshot_broker::signal_next(&config)
             .map_err(|_| "snapshot broker transport unavailable; no local fallback")?;
         return match disposition {
             snapshot_broker::SignalDisposition::WriterDisabledUnknown => {
                 Err("snapshot broker writer disabled; effects Unknown; no job executed".into())
+            }
+            snapshot_broker::SignalDisposition::NoWork => broker_scheduling_ok("NO_WORK"),
+            snapshot_broker::SignalDisposition::Completed => broker_scheduling_ok("COMPLETED"),
+            snapshot_broker::SignalDisposition::NotAcquired => broker_scheduling_ok("NOT_ACQUIRED"),
+            snapshot_broker::SignalDisposition::RevokedBeforeWrite => {
+                broker_scheduling_ok("REVOKED_BEFORE_WRITE")
             }
         };
     }
@@ -97,6 +107,11 @@ async fn run() -> Result<(), String> {
             run_loop(&jobs, &processor, &snapshots, poll_ms, lease_ms).await?;
         }
     }
+    Ok(())
+}
+
+fn broker_scheduling_ok(disposition: &str) -> Result<(), String> {
+    println!("SNAPSHOT_BROKER_SIGNAL_OK disposition={disposition}");
     Ok(())
 }
 

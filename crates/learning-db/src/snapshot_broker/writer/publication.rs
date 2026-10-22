@@ -14,18 +14,44 @@ use crate::{
     snapshot_observation::{JobObservation, OutboxObservation},
 };
 use chrono::{DateTime, Utc};
-use learning_assets::{CustodyWriter, verify_snapshot};
+use learning_assets::CustodyWriter;
 use learning_core::{JobInput, SnapshotManifest};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction, types::Json};
 use std::sync::Arc;
 use uuid::Uuid;
 
+pub(super) async fn validate_observation(
+    tx: &mut Transaction<'_, Postgres>,
+) -> std::result::Result<(), learning_core::ContentError> {
+    observation::validate(tx).await
+}
+
 // No SH, directory, Prepared, lease capability, Clone or deserialize remains in
 // the result. Construction occurs only after both original durable appends.
 pub(in super::super) struct PublishedComponent {
     _business: RecordRef,
     _closed: RecordRef,
+    issue: RecordRef,
+    package: RecordRef,
+    manifest: String,
+    final_lease_expiry: DateTime<Utc>,
+}
+impl PublishedComponent {
+    pub(in crate::snapshot_broker) fn final_lease_expiry(&self) -> DateTime<Utc> {
+        self.final_lease_expiry
+    }
+    pub(in crate::snapshot_broker) fn references(
+        &self,
+    ) -> (RecordRef, RecordRef, RecordRef, RecordRef, &str) {
+        (
+            self.issue,
+            self.package,
+            self._business,
+            self._closed,
+            &self.manifest,
+        )
+    }
 }
 struct KnownBusinessCommit;
 struct DurableBusinessCommit(RecordRef);
@@ -572,15 +598,8 @@ async fn transaction_inner(
     })
     .await?;
     slot.live()?;
-    // D0 already validated payload sizes. Pay a conservative third verifier:
-    // full bounded manifest read/hash/parse/canonical work and payload work.
-    // Fixed four-file maxima also pay a corrupted file up to the verifier's
-    // actual bound; a stale earlier size cannot cause unpaid reread/hash work.
-    let verify_work = (6 + 3 * 3) * 8 * 1024 * 1024 + 4096;
-    owner
-        .budget
-        .charge(verify_work, 8)
-        .map_err(|_| ObservationError::Capacity)?;
+    // Fresh no-follow fixed-four-file metadata is charged before actual reads
+    // by the assets verifier; historical sizes never pay a later changed file.
     attempt
         .copied
         .staged()?
@@ -593,8 +612,11 @@ async fn transaction_inner(
         .staged
         .take()
         .ok_or_else(|| history::rejected("D1 original staged value missing before verify"))?;
+    let verify_budget = owner.budget.clone();
     let task = tokio::task::spawn_blocking(move || {
-        let result = verify_snapshot(staged.directory());
+        let result = staged
+            .directory()
+            .verify_reading_copy_with_budget(&verify_budget);
         (staged, result)
     });
     let (staged, verified) = runtime::settle_started(slot, async {
@@ -709,7 +731,7 @@ pub(in super::super) async fn drive(
     writer: CustodyWriter,
 ) -> Result<PublishedComponent> {
     let store = SnapshotStore::new(runtime_pool.clone());
-    let mut attempt = first_write::stage(
+    let attempt = first_write::stage(
         owner.clone(),
         slot.clone(),
         job,
@@ -718,6 +740,29 @@ pub(in super::super) async fn drive(
         writer,
     )
     .await?;
+    finish(owner, slot, request, store, attempt).await
+}
+pub(in crate::snapshot_broker) async fn drive_claimed(
+    owner: Arc<Original>,
+    slot: Arc<Slot>,
+    claimed: crate::snapshot_broker::transition::Claimed,
+    runtime_pool: PgPool,
+    writer: CustodyWriter,
+) -> Result<PublishedComponent> {
+    let request = claimed.request();
+    let store = SnapshotStore::new(runtime_pool.clone());
+    let attempt =
+        first_write::stage_claimed(owner.clone(), slot.clone(), claimed, runtime_pool, writer)
+            .await?;
+    finish(owner, slot, request, store, attempt).await
+}
+async fn finish(
+    owner: Arc<Original>,
+    slot: Arc<Slot>,
+    request: Uuid,
+    store: SnapshotStore,
+    mut attempt: StagedAttempt,
+) -> Result<PublishedComponent> {
     owner.stage(&slot, Stage::BeforePublish).await?;
     let (known, encoded) = transaction(&owner, &slot, &store, &mut attempt).await?;
     owner.stage(&slot, Stage::BeforeBusinessEvent).await?;
@@ -753,9 +798,26 @@ pub(in super::super) async fn drive(
         .staged()?
         .revalidate()
         .map_err(|_| history::rejected("D1 final original custody changed"))?;
+    owner
+        .budget
+        .charge(64, 0)
+        .map_err(|_| ObservationError::Capacity)?;
+    let manifest = attempt
+        .copied
+        .staged()?
+        .directory()
+        .manifest_sha256()
+        .to_owned();
+    let issue = attempt.copied.issue.reference;
+    let package = attempt.observation;
+    let final_lease_expiry = attempt.copied.claimed.lease().lease_expires_at;
     drop(attempt);
     Ok(PublishedComponent {
         _business: business,
         _closed: closed,
+        issue,
+        package,
+        manifest,
+        final_lease_expiry,
     })
 }

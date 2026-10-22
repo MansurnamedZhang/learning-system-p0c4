@@ -30,8 +30,45 @@ pub(super) struct Claimed {
     original: Arc<Original>,
     slot: Arc<Slot>,
     request: Uuid,
+    continuation: RecordRef,
+    lease_ms: i64,
 }
 impl Claimed {
+    pub(super) fn from_versioned(
+        _known: super::attempts::KnownAttemptCommit,
+        output: Outcome,
+        references: (RecordRef, RecordRef),
+        original: Arc<Original>,
+        slot: Arc<Slot>,
+        request: Uuid,
+        lease_ms: i64,
+    ) -> Self {
+        Self {
+            transition: DurableTransition {
+                intent: references.0,
+                outcome: references.1,
+            },
+            output,
+            original,
+            slot,
+            request,
+            continuation: references.1,
+            lease_ms,
+        }
+    }
+    pub(super) fn continuation(&self) -> RecordRef {
+        self.continuation
+    }
+    pub(super) fn lease_ms(&self) -> i64 {
+        self.lease_ms
+    }
+    pub(super) fn apply_known_transition(&mut self, known: super::attempts::KnownTransition) {
+        if let Some(expiry) = known.after.job.lease_expires_at {
+            self.output.claim.expires_at = expiry;
+        }
+        self.output.after = known.after;
+        self.continuation = known.reference;
+    }
     pub(super) fn check_original(&self, owner: &Arc<Original>, slot: &Arc<Slot>) -> Result<()> {
         if !Arc::ptr_eq(&self.original, owner) || !Arc::ptr_eq(&self.slot, slot) {
             return Err(history::rejected("C2 original claim owner mismatch"));
@@ -78,7 +115,7 @@ fn fresh(rows: &Rows) -> Result<()> {
     }
     Ok(())
 }
-async fn identity(tx: &mut Transaction<'static, Postgres>) -> Result<DatabaseIdentity> {
+pub(super) async fn identity(tx: &mut Transaction<'static, Postgres>) -> Result<DatabaseIdentity> {
     let row:(String,i64,DateTime<Utc>,String,String,i32,String)=sqlx::query_as("SELECT current_database(),(SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname=current_database()),pg_catalog.pg_postmaster_start_time(),session_user::text,current_user::text,pg_catalog.pg_backend_pid(),pg_catalog.pg_current_xact_id()::text").fetch_one(&mut **tx).await?;
     Ok(DatabaseIdentity {
         database: row.0,
@@ -316,5 +353,7 @@ async fn inner(
         original: owner.clone(),
         slot: slot.clone(),
         request,
+        continuation: outcome_ref,
+        lease_ms: LEASE_MS,
     })
 }

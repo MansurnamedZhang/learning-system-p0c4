@@ -13,3 +13,6 @@ serde_json.workspace = true
 uuid.workspace = true
 tokio.workspace = true
 chrono.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

@@ -619,6 +619,89 @@ mod integration {
         fs::set_permissions(&stage, fs::Permissions::from_mode(0o700)).unwrap();
         (store.with_export_storage(stage, assets), root)
     }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn held_management_delivery_uses_shared_authorization_without_runtime_reconnect_or_republish()
+     {
+        use std::io::Read;
+        let (rig, actor, space, store, jobs, id, _) = queued().await;
+        let (store, root) = storage(store);
+        let lease = jobs
+            .claim_snapshot(id, Duration::from_secs(30))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            store.process_snapshot_export(&lease).await.unwrap(),
+            AssetProcessOutcome::Succeeded
+        );
+        let mut ordinary = store.deliver_export(actor, id).await.unwrap();
+        let expected = ordinary
+            .files
+            .iter_mut()
+            .map(|(name, file)| {
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes).unwrap();
+                (name.clone(), bytes)
+            })
+            .collect::<Vec<_>>();
+        let before: serde_json::Value = sqlx::query_scalar(
+            "SELECT jsonb_build_object('job',to_jsonb(j),'result',to_jsonb(r)) FROM public.job j JOIN public.snapshot_export_result r ON r.job_id=j.id WHERE j.id=$1")
+            .bind(id).fetch_one(&rig.admin_pool).await.unwrap();
+        let mut ordinary_tx = rig.runtime_pool.begin().await.unwrap();
+        assert!(
+            SnapshotStore::authorize_recovery_delivery(&mut ordinary_tx, actor, id)
+                .await
+                .is_err()
+        );
+        ordinary_tx.rollback().await.unwrap();
+        let mut premature = rig.admin_pool.begin().await.unwrap();
+        assert!(
+            SnapshotStore::authorize_recovery_delivery(&mut premature, actor, id)
+                .await
+                .is_err()
+        );
+        premature.rollback().await.unwrap();
+        rig.runtime_pool.close().await;
+        sqlx::raw_sql("DO $$ BEGIN EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM learning_runtime',current_database()); END $$")
+            .execute(&rig.admin_pool).await.unwrap();
+        let package = learning_assets::SnapshotJobDirectory::open(&root.join("exports"), id)
+            .unwrap()
+            .reopen(lease.token, &ordinary.manifest_sha256)
+            .unwrap();
+        let mut held = rig.admin_pool.begin().await.unwrap();
+        let authorization = SnapshotStore::authorize_recovery_delivery(&mut held, actor, id)
+            .await
+            .unwrap();
+        assert_eq!(authorization.stage_token(), lease.token);
+        let files = authorization.open_files(&package).unwrap();
+        let actual = files
+            .map(|file| {
+                let (name, mut file) = file.unwrap();
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes).unwrap();
+                (name, bytes)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+        held.rollback().await.unwrap();
+        let after: serde_json::Value = sqlx::query_scalar(
+            "SELECT jsonb_build_object('job',to_jsonb(j),'result',to_jsonb(r)) FROM public.job j JOIN public.snapshot_export_result r ON r.job_id=j.id WHERE j.id=$1")
+            .bind(id).fetch_one(&rig.admin_pool).await.unwrap();
+        assert_eq!(
+            after, before,
+            "read-only management delivery cannot republish or change receipts"
+        );
+        rig.revoke(actor, space).await;
+        let mut revoked = rig.admin_pool.begin().await.unwrap();
+        assert!(
+            SnapshotStore::authorize_recovery_delivery(&mut revoked, actor, id)
+                .await
+                .is_err()
+        );
+        revoked.rollback().await.unwrap();
+    }
     #[tokio::test]
     async fn revocation_after_plan_or_copy_prevents_result_and_delivery() {
         for revoke_before_copy in [true, false] {

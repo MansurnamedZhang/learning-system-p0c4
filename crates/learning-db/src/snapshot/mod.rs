@@ -7,7 +7,10 @@ mod import_write;
 pub use import::{PreparedSnapshotImport, SnapshotImportStore};
 pub use import_write::SnapshotImportReceipt;
 mod jobs;
-pub use jobs::{PreparedSnapshotExport, SnapshotDelivery, StagedSnapshotExport};
+pub use jobs::{
+    PreparedSnapshotExport, RecoverySnapshotAuthorization, RecoverySnapshotFile,
+    RecoverySnapshotFiles, SnapshotDelivery, StagedSnapshotExport,
+};
 mod rows;
 mod walk;
 

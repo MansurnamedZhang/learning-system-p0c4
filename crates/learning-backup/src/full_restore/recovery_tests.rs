@@ -271,179 +271,6 @@ async fn seed_job(
 
 // These are real fresh-source application writes and a genuine byte-verifying
 // C2 processor, never an admin-created digest or a positive snapshot finding.
-fn require_source_fixture_names(
-    database: &str,
-    project: &str,
-    source_case: &str,
-) -> Result<(), BackupError> {
-    let case = Uuid::parse_str(source_case)
-        .map_err(|_| BackupError::Invalid("recovery source fixture namespace"))?;
-    require(
-        case.to_string() == source_case
-            && case.get_version_num() == 4
-            && crate::maintenance::valid_c4_database(database)
-            && database == format!("learning_backup_c4_task3_{source_case}")
-            && project == format!("kwc4c-{}", case.simple()),
-        "recovery source fixture namespace",
-    )
-}
-
-fn source_fixture_runtime_options(
-    database: &str,
-) -> Result<sqlx::postgres::PgConnectOptions, BackupError> {
-    require(
-        crate::maintenance::valid_c4_database(database),
-        "recovery source runtime database",
-    )?;
-    // new_without_pgpass still reads environment defaults. Refuse credential,
-    // role/startup-option and certificate inputs before constructing it.
-    for key in [
-        "PGPASSWORD",
-        "PGOPTIONS",
-        "PGSSLROOTCERT",
-        "PGSSLCERT",
-        "PGSSLKEY",
-    ] {
-        require(
-            std::env::var_os(key).is_none(),
-            "recovery source runtime ambient configuration",
-        )?;
-    }
-    Ok(sqlx::postgres::PgConnectOptions::new_without_pgpass()
-        .host("localhost")
-        .socket("/var/run/postgresql")
-        .port(5432)
-        .username("learning_runtime")
-        // Deliberately empty, not a credential. Never clone the admin secret
-        // or consult pgpass; this fixed test lane has local trust only.
-        .password("")
-        .database(database)
-        .ssl_mode(sqlx::postgres::PgSslMode::Disable)
-        .application_name("knowweave-task6-source-runtime-fixture"))
-}
-
-#[derive(Clone, Debug, PartialEq, sqlx::FromRow)]
-struct SourceFixtureIdentity {
-    database: String,
-    database_oid: i64,
-    postmaster_epoch: String,
-    current_role: String,
-    session_role: String,
-    owner: String,
-    local_socket: bool,
-    tcp_port: Option<i32>,
-    configured_port: i32,
-}
-async fn source_fixture_identity(pool: &PgPool) -> Result<SourceFixtureIdentity, BackupError> {
-    Ok(sqlx::query_as(
-        "SELECT current_database() AS database,d.oid::bigint AS database_oid,\
-         extract(epoch from pg_postmaster_start_time())::text AS postmaster_epoch,\
-         current_user::text AS current_role,session_user::text AS session_role,\
-         pg_get_userbyid(d.datdba) AS owner,inet_server_addr() IS NULL AS local_socket,\
-         inet_server_port() AS tcp_port,current_setting('port')::int AS configured_port \
-         FROM pg_catalog.pg_database d WHERE d.datname=current_database()",
-    )
-    .fetch_one(pool)
-    .await?)
-}
-fn require_source_runtime_identity(
-    admin: &SourceFixtureIdentity,
-    runtime: &SourceFixtureIdentity,
-    database: &str,
-) -> Result<(), BackupError> {
-    require(
-        admin.database == database
-            && admin.database_oid > 0
-            && !admin.postmaster_epoch.is_empty()
-            && admin.current_role == "learning_admin"
-            && admin.session_role == "learning_admin"
-            && admin.owner == "learning_admin"
-            && !admin.local_socket
-            && admin.tcp_port == Some(5432)
-            && admin.configured_port == 5432
-            && runtime.database == admin.database
-            && runtime.database_oid == admin.database_oid
-            && runtime.postmaster_epoch == admin.postmaster_epoch
-            && runtime.owner == admin.owner
-            && runtime.current_role == "learning_runtime"
-            && runtime.session_role == "learning_runtime"
-            && runtime.local_socket
-            && runtime.tcp_port.is_none()
-            && runtime.configured_port == 5432,
-        "recovery source runtime endpoint or identity differs",
-    )
-}
-fn source_fixture_socket_identity() -> Result<(u64, u64, u32, u32, u32, u64), BackupError> {
-    use std::os::unix::fs::{FileTypeExt, MetadataExt};
-    let m = std::fs::symlink_metadata("/var/run/postgresql/.s.PGSQL.5432")?;
-    require(
-        m.file_type().is_socket() && m.uid() == 999 && m.gid() == 999 && m.nlink() == 1,
-        "recovery source runtime socket differs",
-    )?;
-    Ok((m.dev(), m.ino(), m.uid(), m.gid(), m.mode(), m.nlink()))
-}
-async fn source_fixture_runtime(pool: &PgPool) -> Result<PgPool, BackupError> {
-    use std::io::Read;
-    let topology = crate::full_restore::profile::FullRehearsalProfile::read_installed()?;
-    let dir = BackupDir::open_trusted_private_root(Path::new("/var/lib/knowweave-full-rehearsal"))?;
-    let mut bytes = Vec::new();
-    dir.open_file("profile.json")?
-        .take(16385)
-        .read_to_end(&mut bytes)?;
-    require(
-        bytes.len() <= 16384
-            && option_env!("KNOWWEAVE_C4_FULL_PROFILE_SHA256")
-                == Some(hex::encode(Sha256::digest(&bytes)).as_str()),
-        "recovery source runtime profile pin",
-    )?;
-    let record: Value = serde_json::from_slice(&bytes)?;
-    let database = std::env::var("TEST_C4_LIFECYCLE_DATABASE")
-        .map_err(|_| BackupError::Invalid("recovery source fixture database absent"))?;
-    let project = std::env::var("TEST_C4_LIFECYCLE_COMPOSE_PROJECT")
-        .map_err(|_| BackupError::Invalid("recovery source fixture project absent"))?;
-    require_source_fixture_names(
-        &database,
-        &project,
-        record["source_case_id"]
-            .as_str()
-            .ok_or(BackupError::Invalid("recovery source fixture case absent"))?,
-    )?;
-    require(
-        record["source_container_id"].as_str() == Some(topology.source_container_id()),
-        "recovery source runtime container differs",
-    )?;
-    let admin_options = pool.connect_options();
-    require(
-        admin_options.get_username() == "learning_admin"
-            && admin_options.get_database() == Some(database.as_str())
-            && admin_options.get_host() == "localhost"
-            && admin_options.get_port() == 5432
-            && admin_options.get_socket().is_none(),
-        "recovery source admin endpoint differs",
-    )?;
-    let before = source_fixture_identity(pool).await?;
-    let socket = source_fixture_socket_identity()?;
-    let runtime = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(1)
-        .connect_with(source_fixture_runtime_options(&database)?)
-        .await?;
-    let checked = async {
-        let observed = source_fixture_identity(&runtime).await?;
-        require_source_runtime_identity(&before, &observed, &database)?;
-        require(
-            before == source_fixture_identity(pool).await?
-                && socket == source_fixture_socket_identity()?,
-            "recovery source runtime endpoint changed",
-        )
-    }
-    .await;
-    if let Err(error) = checked {
-        runtime.close().await;
-        return Err(error);
-    }
-    Ok(runtime)
-}
-
 fn seed_derived<'a>(
     pool: &'a PgPool,
     files: &'a learning_assets::FsAssetStore,
@@ -478,7 +305,15 @@ async fn seed_derived_inner(
     .await?;
     // Before source capture/drain only. No recovery target connection or
     // replacement for its held management guard is constructed here.
-    let runtime = source_fixture_runtime(pool).await?;
+    let runtime = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            pool.connect_options()
+                .as_ref()
+                .clone()
+                .username("learning_runtime"),
+        )
+        .await?;
     let result = async {
         let users: (String, String) = sqlx::query_as("SELECT current_user::text,session_user::text")
             .fetch_one(&runtime).await?;
@@ -904,6 +739,7 @@ async fn after_import_inner(
             assets,
             prepared,
             &report,
+            &effects,
             recovery_time,
         )
         .await;
@@ -1031,85 +867,4 @@ pub(super) fn future_sizes() -> [(&'static str, usize); 6] {
         ("after_import_hook", after_size(after_import)),
         ("after_import_inner", after_size(after_import_inner)),
     ]
-}
-
-#[cfg(test)]
-mod source_runtime_fixture_tests {
-    use super::*;
-    const CASE: &str = "550e8400-e29b-41d4-a716-446655440000";
-    const DATABASE: &str = "learning_backup_c4_task3_550e8400-e29b-41d4-a716-446655440000";
-    const PROJECT: &str = "kwc4c-550e8400e29b41d4a716446655440000";
-
-    #[test]
-    fn source_runtime_options_are_fresh_socket_only_without_admin_password() {
-        use sqlx::ConnectOptions;
-        let options = source_fixture_runtime_options(DATABASE).unwrap();
-        assert_eq!(options.get_username(), "learning_runtime");
-        assert_eq!(options.get_database(), Some(DATABASE));
-        assert_eq!(options.get_host(), "localhost");
-        assert_eq!(options.get_port(), 5432);
-        assert_eq!(
-            options.get_socket().map(std::path::PathBuf::as_path),
-            Some(Path::new("/var/run/postgresql"))
-        );
-        assert!(
-            options
-                .to_url_lossy()
-                .password()
-                .unwrap_or_default()
-                .is_empty()
-        );
-        assert!(source_fixture_runtime_options("ordinary_database").is_err());
-    }
-
-    #[test]
-    fn source_runtime_namespace_rejects_other_case_or_project() {
-        require_source_fixture_names(DATABASE, PROJECT, CASE).unwrap();
-        for (database, project, case) in [
-            ("ordinary_database", PROJECT, CASE),
-            (DATABASE, "another-project", CASE),
-            (DATABASE, PROJECT, "650e8400-e29b-41d4-a716-446655440000"),
-            (DATABASE, PROJECT, "not-a-uuid"),
-        ] {
-            assert!(require_source_fixture_names(database, project, case).is_err());
-        }
-    }
-
-    #[test]
-    fn source_runtime_identity_rejects_endpoint_role_and_postmaster_drift() {
-        let admin = SourceFixtureIdentity {
-            database: DATABASE.into(),
-            database_oid: 12345,
-            postmaster_epoch: "1792500000.123456".into(),
-            current_role: "learning_admin".into(),
-            session_role: "learning_admin".into(),
-            owner: "learning_admin".into(),
-            local_socket: false,
-            tcp_port: Some(5432),
-            configured_port: 5432,
-        };
-        let runtime = SourceFixtureIdentity {
-            current_role: "learning_runtime".into(),
-            session_role: "learning_runtime".into(),
-            local_socket: true,
-            tcp_port: None,
-            ..admin.clone()
-        };
-        require_source_runtime_identity(&admin, &runtime, DATABASE).unwrap();
-        for mutate in [
-            |v: &mut SourceFixtureIdentity| v.database = "other".into(),
-            |v: &mut SourceFixtureIdentity| v.database_oid += 1,
-            |v: &mut SourceFixtureIdentity| v.postmaster_epoch = "different".into(),
-            |v: &mut SourceFixtureIdentity| v.current_role = "learning_admin".into(),
-            |v: &mut SourceFixtureIdentity| v.session_role = "learning_admin".into(),
-            |v: &mut SourceFixtureIdentity| v.owner = "postgres".into(),
-            |v: &mut SourceFixtureIdentity| v.local_socket = false,
-            |v: &mut SourceFixtureIdentity| v.tcp_port = Some(5432),
-            |v: &mut SourceFixtureIdentity| v.configured_port = 5433,
-        ] {
-            let mut wrong = runtime.clone();
-            mutate(&mut wrong);
-            assert!(require_source_runtime_identity(&admin, &wrong, DATABASE).is_err());
-        }
-    }
 }

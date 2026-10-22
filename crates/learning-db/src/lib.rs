@@ -29,7 +29,8 @@ mod snapshot;
 pub mod snapshot_broker;
 pub mod snapshot_observation;
 pub use snapshot::{
-    PreparedSnapshotExport, PreparedSnapshotImport, SnapshotDelivery, SnapshotImportReceipt,
+    PreparedSnapshotExport, PreparedSnapshotImport, RecoverySnapshotAuthorization,
+    RecoverySnapshotFile, RecoverySnapshotFiles, SnapshotDelivery, SnapshotImportReceipt,
     SnapshotImportStore, SnapshotPlan, SnapshotStore, StagedSnapshotExport,
 };
 mod versioned_content;

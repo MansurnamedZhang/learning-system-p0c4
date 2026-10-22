@@ -80,7 +80,10 @@ def _identity(path):
     return dict(path=str(path),dev=meta.st_dev,ino=meta.st_ino,uid=meta.st_uid,gid=meta.st_gid,mode=stat.S_IMODE(meta.st_mode))
 
 def _configuration(value):
-    _require(type(value) is dict and set(value)=={'batch_id','source_case_id','target_case_id','subnet','root','suite_root','source_root','case_root'})
+    keys={'batch_id','source_case_id','target_case_id','subnet','root','suite_root','source_root','case_root'}
+    full_c=type(value)is dict and 'format_version'in value
+    _require(type(value)is dict and set(value)==(keys|{'format_version','profile'} if full_c else keys))
+    if full_c:_require(type(value['format_version'])is int and value['format_version']==2 and value['profile']=='snapshot_c0_d1_v1')
     _require(all(_v4(value[k]) for k in ('batch_id','source_case_id','target_case_id')) and len({value[k] for k in ('batch_id','source_case_id','target_case_id')})==3)
     _require(all(_path(value[k]) for k in ('root','suite_root','source_root','case_root')))
     name='learning-system-p0c4-restore-'+value['target_case_id']+'_control'
@@ -199,7 +202,9 @@ class _NativeOwner:
                 provisioner._sync_directory(secrets)
             document=provisioner.compose_document(identity,c['subnet'],target,initdb)
             if self._recipe is _CONTROLLED_RECIPE:_extend_secret_document(document,target)
-            else:_extend_document(document,identity,target)
+            else:
+                _extend_document(document,identity,target)
+                if c.get('profile')=='snapshot_c0_d1_v1':document['services']['pg']['environment']['C4_FULL_SCHEMA_PROFILE']='snapshot_c0_d1_v1'
             raw=_canonical(document);provisioner._private_write(target/'compose.json',raw)
             self._files_ready=True
             return dict(compose_sha256=hashlib.sha256(raw).hexdigest())
@@ -216,10 +221,13 @@ class _NativeOwner:
             _require(all(not os.path.lexists(target/name) for name in ('control','assets','destination')))
             return dict(checked=True)
         if op=='birth':
-            _require(set(value)=={'status','ids','image_id','started_at','volume_id','facts','daemon_id'} and value['status']==self.status)
+            full_c=c.get('profile')=='snapshot_c0_d1_v1'
+            keys={'status','ids','image_id','started_at','volume_id','facts','daemon_id'}
+            _require(set(value)==(keys|{'full_c'} if full_c else keys) and value['status']==self.status)
+            if full_c:_require(type(value['full_c'])is dict and set(value['full_c'])=={'source_role_recipe','broker_observations'})
             _require(all(self.status[k]==v for k,v in value['ids'].items()))
             birth.validate_pg_facts(value['facts'])
-            result=birth._publish_birth_files(root,target,identity,self.status,value['ids'],value['image_id'],value['started_at'],value['volume_id'],value['facts'],value['daemon_id'])
+            result=birth._publish_birth_files(root,target,identity,self.status,value['ids'],value['image_id'],value['started_at'],value['volume_id'],value['facts'],value['daemon_id'],_full_c=value.get('full_c'))
             self._recheck();self._birth_complete=True
             if self._retain_after_birth:self._release_creation_after_birth()
             return result
@@ -341,8 +349,8 @@ def validate(value):
   x=value[k];check(type(x) is str and str(uuid.UUID(x))==x and uuid.UUID(x).version==4)
  check(value['source_case_id']!=value['target_case_id'])
  source='kwc4c-'+value['source_case_id'].replace('-','');target='learning-system-p0c4-restore-'+value['target_case_id']
- names=dict(source_pg=source+'-pg',source_data=source+'-source',source_build=source+'-build',source_registry=source+'-registry',target_pg=target+'_pg',target_control=target+'_control',target_socket=target+'_socket')
- groups={'birth':{'target_pg'},'pg':{'source_pg','target_pg'},'roots':{'source_data','source_build','source_registry','target_control','target_socket'}}
+ names=dict(source_pg=source+'-pg',source_data=source+'-source',source_build=source+'-build',source_registry=source+'-registry',target_pg=target+'_pg',target_control=target+'_control',target_socket=target+'_socket',snapshot_effects=source+'-snapshot-effects',snapshot_export=source+'-snapshot-export')
+ groups={'birth':{'target_pg'},'pg':{'source_pg','target_pg'},'roots':{'source_data','source_build','source_registry','target_control','target_socket'},'roots_snapshot':{'source_data','source_build','source_registry','target_control','target_socket','snapshot_effects','snapshot_export'}}
  check(value['phase'] in groups and type(value['roots']) is dict and set(value['roots'])==groups[value['phase']])
  for kind,row in value['roots'].items():
   check(type(row) is dict and set(row)=={'name','path'} and row['name']==names[kind])
@@ -475,7 +483,9 @@ def _start_owner(context,source):
     # Preserve this exact failed channel for fixed primary diagnostics and the
     # lifecycle's reserved isolation path; never retry setup on a new helper.
     context._fs_owner=owner
-    owner.call('setup',dict(batch_id=context._plan['batch_id'],source_case_id=context._plan['case_id'],target_case_id=context._plan['target']['case_id'],subnet=context._plan['target']['subnet'],root=control['Mountpoint'],suite_root=suite,source_root=str(source),case_root=str(context._case)))
+    value=dict(batch_id=context._plan['batch_id'],source_case_id=context._plan['case_id'],target_case_id=context._plan['target']['case_id'],subnet=context._plan['target']['subnet'],root=control['Mountpoint'],suite_root=suite,source_root=str(source),case_root=str(context._case))
+    if context._full_c():value.update(format_version=2,profile='snapshot_c0_d1_v1')
+    owner.call('setup',value)
     return owner
 
 def _measure(context,phase,volumes):

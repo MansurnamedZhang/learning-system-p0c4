@@ -20,6 +20,8 @@ pub use complete::{
     CompleteBackup, DestinationStatement, DestinationWitness, VerifierTrustConfig,
     open_complete_backup, publish_complete_backup, verify_destination_witness,
 };
+#[cfg(target_os = "linux")]
+pub use destination::snapshot_effects::{CopiedSnapshotEffectsV2, copy_snapshot_effects};
 pub use destination::{
     CapturedSourceProof, DESTINATION_TRUST_PATH, DestinationSigner, VerifiedDestination,
     open_captured_source_proof, persist_captured_source_proof, verify_enrolled_destination,
@@ -27,6 +29,11 @@ pub use destination::{
 mod maintenance;
 pub use maintenance::{GateInspection, GatePhase, PgDumpSpec, SourceGateJournal, SourceGateRecord};
 mod source;
+#[cfg(target_os = "linux")]
+pub use source::snapshot_effects::{
+    CaptureInput, CapturedSnapshotEffectsV2, EnrolledSnapshotBroker,
+    prepare_source_backup_with_snapshot_effects,
+};
 pub use source::{
     SourceBackupConfig, SourceLocalPin, abandon_source_backup, finish_source_backup,
     force_close_release_ready, prepare_source_backup,

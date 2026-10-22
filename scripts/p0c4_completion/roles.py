@@ -23,7 +23,7 @@ def _object(pairs):
     return result
 
 
-def _validate_recipe(raw):
+def _validate_base_recipe(raw):
     _require(type(raw) is bytes and 0 < len(raw) <= 16384, 'ROLE_RECIPE_SIZE')
     try:
         value = json.loads(raw, object_pairs_hook=_object)
@@ -45,6 +45,94 @@ def _validate_recipe(raw):
     _require(type(members) is list and len(members) == 1 and type(members[0]) is dict and
              members[0] == expected and all(type(members[0][key]) is bool for key in ('inherit', 'set', 'admin')), 'ROLE_MEMBERSHIP')
     return value
+
+def _c0_d1_contract_sha256():
+    import hashlib
+    from pathlib import Path
+    # Fixed reviewed package member; never a caller-selected contract path.
+    path=Path(__file__).resolve().parents[2]/'crates/learning-backup/tests/fixtures/c4-full-schema-c0-d1-v1/contract.json'
+    raw=path.read_bytes()
+    _require(0<len(raw)<=4*1024*1024,'FULL_C_COMPILED_CONTRACT_SIZE')
+    value=json.loads(raw,object_pairs_hook=_object)
+    _require(type(value)is dict and value.get('format_version')==2 and value.get('capability')=='full_schema_content_c0_d1_v1','FULL_C_COMPILED_CONTRACT')
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _validate_recipe(raw):
+    _require(type(raw)is bytes and 0<len(raw)<=16384,'ROLE_RECIPE_SIZE')
+    try:value=json.loads(raw,object_pairs_hook=_object)
+    except (ValueError,UnicodeError)as error:raise RoleProvisioningError('ROLE_RECIPE_JSON')from error
+    _require(type(value)is dict and type(value.get('format_version'))is int,'ROLE_RECIPE_VERSION')
+    if value['format_version']==1:return _validate_base_recipe(raw)
+    _require(value['format_version']==2 and set(value)=={'format_version','roles','memberships','components'},'FULL_C_ROLE_FIELDS')
+    _require(type(value['roles'])is list and len(value['roles'])==4,'FULL_C_ROLE_COUNT')
+    base=dict(format_version=1,roles=value['roles'][:3],memberships=value['memberships'])
+    _validate_base_recipe(json.dumps(base,separators=(',',':')).encode())
+    expected=dict(name='learning_snapshot_claim_broker',login=True,inherit=False,superuser=False,createdb=False,createrole=False,bypassrls=False,replication=False,connection_limit=4)
+    broker=value['roles'][3]
+    _require(type(broker)is dict and set(broker)==set(expected) and broker==expected and all(type(broker[k])is type(v)for k,v in expected.items()),'FULL_C_SOURCE_BROKER')
+    components=value['components']
+    _require(type(components)is list and len(components)==1 and type(components[0])is dict and set(components[0])=={'id','version','schema_contract_sha256'},'FULL_C_COMPONENT_FIELDS')
+    component=components[0]
+    _require(component['id']=='snapshot_c0_d1' and type(component['version'])is int and component['version']==1 and component['schema_contract_sha256']==_c0_d1_contract_sha256(),'FULL_C_COMPONENT_BINDING')
+    return value
+
+
+def _target_projection(recipe):
+    import copy
+    result=copy.deepcopy(recipe)
+    if recipe['format_version']==2:
+        result.pop('components');result['format_version']=1
+        result['roles'][3]['login']=False
+    return result
+
+
+def _target_probe_sql(full_c):
+    if not full_c:return _ROLE_PROBE
+    return _ROLE_PROBE.replace("'learning_admin','learning_auth_lock','learning_runtime'", "'learning_admin','learning_auth_lock','learning_runtime','learning_snapshot_claim_broker'")
+
+
+def _validate_broker_birth(value):
+    keys={'name','oid','login','inherit','superuser','createdb','createrole','bypassrls','replication','connection_limit','valid_until_null','password_null','connect','safe_acl'}
+    _require(type(value)is dict and set(value)==keys,'FULL_C_ROOT_BROKER_FIELDS')
+    _require(value['name']=='learning_snapshot_claim_broker' and type(value['oid'])is int and 0<value['oid']<2**32 and type(value['connection_limit'])is int and value['connection_limit']==4,'FULL_C_ROOT_BROKER_ID')
+    for key in keys-{'name','oid','connection_limit'}:
+        _require(type(value[key])is bool and value[key]==(key in ('valid_until_null','password_null','safe_acl')),'FULL_C_ROOT_BROKER_FLAGS')
+    return {k:value[k] for k in ('name','oid','login','inherit','superuser','createdb','createrole','bypassrls','replication','connection_limit','valid_until_null','password_null','connect')}
+
+
+def _full_c_birth_payload(base, source_recipe, broker_observations):
+    import hashlib
+    raw=json.dumps(source_recipe,sort_keys=True,separators=(',',':')).encode()
+    value=_validate_recipe(raw)
+    _require(value['format_version']==2 and type(broker_observations)is list and len(broker_observations)==2,'FULL_C_BIRTH_ROOT_OBSERVATIONS')
+    before=_validate_broker_birth(dict(broker_observations[0],safe_acl=True))
+    after=_validate_broker_birth(dict(broker_observations[-1],safe_acl=True))
+    _require(before==after and all(row==before for row in broker_observations),'FULL_C_BIRTH_ROOT_BROKER_CHANGED')
+    payload=dict(format_version=2,profile='snapshot_c0_d1_v1',base=base,schema_contract_sha256=_c0_d1_contract_sha256(),source_role_recipe_sha256=hashlib.sha256(raw).hexdigest(),broker=after)
+    result=json.dumps(payload,separators=(',',':'),ensure_ascii=False).encode()
+    _require(len(result)<=4096,'FULL_C_BIRTH_SIZE')
+    return result
+
+
+_ROOT_BROKER_PROBE="""SELECT pg_catalog.jsonb_build_object(
+'name',r.rolname,'oid',r.oid::pg_catalog.int8,'login',r.rolcanlogin,'inherit',r.rolinherit,
+'superuser',r.rolsuper,'createdb',r.rolcreatedb,'createrole',r.rolcreaterole,
+'bypassrls',r.rolbypassrls,'replication',r.rolreplication,'connection_limit',r.rolconnlimit,
+'valid_until_null',r.rolvaliduntil IS NULL,'password_null',r.rolpassword IS NULL,
+'connect',pg_catalog.has_database_privilege(r.oid,pg_catalog.current_database(),'CONNECT'),
+'safe_acl',NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=r.oid OR m.roleid=r.oid)
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_db_role_setting s WHERE s.setrole=r.oid)
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_shdepend d WHERE d.refclassid='pg_catalog.pg_authid'::pg_catalog.regclass AND d.refobjid=r.oid AND d.deptype='o')
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_class c,LATERAL pg_catalog.aclexplode(c.relacl)a WHERE a.grantee=r.oid)
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_attribute c,LATERAL pg_catalog.aclexplode(c.attacl)a WHERE a.grantee=r.oid)
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_default_acl d,LATERAL pg_catalog.aclexplode(d.defaclacl)a WHERE a.grantee=r.oid)
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_namespace n,LATERAL pg_catalog.aclexplode(n.nspacl)a WHERE a.grantee=r.oid)
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_proc p,LATERAL pg_catalog.aclexplode(p.proacl)a WHERE a.grantee=r.oid)
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_database d,LATERAL pg_catalog.aclexplode(d.datacl)a WHERE a.grantee=r.oid)
+AND NOT pg_catalog.has_database_privilege(r.oid,pg_catalog.current_database(),'CREATE,TEMP')
+AND NOT EXISTS(SELECT FROM pg_catalog.pg_namespace n WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_' AND pg_catalog.has_schema_privilege(r.oid,n.oid,'CREATE'))
+) FROM pg_catalog.pg_authid r WHERE r.rolname='learning_snapshot_claim_broker';"""
 
 # Constructors remain private to the validated readers below. Python object
 # privacy is not the root trust boundary: installed code and plans are private.
@@ -92,15 +180,16 @@ class FreshTargetPlan:
 
 
 class RoleProvisioningReceipt:
-    __slots__ = ('_birth', '_recipe_sha256', '_backup_id')
+    __slots__ = ('_birth', '_recipe_sha256', '_backup_id', '_full_c')
 
     def __init__(self, token, birth, recipe, backup_id):
         import hashlib
         _require(token is _TOKEN, 'ROLE_RECEIPT_ISSUER_REQUIRED')
         self._birth, self._recipe_sha256, self._backup_id = birth, hashlib.sha256(recipe).hexdigest(), backup_id
+        self._full_c=_validate_recipe(recipe)['format_version']==2
 
     def observation(self):
-        return dict(backup_id=self._backup_id, recipe_sha256=self._recipe_sha256, birth_sha256=self._birth.get('birth_sha256'), state='THREE_ROLES_BORN_QUARANTINED_NOT_RESTORE')
+        return dict(backup_id=self._backup_id, recipe_sha256=self._recipe_sha256, birth_sha256=self._birth.get('birth_sha256'), state='FOUR_ROLES_BORN_QUARANTINED_NOT_RESTORE' if self._full_c else 'THREE_ROLES_BORN_QUARANTINED_NOT_RESTORE')
 
 
 def _private_read(path, cap):
@@ -130,11 +219,15 @@ def _private_read(path, cap):
 
 
 class _FullRoleProfile:
-    __slots__ = ('_recipe', '_plan')
+    __slots__ = ('_recipe', '_plan', '_broker_observations')
 
     def __init__(self, token, recipe, plan):
         _require(token is _TOKEN and type(recipe) is VerifiedRoleRecipe and type(plan) is FreshTargetPlan, 'FULL_ROLE_PROFILE_AUTHORITY')
         self._recipe, self._plan = recipe, plan
+        self._broker_observations=[]
+
+    def _full_c(self):
+        return self._recipe._recipe['format_version']==2
 
     def _validate_target(self, root, batch_id, subnet, initdb):
         import hashlib
@@ -167,7 +260,13 @@ class _FullRoleProfile:
         return target._postgres_uid()
 
     def _extend_target_document(self, document):
-        pass
+        if self._recipe._recipe['format_version']==2:
+            document['services']['pg']['environment']['C4_FULL_SCHEMA_PROFILE']='snapshot_c0_d1_v1'
+
+    def _full_c_birth_input(self):
+        if self._recipe._recipe['format_version']==1:return None
+        _require(len(self._broker_observations)==2,'FULL_C_TWO_ROOT_BROKER_OBSERVATIONS')
+        return dict(source_role_recipe=self._recipe._recipe,broker_observations=self._broker_observations)
 
     def _extra_target_mounts(self):
         return {}
@@ -189,10 +288,15 @@ class _FullRoleProfile:
     def _probe(self, identity, container_id):
         import p0c4_restore_target as target
         _require(target.HEX_ID.fullmatch(container_id) is not None, 'FULL_ROLE_CONTAINER_ID')
-        output = target._docker('exec', '--user', 'postgres', container_id, 'psql', '-XqAt', '-v', 'ON_ERROR_STOP=1', '--dbname', identity['database'], '-c', _ROLE_PROBE)
+        output = target._docker('exec', '--user', 'postgres', container_id, 'psql', '-XqAt', '-v', 'ON_ERROR_STOP=1', '--dbname', identity['database'], '-c', _target_probe_sql(self._recipe._recipe['format_version']==2))
         observed = json.loads(output, object_pairs_hook=_object)
         _require(set(observed) == {'recipe', 'database_acl', 'database_owner', 'schema_owner', 'runtime_create', 'runtime_control_system', 'admin_control_system'}, 'FULL_ROLE_PROBE_FIELDS')
-        _require(_validate_recipe(json.dumps(observed['recipe']).encode()) == self._recipe._recipe, 'FULL_ROLE_PROBE_RECIPE')
+        _require(observed['recipe'] == _target_projection(self._recipe._recipe), 'FULL_ROLE_PROBE_RECIPE')
+        if self._recipe._recipe['format_version']==2:
+            raw=self._docker('exec','--user','postgres',container_id,'psql','-XqAt','-v','ON_ERROR_STOP=1','--dbname',identity['database'],'-c',_ROOT_BROKER_PROBE)
+            broker=_validate_broker_birth(json.loads(raw,object_pairs_hook=_object))
+            _require(not self._broker_observations or self._broker_observations[0]==broker,'FULL_C_ROOT_BROKER_DRIFT')
+            self._broker_observations.append(broker)
         _require(observed['database_acl'] == '{learning_admin=CTc/learning_admin}' and observed['database_owner'] == 'learning_admin' and observed['schema_owner'] == 'pg_database_owner' and observed['runtime_create'] is False and observed['runtime_control_system'] is False and observed['admin_control_system'] is True, 'FULL_ROLE_PROBE_PRIVILEGES')
 
 

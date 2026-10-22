@@ -1,5 +1,19 @@
 # P0-C4 Task6：恢复归一化与完整校验
 
+## 2026-10-23 · Task6 候选代码 ebbe90f，native 0/16
+
+Task6 候选代码 ebbe90f 已冻结；最终同源 native 当前 0/16（五项基础＋十一项快照）。严格 Linux 结果须按本轮实际原件与独审另记，当前不宣称通过；Task6、Task7–9、C4、CompleteBackup 与生产继续 OPEN。
+
+候选源码检查点：`ebbe90f14739a59897c4426ecc599fd6b52a8144`；前提交 `29086f162ccb1208caa863ec7783c6351fce4c5e`。这是开发源码身份，公开仓库保持自己的快照提交历史，不把来源 ID 当作公开仓库同名提交。
+
+候选已接通完整C（C0＋D1）角色／模式合同、不透明源端效果捕获与复制、归一化后全表核对、原持锁副本交付和隔离收尾。代码与定向纯测不替代最终同源16项现场验收。
+
+正常公开恢复资格仍必须持有真实 CompleteBackup。本轮私有管理流程以同源 SourceLocalPin／不透明效果对象进行单机 rehearsal；不签发 CompleteBackup，不开放生产恢复或服务。缺少有效效果证明仍 Unknown/HOLD，禁止回源猜测、领养或重发。
+
+旧基础5/5仍分属509956e三项与0df5128两项；D1 PG24＋旧publisher3保留原分项信用，不能拼接成新候选的同源通过。失败、UNKNOWN与HOLD记录保持原样。
+
+以下此前分源／组件结果按原源码与批次保留，不提升旧证据或生产资格。
+
 ## 2026-10-23 · Task6 D1 发布组件分项完成
 
 2026-10-23：Task6 D1 私有阅读副本发布组件已将原领取、实际快照写入、runtime 原事务 COMMIT 与 BUSINESS_COMMIT_KNOWN／WRITE_CLOSED 两条持久记录接通。Linux 36 项纯测试、PG18 六项 D1、三项受限观察接口专项＋十五项既有回归，以及三项旧 public publisher 回归通过并独立复核。形式化效果分类、完整 C 导出、生产准入及最终同源恢复整链仍待完成，Task6/C4 OPEN。
@@ -98,12 +112,14 @@ Linux 结果摘要：`d0193b90c456e5b0d65541ede0ccb23bfcc509be0d7bbec119ce3beeef
 
 此前 Windows 行辅助 21 项、先前 planner 12 项及策略 7 项分别留档。以上不相加为语义覆盖总数，历史测试不替代当前现场验收，先前失败证据不抹除。
 
-## 完成 Task6 还需要
+## 完成Task6规定单机验收仍需
 
-1. 五项基础场景已复核；继续补齐正向快照证据链和最终同源集成回归。
-2. 补齐可在目的端独立核验的 snapshot 字节证据链，证明 NoEffect / AlreadyCommitted 正面分支；与数据库 receipt、源端捕获及目标包绑定，不能依靠调用方枚举或恢复时回源猜测。
-3. 完成全范围独立审查、回执与故障收尾。正常资格仍要求真实 CompleteBackup；Task7–9、独立存储及生产开放另有验收门。
+1. 固定最终同源source/Root manifest/ELF，Linux实际结果与独审留证。
+2. 五基础＋十一快照场景当前0/16，逐项运行并核完整原件、64表归一化后核对、原持锁交付、故障隔离及exact stop。
+3. Root实际16闭合及独审限定接受后再更新Task6单机结论，不继承历史分源通过。
 
-**当前所有缺独立 snapshot 字节证据的导出作业保持 Unknown/HOLD。** 这能避免误重发，却不是 Task6 全功能完成。已有终态数据库回执保持原字节，不自动重建或重新发布外部导出。
+正常公开恢复资格仍必须持有真实 CompleteBackup。本轮私有管理流程以同源 SourceLocalPin／不透明效果对象进行单机 rehearsal，不能借 Pin、组件回执或测试通过生成 CompleteBackup，也不能开放生产恢复或服务。缺少有效效果证明时仍 Unknown/HOLD，禁止回源猜测、领养或重发。
 
-Task5 只在代码与规定单机补验范围关闭：九项 native 及三组回归保留各自原来源；CU 业务仍 UNKNOWN，wrong-endpoint 只覆盖错误数据库路由，asset-corrupt 不证明零数据库写入。详细历史见[项目进度](项目最新进度.md)及[Task2、3、5 收尾](P0-C4补验与收尾.md)。
+Task8 仍 OPEN。2026-10-23 Windows 全 Python 774 项记录为3失败／48错误／86跳过；其中新增 recovery-envelope 范围失败已单叶修复并定向5/5，完整774未重跑。另两旧 Python 失败、平台错误／跳过、Linux全工作区、四套旧版升级与整分支独审仍须按各自来源完成；本轮 Task6 native 不转授 Task8 或全量回归信用。
+
+Task5、旧基础5/5、D1及旧publisher继续保留原范围；Task7–9/C4/Complete与生产保持OPEN。

@@ -260,6 +260,64 @@ fn deterministic_copy_and_verified_stream_round_trip() {
 }
 
 #[test]
+fn sequential_delivery_retains_original_directory_after_name_replacement() {
+    let root = Temp::new();
+    let job = Uuid::new_v4();
+    let token = Uuid::new_v4();
+    let directory = SnapshotJobDirectory::open(&root.0, job).unwrap();
+    let stage = directory.stage_copy(token, &copy()).unwrap();
+    let iter = stage.open_verified_file_iter().unwrap();
+    let named = root.0.join(job.to_string()).join(format!("{token}.ready"));
+    let moved = named.with_file_name("original-retained.ready");
+    fs::rename(&named, &moved).unwrap();
+    std::os::unix::fs::symlink("/etc", &named).unwrap();
+    let files = iter
+        .map(|file| {
+            let (name, mut file) = file.unwrap();
+            let mut data = Vec::new();
+            file.read_to_end(&mut data).unwrap();
+            assert!(!data.is_empty());
+            name
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        files,
+        [
+            "manifest.json",
+            "reading.html",
+            "reading.md",
+            "validation.json"
+        ]
+    );
+    fs::remove_file(named).unwrap();
+}
+
+#[test]
+fn sequential_delivery_rejects_changed_member_before_returning_its_handle() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = Temp::new();
+    let job = Uuid::new_v4();
+    let token = Uuid::new_v4();
+    let stage = SnapshotJobDirectory::open(&root.0, job)
+        .unwrap()
+        .stage_copy(token, &copy())
+        .unwrap();
+    let mut iter = stage.open_verified_file_iter().unwrap();
+    assert_eq!(iter.next().unwrap().unwrap().0, "manifest.json");
+    let member = root
+        .0
+        .join(job.to_string())
+        .join(format!("{token}.ready/reading.html"));
+    fs::set_permissions(&member, fs::Permissions::from_mode(0o600)).unwrap();
+    fs::write(&member, b"replacement after iterator validation").unwrap();
+    assert!(iter.next().unwrap().is_err());
+    assert!(
+        iter.next().is_none(),
+        "a rejected stream cannot continue to another file"
+    );
+}
+
+#[test]
 fn rejects_traversal_absolute_collision_and_partial_delivery() {
     let root = Temp::new();
     for name in ["../escape", "/tmp/escape", "MANIFEST.JSON"] {
@@ -778,5 +836,27 @@ fn job_attempt_reopen_rejects_wrong_hash_symlinks_and_does_not_replace_other_att
     std::os::unix::fs::symlink(root.0.join(job.to_string()), root.0.join(alias.to_string()))
         .unwrap();
     assert!(SnapshotJobDirectory::open(&root.0, alias).is_err());
+    fs::remove_file(root.0.join(alias.to_string())).unwrap();
+}
+
+#[test]
+fn existing_job_reader_never_creates_missing_directory_or_follows_alias() {
+    let root = Temp::new();
+    let job = Uuid::new_v4();
+    assert!(SnapshotJobDirectory::open_existing(&root.0, job).is_err());
+    assert_eq!(fs::read_dir(&root.0).unwrap().count(), 0);
+    let directory = SnapshotJobDirectory::open(&root.0, job).unwrap();
+    let token = Uuid::new_v4();
+    let package = directory.stage_copy(token, &copy()).unwrap();
+    assert!(
+        SnapshotJobDirectory::open_existing(&root.0, job)
+            .unwrap()
+            .reopen(token, package.manifest_sha256())
+            .is_ok()
+    );
+    let alias = Uuid::new_v4();
+    std::os::unix::fs::symlink(root.0.join(job.to_string()), root.0.join(alias.to_string()))
+        .unwrap();
+    assert!(SnapshotJobDirectory::open_existing(&root.0, alias).is_err());
     fs::remove_file(root.0.join(alias.to_string())).unwrap();
 }

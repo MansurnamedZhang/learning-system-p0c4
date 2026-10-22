@@ -16,10 +16,26 @@ const SORT_ENTRIES: usize = 65_536;
 const MAX_RUNS: usize = 1024;
 const MAX_KEY_PARTS: usize = 1600;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ExpectedRecoveryRows {
     decoded_sha256: String,
     tables: Vec<TableObservation>,
+}
+
+/// The only excluded table is checked separately against the opaque, committed
+/// normalization report. No caller can choose exclusions or provide row hashes.
+#[cfg(target_os = "linux")]
+pub(crate) struct UnchangedRecoveryRows(RecoveryRowsReport);
+#[cfg(target_os = "linux")]
+impl UnchangedRecoveryRows {
+    pub(crate) fn evidence(&self) -> serde_json::Value {
+        serde_json::json!({"format_version":1,
+            "capability":"recovery_post_normalization_unchanged_rows_v1",
+            "expected_sql_sha256":self.0.expected_sql_sha256,"tables":self.0.tables,
+            "unchanged_tables":63,"separately_verified_normalized_table":"job",
+            "excluded_columns":[],
+            "timestamptz_comparison":"exact_microsecond_instant_including_infinities"})
+    }
 }
 
 #[derive(Debug)]
@@ -402,6 +418,31 @@ pub(crate) fn verify_target_rows<'a>(
 ) -> std::pin::Pin<
     Box<dyn std::future::Future<Output = Result<RecoveryRowsReport, BackupError>> + Send + 'a>,
 > {
+    verify_target_rows_inner(connection, expected, scratch, false)
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) async fn verify_unchanged_rows_after_normalization(
+    connection: &mut sqlx::PgConnection,
+    expected: &ExpectedRecoveryRows,
+    scratch: &BackupDir,
+) -> Result<UnchangedRecoveryRows, BackupError> {
+    let rows = verify_target_rows_inner(connection, expected, scratch, true).await?;
+    if rows.tables.len() != 63 || rows.tables.iter().any(|row| row.table == "job") {
+        return Err(BackupError::Invalid("recovery unchanged row coverage"));
+    }
+    Ok(UnchangedRecoveryRows(rows))
+}
+
+#[cfg(target_os = "linux")]
+fn verify_target_rows_inner<'a>(
+    connection: &'a mut sqlx::PgConnection,
+    expected: &'a ExpectedRecoveryRows,
+    scratch: &'a BackupDir,
+    after_normalization: bool,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<RecoveryRowsReport, BackupError>> + Send + 'a>,
+> {
     Box::pin(async move {
         let end = tokio::time::Instant::now() + Duration::from_secs(900);
         let contract = SchemaContract::embedded()?;
@@ -424,6 +465,9 @@ pub(crate) fn verify_target_rows<'a>(
         let mut copied = 0_u64;
         let mut tables = Vec::new();
         for (i, key) in keys.iter().enumerate() {
+            if after_normalization && key.table.table == "job" {
+                continue;
+            }
             let columns = key
                 .table
                 .columns

@@ -8,9 +8,9 @@ use std::collections::BTreeMap;
 use std::io::BufRead;
 
 mod rows;
-#[cfg(target_os = "linux")]
-pub(crate) use rows::verify_target_rows;
 pub(crate) use rows::{ExpectedRecoveryRows, capture_expected};
+#[cfg(target_os = "linux")]
+pub(crate) use rows::{verify_target_rows, verify_unchanged_rows_after_normalization};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum KeyPart {

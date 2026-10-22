@@ -88,7 +88,6 @@ impl SourceGateRecord {
     pub fn phase(&self) -> GatePhase {
         self.phase
     }
-    #[cfg(target_os = "linux")]
     pub(crate) fn source_manifest_sha256(&self) -> Option<&str> {
         self.dump_and_index_sha256.as_deref()
     }
@@ -173,6 +172,7 @@ pub struct SourceGateJournal {
     root: BackupDir,
     directory: BackupDir,
     record: SourceGateRecord,
+    full_c_broker_oid: Option<u32>,
 }
 
 impl SourceGateJournal {
@@ -185,6 +185,23 @@ impl SourceGateJournal {
     }
 
     pub(crate) fn start_in(root: &BackupDir, backup_id: Uuid) -> Result<Self, BackupError> {
+        Self::start_profile_in(root, backup_id, None)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn start_full_c_in(
+        root: &BackupDir,
+        backup_id: Uuid,
+        broker_oid: u32,
+    ) -> Result<Self, BackupError> {
+        Self::start_profile_in(root, backup_id, Some(broker_oid))
+    }
+
+    fn start_profile_in(
+        root: &BackupDir,
+        backup_id: Uuid,
+        full_c_broker_oid: Option<u32>,
+    ) -> Result<Self, BackupError> {
         if backup_id.is_nil() {
             return Err(BackupError::Invalid("gate journal backup id"));
         }
@@ -192,7 +209,7 @@ impl SourceGateJournal {
         let initial_name = format!("initial-{}", Uuid::new_v4());
         let directory = staging.create_dir(&initial_name)?;
         let record = SourceGateRecord::new(backup_id);
-        let bytes = serde_json::to_vec(&record)?;
+        let bytes = phase_bytes(&record, full_c_broker_oid)?;
         let mut file = directory.create_file(record.phase.file_name())?;
         #[cfg(all(test, target_os = "linux"))]
         crate::source::lifecycle_tests::hook("initial_before_write")?;
@@ -213,11 +230,12 @@ impl SourceGateJournal {
         staging.sync()?;
         #[cfg(all(test, target_os = "linux"))]
         crate::source::lifecycle_tests::hook("initial_before_readback")?;
-        readback_phase(&directory, &record)?;
+        readback_phase(&directory, &record, full_c_broker_oid)?;
         Ok(Self {
             root: root.try_clone()?,
             directory,
             record,
+            full_c_broker_oid,
         })
     }
 
@@ -271,6 +289,7 @@ impl SourceGateJournal {
             GatePhase::Released,
         ];
         let mut record: Option<SourceGateRecord> = None;
+        let mut profile: Option<Option<u32>> = None;
         let mut expected = BTreeSet::new();
         let mut missing = false;
         for phase in phases {
@@ -299,8 +318,18 @@ impl SourceGateJournal {
                 file.read_to_end(&mut bytes)?;
                 bytes
             };
-            let next: SourceGateRecord = serde_json::from_slice(&bytes)?;
-            if serde_json::to_vec(&next)? != bytes || next.phase != phase {
+            let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+            let (next, broker_oid) = if value.get("format_version").is_some() {
+                let (base, oid) = crate::source::c0_d1::decode_gate_record(&bytes, backup_id)?;
+                (base, Some(oid))
+            } else {
+                (serde_json::from_slice::<SourceGateRecord>(&bytes)?, None)
+            };
+            if profile.is_some_and(|expected| expected != broker_oid) {
+                return Err(BackupError::Invalid("gate journal profile changed"));
+            }
+            profile = Some(broker_oid);
+            if phase_bytes(&next, broker_oid)? != bytes || next.phase != phase {
                 return Err(BackupError::Invalid("gate journal record bytes"));
             }
             next.validate_for(backup_id)?;
@@ -327,11 +356,17 @@ impl SourceGateJournal {
             root: root.try_clone()?,
             directory,
             record: record.ok_or(BackupError::Invalid("gate journal missing intent"))?,
+            full_c_broker_oid: profile.flatten(),
         })
     }
 
     pub fn record(&self) -> &SourceGateRecord {
         &self.record
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn full_c_broker_oid(&self) -> Option<u32> {
+        self.full_c_broker_oid
     }
 
     pub fn advance(
@@ -349,7 +384,7 @@ impl SourceGateJournal {
             }
             Err(error) => return Err(error.into()),
         };
-        write_phase(&staging, &self.directory, &next)?;
+        write_phase(&staging, &self.directory, &next, self.full_c_broker_oid)?;
         self.record = next;
         Ok(())
     }
@@ -359,8 +394,9 @@ fn write_phase(
     staging: &BackupDir,
     directory: &BackupDir,
     record: &SourceGateRecord,
+    full_c_broker_oid: Option<u32>,
 ) -> Result<(), BackupError> {
-    let bytes = serde_json::to_vec(record)?;
+    let bytes = phase_bytes(record, full_c_broker_oid)?;
     if bytes.len() > 4096 {
         return Err(BackupError::Invalid("gate journal record length"));
     }
@@ -392,15 +428,28 @@ fn write_phase(
     staging.sync()?;
     #[cfg(all(test, target_os = "linux"))]
     crate::source::lifecycle_tests::hook("phase_before_readback")?;
-    readback_phase(directory, record)
+    readback_phase(directory, record, full_c_broker_oid)
 }
-fn readback_phase(directory: &BackupDir, record: &SourceGateRecord) -> Result<(), BackupError> {
+fn phase_bytes(
+    record: &SourceGateRecord,
+    full_c_broker_oid: Option<u32>,
+) -> Result<Vec<u8>, BackupError> {
+    match full_c_broker_oid {
+        None => Ok(serde_json::to_vec(record)?),
+        Some(oid) => crate::source::c0_d1::encode_gate_record(record, oid),
+    }
+}
+fn readback_phase(
+    directory: &BackupDir,
+    record: &SourceGateRecord,
+    full_c_broker_oid: Option<u32>,
+) -> Result<(), BackupError> {
     let mut bytes = Vec::new();
     directory
         .open_file(record.phase.file_name())?
         .take(4097)
         .read_to_end(&mut bytes)?;
-    if bytes != serde_json::to_vec(record)? {
+    if bytes != phase_bytes(record, full_c_broker_oid)? {
         return Err(BackupError::Invalid("gate journal publication readback"));
     }
     Ok(())

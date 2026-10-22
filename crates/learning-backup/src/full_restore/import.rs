@@ -21,13 +21,19 @@ mod catalog_context;
 #[path = "validation.rs"]
 pub(crate) mod validation;
 pub(crate) use validation::RecoveryTransaction;
-pub use validation::{RecoveredInstance, RecoveryValidation, validate_recovery};
+pub use validation::{
+    RecoveredInstance, RecoveryValidation, validate_recovery,
+    validate_recovery_with_snapshot_effects,
+};
 #[cfg(test)]
 #[path = "catalog_observation.rs"]
 mod catalog_observation;
 #[cfg(test)]
 #[path = "recovery_tests.rs"]
 pub(crate) mod recovery_tests;
+#[cfg(test)]
+#[path = "snapshot_effects_tests.rs"]
+pub(crate) mod snapshot_effects_tests;
 
 /// No constructor, serde, activation or usable conversion exists. Task 6 must
 /// consume this held target rather than acquire an unbound replacement pool.
@@ -78,6 +84,7 @@ struct VerifiedPackage {
     manifest: BackupManifestV1,
     plan: BackupPlan,
     roles: Vec<u8>,
+    contract: SchemaContract,
     authority: PackageAuthority,
 }
 enum PackageAuthority {
@@ -136,6 +143,7 @@ impl VerifiedPackage {
         }
         let roles = preflight::read_limited(&directory, "roles.json", 16384)?;
         crate::validate_role_recipe(&roles)?;
+        let contract = SchemaContract::for_role_recipe(&roles)?;
         // Verify from these held directories too; no path re-open can swap the
         // bytes checked by the complete-receipt reader for different inputs.
         for record in &manifest.files {
@@ -147,6 +155,7 @@ impl VerifiedPackage {
             manifest,
             plan,
             roles,
+            contract,
             authority: PackageAuthority::Complete {
                 _destination: Box::new(destination),
                 _proof: proof,
@@ -174,6 +183,14 @@ impl OwnedRestoreAdmission {
         recovery_admin: PgPool,
     ) -> Result<Self, BackupError> {
         let result=async {
+        match (crate::restore_policy::role_recipe_profile(roles)?, &admitted.full_c_birth) {
+            (crate::restore_policy::RoleProfile::BaseV1, None) => {}
+            (crate::restore_policy::RoleProfile::C0D1V1, Some(profile)) => {
+                profile.bind_roles(roles)?;
+                profile.verify_live(admitted.sql_session.lease_mut()).await?;
+            }
+            _ => return Err(BackupError::Invalid("held full admission profile differs")),
+        }
         let control = BackupDir::open_trusted_private_root(&config.control_root)?;
         let assets = BackupDir::open_trusted_private_root(&config.asset_root)?;
         for name in [
@@ -235,6 +252,12 @@ impl OwnedRestoreAdmission {
         }
     }
     async fn recheck(&mut self, deadline: Instant) -> Result<(), ImportFailure> {
+        if let Some(profile) = &self.preflight.full_c_birth {
+            profile
+                .verify_live(self.preflight.sql_session.lease_mut())
+                .await
+                .map_err(|_| ImportFailure::Identity)?;
+        }
         for (path, held) in [
             (&self.config.control_root, &self.control),
             (&self.config.asset_root, &self.assets),
@@ -373,7 +396,7 @@ impl ImportedTarget {
         }
         Ok(())
     }
-    fn recovery_phase_deadline(&self, maximum: Duration) -> Instant {
+    pub(crate) fn recovery_phase_deadline(&self, maximum: Duration) -> Instant {
         let local = Instant::now() + maximum;
         self.recovery_supervision
             .as_ref()
@@ -471,7 +494,7 @@ async fn restore_owned(
             .find(|r| r.path == "database.dump")
             .ok_or(BackupError::Invalid("missing full dump"))?;
         let frozen = freeze_full_dump(&mut dump, record, &spool)?;
-        let input = validate_full_dump(frozen, &SchemaContract::embedded()?, &spool).await?;
+        let input = validate_full_dump(frozen, &package.contract, &spool).await?;
         let expected = import_verified(
             &mut imported,
             input,
@@ -522,11 +545,13 @@ async fn import_verified(
     .await
     .map_err(|_| BackupError::Invalid("recovery row capture owner lost"))??;
     let roles = package.roles.clone();
+    let contract = package.contract.clone();
     #[cfg(test)]
     full_stage(Stage::Payload);
-    let payload = tokio::task::spawn_blocking(move || FullPayload::new(input, &roles, deadline))
-        .await
-        .map_err(|_| BackupError::Invalid("full payload preparation lost"))??;
+    let payload =
+        tokio::task::spawn_blocking(move || FullPayload::new(input, &roles, &contract, deadline))
+            .await
+            .map_err(|_| BackupError::Invalid("full payload preparation lost"))??;
     let mut io = FullIo {
         target,
         payload: Some(payload),
@@ -535,6 +560,7 @@ async fn import_verified(
         manifest: &package.manifest,
         origin,
         roles: &package.roles,
+        contract: &package.contract,
     };
     #[cfg(test)]
     full_stage(Stage::Supervisor);
@@ -563,6 +589,7 @@ struct FullPayload {
     offset: u64,
     ownership: String,
     catalog: serde_json::Value,
+    catalog_sql: String,
     transformed_sha256: String,
     deadline: Instant,
 }
@@ -570,6 +597,7 @@ impl FullPayload {
     fn new(
         input: VerifiedFullImport,
         roles: &[u8],
+        contract: &SchemaContract,
         deadline: Instant,
     ) -> Result<Self, BackupError> {
         let mut prefix = vec![0; 4096];
@@ -580,7 +608,13 @@ impl FullPayload {
             .windows(marker.len())
             .position(|p| p == marker)
             .ok_or(BackupError::Invalid("full header boundary"))?;
-        let ownership = trusted_ownership()?;
+        let profile = crate::restore_policy::role_recipe_profile(roles)?;
+        let ownership = match profile {
+            crate::restore_policy::RoleProfile::BaseV1 => trusted_ownership()?,
+            crate::restore_policy::RoleProfile::C0D1V1 => {
+                crate::full_restore::trusted_ownership_for(contract)?
+            }
+        };
         let mut hash = Sha256::new();
         hash.update(&prefix[..offset]);
         hash.update(FULL_SETTINGS.as_bytes());
@@ -603,7 +637,8 @@ impl FullPayload {
             offset: offset as u64,
             input,
             ownership,
-            catalog: expected_catalog(roles)?,
+            catalog: expected_catalog(roles, contract)?,
+            catalog_sql: catalog_statement(crate::restore_policy::role_recipe_profile(roles)?),
             transformed_sha256: hex::encode(hash.finalize()),
             deadline,
         })
@@ -630,7 +665,7 @@ impl CheckedPayload for FullPayload {
         let catalog_json = self.catalog.to_string().replace('\'', "''");
         let catalog_predicate = format!(
             "({})::jsonb = '{}'::jsonb",
-            CATALOG_SQL.trim_end_matches(';'),
+            self.catalog_sql.trim_end_matches(';'),
             catalog_json
         );
         #[cfg(test)]
@@ -638,7 +673,7 @@ impl CheckedPayload for FullPayload {
         #[cfg(test)]
         let observation_owned = catalog_observation::sql(
             observation_nonce.as_deref(),
-            CATALOG_SQL,
+            &self.catalog_sql,
             &self.catalog.to_string(),
         );
         #[cfg(test)]
@@ -682,6 +717,7 @@ struct FullIo<'a> {
     manifest: &'a BackupManifestV1,
     origin: FullOrigin<'a>,
     roles: &'a [u8],
+    contract: &'a SchemaContract,
 }
 #[cfg(test)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1219,7 +1255,7 @@ impl CandidateIo for FullIo<'_> {
                 tokio::time::sleep(Duration::from_millis(25)).await;
             }
             if !committed {preflight::target_facts(self.target.connection(),0).await.map_err(|_|ImportFailure::Fixture)?.validate().map_err(|_|ImportFailure::Fixture)?;}
-            else { verify_roles(self.target.connection(),self.roles).await.map_err(|_|ImportFailure::Identity)?; verify_catalog(self.target.connection(),self.roles).await.map_err(|_|ImportFailure::Fixture)?; }
+            else { verify_roles(self.target.connection(),self.roles).await.map_err(|_|ImportFailure::Identity)?; verify_catalog(self.target.connection(),self.roles,self.contract).await.map_err(|_|ImportFailure::Fixture)?; }
             self.recheck().await?;Ok::<_,ImportFailure>(())
         }.await;
         result.is_ok()
@@ -1326,22 +1362,46 @@ fn child_error(error: ChildFailure) -> ImportFailure {
 }
 
 async fn verify_roles(conn: &mut PgConnection, raw: &[u8]) -> Result<(), BackupError> {
-    crate::validate_role_recipe(raw)?;
-    let expected: serde_json::Value = serde_json::from_slice(raw)?;
-    let actual: serde_json::Value = sqlx::query_scalar(ROLE_SQL).fetch_one(&mut *conn).await?;
+    let profile = crate::restore_policy::role_recipe_profile(raw)?;
+    let mut expected: serde_json::Value = serde_json::from_slice(raw)?;
+    let statement = match profile {
+        crate::restore_policy::RoleProfile::BaseV1 => ROLE_SQL.to_owned(),
+        crate::restore_policy::RoleProfile::C0D1V1 => {
+            expected
+                .as_object_mut()
+                .ok_or(BackupError::Invalid("role recipe object"))?
+                .remove("components");
+            expected["format_version"] = serde_json::json!(1);
+            expected["roles"][3]["login"] = serde_json::json!(false);
+            ROLE_SQL.replace("'learning_admin','learning_auth_lock','learning_runtime'", "'learning_admin','learning_auth_lock','learning_runtime','learning_snapshot_claim_broker'")
+        }
+    };
+    let actual: serde_json::Value = sqlx::query_scalar(&statement).fetch_one(&mut *conn).await?;
     if actual != expected {
         return Err(BackupError::Invalid("full restore role recipe differs"));
     }
-    let closed:bool=sqlx::query_scalar("SELECT NOT pg_catalog.has_database_privilege('learning_runtime',pg_catalog.current_database(),'CONNECT') AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_database d CROSS JOIN LATERAL pg_catalog.aclexplode(d.datacl) a WHERE d.datname=pg_catalog.current_database() AND a.grantee=0 AND a.privilege_type='CONNECT')").fetch_one(conn).await?;
+    let closed:bool=sqlx::query_scalar("SELECT NOT pg_catalog.has_database_privilege('learning_runtime',pg_catalog.current_database(),'CONNECT') AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_database d CROSS JOIN LATERAL pg_catalog.aclexplode(d.datacl) a WHERE d.datname=pg_catalog.current_database() AND a.grantee=0 AND a.privilege_type='CONNECT')").fetch_one(&mut *conn).await?;
     if !closed {
         return Err(BackupError::Invalid("full restore runtime is available"));
+    }
+    if profile == crate::restore_policy::RoleProfile::C0D1V1 {
+        let broker_closed: bool = sqlx::query_scalar("SELECT NOT pg_catalog.has_database_privilege('learning_snapshot_claim_broker',pg_catalog.current_database(),'CONNECT')")
+            .fetch_one(conn).await?;
+        if !broker_closed {
+            return Err(BackupError::Invalid("full restore broker is available"));
+        }
     }
     Ok(())
 }
 const ROLE_SQL: &str = "SELECT jsonb_build_object('format_version',1,'roles',(SELECT jsonb_agg(jsonb_build_object('name',rolname::text,'login',rolcanlogin,'inherit',rolinherit,'superuser',rolsuper,'createdb',rolcreatedb,'createrole',rolcreaterole,'bypassrls',rolbypassrls,'replication',rolreplication,'connection_limit',rolconnlimit) ORDER BY rolname) FROM pg_catalog.pg_roles WHERE rolname IN ('learning_admin','learning_auth_lock','learning_runtime')),'memberships',(SELECT jsonb_agg(jsonb_build_object('role',r.rolname::text,'member',m.rolname::text,'inherit',a.inherit_option,'set',a.set_option,'admin',a.admin_option) ORDER BY r.rolname,m.rolname) FROM pg_catalog.pg_auth_members a JOIN pg_catalog.pg_roles r ON r.oid=a.roleid JOIN pg_catalog.pg_roles m ON m.oid=a.member WHERE r.rolname IN ('learning_admin','learning_auth_lock','learning_runtime') OR m.rolname IN ('learning_admin','learning_auth_lock','learning_runtime')))";
-async fn verify_catalog(conn: &mut PgConnection, roles: &[u8]) -> Result<(), BackupError> {
-    let actual = read_catalog(conn).await?;
-    let expected = expected_catalog(roles)?;
+async fn verify_catalog(
+    conn: &mut PgConnection,
+    roles: &[u8],
+    contract: &SchemaContract,
+) -> Result<(), BackupError> {
+    let actual =
+        read_catalog_profile(conn, crate::restore_policy::role_recipe_profile(roles)?).await?;
+    let expected = expected_catalog(roles, contract)?;
     if actual != expected {
         return Err(BackupError::Invalid(
             "full restore catalog ownership or ACL differs",
@@ -1350,7 +1410,15 @@ async fn verify_catalog(conn: &mut PgConnection, roles: &[u8]) -> Result<(), Bac
     Ok(())
 }
 
+#[cfg(test)]
 async fn read_catalog(conn: &mut PgConnection) -> Result<serde_json::Value, BackupError> {
+    read_catalog_profile(conn, crate::restore_policy::RoleProfile::BaseV1).await
+}
+
+async fn read_catalog_profile(
+    conn: &mut PgConnection,
+    profile: crate::restore_policy::RoleProfile,
+) -> Result<serde_json::Value, BackupError> {
     // SQLx creates a savepoint inside a managed caller transaction, otherwise
     // its own transaction. Rolling back this read scope restores local GUCs
     // without committing or releasing the caller's transaction.
@@ -1360,7 +1428,9 @@ async fn read_catalog(conn: &mut PgConnection) -> Result<serde_json::Value, Back
             .bind(catalog_context::PATH)
             .execute(&mut *scope)
             .await?;
-        sqlx::query_scalar(CATALOG_SQL).fetch_one(&mut *scope).await
+        sqlx::query_scalar(&catalog_statement(profile))
+            .fetch_one(&mut *scope)
+            .await
     }
     .await;
     let rollback = scope.rollback().await;
@@ -1385,10 +1455,22 @@ const CATALOG_SQL: &str = r###"SELECT json_build_object(
  'constraints',(SELECT json_agg(json_build_object('table',c.relname,'name',p.conname,'type',p.contype,'definition',pg_get_constraintdef(p.oid,true)) ORDER BY c.relname,p.conname) FROM pg_constraint p JOIN pg_class c ON c.oid=p.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'),
  'triggers',(SELECT json_agg(json_build_object('table',c.relname,'name',t.tgname,'definition',pg_get_triggerdef(t.oid,true),'enabled',t.tgenabled) ORDER BY c.relname,t.tgname) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal));"###;
 
-fn expected_catalog(roles: &[u8]) -> Result<serde_json::Value, BackupError> {
+fn catalog_statement(profile: crate::restore_policy::RoleProfile) -> String {
+    match profile {
+        crate::restore_policy::RoleProfile::BaseV1 => CATALOG_SQL.to_owned(),
+        crate::restore_policy::RoleProfile::C0D1V1 => CATALOG_SQL.replace(
+            "WHERE rolname IN ('learning_admin','learning_runtime','learning_auth_lock')",
+            "WHERE rolname IN ('learning_admin','learning_runtime','learning_auth_lock','learning_snapshot_claim_broker')"),
+    }
+}
+
+fn expected_catalog(
+    roles: &[u8],
+    contract: &SchemaContract,
+) -> Result<serde_json::Value, BackupError> {
     crate::validate_role_recipe(roles)?;
     let recipe: serde_json::Value = serde_json::from_slice(roles)?;
-    let mut expected = SchemaContract::embedded()?.catalog().clone();
+    let mut expected = contract.catalog().clone();
     expected["database"] =
         serde_json::json!({"owner":"learning_admin","acl":"{learning_admin=CTc/learning_admin}"});
     for (target, source) in expected["roles"]
@@ -1403,6 +1485,9 @@ fn expected_catalog(roles: &[u8]) -> Result<serde_json::Value, BackupError> {
     {
         target["inherit"] = source["inherit"].clone();
         target["connection_limit"] = source["connection_limit"].clone();
+        if target["name"] == "learning_snapshot_claim_broker" {
+            target["login"] = serde_json::json!(false);
+        }
     }
     Ok(expected)
 }
@@ -1417,6 +1502,9 @@ impl FreshLocalCapture {
     async fn capture(
         fixture: &mut crate::source::lifecycle_tests::live::Fixture,
     ) -> Result<Self, BackupError> {
+        if snapshot_effects_tests::active() {
+            return Box::pin(snapshot_effects_tests::capture(fixture)).await;
+        }
         // Only the actual current prepare invocation can mint this type. No
         // serde, caller ID flag, historical receipt, or path-only adapter.
         let pin =
@@ -1449,6 +1537,7 @@ impl FreshLocalCapture {
         }
         let roles = preflight::read_limited(&directory, "roles.json", 16384)?;
         crate::validate_role_recipe(&roles)?;
+        let contract = SchemaContract::for_role_recipe(&roles)?;
         for record in &manifest.files {
             crate::full_restore::assets::copy_original(
                 &mut crate::full_restore::assets::open_relative(&directory, &record.path)?,
@@ -1461,6 +1550,7 @@ impl FreshLocalCapture {
             manifest,
             plan,
             roles,
+            contract,
             authority: PackageAuthority::Fresh(self.pin),
         })
     }
@@ -1603,7 +1693,12 @@ async fn rehearse_fresh_local_capture(
         let frozen = frozen_result?;
         full_stage(Stage::DumpValidation);
         let observer = crate::full_restore::dump_observer::Observer::new(diagnostic.clone());
-        let contract = SchemaContract::embedded_observed(Some(&observer))?;
+        let contract = match crate::restore_policy::role_recipe_profile(&package.roles)? {
+            crate::restore_policy::RoleProfile::BaseV1 => {
+                SchemaContract::embedded_observed(Some(&observer))?
+            }
+            crate::restore_policy::RoleProfile::C0D1V1 => package.contract.clone(),
+        };
         let input =
             crate::full_restore::validate_full_dump_observed(frozen, &contract, &spool, observer)
                 .await?;
@@ -1627,6 +1722,13 @@ async fn rehearse_fresh_local_capture(
         full_stage(Stage::Recheck);
         imported.recheck().await?;
         recovery_tests::after_import(&mut imported, &package, &assets, &expected).await?;
+        Box::pin(snapshot_effects_tests::after_import(
+            &mut imported,
+            &package,
+            &assets,
+            &expected,
+        ))
+        .await?;
         Ok::<_, BackupError>(assets)
     }
     .await;
@@ -1674,7 +1776,11 @@ async fn real_full_import_rehearsal_inner(
     diagnostic: Diagnostic,
 ) -> Result<(), BackupError> {
     diagnostic.enter(Stage::Fixture);
-    let mut fixture = crate::source::lifecycle_tests::live::Fixture::new().await;
+    let mut fixture = if snapshot_effects_tests::active() {
+        crate::source::lifecycle_tests::live::Fixture::text_only().await
+    } else {
+        crate::source::lifecycle_tests::live::Fixture::new().await
+    };
     recovery_tests::seed(&fixture.pool, &fixture.assets).await?;
     let source = diagnostic
         .run_async(Stage::Capture, FreshLocalCapture::capture(&mut fixture))

@@ -1,6 +1,5 @@
-//! Optional snapshot-effects v2 transport. S1 has no database or writer path.
-//! A valid signal receives an explicit disabled/Unknown response, never a job
-//! receipt, claim capability, NoEffect or AlreadyCommitted finding.
+//! Explicit snapshot-effects v2 scheduling transport. Replies are redacted
+//! scheduling states, never a receipt, claim capability or effect finding.
 #[cfg(any(target_os = "linux", test))]
 use serde::{Deserialize, Serialize};
 use std::{io, path::PathBuf};
@@ -11,7 +10,7 @@ mod linux;
 #[cfg(target_os = "linux")]
 mod wire;
 #[cfg(target_os = "linux")]
-pub use linux::{DisabledBroker, signal_next};
+pub use linux::{DisabledBroker, signal_next, wait_for_stdin_start};
 
 pub const CLIENT_UID: u32 = 65532;
 pub const CLIENT_GID: u32 = 65532;
@@ -21,6 +20,10 @@ pub const FRAME_CAP: usize = 4096;
 #[derive(Debug, PartialEq, Eq)]
 pub enum SignalDisposition {
     WriterDisabledUnknown,
+    NoWork,
+    Completed,
+    NotAcquired,
+    RevokedBeforeWrite,
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +40,10 @@ impl ClientConfig {
         if args.first().map(String::as_str) != Some("--snapshot-broker-client") {
             return Ok(None);
         }
+        let args = match args.split_last() {
+            Some((last, rest)) if last == "--start-on-stdin" => rest,
+            _ => args,
+        };
         let [
             _,
             socket_flag,
@@ -137,7 +144,7 @@ impl Signal {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct DisabledReply {
@@ -146,8 +153,31 @@ struct DisabledReply {
     request_id: String,
     disposition: String,
 }
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 const DISABLED: &str = "WRITER_DISABLED_EFFECT_UNKNOWN_NO_JOB_EXECUTED";
+#[cfg(any(target_os = "linux", test))]
+impl DisabledReply {
+    fn parse(raw: &[u8], config: &ClientConfig) -> io::Result<SignalDisposition> {
+        if raw.is_empty() || raw.len() > FRAME_CAP {
+            return Err(invalid());
+        }
+        let reply: Self = serde_json::from_slice(raw).map_err(|_| invalid())?;
+        if reply.format_version != 2
+            || reply.epoch != config.epoch.to_string()
+            || reply.request_id != config.request_id.to_string()
+        {
+            return Err(invalid());
+        }
+        match reply.disposition.as_str() {
+            DISABLED => Ok(SignalDisposition::WriterDisabledUnknown),
+            "NO_WORK" => Ok(SignalDisposition::NoWork),
+            "COMPLETED" => Ok(SignalDisposition::Completed),
+            "NOT_ACQUIRED" => Ok(SignalDisposition::NotAcquired),
+            "REVOKED_BEFORE_WRITE" => Ok(SignalDisposition::RevokedBeforeWrite),
+            _ => Err(invalid()),
+        }
+    }
+}
 
 fn canonical_id(value: &str) -> io::Result<Uuid> {
     let id = Uuid::parse_str(value).map_err(|_| invalid())?;
@@ -171,12 +201,73 @@ pub fn signal_next(_: &ClientConfig) -> io::Result<SignalDisposition> {
         "snapshot broker requires Linux",
     ))
 }
+#[cfg(not(target_os = "linux"))]
+pub fn wait_for_stdin_start() -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "Linux snapshot broker required",
+    ))
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const REQUEST: &str = "00000000-0000-4000-8000-000000000001";
+    #[test]
+    fn active_reply_matches_epoch_and_request_and_has_no_extra_fields() {
+        let config = ClientConfig {
+            socket: PathBuf::new(),
+            epoch: Uuid::new_v4(),
+            request_id: Uuid::new_v4(),
+            lease_ms: 30000,
+        };
+        for (wire, expected) in [
+            ("NO_WORK", SignalDisposition::NoWork),
+            ("COMPLETED", SignalDisposition::Completed),
+            ("NOT_ACQUIRED", SignalDisposition::NotAcquired),
+            (
+                "REVOKED_BEFORE_WRITE",
+                SignalDisposition::RevokedBeforeWrite,
+            ),
+            (DISABLED, SignalDisposition::WriterDisabledUnknown),
+        ] {
+            let good = format!(
+                "{{\"format_version\":2,\"epoch\":\"{}\",\"request_id\":\"{}\",\"disposition\":\"{wire}\"}}",
+                config.epoch, config.request_id
+            );
+            assert_eq!(
+                DisabledReply::parse(good.as_bytes(), &config)
+                    .expect("active redacted scheduling disposition must be supported"),
+                expected
+            );
+            for bad in [
+                good.replace(&config.epoch.to_string(), &Uuid::new_v4().to_string()),
+                good.replace(&config.request_id.to_string(), &Uuid::new_v4().to_string()),
+                good.replace("\"format_version\":2", "\"format_version\":1"),
+                good.replace("\"disposition\":", "\"unknown\":true,\"disposition\":"),
+                good.replace(
+                    "\"disposition\":",
+                    "\"epoch\":\"duplicate\",\"disposition\":",
+                ),
+            ] {
+                assert!(DisabledReply::parse(bad.as_bytes(), &config).is_err());
+            }
+        }
+        for wire in [
+            "ALREADY_COMMITTED",
+            "NO_EFFECT",
+            "ACCEPTED",
+            "succeeded",
+            "",
+        ] {
+            let bad = format!(
+                "{{\"format_version\":2,\"epoch\":\"{}\",\"request_id\":\"{}\",\"disposition\":\"{wire}\"}}",
+                config.epoch, config.request_id
+            );
+            assert!(DisabledReply::parse(bad.as_bytes(), &config).is_err());
+        }
+    }
 
     #[test]
     fn strict_signal_rejects_duplicate_extra_identity_path_and_nested_values() {
@@ -229,6 +320,37 @@ mod tests {
         .into_iter()
         .map(str::to_owned)
         .collect();
+        assert!(ClientConfig::from_args(&args).is_err());
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn optional_stdin_start_gate_is_explicit_tail_only_and_adds_no_wire_fields() {
+        let mut args: Vec<String> = [
+            "--snapshot-broker-client",
+            "--socket",
+            &format!("/run/client/{REQUEST}/work.sock"),
+            "--epoch",
+            REQUEST,
+            "--request-id",
+            REQUEST,
+            "--lease-ms",
+            "30000",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        let base = ClientConfig::from_args(&args).unwrap().unwrap();
+        args.push("--start-on-stdin".into());
+        let gated = ClientConfig::from_args(&args).unwrap().unwrap();
+        assert_eq!(base.socket, gated.socket);
+        assert_eq!(base.epoch, gated.epoch);
+        assert_eq!(base.request_id, gated.request_id);
+        assert_eq!(base.lease_ms, gated.lease_ms);
+        args.push("--start-on-stdin".into());
+        assert!(ClientConfig::from_args(&args).is_err());
+        args.pop();
+        args.swap(1, 9);
         assert!(ClientConfig::from_args(&args).is_err());
     }
 }

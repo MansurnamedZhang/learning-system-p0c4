@@ -55,6 +55,14 @@ impl From<ByteJournalHead> for RecordRef {
         }
     }
 }
+impl RecordRef {
+    pub(super) fn head(self) -> ByteJournalHead {
+        ByteJournalHead {
+            sequence: self.sequence,
+            sha256: self.sha256,
+        }
+    }
+}
 #[cfg(test)]
 impl RecordRef {
     pub(super) fn sequence(&self) -> u64 {
@@ -111,6 +119,8 @@ pub(super) enum IntentSchema {
 pub(super) enum OutcomeSchema {
     #[serde(rename = "knowweave.snapshot-claim.p1.committed")]
     V1,
+    #[serde(rename = "knowweave.snapshot-claim.v2.committed")]
+    V2,
 }
 #[derive(Serialize, Deserialize)]
 pub(super) enum Branch {
@@ -293,6 +303,7 @@ pub(super) mod runtime {
         AfterBusinessEvent,
         BeforeCloseEvent,
         AfterCloseEvent,
+        AfterQuiesceAppend,
     }
     #[cfg(test)]
     pub(in super::super) struct Hooks {
@@ -317,6 +328,7 @@ pub(super) mod runtime {
         pub(in super::super) deadline: Instant,
         epoch_hold: Arc<AtomicBool>,
         issued: AtomicBool,
+        revocation_requested: AtomicBool,
     }
     impl Slot {
         // The same short state gate used by cancellation/publication. This bit
@@ -326,6 +338,9 @@ pub(super) mod runtime {
                 .state
                 .lock()
                 .map_err(|_| rejected("C2 gate poisoned"))?;
+            if *state == State::Live && self.revocation_requested.load(Ordering::SeqCst) {
+                return Err(ObservationError::RevokedBeforeWrite);
+            }
             if *state != State::Live
                 || self.epoch_hold.load(Ordering::SeqCst)
                 || Instant::now() >= self.deadline
@@ -353,6 +368,20 @@ pub(super) mod runtime {
                 _ => Err(rejected("P1 original operation not live")),
             }
         }
+        pub(in super::super) fn reserve_revocation(&self) -> Result<()> {
+            let state = self
+                .state
+                .lock()
+                .map_err(|_| rejected("revocation gate poisoned"))?;
+            if *state != State::Live || self.issued.load(Ordering::SeqCst) {
+                return Err(rejected("issued claim cannot be revoked"));
+            }
+            self.revocation_requested.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+        pub(in super::super) fn issued(&self) -> bool {
+            self.issued.load(Ordering::SeqCst)
+        }
     }
     struct Registry {
         jobs: BTreeMap<Uuid, Arc<Slot>>,
@@ -368,6 +397,7 @@ pub(super) mod runtime {
         journal: Arc<AsyncMutex<RootJournalBytes>>,
         registry: Mutex<Registry>,
         handles: Mutex<Vec<SettlementHandle>>,
+        control_handle: Mutex<Option<SettlementHandle>>,
         hold: Arc<AtomicBool>,
         pub(in super::super) epoch: Uuid,
         pub(in super::super) binding: Uuid,
@@ -376,7 +406,8 @@ pub(super) mod runtime {
         append_calls: AtomicUsize,
         stored_bytes: AtomicU64,
         // This original FD remains owned until the original operations settle.
-        _broker_lock: File,
+        _broker_lock: Option<File>,
+        _installation: Option<Arc<learning_assets::InstalledSnapshotBinding>>,
         #[cfg(test)]
         pub(in super::super) hooks: Option<Arc<Hooks>>,
     }
@@ -386,6 +417,151 @@ pub(super) mod runtime {
     // No production constructor. The only constructor is a private real Root
     // fixture below; storage UUIDs never constitute enrolled authority.
     impl EpochWork {
+        pub(in super::super) fn installed(
+            pool: PgPool,
+            installation: Arc<learning_assets::InstalledSnapshotBinding>,
+            journal: RootJournalBytes,
+            budget: SharedJournalBudget,
+            build_sha256: String,
+        ) -> Result<Self> {
+            let observation = ObservationBudget::with_shared(64 * 1024 * 1024, budget.clone())?;
+            Ok(Self {
+                original: Arc::new(Original {
+                    pool,
+                    budget,
+                    observation,
+                    journal: Arc::new(AsyncMutex::new(journal)),
+                    registry: Mutex::new(Registry {
+                        jobs: BTreeMap::new(),
+                        requests: BTreeMap::new(),
+                        active: false,
+                        closing: false,
+                    }),
+                    handles: Mutex::new(Vec::new()),
+                    control_handle: Mutex::new(None),
+                    hold: Arc::new(AtomicBool::new(false)),
+                    epoch: installation.epoch_id(),
+                    binding: installation.binding_id(),
+                    // Descriptive build linkage is not source registry enrollment.
+                    source_build: SourceProvenance {
+                        mode: SourceMode::UnenrolledComponent,
+                        external_reference_not_authority: true,
+                        execution_binding_sha256: build_sha256,
+                    },
+                    sql_calls: AtomicUsize::new(0),
+                    append_calls: AtomicUsize::new(0),
+                    stored_bytes: AtomicU64::new(40),
+                    _broker_lock: None,
+                    _installation: Some(installation),
+                    #[cfg(test)]
+                    hooks: None,
+                }),
+            })
+        }
+
+        pub(in super::super) fn owner(&self) -> Arc<Original> {
+            self.original.clone()
+        }
+        pub(in super::super) fn close_admission(&self, duration: Duration) -> Result<Arc<Slot>> {
+            if duration.is_zero() || duration > Duration::from_secs(60) || self.original.is_held() {
+                return Err(rejected("epoch capture admission closed"));
+            }
+            self.original.request_quiesce()?;
+            Ok(Arc::new(Slot {
+                state: Mutex::new(State::Live),
+                deadline: Instant::now() + duration,
+                epoch_hold: self.original.hold.clone(),
+                issued: AtomicBool::new(false),
+                revocation_requested: AtomicBool::new(false),
+            }))
+        }
+
+        /// Consume the epoch in an independently retained original task. Its
+        /// control handle is separate from the worker drain, so it can never
+        /// wait for itself. Losing the outer receiver poisons publication only.
+        pub(in super::super) fn start_quiesce<T, F, Fut>(self, drive: F) -> Result<Pending<T>>
+        where
+            T: Send + 'static,
+            F: FnOnce(EpochWork, Arc<Original>, Arc<Slot>) -> Fut + Send + 'static,
+            Fut: Future<Output = Result<T>> + Send + 'static,
+        {
+            let slot = self.close_admission(Duration::from_secs(60))?;
+            let owner = self.original.clone();
+            let mut retained = owner
+                .control_handle
+                .lock()
+                .map_err(|_| rejected("epoch control handle poisoned"))?;
+            if retained.is_some() {
+                return Err(rejected("epoch control never replays"));
+            }
+            owner
+                .budget
+                .charge(512, 1)
+                .map_err(|_| ObservationError::Capacity)?;
+            let (sender, receiver) = oneshot::channel();
+            let original = owner.clone();
+            let task_slot = slot.clone();
+            let task = tokio::spawn(async move {
+                let mut guard = OwnerGuard {
+                    original: original.clone(),
+                    slot: task_slot.clone(),
+                    completed: false,
+                    _custody: None,
+                };
+                match drive(self, original, task_slot.clone()).await {
+                    Ok(value) => publish(&task_slot, sender, value),
+                    Err(error) => {
+                        task_slot.poison();
+                        let _ = sender.send(Err(error));
+                    }
+                }
+                guard.completed = true;
+            });
+            *retained = Some(Arc::new(AsyncMutex::new(Some(task))));
+            Ok(Pending {
+                receiver,
+                timer: Box::pin(sleep_until(slot.deadline)),
+                slot,
+                armed: true,
+            })
+        }
+
+        pub(in super::super) fn start_continuation<T, F, Fut>(
+            &mut self,
+            job: Uuid,
+            request: Uuid,
+            duration: Duration,
+            retention: Option<learning_assets::CustodyWriter>,
+            drive: F,
+        ) -> Result<Pending<T>>
+        where
+            T: Send + 'static,
+            F: FnOnce(Arc<Original>, Arc<Slot>) -> Fut + Send + 'static,
+            Fut: Future<Output = Result<T>> + Send + 'static,
+        {
+            // Only the installed lifecycle may request another genuine SQL
+            // attempt. The old slot remains permanently non-live; no old cap
+            // is reopened. Its complete known history is checked by lifecycle.
+            {
+                let mut registry = self
+                    .original
+                    .registry
+                    .lock()
+                    .map_err(|_| rejected("epoch registry poisoned"))?;
+                if let Some(previous) = registry.jobs.get(&job) {
+                    let state = previous
+                        .state
+                        .lock()
+                        .map_err(|_| rejected("epoch old slot poisoned"))?;
+                    if *state != State::Published || previous.issued.load(Ordering::SeqCst) {
+                        return Err(rejected("epoch old attempt not revoked before write"));
+                    }
+                    drop(state);
+                    registry.jobs.remove(&job);
+                }
+            }
+            self.start_owned(job, request, duration, retention, drive)
+        }
         pub(in super::super) fn start(
             &mut self,
             job: Uuid,
@@ -498,6 +674,7 @@ pub(super) mod runtime {
                 deadline: Instant::now() + duration,
                 epoch_hold: self.original.hold.clone(),
                 issued: AtomicBool::new(false),
+                revocation_requested: AtomicBool::new(false),
             });
             registry.jobs.insert(job, slot.clone());
             registry.requests.insert(request, job);
@@ -703,6 +880,96 @@ pub(super) mod runtime {
     }
     impl Original {
         #[cfg(test)]
+        pub(in super::super) async fn settle_control(&self) -> Result<()> {
+            let retained = self
+                .control_handle
+                .lock()
+                .map_err(|_| rejected("epoch control handle poisoned"))?
+                .clone()
+                .ok_or_else(|| rejected("epoch control missing"))?;
+            let mut handle = retained.lock().await;
+            if let Some(task) = handle.as_mut() {
+                task.await.map_err(|_| rejected("epoch control panicked"))?;
+                handle.take();
+            }
+            Ok(())
+        }
+        pub(in super::super) fn bind_selected_job(
+            &self,
+            slot: &Arc<Slot>,
+            placeholder: Uuid,
+            job: Uuid,
+        ) -> Result<bool> {
+            let mut registry = self
+                .registry
+                .lock()
+                .map_err(|_| rejected("epoch registry poisoned"))?;
+            if registry.closing {
+                return Ok(false);
+            }
+            if !registry
+                .jobs
+                .get(&placeholder)
+                .is_some_and(|value| Arc::ptr_eq(value, slot))
+            {
+                return Err(rejected("epoch original selector slot differs"));
+            }
+            if job != placeholder
+                && let Some(previous) = registry.jobs.get(&job)
+            {
+                let state = previous
+                    .state
+                    .lock()
+                    .map_err(|_| rejected("epoch old attempt gate poisoned"))?;
+                if *state != State::Published || previous.issued.load(Ordering::SeqCst) {
+                    return Err(rejected("epoch prior attempt is not closed before write"));
+                }
+            }
+            registry.jobs.remove(&placeholder);
+            registry.jobs.insert(job, slot.clone());
+            registry.requests.insert(placeholder, job);
+            Ok(true)
+        }
+        pub(in super::super) fn is_installed(&self) -> bool {
+            self._installation.is_some()
+        }
+        pub(in super::super) fn request_quiesce(&self) -> Result<()> {
+            let mut registry = self
+                .registry
+                .lock()
+                .map_err(|_| rejected("epoch registry poisoned"))?;
+            registry.closing = true;
+            for slot in registry.jobs.values() {
+                let state = slot
+                    .state
+                    .lock()
+                    .map_err(|_| rejected("epoch slot gate poisoned"))?;
+                if *state == State::Live && !slot.issued.load(Ordering::SeqCst) {
+                    slot.revocation_requested.store(true, Ordering::SeqCst);
+                }
+            }
+            Ok(())
+        }
+        pub(in super::super) fn is_held(&self) -> bool {
+            self.hold.load(Ordering::SeqCst)
+        }
+        pub(in super::super) async fn visit_prefix(
+            &self,
+            visitor: &mut (
+                     dyn FnMut(&str, u64, &mut dyn std::io::Read) -> std::io::Result<()> + Send
+                 ),
+        ) -> Result<RecordRef> {
+            if self.is_held() {
+                return Err(rejected("epoch HOLD cannot capture"));
+            }
+            self.journal
+                .lock()
+                .await
+                .visit_known_files(visitor)
+                .map(Into::into)
+                .map_err(|_| rejected("epoch original prefix capture failed"))
+        }
+        #[cfg(test)]
         pub(in super::super) fn issued_for(&self, job: Uuid) -> bool {
             self.registry
                 .lock()
@@ -805,7 +1072,8 @@ pub(super) mod runtime {
                     && hooks.blocking_return
                     && ((ordinal == 2 && hooks.stage == Stage::AfterOutcome)
                         || (ordinal == 5 && hooks.stage == Stage::AfterBusinessEvent)
-                        || (ordinal == 6 && hooks.stage == Stage::AfterCloseEvent))
+                        || (ordinal == 6 && hooks.stage == Stage::AfterCloseEvent)
+                        || (ordinal == 1 && hooks.stage == Stage::AfterQuiesceAppend))
                 {
                     hooks.arrived.notify_one();
                     let (lock, wake) = &hooks.blocking_release;
@@ -903,6 +1171,7 @@ pub(super) mod runtime {
                     closing: false,
                 }),
                 handles: Mutex::new(Vec::new()),
+                control_handle: Mutex::new(None),
                 hold: Arc::new(AtomicBool::new(false)),
                 epoch,
                 binding,
@@ -910,10 +1179,52 @@ pub(super) mod runtime {
                 sql_calls: AtomicUsize::new(0),
                 append_calls: AtomicUsize::new(0),
                 stored_bytes: AtomicU64::new(40),
-                _broker_lock: lock,
+                _broker_lock: Some(lock),
+                _installation: None,
                 hooks,
             }),
         })
+    }
+    #[cfg(test)]
+    mod gate_tests {
+        use super::*;
+        fn fresh() -> Arc<Slot> {
+            Arc::new(Slot {
+                state: Mutex::new(State::Live),
+                deadline: Instant::now() + Duration::from_secs(30),
+                epoch_hold: Arc::new(AtomicBool::new(false)),
+                issued: AtomicBool::new(false),
+                revocation_requested: AtomicBool::new(false),
+            })
+        }
+        #[test]
+        fn formal_revoke_and_issue_share_one_gate_in_both_orders() {
+            let revoked = fresh();
+            revoked.reserve_revocation().unwrap();
+            assert!(matches!(
+                revoked.issue_sticky(),
+                Err(ObservationError::RevokedBeforeWrite)
+            ));
+            assert!(!revoked.issued());
+            revoked.live().unwrap();
+            let issued = fresh();
+            issued.issue_sticky().unwrap();
+            assert!(issued.reserve_revocation().is_err());
+            assert!(issued.issued());
+        }
+        #[test]
+        fn formal_concurrent_revoke_cannot_undo_an_issued_permit() {
+            for _ in 0..64 {
+                let slot = fresh();
+                let other = slot.clone();
+                let issue = std::thread::spawn(move || other.issue_sticky().is_ok());
+                let revoked = slot.reserve_revocation().is_ok();
+                let issued = issue.join().unwrap();
+                assert_ne!(issued, revoked);
+                assert_eq!(slot.issued(), issued);
+                assert_eq!(slot.revocation_requested.load(Ordering::SeqCst), revoked);
+            }
+        }
     }
 }
 

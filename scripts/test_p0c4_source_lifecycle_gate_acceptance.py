@@ -702,7 +702,8 @@ class LifecycleProtocolTests(unittest.TestCase):
                 item=zipfile.ZipInfo(p);item.external_attr=(stat.S_IFREG|0o444)<<16;archive.writestr(item,raw)
         raw=stream.getvalue()
         # Correct archive hashes cannot excuse absent frozen lifecycle product files.
-        self.reject(lambda: driver.verify_package(helper,raw,hashlib.sha256(raw).hexdigest(),hashlib.sha256(m).hexdigest(),hashlib.sha256(paths[driver.ENTRY]).hexdigest()),'PRODUCT_PIN')
+        with patch.dict(driver.PUBLIC_PINS,{entry:driver.digest(paths[entry]) for entry in driver.PUBLIC_PINS}):
+            self.reject(lambda: driver.verify_package(helper,raw,hashlib.sha256(raw).hexdigest(),hashlib.sha256(m).hexdigest(),hashlib.sha256(paths[driver.ENTRY]).hexdigest()),'PRODUCT_PIN')
         self.reject(lambda: driver.verify_package(helper,raw,'0'*64,hashlib.sha256(m).hexdigest(),'1'*64),'ARCHIVE_DIGEST')
 
     def test_actual_pg_root_audit_rejects_replaced_or_badmode_binding(self):
@@ -1668,7 +1669,8 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
         self.assertTrue(observed['original_hashes_verified'])
 
     def test_full_positive_retained_original_producer_passes_actual_dispatch(self):
-        from scripts.p0c4_completion.full_import import CASE_TESTS
+        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS
+        CASE_TESTS={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS}
         for case,test in CASE_TESTS.items():
             with self.subTest(case=case):
                 try:observed=self.dispatch(*self.fixture(test=test))
@@ -1679,7 +1681,8 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
                 self.assertTrue(observed['original_hashes_verified']);self.assertTrue(observed['full_retained_hashes']);self.assertTrue(observed['toc_only_no_restore'])
 
     def test_full_retained_policy_rejects_unknown_and_lookalike_producers(self):
-        from scripts.p0c4_completion.full_import import CASE_TESTS
+        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS
+        CASE_TESTS={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS}
         tests=['full_restore::live_tests::full_import_unknown']
         for test in CASE_TESTS.values():tests.extend((test+'-unadmitted','unadmitted-'+test,test.replace('::live_tests::','::tests::')))
         for test in tests:
@@ -1692,7 +1695,8 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
 
     def test_retained_original_missing_corrupt_extra_aliased_or_wrong_case_refuses(self):
         import copy
-        from scripts.p0c4_completion.full_import import CASE_TESTS
+        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS
+        CASE_TESTS={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS}
         for test in (driver.SOURCE_BOUND_DUMP_TEST,*CASE_TESTS.values()):
             fixture=self.fixture(test=test);original=next(path for path in fixture[1] if path.startswith('assets/') and not fixture[1][path].get('directory'))
             with self.subTest(test=test),self.assertRaisesRegex(driver.GateError,'FIXTURE_ORIGINAL_EXACT_SET'):
@@ -1715,7 +1719,8 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
 
     def test_retained_policy_preserves_full_sealed_source_migration_index_and_toc_checks(self):
         import copy
-        from scripts.p0c4_completion.full_import import CASE_TESTS
+        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS
+        CASE_TESTS={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS}
         for test in (driver.SOURCE_BOUND_DUMP_TEST,*CASE_TESTS.values()):
             fixture=self.fixture(test=test)
             for mutation in ('sealed-corrupt','sealed-extra','source','migration','index'):

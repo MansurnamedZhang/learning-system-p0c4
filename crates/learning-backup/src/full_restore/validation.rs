@@ -369,6 +369,7 @@ pub(super) struct PreparedRecoveryValidation {
     identity: Value,
     rows: Value,
     rows_sha256: String,
+    expected: data::ExpectedRecoveryRows,
 }
 
 fn prepare_validation<'a>(
@@ -386,13 +387,14 @@ fn prepare_validation<'a>(
             return Err(BackupError::Invalid("recovery row inventory incomplete"));
         }
         verify_roles(target.connection(), &package.roles).await?;
-        verify_catalog(target.connection(), &package.roles).await?;
+        verify_catalog(target.connection(), &package.roles, &package.contract).await?;
         verify_originals(target, package).await?;
         target.recheck().await?;
         Ok(PreparedRecoveryValidation {
             identity: target.recovery_identity(),
             rows: rows.evidence(),
             rows_sha256: rows.canonical_sha256(),
+            expected: expected.clone(),
         })
     })
 }
@@ -470,11 +472,27 @@ impl RecoveredInstance {
 pub async fn validate_recovery(
     pending: RecoveryPending,
 ) -> Result<RecoveryValidation, BackupError> {
+    validate_recovery_owned(pending, None).await
+}
+
+/// Consume a genuine destination-only copy; no caller observations or paths
+/// can supply recovery effect authority. CompleteBackup remains mandatory.
+pub async fn validate_recovery_with_snapshot_effects(
+    pending: RecoveryPending,
+    copied: crate::destination::snapshot_effects::CopiedSnapshotEffectsV2,
+) -> Result<RecoveryValidation, BackupError> {
+    validate_recovery_owned(pending, Some(copied)).await
+}
+
+async fn validate_recovery_owned(
+    pending: RecoveryPending,
+    copied: Option<crate::destination::snapshot_effects::CopiedSnapshotEffectsV2>,
+) -> Result<RecoveryValidation, BackupError> {
     let (sender, receiver) = tokio::sync::oneshot::channel();
     let (cancel, rx) = watch::channel(false);
     let _cancel = Cancellation(cancel);
     tokio::spawn(async move {
-        let result = validate_owned(pending, rx).await;
+        let result = validate_owned(pending, copied, rx).await;
         let _ = sender.send(result);
     });
     receiver
@@ -483,6 +501,7 @@ pub async fn validate_recovery(
 }
 async fn validate_owned(
     mut pending: RecoveryPending,
+    copied: Option<crate::destination::snapshot_effects::CopiedSnapshotEffectsV2>,
     mut cancel: watch::Receiver<bool>,
 ) -> Result<RecoveryValidation, BackupError> {
     let end = Instant::now() + Duration::from_secs(900);
@@ -507,12 +526,24 @@ async fn validate_owned(
                 ));
             }
         };
-        let effects = validation_phase(
-            &mut cancel,
-            end,
-            jobs::inspect_external_effects(&mut pending.target, &lease),
-        )
-        .await?;
+        let effects = match copied {
+            Some(copied) => {
+                validation_phase(
+                    &mut cancel,
+                    end,
+                    jobs::inspect_copied_external_effects(&mut pending.target, &lease, copied),
+                )
+                .await?
+            }
+            None => {
+                validation_phase(
+                    &mut cancel,
+                    end,
+                    jobs::inspect_external_effects(&mut pending.target, &lease),
+                )
+                .await?
+            }
+        };
         gate(&cancel, end).map_err(error)?;
         let report = validation_phase(
             &mut cancel,
@@ -523,7 +554,13 @@ async fn validate_owned(
         let barriers = validation_phase(
             &mut cancel,
             end,
-            finish_barriers(&mut pending.target, &pending.package, prepared, &report),
+            finish_barriers(
+                &mut pending.target,
+                &pending.package,
+                prepared,
+                &report,
+                &effects,
+            ),
         )
         .await?;
         gate(&cancel, end).map_err(error)?;
@@ -559,6 +596,7 @@ fn finish_barriers<'a>(
     package: &'a VerifiedPackage,
     prepared: PreparedRecoveryValidation,
     report: &'a jobs::JobRecoveryReport,
+    effects: &'a jobs::ExternalReconciliation,
 ) -> ValidationFuture<'a, Value> {
     Box::pin(async move {
         let budget = target.recovery_metadata_budget();
@@ -576,9 +614,17 @@ fn finish_barriers<'a>(
             return Err(BackupError::Invalid("recovery external effects unresolved"));
         }
         verify_roles(target.connection(), &package.roles).await?;
-        verify_catalog(target.connection(), &package.roles).await?;
+        verify_catalog(target.connection(), &package.roles, &package.contract).await?;
         verify_originals(target, package).await?;
         let integrity = verify_integrity_results(target).await?;
+        let snapshots = jobs::verify_copied_deliveries(target, effects).await?;
+        let snapshot_file = write_record_capped(
+            &root,
+            "snapshot-deliveries.json",
+            &snapshots,
+            64 * 1024 * 1024,
+            &budget,
+        )?;
         let reading = learning_db::ReadingStore::validate_recovery_views(
             target.recovery_reading_transaction(),
         )
@@ -592,6 +638,21 @@ fn finish_barriers<'a>(
             64 * 1024 * 1024,
             &budget,
         )?;
+        // Recheck every unchanged table after application-core reads, then the
+        // exact six-table committed delta. Together these cover all 64 tables;
+        // job.updated_at and lease normalization are not a general exclusion.
+        let after_scratch = root.create_dir("post-normalization-row-comparison")?;
+        let unchanged = data::verify_unchanged_rows_after_normalization(
+            target.connection(),
+            &prepared.expected,
+            &after_scratch,
+        )
+        .await?;
+        let normalized = jobs::verify_committed_rows(target, report).await?;
+        let after_rows = json!({"format_version":1,"capability":"recovery_all_64_tables_after_normalization_v1",
+            "unchanged":unchanged.evidence(),"normalized":normalized,"covered_tables":64});
+        let after_rows_file =
+            write_record(&root, "post-normalization-rows.json", &after_rows, &budget)?;
         target.recheck().await?;
         #[cfg(test)]
         {
@@ -603,7 +664,9 @@ fn finish_barriers<'a>(
         Ok(
             json!({"source_rows_sha256":prepared.rows_sha256,"source_tables":64,
         "intentional_recovery_delta_sha256":report.canonical_sha256()?,
-        "asset_integrity":integrity,"reading_report_sha256":reading.canonical_sha256(),
+        "post_normalization_all_tables":after_rows,"post_normalization_rows_file_sha256":after_rows_file,
+        "asset_integrity":integrity,"snapshot_deliveries":snapshots,
+        "snapshot_delivery_file_sha256":snapshot_file,"reading_report_sha256":reading.canonical_sha256(),
         "reading_evidence_file":"runtime-projections.json","reading_evidence_file_sha256":reading_file,
         "reading_execution":"REAL_APPLICATION_CORE_ON_HELD_MANAGEMENT_TRANSACTION_NOT_ORDINARY_RUNTIME_CONNECTION",
         "sql_acl_and_runtime_connect_closed_checked_separately":true,
@@ -813,11 +876,12 @@ pub(super) async fn validate_rehearsal_after_normalization(
     _assets: &AssetRestoreReport,
     prepared: PreparedRecoveryValidation,
     report: &jobs::JobRecoveryReport,
+    effects: &jobs::ExternalReconciliation,
     _recovery_time: SystemTime,
 ) -> Result<(), BackupError> {
     let budget = target.recovery_metadata_budget();
     let result=async{
-        let barriers=finish_barriers(target,package,prepared,report).await?;
+        let barriers=finish_barriers(target,package,prepared,report,effects).await?;
         let root=target.recovery_control()?.create_dir("validation")?;
         let hash=write_validation_receipt(&root,&json!({"format_version":1,"capability":"rehearsal_validation_checks_v1","state":"VALIDATION_CHECKS_PASSED_EXACT_STOP_PENDING_UNUSABLE_NOT_COMPLETE","identity":target.recovery_identity(),"barriers":barriers,"complete_backup":false,"usable":false,"stop_required":true}),&budget,)?;
         target.rehearsal_validation_receipt=Some(hash);

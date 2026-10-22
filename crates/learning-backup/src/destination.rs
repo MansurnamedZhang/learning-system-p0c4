@@ -1,6 +1,8 @@
 //! Destination-local captured evidence. No source filesystem access on recovery.
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 mod attempt;
+#[cfg(target_os = "linux")]
+pub(crate) mod snapshot_effects;
 #[cfg(any(test, target_os = "linux"))]
 use crate::registry::canonical;
 use crate::{
@@ -314,10 +316,8 @@ fn validate_copies(
     if released_bytes.len() > 4096 {
         return Err(BackupError::Capacity("captured journal v1 record"));
     }
-    let released: SourceGateRecord = serde_json::from_slice(released_bytes)?;
-    if serde_json::to_vec(&released)? != *released_bytes {
-        return Err(BackupError::Invalid("captured journal v1 record bytes"));
-    }
+    let released =
+        decode_source_released_record(released_bytes, record.backup_id, &record.manifest_sha256)?;
     released.validate_for(record.backup_id)?;
     if released.phase() != GatePhase::Released
         || released.pinned_manifest_sha256() != Some(&record.manifest_sha256)
@@ -369,6 +369,35 @@ fn validate_copies(
         &snapshot,
     )?;
     Ok(())
+}
+
+// Version only this inner record. The outer CapturedSourceProof remains V1 with
+// exactly twelve files and its original hash/protection checks. No failed V2
+// parse is retried as V1, and no caller selects a schema/profile fallback.
+fn decode_source_released_record(
+    bytes: &[u8],
+    backup_id: Uuid,
+    manifest_sha256: &str,
+) -> Result<SourceGateRecord, BackupError> {
+    if bytes.is_empty() || bytes.len() > 4096 {
+        return Err(BackupError::Capacity("captured source release record"));
+    }
+    let shape: serde_json::Value = serde_json::from_slice(bytes)?;
+    match shape.get("format_version") {
+        None => {
+            let record: SourceGateRecord = serde_json::from_slice(bytes)?;
+            if serde_json::to_vec(&record)? != bytes {
+                return Err(BackupError::Invalid("captured journal v1 record bytes"));
+            }
+            Ok(record)
+        }
+        Some(version) if version.as_u64() == Some(2) => {
+            crate::source::c0_d1::validate_full_c_released_record(bytes, backup_id, manifest_sha256)
+        }
+        Some(_) => Err(BackupError::Invalid(
+            "captured source release record version",
+        )),
+    }
 }
 
 fn relative_metadata_path(path: &str) -> bool {

@@ -157,7 +157,7 @@ mod linux {
     use super::*;
     use crate::source::{
         SourceAdmission, SourceBackupConfig, SourceLocalPin, binding, collect_source_identity,
-        compensate_release, endpoint, inspect_gate, verify_isolation_attestation_metered,
+        compensate_release_profile, endpoint, inspect_gate, verify_isolation_attestation_metered,
         wait_for_runtime_connect_probe,
     };
     use crate::{BackupManifestV1, SourceGateJournal};
@@ -376,6 +376,7 @@ mod linux {
         control: BackupDir,
         pin_root: BackupDir,
         journal: SourceGateJournal,
+        profile: crate::source::c0_d1::SourceProfile,
         source: Option<BackupDir>,
         sealed: Option<BackupDir>,
         sidecar: Option<(BackupDir, Decision)>,
@@ -397,6 +398,16 @@ mod linux {
     fn released_safe(f: &crate::GateInspection) -> bool {
         role_safe(f) && f.runtime_can_connect && f.other_sessions == 0
     }
+    async fn released_profile_safe(ctx: &mut Context) -> Result<bool, BackupError> {
+        ctx.profile
+            .recheck(ctx.admission.connection(), true)
+            .await?;
+        let mut facts = inspect_gate(ctx.admission.connection()).await?;
+        if ctx.profile.broker_oid().is_some() {
+            facts.other_login_writers -= 1;
+        }
+        Ok(released_safe(&facts))
+    }
     async fn admit(pool: &PgPool, config: &SourceBackupConfig) -> Result<Context, BackupError> {
         if config.backup_id.is_nil()
             || config.drain_timeout.is_zero()
@@ -410,7 +421,15 @@ mod linux {
         let journal = SourceGateJournal::recover_in(&control, config.backup_id)?;
         scan(&control, Some(config.backup_id))?;
         let sidecar = sidecar(&control, config.backup_id, journal.record())?;
-        let facts = inspect_gate(admission.connection()).await?;
+        let profile =
+            crate::source::c0_d1::SourceProfile::from_broker_oid(journal.full_c_broker_oid());
+        let mut facts = inspect_gate(admission.connection()).await?;
+        profile
+            .recheck(admission.connection(), facts.runtime_can_connect)
+            .await?;
+        if profile.broker_oid().is_some() && facts.runtime_can_connect {
+            facts.other_login_writers -= 1;
+        }
         if !role_safe(&facts) {
             return Err(BackupError::Invalid("source lifecycle role preflight"));
         }
@@ -434,6 +453,7 @@ mod linux {
             control,
             pin_root,
             journal,
+            profile,
             source,
             sealed,
             sidecar,
@@ -444,16 +464,17 @@ mod linux {
         config: &SourceBackupConfig,
     ) -> Result<(), BackupError> {
         let database = ctx.admission.database().to_owned();
-        sqlx::query(&format!(
-            "REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC, learning_runtime"
-        ))
-        .execute(ctx.admission.connection())
-        .await?;
+        sqlx::query(&ctx.profile.revoke_statement(&database))
+            .execute(ctx.admission.connection())
+            .await?;
         wait_for_runtime_connect_probe(config, ctx.admission.budget()).await?;
         let deadline = Instant::now() + config.drain_timeout;
         loop {
             let facts = inspect_gate(ctx.admission.connection()).await?;
             if facts.validate().is_ok() {
+                ctx.profile
+                    .recheck(ctx.admission.connection(), false)
+                    .await?;
                 return Ok(());
             }
             if !role_safe(&facts) || facts.runtime_can_connect || Instant::now() >= deadline {
@@ -573,6 +594,9 @@ mod linux {
         _config: &SourceBackupConfig,
     ) -> Result<(), BackupError> {
         inspect_gate(ctx.admission.connection()).await?.validate()?;
+        ctx.profile
+            .recheck(ctx.admission.connection(), false)
+            .await?;
         ctx.admission.recheck_release().await
     }
     async fn grant(ctx: &mut Context) -> Result<(), BackupError> {
@@ -580,15 +604,19 @@ mod linux {
         crate::source::lifecycle_tests::hook("lifecycle_before_grant")?;
         ctx.admission.recheck_release().await?;
         let db = ctx.admission.database().to_owned();
-        sqlx::query(&format!(
-            "GRANT CONNECT ON DATABASE \"{db}\" TO learning_runtime"
-        ))
-        .execute(ctx.admission.connection())
-        .await?;
+        sqlx::query(&ctx.profile.grant_statement(&db))
+            .execute(ctx.admission.connection())
+            .await?;
         #[cfg(test)]
         crate::source::lifecycle_tests::hook("lifecycle_after_grant")?;
         ctx.admission.recheck_release().await?;
-        let facts = inspect_gate(ctx.admission.connection()).await?;
+        ctx.profile
+            .recheck(ctx.admission.connection(), true)
+            .await?;
+        let mut facts = inspect_gate(ctx.admission.connection()).await?;
+        if ctx.profile.broker_oid().is_some() {
+            facts.other_login_writers -= 1;
+        }
         if !released_safe(&facts) {
             return Err(BackupError::Invalid("source release safety inspection"));
         }
@@ -596,8 +624,9 @@ mod linux {
     }
     async fn compensated_error(ctx: &mut Context, error: BackupError) -> BackupError {
         let database = ctx.admission.database().to_owned();
+        let profile = ctx.profile;
         let (admission, _) = ctx.admission.release_parts();
-        match compensate_release(admission, &database).await {
+        match compensate_release_profile(admission, &database, profile).await {
             Ok(()) => error,
             Err(ambiguity) => ambiguity,
         }
@@ -614,7 +643,7 @@ mod linux {
             let pin = proof(&mut ctx, config).await?;
             ctx.admission.protection()?.retain_pin(&pin)?;
             ctx.admission.recheck_release().await?;
-            if !released_safe(&inspect_gate(ctx.admission.connection()).await?) {
+            if !released_profile_safe(&mut ctx).await? {
                 return Err(BackupError::Invalid(
                     "terminal source ACL ambiguous; manual recovery required",
                 ));
@@ -667,7 +696,7 @@ mod linux {
                 .0
                 .sync()?;
             ctx.control.sync()?;
-            if !released_safe(&inspect_gate(ctx.admission.connection()).await?) {
+            if !released_profile_safe(&mut ctx).await? {
                 return Err(BackupError::Invalid(
                     "terminal abandonment ACL ambiguous; manual recovery required",
                 ));

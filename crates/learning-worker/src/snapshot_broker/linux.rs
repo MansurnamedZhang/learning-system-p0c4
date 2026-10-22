@@ -18,6 +18,12 @@ use std::{
 };
 use uuid::Uuid;
 
+/// An optional native-controller start barrier. It carries no job authority.
+/// The same process must receive one fixed marker and EOF within five seconds.
+pub fn wait_for_stdin_start() -> io::Result<()> {
+    wire::read_start_gate(libc::STDIN_FILENO, std::time::Duration::from_secs(5))
+}
+
 fn denied() -> io::Error {
     io::Error::new(
         io::ErrorKind::PermissionDenied,
@@ -333,9 +339,9 @@ impl DisabledBroker {
     }
 }
 
-/// A successful transport exchange only establishes that this broker is
-/// disabled. The worker CLI turns this into an explicit unavailable error;
-/// there is no successful job outcome or local fallback from this function.
+/// A successful active exchange returns only a redacted scheduling state.
+/// Transport timeout does not cancel the Root owner's operation or grant an
+/// effect finding. The disabled response remains explicitly unavailable.
 pub fn signal_next(config: &ClientConfig) -> io::Result<SignalDisposition> {
     config.validate()?;
     let leaf = config.socket.parent().ok_or_else(invalid)?;
@@ -357,20 +363,21 @@ pub fn signal_next(config: &ClientConfig) -> io::Result<SignalDisposition> {
         &stream,
         &serde_json::to_vec(&Signal::for_client(config)).map_err(|_| invalid())?,
     )?;
-    let reply: DisabledReply =
-        serde_json::from_slice(&wire::read_frame(&stream)?).map_err(|_| invalid())?;
+    // The original broker owner has a 60s publication deadline. Waiting for
+    // its response uses one absolute bound; the server's request frame keeps
+    // its original 2s bound, and no partial reply can reset this deadline.
+    let wait = std::time::Duration::from_millis(
+        config.lease_ms.saturating_add(5_000).clamp(65_000, 300_000),
+    );
+    let reply = DisabledReply::parse(&wire::read_reply(&stream, wait)?, config)?;
     let current_leaf = Directory::open(leaf, 0o750, CLIENT_GID, true)?;
     let held_parent = held_leaf.0.metadata()?;
     let current_parent = current_leaf.0.metadata()?;
     let after = fs::symlink_metadata(&config.socket)?;
     if (before.dev(), before.ino()) != (after.dev(), after.ino())
         || (held_parent.dev(), held_parent.ino()) != (current_parent.dev(), current_parent.ino())
-        || reply.format_version != 2
-        || reply.epoch != config.epoch.to_string()
-        || reply.request_id != config.request_id.to_string()
-        || reply.disposition != DISABLED
     {
         return Err(invalid());
     }
-    Ok(SignalDisposition::WriterDisabledUnknown)
+    Ok(reply)
 }

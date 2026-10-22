@@ -4,18 +4,46 @@ use chrono::{DateTime, Utc};
 #[cfg(target_os = "linux")]
 mod publication;
 
+#[cfg(target_os = "linux")]
+pub(super) async fn install_publication_observation(
+    pool: &sqlx::PgPool,
+) -> std::result::Result<(), learning_core::ContentError> {
+    publication::observation::install(pool).await
+}
+#[cfg(target_os = "linux")]
+pub(super) async fn validate_publication_observation(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+) -> Result<()> {
+    publication::validate_observation(tx)
+        .await
+        .map_err(|_| history::rejected("publication observation profile rejected"))
+}
+
 pub(super) fn validate_issue_rows(
     original: &Rows,
     claim: &Claim,
     current: &Rows,
     clock: DateTime<Utc>,
 ) -> Result<()> {
+    validate_issue_rows_inner(original, claim, current, clock, false)
+}
+fn validate_issue_rows_inner(
+    original: &Rows,
+    claim: &Claim,
+    current: &Rows,
+    clock: DateTime<Utc>,
+    versioned: bool,
+) -> Result<()> {
     if original.job != current.job
         || original.outbox != current.outbox
         || current.job.id != claim.job_id
         || current.job.status != "snapshot_running"
         || current.job.attempt_count != claim.attempts
-        || claim.attempts != 1
+        || if versioned {
+            !(1..=3).contains(&claim.attempts)
+        } else {
+            claim.attempts != 1
+        }
         || current.job.lease_token != Some(claim.token)
         || current.job.lease_expires_at != Some(claim.expires_at)
         || current.observed_at < original.observed_at
@@ -277,10 +305,14 @@ mod first_write {
                 .await?)
         })
         .await?;
-        validate_issue_rows(&original.after, &original.claim, &current, clock)?;
+        if owner.is_installed() {
+            validate_issue_rows_inner(&original.after, &original.claim, &current, clock, true)?;
+        } else {
+            validate_issue_rows(&original.after, &original.claim, &current, clock)?;
+        }
         let (intent, committed) = claimed.records();
         let previous = owner.head(slot).await?;
-        if previous != committed {
+        if previous != claimed.continuation() {
             return Err(history::rejected(
                 "C2 original journal continuation changed",
             ));
@@ -323,6 +355,18 @@ mod first_write {
         pub(super) verified_files: u64,
         pub(super) verified_bytes: u64,
     }
+    struct CopyInput {
+        lease: crate::JobLease,
+        issue: IssueReceipt,
+        writer: CustodyWriter,
+    }
+    struct CopyOutput {
+        staged: Option<CustodyStaged>,
+        prepared: PreparedSnapshotExport,
+        issue: IssueReceipt,
+        verified_files: u64,
+        verified_bytes: u64,
+    }
     pub(super) struct StagedAttempt {
         pub(super) copied: Copied,
         pub(super) observation: RecordRef,
@@ -338,16 +382,15 @@ mod first_write {
     fn stage_copy(
         owner: Arc<Original>,
         slot: Arc<Slot>,
-        permit: WritePermit,
+        permit: CopyInput,
         prepared: PreparedSnapshotExport,
-    ) -> Result<Copied> {
+    ) -> Result<CopyOutput> {
         slot.live()?;
-        let WritePermit {
-            claimed,
+        let CopyInput {
+            lease,
             issue,
             writer,
         } = permit;
-        let lease = claimed.lease();
         let copy = prepared
             .broker_reading_copy()
             .map_err(|_| history::rejected("D0 prepared nonempty reading copy required"))?;
@@ -404,10 +447,9 @@ mod first_write {
         }
         // Both the actual staged package+SH and the same original owner remain
         // owned until this closure and its original JoinHandle have settled.
-        Ok(Copied {
+        Ok(CopyOutput {
             staged: Some(staged),
             prepared,
-            claimed,
             issue,
             verified_files: verified.files.len() as u64,
             verified_bytes: bytes,
@@ -443,6 +485,15 @@ mod first_write {
         writer: CustodyWriter,
     ) -> Result<StagedAttempt> {
         let claimed = transition::claim(owner.clone(), slot.clone(), job, request).await?;
+        stage_claimed(owner, slot, claimed, runtime_pool, writer).await
+    }
+    pub(super) async fn stage_claimed(
+        owner: Arc<Original>,
+        slot: Arc<Slot>,
+        claimed: Claimed,
+        runtime_pool: PgPool,
+        writer: CustodyWriter,
+    ) -> Result<StagedAttempt> {
         claimed.check_original(&owner, &slot)?;
         let input = JobInput::from_value(claimed.output().after.outbox.payload.clone())
             .map_err(|_| history::rejected("D0 original input rejected"))?;
@@ -470,19 +521,58 @@ mod first_write {
         owner.stage(&slot, Stage::AfterIssue).await?;
         owner.stage(&slot, Stage::BeforeStageSpawn).await?;
         slot.live()?;
+        // The original async owner retains the sole claim. The blocking task
+        // receives only this consumed, already-issued private copy input.
+        let WritePermit {
+            mut claimed,
+            issue,
+            writer,
+        } = permit;
+        let original_lease = claimed.lease();
+        let lease_ms = claimed.lease_ms();
+        let permit = CopyInput {
+            lease: claimed.lease(),
+            issue,
+            writer,
+        };
         let copy_owner = owner.clone();
         let copy_slot = slot.clone();
-        let task = tokio::task::spawn_blocking(move || {
+        let mut task = tokio::task::spawn_blocking(move || {
             stage_copy(copy_owner, copy_slot, permit, prepared)
         });
+        let mut package_previous = None;
         // No live check, timeout wrapper or handle drop between spawn and this
         // unconditional original-owner settlement of the real blocking task.
         let copied = runtime::settle_started(&slot, async {
-            task.await
-                .map_err(|_| history::rejected("D0 original blocking copy panicked"))?
+            if !owner.is_installed() {
+                return task.await.map_err(|_| history::rejected("D0 original blocking copy panicked"))?;
+            }
+            let interval = std::time::Duration::from_millis((lease_ms as u64 / 3).clamp(250, 30_000));
+            loop {
+                tokio::select! {
+                    result = &mut task => return result.map_err(|_| history::rejected("D0 original blocking copy panicked"))?,
+                    _ = tokio::time::sleep(interval) => {
+                        match super::super::attempts::transition(&owner, &slot, &mut claimed, super::super::attempts::Transition::Renew(lease_ms)).await {
+                            Ok((reference,true)) => package_previous = Some(reference),
+                            Ok((_,false)) => {
+                                slot.poison();
+                                let _ = (&mut task).await;
+                                return Err(history::rejected("original copy renewal was not acquired"));
+                            }
+                            Err(error) => {
+                                slot.poison();
+                                // Renewal ambiguity never detaches the already
+                                // started writer or returns either held SH.
+                                let _ = (&mut task).await;
+                                return Err(error);
+                            }
+                        }
+                    }
+                }
+            }
         })
         .await;
-        let copied = match copied {
+        let mut copied = match copied {
             Ok(copied) => copied,
             Err(error) => {
                 slot.poison();
@@ -492,13 +582,27 @@ mod first_write {
                 return Err(error);
             }
         };
+        if package_previous.is_some() {
+            copied
+                .prepared
+                .broker_apply_known_renewal(&original_lease, claimed.lease())
+                .map_err(|_| history::rejected("original prepared renewal differs"))?;
+        }
+        let copied = Copied {
+            staged: copied.staged,
+            prepared: copied.prepared,
+            claimed,
+            issue: copied.issue,
+            verified_files: copied.verified_files,
+            verified_bytes: copied.verified_bytes,
+        };
         slot.live()?;
         copied
             .staged()?
             .revalidate()
             .map_err(|_| history::rejected("D0 original staged root identity changed"))?;
         let previous = owner.head(&slot).await?;
-        if previous != copied.issue.reference {
+        if previous != package_previous.unwrap_or(copied.issue.reference) {
             return Err(history::rejected("D0 original issue prefix changed"));
         }
         let record = PackageRecord {
@@ -530,7 +634,15 @@ mod first_write {
 }
 #[cfg(target_os = "linux")]
 pub(super) use first_write::{StagedComponent, drive};
-#[cfg(all(test, target_os = "linux"))]
-pub(super) use publication::observation::install as install_publication_observation;
+#[cfg(target_os = "linux")]
+pub(super) async fn publish_claimed(
+    owner: std::sync::Arc<history::runtime::Original>,
+    slot: std::sync::Arc<history::runtime::Slot>,
+    claimed: super::transition::Claimed,
+    runtime: sqlx::PgPool,
+    writer: learning_assets::CustodyWriter,
+) -> Result<PublishedComponent> {
+    publication::drive_claimed(owner, slot, claimed, runtime, writer).await
+}
 #[cfg(target_os = "linux")]
 pub(super) use publication::{PublishedComponent, drive as publish};

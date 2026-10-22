@@ -15,6 +15,92 @@ class ProducerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
+    def test_full_c_plan_is_explicit_and_does_not_change_base_plan(self):
+        p = self.producer()
+        case = str(uuid.uuid4())
+        base = dict(format_version=1, case_id=case, container_id='a'*64,
+                    database='learning_backup_c4_task3_'+case,
+                    source_root='/source', application_commit='b'*40,
+                    application_build_sha256='c'*64, output_directory='/capture')
+        self.assertEqual(p.capture_profile(base), 'base_v1')
+        full = dict(base, format_version=2, profile='snapshot_c0_d1_v1')
+        self.assertEqual(p.capture_profile(full), 'snapshot_c0_d1_v1')
+        for bad in [dict(base, profile='snapshot_c0_d1_v1'),
+                    dict(base, format_version=2), dict(full, profile='observation_v1'),
+                    dict(full, format_version=True), dict(full, sql='SELECT 1')]:
+            with self.assertRaises(p.ContractError):
+                p.capture_profile(bad)
+
+    def test_full_c_catalog_select_is_read_only_complete_and_has_no_password(self):
+        p = self.producer()
+        sql = p.C0_D1_FACTS_SQL
+        self.assertTrue(sql.lstrip().startswith('SELECT'))
+        for token in ['pg_catalog.pg_get_functiondef', 'p0c4_snapshot_claim_locked_observation',
+                      'p0c4_snapshot_publication_observe_v1', 'learning_snapshot_claim_broker',
+                      'pg_catalog.pg_auth_members', 'pg_catalog.pg_default_acl',
+                      'pg_catalog.pg_shdepend', 'pg_catalog.pg_db_role_setting']:
+            self.assertIn(token, sql)
+        for token in ['rolpassword', 'CREATE ', 'ALTER ', 'GRANT ', 'REVOKE ', 'SET ROLE']:
+            self.assertNotIn(token, sql)
+
+    def test_full_c_capture_rejects_body_profile_and_every_extra_broker_acl(self):
+        p = self.producer()
+        source = pathlib.Path(__file__).resolve().parents[1]
+        broker = dict(name='learning_snapshot_claim_broker',login=True,inherit=False,
+            superuser=False,createdb=False,createrole=False,replication=False,bypassrls=False,
+            connection_limit=4,valid_until_null=True,connect=True,create=False,temp=False,
+            memberships=0,settings=0,ownerships=0,direct_relation_acls=0,direct_column_acls=0,
+            default_acls=0,extra_schema_access=False,extra_definer_execute=False,
+            schema_acls=[dict(schema='public',grantor_is_owner=True,privilege='USAGE',grantable=False)],
+            database_acls=[dict(current_database=True,grantor='learning_admin',privilege='CONNECT',grantable=False)],
+            function_acls=[dict(schema='public',name=name,types=types,owner='learning_admin',
+                grantor='learning_admin',privilege='EXECUTE',grantable=False)
+                for name,types in [('p0c3_claim_snapshot_job','2950 20'),
+                    ('p0c3_fail_snapshot_job','2950 2950 25 16'),
+                    ('p0c3_renew_snapshot_job','2950 2950 20'),
+                    ('p0c4_snapshot_claim_locked_observation','2950 16')]])
+        helpers=[]
+        for name,path,marker,types,all_types,names,grantee,comment in [
+            ('p0c4_snapshot_claim_locked_observation','extensions/snapshot-claim-v1/install.sql',
+             '$snapshot_claim_observation_v1$','2950 16','{2950,16,20,20,1184,3802,3802}',
+             ['p_job_id','p_include_body','job_octets','outbox_octets','observed_at','job_row','outbox_row'],
+             'learning_snapshot_claim_broker','knowweave.snapshot-claim.v1:C0_OBSERVATION_ONLY_NOT_EXPORTABLE'),
+            ('p0c4_snapshot_publication_observe_v1','crates/learning-db/src/snapshot_broker/writer/publication/observation.sql',
+             '$snapshot_publication_observation_v1$','2950 2950 2950 1184 25 16',
+             '{2950,2950,2950,1184,25,16,20,20,20,20,20,1184,3802,3802,3802,3802,3802}',
+             ['p_job_id','p_token','p_request','p_expiry','p_phase','p_include_body','job_octets',
+              'outbox_octets','request_octets','key_octets','receipt_octets','observed_at',
+              'job_row','outbox_row','request_row','key_row','receipt_row'],'learning_runtime',None)]:
+            body=(source/path).read_text().split(marker)[1]
+            # Synthetic metadata exercises the predicate, not a native fixture.
+            helpers.append(dict(schema='public',name=name,owner='learning_admin',kind='f',
+                language='plpgsql',body=body,input_types=types,all_types=all_types,arg_names=names,
+                arg_modes=['i']*len(types.split())+['t']*(len(names)-len(types.split())),
+                security_definer=True,strict=False,leakproof=False,volatility='v',parallel='u',
+                config=['TimeZone=UTC','row_security=on','search_path=pg_catalog'],
+                nargs=len(types.split()),defaults=0,variadic=0,support=0,cost=100,rows=1000,
+                bin_null=True,sqlbody_null=True,argdefaults_null=True,trftypes_null=True,
+                returns_set=True,return_type=2249,extension_member=False,comment=comment,
+                acl='{learning_admin=X/learning_admin,'+grantee+'=X/learning_admin}',
+                definition='CREATE OR REPLACE FUNCTION public.'+name+'() AS $function$'+body+'$function$;\n'))
+        facts=dict(helpers=helpers,broker=broker)
+        p.validate_c0_d1_capture_facts(facts,source)
+        for field,value in [('body','BEGIN RETURN; END'),('language','sql'),('comment','exportable'),
+                            ('definition',helpers[0]['definition']+'SELECT 1;'),('defaults',1),
+                            ('return_type',3802),('extension_member',True)]:
+            bad=copy.deepcopy(facts);bad['helpers'][0][field]=value
+            with self.subTest(helper=field),self.assertRaises(p.ContractError):
+                p.validate_c0_d1_capture_facts(bad,source)
+        for field in ['schema_acls','function_acls','database_acls']:
+            bad=copy.deepcopy(facts);bad['broker'][field].append(dict(bad['broker'][field][0]))
+            with self.subTest(broker=field),self.assertRaises(p.ContractError):
+                p.validate_c0_d1_capture_facts(bad,source)
+        for field,value in [('direct_relation_acls',1),('direct_column_acls',1),('default_acls',1),
+                            ('extra_schema_access',True),('extra_definer_execute',True),('login',False)]:
+            bad=copy.deepcopy(facts);bad['broker'][field]=value
+            with self.subTest(broker=field),self.assertRaises(p.ContractError):
+                p.validate_c0_d1_capture_facts(bad,source)
+
     def test_restrict_normalization_is_exact_and_position_bound(self):
         p = self.producer()
         raw = b'--\n-- PostgreSQL database dump\n--\n\n\\restrict abc123\n\nSELECT 1;\n\n\\unrestrict abc123\n\n'

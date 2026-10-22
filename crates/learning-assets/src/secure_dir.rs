@@ -5,6 +5,8 @@ use std::{fs::File, io, path::Path};
 /// A persistent OS refusal fence only; its presence is never C3 authority.
 #[cfg(target_os = "linux")]
 pub(crate) const SNAPSHOT_CUSTODY_MARKER: &str = ".snapshot-root-custody-v2";
+#[cfg(target_os = "linux")]
+pub(crate) const SNAPSHOT_EXPORT_V2_MARKER: &str = "export-root-v2.json";
 
 #[cfg(any(target_os = "linux", test))]
 fn trusted_ancestor(uid: u32, mode: u32) -> bool {
@@ -51,6 +53,15 @@ mod platform {
         file: File,
     }
     impl Dir {
+        pub(crate) fn from_opened_private_root(file: File) -> io::Result<Self> {
+            let root = Self { file };
+            root.require_private_directory()?;
+            let metadata = root.file.metadata()?;
+            if !metadata.is_dir() || metadata.gid() != 0 || metadata.nlink() != 2 {
+                return Err(invalid());
+            }
+            Ok(root)
+        }
         /// Restore-only path admission: no component may be a symlink,
         /// non-root-owned, or writable by group/other. The final leaf is 0700.
         /// Each check is made on the open directory handle used for descent.
@@ -111,26 +122,28 @@ mod platform {
         /// a legacy caller supplies a job/attempt subdirectory as its root.
         pub(crate) fn reject_custody_ancestry(&self) -> io::Result<()> {
             let mut current = self.try_clone()?;
-            let marker = Self::name(SNAPSHOT_CUSTODY_MARKER)?;
             for _ in 0..256 {
-                let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
-                let result = unsafe {
-                    libc::fstatat(
-                        current.file.as_raw_fd(),
-                        marker.as_ptr(),
-                        stat.as_mut_ptr(),
-                        libc::AT_SYMLINK_NOFOLLOW,
-                    )
-                };
-                if result == 0 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        "legacy writer refused registered snapshot custody subtree",
-                    ));
-                }
-                let error = io::Error::last_os_error();
-                if error.kind() != io::ErrorKind::NotFound {
-                    return Err(error);
+                for marker_name in [SNAPSHOT_CUSTODY_MARKER, SNAPSHOT_EXPORT_V2_MARKER] {
+                    let marker = Self::name(marker_name)?;
+                    let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+                    let result = unsafe {
+                        libc::fstatat(
+                            current.file.as_raw_fd(),
+                            marker.as_ptr(),
+                            stat.as_mut_ptr(),
+                            libc::AT_SYMLINK_NOFOLLOW,
+                        )
+                    };
+                    if result == 0 {
+                        return Err(io::Error::new(
+                            io::ErrorKind::PermissionDenied,
+                            "legacy writer refused registered snapshot custody subtree",
+                        ));
+                    }
+                    let error = io::Error::last_os_error();
+                    if error.kind() != io::ErrorKind::NotFound {
+                        return Err(error);
+                    }
                 }
                 // '..' is deliberately private to this bounded ancestor walk.
                 let parent = current.open_dir_bytes(b"..")?;
@@ -304,6 +317,86 @@ mod platform {
         }
         pub(crate) fn list(&self) -> io::Result<Vec<String>> {
             self.list_bounded(usize::MAX)
+        }
+        /// Pay for each bounded dirent before asking libc for it or allocating
+        /// its retained name. The original operation meter is never reset.
+        pub(crate) fn list_metered(
+            &self,
+            budget: &crate::root_journal::SharedJournalBudget,
+        ) -> io::Result<Vec<String>> {
+            budget.charge(64 * 1024, 0)?;
+            let dot = CString::new(".").expect("literal");
+            let duplicate = unsafe {
+                libc::openat(
+                    self.file.as_raw_fd(),
+                    dot.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                )
+            };
+            if duplicate < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            let directory = unsafe { libc::fdopendir(duplicate) };
+            if directory.is_null() {
+                unsafe {
+                    libc::close(duplicate);
+                }
+                return Err(io::Error::last_os_error());
+            }
+            struct Entries(*mut libc::DIR);
+            impl Drop for Entries {
+                fn drop(&mut self) {
+                    unsafe {
+                        libc::closedir(self.0);
+                    }
+                }
+            }
+            let directory = Entries(directory);
+            let mut names = Vec::new();
+            loop {
+                // NAME_MAX=255 on the supported Linux deployment. This also
+                // prepays the Vec slot and a possible retained-name copy.
+                budget.charge(1024, 1)?;
+                unsafe {
+                    *libc::__errno_location() = 0;
+                }
+                let row = unsafe { libc::readdir(directory.0) };
+                if row.is_null() {
+                    let error = io::Error::last_os_error();
+                    if error.raw_os_error() != Some(0) {
+                        return Err(error);
+                    }
+                    break;
+                }
+                let bytes = unsafe { CStr::from_ptr((*row).d_name.as_ptr()) }.to_bytes();
+                if bytes == b"." || bytes == b".." {
+                    continue;
+                }
+                if bytes.len() > 255 {
+                    return Err(invalid());
+                }
+                if names.len() == names.capacity() {
+                    budget.charge((names.len() * std::mem::size_of::<String>()) as u64, 0)?;
+                    names
+                        .try_reserve_exact(names.len().max(8))
+                        .map_err(|_| invalid())?;
+                }
+                names.push(String::from_utf8(bytes.to_vec()).map_err(|_| invalid())?);
+            }
+            // Sorting work has a checked comparison bound for bounded names.
+            let levels = usize::BITS - names.len().max(1).leading_zeros();
+            budget.charge(
+                (names.len() as u64)
+                    .checked_mul(levels as u64)
+                    .and_then(|n| n.checked_mul(1024))
+                    .ok_or_else(invalid)?,
+                0,
+            )?;
+            names.sort_unstable();
+            Ok(names)
+        }
+        pub(crate) fn root_metadata(&self) -> io::Result<std::fs::Metadata> {
+            self.file.metadata()
         }
         pub(crate) fn list_bounded(&self, maximum: usize) -> io::Result<Vec<String>> {
             let dot = CString::new(".").expect("literal");
