@@ -28,6 +28,14 @@ use std::{
 use uuid::Uuid;
 use wire::{Capture, Cut, Descriptor, ENCODING, Ledger, NamespaceEntry, Prefix, hash, invalid};
 
+fn exact_record_names(mut actual: Vec<String>, expected: &[String]) -> bool {
+    if actual.len() != expected.len() {
+        return false;
+    }
+    actual.sort_unstable();
+    actual == expected
+}
+
 struct Enrollment {
     backup_id: Uuid,
     group: SourceGroup,
@@ -469,7 +477,7 @@ impl Enrollment {
         }
         let exact = |dir: &BackupDir, mut names: Vec<String>| -> Result<(), BackupError> {
             names.sort();
-            if dir.list_bounded(wire::MAX_FILES)? != names {
+            if !exact_record_names(dir.list_bounded(wire::MAX_FILES)?, &names) {
                 return Err(invalid());
             }
             Ok(())
@@ -933,4 +941,124 @@ pub async fn prepare_source_backup_with_snapshot_effects(
     let pin = super::prepare_linux_with_effects(admin, assets, config, Some(&mut input)).await?;
     let captured = input.finish(&pin)?;
     Ok((pin, captured))
+}
+
+#[cfg(test)]
+mod roster_tests {
+    use super::exact_record_names;
+
+    fn companion_names() -> Vec<String> {
+        [
+            "authority.json",
+            "bindings",
+            "captures",
+            "generations",
+            "journals",
+            "staging",
+        ]
+        .map(str::to_owned)
+        .to_vec()
+    }
+
+    fn permutations(names: &mut [String], offset: usize, visit: &mut impl FnMut(&[String])) {
+        if offset == names.len() {
+            visit(names);
+            return;
+        }
+        for index in offset..names.len() {
+            names.swap(offset, index);
+            permutations(names, offset + 1, visit);
+            names.swap(offset, index);
+        }
+    }
+
+    #[test]
+    fn all_six_companion_name_permutations_are_accepted() {
+        let expected = companion_names();
+        let mut actual = expected.clone();
+        let mut checked = 0;
+        permutations(&mut actual, 0, &mut |names| {
+            assert!(exact_record_names(names.to_vec(), &expected), "{names:?}");
+            checked += 1;
+        });
+        assert_eq!(checked, 720);
+        let observed = [
+            "captures",
+            "bindings",
+            "staging",
+            "journals",
+            "generations",
+            "authority.json",
+        ]
+        .map(str::to_owned)
+        .to_vec();
+        assert!(exact_record_names(observed, &expected));
+    }
+
+    #[test]
+    fn two_member_record_rosters_accept_both_orders() {
+        for names in [
+            ["inspection.json", "runtime-cutover.json"],
+            ["broker.lock", "epochs"],
+        ] {
+            let expected = names.map(str::to_owned).to_vec();
+            let mut actual = expected.clone();
+            let mut checked = 0;
+            permutations(&mut actual, 0, &mut |names| {
+                assert!(exact_record_names(names.to_vec(), &expected), "{names:?}");
+                checked += 1;
+            });
+            assert_eq!(checked, 2);
+        }
+    }
+
+    #[test]
+    fn missing_record_members_are_rejected() {
+        let expected = companion_names();
+        for index in 0..expected.len() {
+            let mut actual = expected.clone();
+            actual.remove(index);
+            assert!(!exact_record_names(actual, &expected));
+        }
+        assert!(!exact_record_names(Vec::new(), &expected));
+    }
+
+    #[test]
+    fn extra_record_members_are_rejected() {
+        let expected = companion_names();
+        for index in 0..=expected.len() {
+            let mut actual = expected.clone();
+            actual.insert(index, "unexpected.json".into());
+            assert!(!exact_record_names(actual, &expected));
+        }
+    }
+
+    #[test]
+    fn duplicate_record_members_are_rejected() {
+        let expected = companion_names();
+        for index in 0..expected.len() {
+            let mut actual = expected.clone();
+            actual[index] = expected[(index + 1) % expected.len()].clone();
+            assert!(!exact_record_names(actual, &expected));
+        }
+        let mut actual = expected.clone();
+        actual.push(expected[0].clone());
+        assert!(!exact_record_names(actual, &expected));
+    }
+
+    #[test]
+    fn spoofed_record_names_are_rejected() {
+        let expected = companion_names();
+        for spoof in [
+            "Authority.json",
+            "authority.json ",
+            "authority.json/",
+            "authority.json.bak",
+            "../authority.json",
+        ] {
+            let mut actual = expected.clone();
+            actual[0] = spoof.into();
+            assert!(!exact_record_names(actual, &expected));
+        }
+    }
 }
