@@ -152,6 +152,72 @@ class SnapshotWorkerTests(unittest.TestCase):
                 else:changed['assets/unexpected']=dict(bytes=1,sha256='c'*64)
                 with self.subTest(mutation=mutation),self.assertRaises(worker.SnapshotDriverError):worker.capture_postcheck(None,'container',record,changed)
 
+    def test_real_budget_runner_worker_uses_original_base_log_directory(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from scripts import p0c4_source_lifecycle_gate_acceptance as driver
+        from scripts import p0c4_source_binding_gate_acceptance as binding
+        from scripts import p0c4_source_admission_gate_acceptance as helper
+        row,ident=self.request();ident['case_id']=str(uuid.uuid4())
+        record=dict(identity=ident,container_id='d'*64,volumes=dict(source_volume=dict(Mountpoint='/source-volume'),build_volume=dict(Mountpoint='/build-volume')),snapshot_worker_binary=dict(sha256='c'*64))
+        image=dict(Id='sha256:'+'b'*64,Config=dict(Labels={},Env=['PATH=/usr/bin']))
+        result=dict(batch_id=str(uuid.uuid4()),helpers=[])
+        events=[];calls=[];created='a'*64
+        with tempfile.TemporaryDirectory() as directory:
+            batch=Path(directory);logs=batch/'evidence/logs';logs.mkdir(parents=True)
+            class ExternalTransport:
+                # Only external transport is fake. The production budget,
+                # observed RPC, ownership, creation and profile code all run.
+                def __init__(self,path):self.logs=path;self.counter=0;self.running=False;self.expected=None
+                def facts(self):
+                    e=self.expected;zero='0001-01-01T00:00:00Z'
+                    return dict(Id=created,Name='/'+e['name'],Image=e['image'],Config=dict(Image=e['image'],User='65532:65532',WorkingDir='/reviewed',Labels=e['labels'],Cmd=e['cmd'],Entrypoint=e['entrypoint'],Env=[key+'='+value for key,value in e['env'].items()],OpenStdin=e['stdin']),HostConfig=dict(Privileged=False,CapAdd=None,CapDrop=['ALL'],SecurityOpt=['no-new-privileges'],NanoCpus=4*10**9,Memory=8*1024**3,MemorySwap=8*1024**3,PidsLimit=512,ReadonlyRootfs=True,Tmpfs={'/tmp':'rw,nosuid,nodev,size=1g'},PidMode='container:'+record['container_id'],IpcMode='private',NetworkMode='none',CgroupnsMode='private'),Mounts=[dict(Type=kind,Source=source,Destination=target,RW=rw)for kind,source,target,rw in e['mounts']],State=dict(Status='running'if self.running else'created',Running=self.running,StartedAt='2026-10-23T00:00:00Z'if self.running else zero,FinishedAt=zero),NetworkSettings=dict(Ports={},Networks={}))
+                def run(self,command,**kwargs):
+                    self.counter+=1;calls.append((list(command),kwargs['timeout']))
+                    args=command[1:]
+                    if args[:1]==['exec']:
+                        out=b'0 65532 750\n'
+                    elif args[:1]==['create']:
+                        self.expected=copy.deepcopy(self.pending_create['intent']['expected'])
+                        out=(created+'\n').encode()
+                    elif args==['container','inspect',created]:
+                        out=json.dumps([self.facts()]).encode()
+                    else:raise AssertionError('unexpected external transport command: '+repr(command))
+                    process=driver.canonical(dict(exit_code=0,reason=None,stdout_bytes=len(out),stderr_bytes=0))
+                    for suffix,value in [('stdout',out),('stderr',b''),('process.json',process)]:
+                        (self.logs/(f'{self.counter:04d}.'+suffix)).write_bytes(value)
+                    return 0,out,b''
+            h=SimpleNamespace(Runner=ExternalTransport,env_dict=helper.env_dict)
+            base=driver.owned_log_runner(h,batch,result,1)
+            self.addCleanup(driver.LOG_RESERVATIONS.pop,str(logs),None)
+            budget=driver.CaseBudget(clock=lambda:100.0,total_deadline=281.25)
+            runner=driver.BudgetRunner(base,budget)
+            self.assertFalse(hasattr(runner,'logs'))
+            child=SimpleNamespace(send=lambda raw:events.append(('send',raw)),close_input=lambda:events.append(('close-input',)))
+            actual_validate=binding.validate_helper
+            def validate(h,facts,expected):
+                events.append(('profile',facts['State']['Status']))
+                return actual_validate(h,facts,expected)
+            def start(command,directory,**kwargs):
+                self.assertIs(directory,base.logs)
+                self.assertEqual(command,[driver.DOCKER,'start','-a','-i',created])
+                self.assertEqual(kwargs,dict(timeout=90,interactive=True))
+                events.append(('factory',));base.running=True
+                return child
+            with patch.object(binding,'validate_helper',side_effect=validate),patch.object(driver,'MonitoredChild',side_effect=start) as factory:
+                client=worker.Worker(h,binding,runner,result,image,record,row,'e'*64)
+            factory.assert_called_once()
+            self.assertEqual(events,[('profile','created'),('factory',),('profile','running'),('send',b'START\n'),('close-input',)])
+            self.assertIs(client.runner,runner);self.assertIs(runner.budget,budget)
+            self.assertIs(client.child,child);self.assertIs(client.owner['child'],child)
+            self.assertEqual(client.owner['state'],'known')
+            self.assertEqual(client.record['id'],created)
+            self.assertIn('actual_live_inspect',client.record)
+            self.assertTrue(all(0<timeout<=1.25 for _,timeout in calls))
+            self.assertFalse(result['resource_creation_unknown'])
+            self.assertFalse(hasattr(runner,'logs'))
+
 
 class SnapshotSourceBindAdapterTests(unittest.TestCase):
     def fixture(self):

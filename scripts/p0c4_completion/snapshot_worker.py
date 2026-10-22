@@ -280,7 +280,7 @@ class Worker:
         self.record['id']=self.expected['id']=ident_created;d.runner_base(runner).ownership.known(self.owner,ident_created)
         require(self.inspect()['State']['Status']=='created','SNAPSHOT_WORKER_FRESH_CREATED')
         result['resource_creation_unknown']=False
-        self.child=d.MonitoredChild([d.DOCKER,'start','-a','-i',ident_created],runner.logs,timeout=90,interactive=True)
+        self.child=d.MonitoredChild([d.DOCKER,'start','-a','-i',ident_created],d.runner_base(runner).logs,timeout=90,interactive=True)
         self.owner['child']=self.child
         deadline=time.monotonic()+5
         while True:
