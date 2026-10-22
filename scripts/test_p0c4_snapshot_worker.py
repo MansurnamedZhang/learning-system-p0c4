@@ -153,4 +153,150 @@ class SnapshotWorkerTests(unittest.TestCase):
                 with self.subTest(mutation=mutation),self.assertRaises(worker.SnapshotDriverError):worker.capture_postcheck(None,'container',record,changed)
 
 
+class SnapshotSourceBindAdapterTests(unittest.TestCase):
+    def fixture(self):
+        # Scrubbed actual P6 0334 shape: 18 Mounts, 10 Binds, exactly one
+        # rw/rslave bind at the fixed snapshot socket root. No native credit.
+        import stat
+        from pathlib import PurePosixPath
+        from scripts import p0c4_source_admission_gate_acceptance as helper
+        from scripts.p0c4_completion import full_import as full
+        from scripts.test_p0c4_full_rehearsal_profile import profile
+        p=profile();p.update(format_version=2,capability='full_rehearsal_snapshot_profile_v2')
+        project='kwc4c-'+p['source_case_id'].replace('-','')
+        for key,suffix,ino in [('snapshot_effects','snapshot-effects',107),('snapshot_export','snapshot-export',108)]:
+            name=project+'-'+suffix
+            p['volumes'][key]=dict(name=name,path='/var/lib/docker/volumes/'+name+'/_data',dev=10,ino=ino,uid=0,gid=0,mode=0o700)
+        plan=dict(format_version=3,case_id=p['source_case_id'],batch_id='750e8400-e29b-41d4-a716-446655440000',case_name='snapshot-p6',schema_profile='snapshot_c0_d1_v1',snapshot_profile=worker.PROFILE)
+        context=full.FullRehearsalContext(full._TOKEN,plan)
+        context._ident=dict(case_id=p['source_case_id'],project=project,pg_name=project+'-pg-1')
+        context._case=PurePosixPath(p['source_bind_root']['path'])
+        context._target_root=PurePosixPath(p['volumes']['target_control']['path'])
+        context._target_volumes={key:dict(Name=p['volumes'][other]['name'],Mountpoint=p['volumes'][other]['path'])for key,other in [('control','target_control'),('socket','target_socket')]}
+        context._snapshot_volumes={key:dict(Name=p['volumes'][key]['name'],Mountpoint=p['volumes'][key]['path'])for key in ('snapshot_effects','snapshot_export')}
+        root=p['volumes']['source_data'];context._snapshot_source_mountpoint=root['path']
+        volume=dict(Name=root['name'],Mountpoint=root['path'],Driver='local',Options=None,Labels={'com.docker.compose.project':project,'knowweave.source-lifecycle.batch':plan['batch_id']})
+        context._record=dict(volumes=dict(source_volume=volume),snapshot_root_prepare={key:{k:p['volumes'][other][k]for k in ('dev','ino','uid','gid','mode')}for key,other in [('source','source_data'),('snapshot_effects','snapshot_effects'),('snapshot_export','snapshot_export')]})
+        for key in ('snapshot_effects','snapshot_export'):
+            value=p['volumes'][key]
+            measured=dict(Name=value['name'],Mountpoint=value['path'],Driver='local',Options=None,Labels=copy.deepcopy(volume['Labels']))
+            context._snapshot_volumes[key]=measured
+            context._record['volumes'][key+'_volume']=copy.deepcopy(measured)
+        mounts=[];names={v['path']:v['name']for v in p['volumes'].values()}
+        for kind,source,target,rw in full._mounts(p,'source'):
+            row=dict(Type=kind,Source=source,Destination=target,RW=rw,Mode=('rw'if rw else'ro')if kind=='bind'else'z',Propagation='rslave'if kind=='bind'else'')
+            if kind=='volume':row['Name']=names[source]
+            mounts.append(row)
+        declared=[dict(Type='volume',Source=m['Name'],Target=m['Destination'],ReadOnly=not m['RW'],VolumeOptions={'NoCopy':True})for m in mounts if m['Type']=='volume']
+        expected=dict(id='a'*64,name=context._ident['pg_name'],image='sha256:'+'b'*64,image_ref=helper.PG_IMAGE,env={},labels={'com.docker.compose.project':project,'com.docker.compose.service':'pg'},cmd=['postgres'],entrypoint=['docker-entrypoint.sh'],mounts={(m['Type'],m['Source'],m['Destination'],m['RW'])for m in mounts},network=project+'-net',builder=False,user='')
+        facts=dict(Id=expected['id'],Name='/'+expected['name'],Image=expected['image'],Config=dict(Image=expected['image_ref'],Env=[],Labels=expected['labels'],Cmd=expected['cmd'],Entrypoint=expected['entrypoint'],User=''),HostConfig=dict(Privileged=False,CapAdd=None,CapDrop=None,SecurityOpt=['no-new-privileges'],NanoCpus=2*10**9,Memory=4*1024**3,MemorySwap=4*1024**3,IpcMode='private',NetworkMode=expected['network'],Binds=[m['Source']+':'+m['Destination']+':'+m['Mode']for m in mounts if m['Type']=='bind'],Mounts=declared),Mounts=mounts,NetworkSettings=dict(Ports={}),State=dict(Status='created',Running=False,Pid=0))
+        rootmeta=SimpleNamespace(st_mode=stat.S_IFDIR|0o700,st_uid=0,st_gid=0,st_dev=root['dev'],st_ino=root['ino'])
+        socketmeta=SimpleNamespace(**dict(vars(rootmeta),st_ino=9001))
+        return full,helper,context,facts,expected,rootmeta,socketmeta
+
+    def filesystem(self,rootmeta,socketmeta):
+        # The control capsule has no host source-volume mount. Resource-only
+        # validation must not attempt a host path open/stat. Metadata is from
+        # the fixed Root preparation observation, not a synthetic live FD.
+        from contextlib import ExitStack
+        import os
+        from scripts import p0c4_storage_registry as registry
+        stack=ExitStack()
+        for module,name in [(registry,'open_directory'),(registry,'child_directory'),(os,'open'),(os,'stat'),(os,'fstat')]:
+            stack.enter_context(patch.object(module,name,side_effect=AssertionError('control capsule cannot open host source volume')))
+        return stack
+
+    def test_actual_p6_rw_socket_shape_reaches_unchanged_legacy_validation(self):
+        full,helper,context,facts,expected,rootmeta,socketmeta=self.fixture()
+        self.assertEqual(len(facts['Mounts']),18);self.assertEqual(len(facts['HostConfig']['Binds']),10)
+        with self.assertRaisesRegex(helper.GateError,'PG_BINDS_MODE'):helper.validate_container(facts,expected)
+        original=copy.deepcopy(facts);original_expected=copy.deepcopy(expected)
+        with self.filesystem(rootmeta,socketmeta),patch.object(helper,'validate_container',wraps=helper.validate_container)as legacy:
+            full._FullContainerAdapter(helper,context).validate_container(facts,expected)
+            view,passed_expected=legacy.call_args.args
+            self.assertEqual(view['Mounts'],facts['Mounts']);self.assertIs(passed_expected,expected)
+            self.assertEqual(view['HostConfig']['Binds'],[x for x in facts['HostConfig']['Binds']if not x.endswith(':rw')])
+        self.assertEqual(facts,original);self.assertEqual(expected,original_expected)
+        with self.assertRaisesRegex(helper.GateError,'PG_BINDS_MODE'):helper.validate_container(facts,expected)
+
+    def test_socket_exception_rejects_bind_mount_and_legacy_security_drift(self):
+        for change in ('source','destination','readonly','options','duplicate','extra_rw','missing_bind','missing_mount','mount_source','mount_mode','propagation','mount_rw','expected_count','nocopy','security','identity'):
+            with self.subTest(change=change):
+                full,helper,context,facts,expected,rootmeta,socketmeta=self.fixture()
+                binds=facts['HostConfig']['Binds'];index=next(i for i,v in enumerate(binds)if v.endswith(':rw'))
+                row=next(v for v in facts['Mounts']if v['Destination']=='/run/kwc4/sfx')
+                if change=='source':binds[index]='/foreign:/run/kwc4/sfx:rw'
+                elif change=='destination':binds[index]=binds[index].replace('/run/kwc4/sfx','/foreign')
+                elif change=='readonly':binds[index]=binds[index][:-2]+'ro'
+                elif change=='options':binds[index]+=',shared'
+                elif change=='duplicate':binds[0]=binds[index]
+                elif change=='extra_rw':binds.append('/foreign:/foreign:rw')
+                elif change=='missing_bind':binds.pop(index)
+                elif change=='missing_mount':facts['Mounts'].remove(row)
+                elif change=='mount_source':row['Source']='/foreign'
+                elif change=='mount_mode':row['Mode']='rw,shared'
+                elif change=='propagation':row['Propagation']='rshared'
+                elif change=='mount_rw':row['RW']=False
+                elif change=='expected_count':expected['mounts'].add(('bind','/foreign','/foreign',False))
+                elif change=='nocopy':
+                    next(v for v in facts['HostConfig']['Mounts']if v['Target']=='/var/lib/knowweave-c4/snapshot-effects-v2')['VolumeOptions']['NoCopy']=False
+                elif change=='security':facts['HostConfig']['Privileged']=True
+                else:facts['Id']='9'*64
+                with self.filesystem(rootmeta,socketmeta),self.assertRaises((full.FullImportError,helper.GateError)):
+                    full._FullContainerAdapter(helper,context).validate_container(facts,expected)
+
+    def test_snapshot_source_missing_null_or_empty_binds_never_bypasses_fd_gate(self):
+        from scripts import p0c4_storage_registry as registry
+        for change in ('absent','null','empty'):
+            with self.subTest(change=change):
+                full,helper,context,facts,expected,_,_=self.fixture()
+                if change=='absent':facts['HostConfig'].pop('Binds')
+                else:facts['HostConfig']['Binds']=None if change=='null'else[]
+                with patch.object(registry,'open_directory',side_effect=AssertionError('invalid binds reached filesystem'))as opened,patch.object(helper,'validate_container',wraps=helper.validate_container)as legacy:
+                    with self.assertRaisesRegex(full.FullImportError,'FULL_SNAPSHOT_SOCKET_BINDS'):
+                        full._FullContainerAdapter(helper,context).validate_container(facts,expected)
+                    legacy.assert_not_called();opened.assert_not_called()
+
+    def test_only_fixed_snapshot_source_can_omit_the_redundant_rw_entry(self):
+        for change in ('foundation','ordinary','target','builder','schema','source_volume','source_label'):
+            with self.subTest(change=change):
+                full,helper,context,facts,expected,rootmeta,socketmeta=self.fixture()
+                if change=='foundation':context._plan.update(format_version=2,case_name='recovery-leases')
+                elif change=='ordinary':context._plan['snapshot_profile']='ordinary'
+                elif change=='target':expected['name']='target'
+                elif change=='builder':expected['builder']=True
+                elif change=='schema':context._plan['schema_profile']='base_v1'
+                elif change=='source_volume':context._record['volumes']['source_volume']['Mountpoint']='/foreign'
+                else:context._record['volumes']['source_volume']['Labels']['knowweave.source-lifecycle.batch']='foreign'
+                with self.filesystem(rootmeta,socketmeta),self.assertRaises((full.FullImportError,helper.GateError)):
+                    full._FullContainerAdapter(helper,context).validate_container(facts,expected)
+
+    def test_socket_exception_requires_closed_root_preparation_and_volume_facts(self):
+        for change in ('missing_root','extra_root','missing_field','extra_field','uid','gid','mode','zero_dev','bool_ino','huge_ino','root_alias','volume_alias','volume_name','volume_driver','volume_options','volume_labels','volume_record'):
+            with self.subTest(change=change):
+                full,helper,context,facts,expected,rootmeta,socketmeta=self.fixture()
+                roots=context._record['snapshot_root_prepare'];row=roots['source']
+                if change=='missing_root':roots.pop('snapshot_export')
+                elif change=='extra_root':roots['other']=copy.deepcopy(row)
+                elif change=='missing_field':row.pop('mode')
+                elif change=='extra_field':row['authority']=True
+                elif change=='uid':row['uid']=65532
+                elif change=='gid':row['gid']=65532
+                elif change=='mode':row['mode']=0o750
+                elif change=='zero_dev':row['dev']=0
+                elif change=='bool_ino':row['ino']=True
+                elif change=='huge_ino':row['ino']=2**64
+                elif change=='root_alias':roots['snapshot_effects']=copy.deepcopy(row)
+                elif change=='volume_alias':context._snapshot_volumes['snapshot_effects']['Mountpoint']=context._snapshot_source_mountpoint
+                elif change=='volume_name':context._snapshot_volumes['snapshot_export']['Name']='foreign'
+                elif change=='volume_driver':context._snapshot_volumes['snapshot_export']['Driver']='foreign'
+                elif change=='volume_options':context._snapshot_volumes['snapshot_export']['Options']={'device':'foreign'}
+                elif change=='volume_labels':context._snapshot_volumes['snapshot_export']['Labels']={}
+                else:context._record['volumes']['snapshot_export_volume']['Mountpoint']='/foreign'
+                with self.filesystem(rootmeta,socketmeta),patch.object(helper,'validate_container',wraps=helper.validate_container)as legacy:
+                    with self.assertRaises(full.FullImportError):
+                        full._FullContainerAdapter(helper,context).validate_container(facts,expected)
+                    legacy.assert_not_called()
+
+
 if __name__=='__main__':unittest.main()

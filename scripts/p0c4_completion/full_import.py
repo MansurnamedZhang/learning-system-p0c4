@@ -733,8 +733,44 @@ class _FullContainerAdapter:
     __slots__=('_legacy','_context')
     def __init__(self, legacy, context):self._legacy,self._context=legacy,context
     def __getattr__(self, name):return getattr(self._legacy,name)
+    def _snapshot_socket_view(self,facts,expected):
+        context=self._context
+        if not (context._snapshot_effects() and expected.get('builder')is False and expected['name']==context._ident['pg_name']):
+            return facts
+        project='kwc4c-'+uuid.UUID(context._plan['case_id']).hex
+        source=context._snapshot_source_mountpoint;destination='/run/kwc4/sfx'
+        _require(context._full_c() and context._ident['case_id']==context._plan['case_id'] and context._ident['project']==project and expected['name']==project+'-pg-1' and facts['Id']==expected['id'] and facts['Name']=='/'+expected['name'],'FULL_SNAPSHOT_SOCKET_IDENTITY')
+        # These are the fixed Root prepare_volumes helper's resource facts,
+        # carried by the original private context. They confer no business
+        # effect/FD authority. The control capsule cannot open host volumes.
+        roots=context._record.get('snapshot_root_prepare')
+        _require(type(roots)is dict and set(roots)=={'source','snapshot_effects','snapshot_export'},'FULL_SNAPSHOT_SOCKET_PREPARATION')
+        for row in roots.values():
+            _require(type(row)is dict and set(row)=={'dev','ino','uid','gid','mode'} and all(type(row[k])is int and 0<row[k]<2**64 for k in ('dev','ino')) and all(type(row[k])is int and row[k]==0 for k in ('uid','gid')) and type(row['mode'])is int and row['mode']==0o700,'FULL_SNAPSHOT_SOCKET_PREPARATION')
+        _require(len({(v['dev'],v['ino'])for v in roots.values()})==3,'FULL_SNAPSHOT_SOCKET_PREPARATION')
+        paths=[]
+        for key,suffix,record_key in [('source','source','source_volume'),('snapshot_effects','snapshot-effects','snapshot_effects_volume'),('snapshot_export','snapshot-export','snapshot_export_volume')]:
+            volume=context._record['volumes'][record_key]
+            original=volume if key=='source'else context._snapshot_volumes[key]
+            _require(type(volume)is dict and volume==original and volume['Name']==project+'-'+suffix and _path(volume['Mountpoint']) and volume['Mountpoint'].endswith('/volumes/'+volume['Name']+'/_data') and volume['Driver']=='local' and not volume.get('Options') and volume['Labels']=={'com.docker.compose.project':project,'knowweave.source-lifecycle.batch':context._plan['batch_id']},'FULL_SNAPSHOT_SOCKET_VOLUME')
+            paths.append(volume['Mountpoint'])
+        _require(paths[0]==source and len(set(paths))==3,'FULL_SNAPSHOT_SOCKET_VOLUME')
+        socket=source+'/snapshot-sockets';exception=(socket,destination,'rw')
+        binds=facts['HostConfig'].get('Binds');mounts=facts['Mounts']
+        _require(type(binds)is list and len(binds)==10 and all(type(v)is str for v in binds),'FULL_SNAPSHOT_SOCKET_BINDS')
+        parsed=[tuple(v.split(':'))for v in binds]
+        declared={(src,dest,'rw'if rw else'ro')for kind,src,dest,rw in expected['mounts']if kind=='bind'}
+        _require(len(expected['mounts'])==18 and len(declared)==10 and all(len(v)==3 for v in parsed) and len(set(parsed))==len(parsed) and set(parsed)==declared and {v for v in parsed if v[2]!='ro'}=={exception},'FULL_SNAPSHOT_SOCKET_BINDS')
+        _require(type(mounts)is list and len(mounts)==18 and all(type(v.get('RW'))is bool for v in mounts) and {(v['Type'],v['Source'],v['Destination'],v['RW'])for v in mounts}==expected['mounts'],'FULL_SNAPSHOT_SOCKET_MOUNTS')
+        rows=[v for v in mounts if v['Destination']==destination]
+        _require(len(rows)==1 and rows[0]['Type']=='bind' and rows[0]['Source']==socket and rows[0]['RW']is True and rows[0].get('Mode')=='rw' and rows[0].get('Propagation')=='rslave','FULL_SNAPSHOT_SOCKET_OPTIONS')
+        # Only this verified redundant Binds entry is omitted. Actual Mounts,
+        # expected and all legacy identity/security checks remain intact.
+        view=copy.deepcopy(facts)
+        view['HostConfig']['Binds']=[v for v,parts in zip(binds,parsed)if parts!=exception]
+        return view
     def validate_container(self, facts, expected):
-        self._legacy.validate_container(facts,expected)
+        self._legacy.validate_container(self._snapshot_socket_view(facts,expected),expected)
         if expected.get('builder') is False and expected['name']==self._context._ident['pg_name']:
             extra=self._context._source_extra_mounts()
             _require(extra <= expected['mounts'] and len(expected['mounts'])==(18 if self._context._snapshot_effects()else 14),'FULL_SOURCE_DECLARED_MOUNTS')

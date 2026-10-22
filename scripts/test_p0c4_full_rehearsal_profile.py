@@ -83,23 +83,19 @@ class FullProfileGate(unittest.TestCase):
         with self.assertRaises(full.FullImportError):context._compile_pins(dict(record,container_id='b'*64))
 
     def test_snapshot_container_adapter_requires_eighteen_mounts_and_new_volumes_nocopy(self):
-        from pathlib import Path
-        from types import SimpleNamespace
-        _,base=Fix1AuthorityTests().issued()
-        base.update(format_version=3,capability='c4_full_snapshot_import_plan_v2',case_name='snapshot-p1',schema_profile='snapshot_c0_d1_v1',snapshot_profile='root_snapshot_broker_v2')
-        context=full.FullRehearsalContext(full._TOKEN,base);p=profile()
-        context._ident={'pg_name':'fixed-source-pg'};context._target_root=Path(p['volumes']['target_control']['path'])
-        context._target_volumes={key:dict(Name=p['volumes'][other]['name'],Mountpoint=p['volumes'][other]['path'])for key,other in [('control','target_control'),('socket','target_socket')]}
-        context._snapshot_volumes={key:dict(Name='kwc4c-'+S.replace('-','')+'-'+suffix,Mountpoint='/volumes/'+suffix)for key,suffix in [('snapshot_effects','snapshot-effects'),('snapshot_export','snapshot-export')]}
-        extra=context._source_extra_mounts();mounts=extra|{('bind','/fixed/'+str(i),'/fixed/'+str(i),False)for i in range(18-len(extra))}
-        expected=dict(builder=False,name='fixed-source-pg',mounts=mounts)
-        volumes=[(str(context._target_root),context._target_volumes['control']['Name']),('/var/run/knowweave-target',context._target_volumes['socket']['Name']),('/var/lib/knowweave-c4/snapshot-effects-v2',context._snapshot_volumes['snapshot_effects']['Name']),('/var/lib/knowweave-c4/snapshot-export-v2',context._snapshot_volumes['snapshot_export']['Name'])]
-        facts={'HostConfig':{'Mounts':[dict(Target=d,Source=n,VolumeOptions={'NoCopy':True})for d,n in volumes]}}
-        adapter=full._FullContainerAdapter(SimpleNamespace(validate_container=lambda f,e:None),context)
-        adapter.validate_container(facts,expected)
-        for index in (2,3):
-            bad=copy.deepcopy(facts);bad['HostConfig']['Mounts'][index]['VolumeOptions']={'NoCopy':False}
-            with self.assertRaises(full.FullImportError):adapter.validate_container(bad,expected)
+        from scripts.test_p0c4_snapshot_worker import SnapshotSourceBindAdapterTests
+        fixture=SnapshotSourceBindAdapterTests()
+        _,legacy,context,facts,expected,rootmeta,socketmeta=fixture.fixture()
+        self.assertEqual(len(facts['Mounts']),18)
+        self.assertEqual(len(facts['HostConfig']['Binds']),10)
+        adapter=full._FullContainerAdapter(legacy,context)
+        with fixture.filesystem(rootmeta,socketmeta):
+            adapter.validate_container(facts,expected)
+            for destination in ('/var/lib/knowweave-c4/snapshot-effects-v2','/var/lib/knowweave-c4/snapshot-export-v2'):
+                bad=copy.deepcopy(facts)
+                next(row for row in bad['HostConfig']['Mounts']if row['Target']==destination)['VolumeOptions']={'NoCopy':False}
+                with self.subTest(destination=destination),self.assertRaisesRegex(full.FullImportError,'FULL_SOURCE_EXTRA_NOCOPY'):
+                    adapter.validate_container(bad,expected)
 
     def test_recovery_lease_body_requires_same_closed_full_context(self):
         from scripts import p0c4_completion_acceptance as runner
