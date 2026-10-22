@@ -1,6 +1,8 @@
-//! Private C2+D0 FIRST WRITE COMPONENT. No production admission or publication.
+//! Private C2+D0 staging and D1 original-operation publication. No admission.
 use super::history::{self, Claim, Result, Rows};
 use chrono::{DateTime, Utc};
+#[cfg(target_os = "linux")]
+mod publication;
 
 pub(super) fn validate_issue_rows(
     original: &Rows,
@@ -47,25 +49,45 @@ mod first_write {
     use uuid::Uuid;
 
     #[derive(Serialize, sqlx::FromRow)]
-    struct RuntimeIdentity {
-        database: String,
-        oid: i64,
-        postmaster: DateTime<Utc>,
-        session_user: String,
-        current_user: String,
-        original_login: Option<String>,
-        restricted_login: bool,
-        server_address: Option<String>,
-        server_port: Option<i32>,
+    pub(super) struct RuntimeIdentity {
+        pub(super) database: String,
+        pub(super) oid: i64,
+        pub(super) postmaster: DateTime<Utc>,
+        pub(super) session_user: String,
+        pub(super) current_user: String,
+        pub(super) original_login: Option<String>,
+        pub(super) restricted_login: bool,
+        pub(super) server_address: Option<String>,
+        pub(super) server_port: Option<i32>,
     }
-    const RUNTIME_IDENTITY: &str = "SELECT current_database()::text AS database,(SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname=current_database()) AS oid,pg_catalog.pg_postmaster_start_time() AS postmaster,session_user::text AS session_user,current_user::text AS current_user,system_user AS original_login,(r.rolcanlogin AND NOT r.rolsuper AND NOT r.rolcreatedb AND NOT r.rolcreaterole AND NOT r.rolreplication AND NOT r.rolbypassrls AND NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=r.oid) AND NOT EXISTS(SELECT FROM pg_catalog.pg_shdepend d WHERE d.refclassid='pg_catalog.pg_authid'::regclass AND d.refobjid=r.oid AND d.deptype='o')) AS restricted_login,pg_catalog.inet_server_addr()::text AS server_address,pg_catalog.inet_server_port() AS server_port FROM pg_catalog.pg_roles r WHERE r.rolname=session_user";
+    pub(super) const RUNTIME_IDENTITY: &str = "SELECT current_database()::text AS database,(SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname=current_database()) AS oid,pg_catalog.pg_postmaster_start_time() AS postmaster,session_user::text AS session_user,current_user::text AS current_user,system_user AS original_login,(r.rolcanlogin AND NOT r.rolsuper AND NOT r.rolcreatedb AND NOT r.rolcreaterole AND NOT r.rolreplication AND NOT r.rolbypassrls AND NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=r.oid) AND NOT EXISTS(SELECT FROM pg_catalog.pg_shdepend d WHERE d.refclassid='pg_catalog.pg_authid'::regclass AND d.refobjid=r.oid AND d.deptype='o')) AS restricted_login,pg_catalog.inet_server_addr()::text AS server_address,pg_catalog.inet_server_port() AS server_port FROM pg_catalog.pg_roles r WHERE r.rolname=session_user";
 
-    fn original_database(actual: &RuntimeIdentity, expected: &DatabaseIdentity) -> Result<()> {
+    pub(super) fn original_database(
+        actual: &RuntimeIdentity,
+        expected: &DatabaseIdentity,
+    ) -> Result<()> {
         if actual.database != expected.database
             || actual.oid != expected.oid
             || actual.postmaster != expected.postmaster
         {
             return Err(history::rejected("C2 source database identity mismatch"));
+        }
+        Ok(())
+    }
+    pub(super) fn restricted_runtime(actual: &RuntimeIdentity) -> Result<()> {
+        let authenticated = actual
+            .original_login
+            .as_deref()
+            .and_then(|v| v.split_once(':'))
+            .is_some_and(|(method, login)| !method.is_empty() && login == "learning_runtime");
+        if actual.session_user != "learning_runtime"
+            || actual.current_user != "learning_runtime"
+            || !actual.restricted_login
+            || !authenticated
+        {
+            return Err(history::rejected(
+                "C2 real restricted runtime LOGIN required",
+            ));
         }
         Ok(())
     }
@@ -94,20 +116,7 @@ mod first_write {
                 .await?)
         })
         .await?;
-        let authenticated = actual
-            .original_login
-            .as_deref()
-            .and_then(|v| v.split_once(':'))
-            .is_some_and(|(method, login)| !method.is_empty() && login == "learning_runtime");
-        if actual.session_user != "learning_runtime"
-            || actual.current_user != "learning_runtime"
-            || !actual.restricted_login
-            || !authenticated
-        {
-            return Err(history::rejected(
-                "C2 real restricted runtime LOGIN required",
-            ));
-        }
+        restricted_runtime(&actual)?;
         original_database(&actual, expected)?;
         Ok(actual)
     }
@@ -170,9 +179,9 @@ mod first_write {
         verified_bytes: u64,
         permit_nonce: Uuid,
     }
-    struct IssueReceipt {
-        reference: RecordRef,
-        nonce: Uuid,
+    pub(super) struct IssueReceipt {
+        pub(super) reference: RecordRef,
+        pub(super) nonce: Uuid,
     }
     struct WritePermit {
         claimed: Claimed,
@@ -306,12 +315,25 @@ mod first_write {
         })
     }
 
-    struct Copied {
-        staged: CustodyStaged,
-        claimed: Claimed,
-        issue: IssueReceipt,
-        verified_files: u64,
-        verified_bytes: u64,
+    pub(super) struct Copied {
+        pub(super) staged: Option<CustodyStaged>,
+        pub(super) prepared: PreparedSnapshotExport,
+        pub(super) claimed: Claimed,
+        pub(super) issue: IssueReceipt,
+        pub(super) verified_files: u64,
+        pub(super) verified_bytes: u64,
+    }
+    pub(super) struct StagedAttempt {
+        pub(super) copied: Copied,
+        pub(super) observation: RecordRef,
+        pub(super) runtime_identity: RuntimeIdentity,
+    }
+    impl Copied {
+        pub(super) fn staged(&self) -> Result<&CustodyStaged> {
+            self.staged
+                .as_ref()
+                .ok_or_else(|| history::rejected("D1 original staged value is in flight"))
+        }
     }
     fn stage_copy(
         owner: Arc<Original>,
@@ -383,7 +405,8 @@ mod first_write {
         // Both the actual staged package+SH and the same original owner remain
         // owned until this closure and its original JoinHandle have settled.
         Ok(Copied {
-            staged,
+            staged: Some(staged),
+            prepared,
             claimed,
             issue,
             verified_files: verified.files.len() as u64,
@@ -398,6 +421,27 @@ mod first_write {
         runtime_pool: PgPool,
         writer: CustodyWriter,
     ) -> Result<StagedComponent> {
+        let StagedAttempt {
+            copied,
+            observation,
+            ..
+        } = stage(owner, slot, job, request, runtime_pool, writer).await?;
+        Ok(StagedComponent {
+            staged: copied
+                .staged
+                .ok_or_else(|| history::rejected("D0 original staged value missing"))?,
+            issue: copied.issue.reference,
+            observation,
+        })
+    }
+    pub(super) async fn stage(
+        owner: Arc<Original>,
+        slot: Arc<Slot>,
+        job: Uuid,
+        request: Uuid,
+        runtime_pool: PgPool,
+        writer: CustodyWriter,
+    ) -> Result<StagedAttempt> {
         let claimed = transition::claim(owner.clone(), slot.clone(), job, request).await?;
         claimed.check_original(&owner, &slot)?;
         let input = JobInput::from_value(claimed.output().after.outbox.payload.clone())
@@ -450,7 +494,7 @@ mod first_write {
         };
         slot.live()?;
         copied
-            .staged
+            .staged()?
             .revalidate()
             .map_err(|_| history::rejected("D0 original staged root identity changed"))?;
         let previous = owner.head(&slot).await?;
@@ -468,7 +512,7 @@ mod first_write {
             issue: copied.issue.reference,
             claim_committed: copied.claimed.records().1,
             claim: &copied.claimed.output().claim,
-            manifest_sha256: copied.staged.directory().manifest_sha256(),
+            manifest_sha256: copied.staged()?.directory().manifest_sha256(),
             verified_files: copied.verified_files,
             verified_bytes: copied.verified_bytes,
             permit_nonce: copied.issue.nonce,
@@ -477,12 +521,16 @@ mod first_write {
         owner.preflight()?;
         let observation = owner.append(&slot, encoded).await?;
         slot.live()?;
-        Ok(StagedComponent {
-            staged: copied.staged,
-            issue: copied.issue.reference,
+        Ok(StagedAttempt {
+            copied,
             observation,
+            runtime_identity,
         })
     }
 }
 #[cfg(target_os = "linux")]
 pub(super) use first_write::{StagedComponent, drive};
+#[cfg(all(test, target_os = "linux"))]
+pub(super) use publication::observation::install as install_publication_observation;
+#[cfg(target_os = "linux")]
+pub(super) use publication::{PublishedComponent, drive as publish};

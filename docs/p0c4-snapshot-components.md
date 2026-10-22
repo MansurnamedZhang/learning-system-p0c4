@@ -1,5 +1,34 @@
 # Task6 正向快照依赖组件
 
+## 2026-10-23 · D1 阅读副本发布与持久收束组件
+
+本轮打通同一原操作内的领取、持有 Prepared 值的快照写入、runtime 原事务业务发布、原 COMMIT 成功知识，以及 `BUSINESS_COMMIT_KNOWN` → `WRITE_CLOSED` 的持久收束。没有从路径、返回的 staged 对象或日志内容重建写入能力；旧 stage-only 行为继续保留。
+
+新增只读受限观察函数，由严格 owner installer 首装并在重复调用时只核验；仅新增 runtime 对该函数的 EXECUTE，现有表权限、迁移与旧 broker/C0 接口保持原样。before 核对原 token、expiry、request 后才锁定真实行；after 核对清空的 lease 与 receipt.stage_token，并依赖同一原事务中的 before 证明和持续行锁，不能独立重建旧 expiry。现场分别验证错误租约、签名／源码漂移、runtime WITH GRANT OPTION 的 ACL 漂移，以及非 owner 安装的拒绝。该函数本身不构成写入或 COMMIT 权威。
+
+原绝对 deadline、累计预算、单次签发状态和双 OFD SH 持有贯穿事务、阻塞 verifier 与 append 的实际收束。大段笔记的计划摘要改为受计量的线性输出与 hash，保持 canonical 摘要字节不变；空间集合的读取、比较、搬移也先付原预算。BEGIN 初始化失败的原事务会等待显式 rollback；COMMIT 未知或晚到不会用新 SELECT 补出成功知识。
+
+### 实际验证
+
+| 项目 | 结果 |
+| --- | --- |
+| Linux | 格式、三 crate all-target 检查及严格 Clippy 通过；36 项纯测试实际通过。ignored 列举与 no-run 不算现场执行。 |
+| D1／既有组件 | 六项 D1、三项受限观察接口专项、六项 P1、六项 C2、三项 C0，共 24 个独立空库，每项 1 passed / 0 failed / 0 ignored。 |
+| 旧 public publisher | 独立三个空库验证撤权失败外壳、过期 token 与 winner 发布，以及裁剪副本交付；使用实际 snapshot_jobs ELF，三项各 1/0/0。 |
+
+正例独立核对六条有序持久记录、完整 job/outbox/request/key/receipt 前后关系，以及包内每个文件的实际长度和 hash。负例包括真实撤权／计划变化、canonical renew 的到期字段漂移与取消、主动丢弃已执行 COMMIT 的成功知识、实际 pending 前缀拒绝，以及已执行 COMMIT 后和 append 的返回暂停点取消与 deadline。它们不代表自然租约接管、网络丢包或磁盘 fsync 故障均已验证。
+
+源码来源 `1aa20a454bf72e737c40407ada37bb8b8f246feb` 是开发仓库身份；公开仓库有独立连续快照历史。580 个 Git archive 成员正文与受验包逐字相同，未混入 A2 草稿。Linux 结果 `4ec4e3ec1a7cb1284763b9125e89f96cff8785fa5df4576a71bd8631c8b11d66`；24 项 PG 结果 `11ec9883668ef9c3497359789f7d71692ab6beaa7edec02fd736d5418fa2f755`；旧发布回归结果 `dab60e22ae0371069e08baef9e477c6a165d46ae6b15c7503613a2a0e512e6aa`。每轮新资源和证据独立留存，成功 PG 已精确停机留卷；此前失败／HOLD 记录保留。
+
+### 适用边界
+
+这仍是私有阅读副本发布组件，尚未授予正式 `NoEffect`／`AlreadyCommitted` 分类或生产恢复权威。BUSINESS_COMMIT_KNOWN／WRITE_CLOSED 记录不是 `CompleteBackup`；本轮也没有宣称最终同一源码的恢复归一化与完整校验整链通过。基础恢复 5/5、Task2/3/5 的既有限定结论保持原范围，Task6/C4 OPEN。
+
+源码：[publication.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/writer/publication.rs)、[jobs.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot/jobs.rs)、[writer_tests.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/main/crates/learning-db/src/snapshot_broker/writer_tests.rs)。
+
+
+以下保留此前分项记录，历史结果与范围不作覆盖。
+
 ## C2+D0：有限首写组件，Task6 / C4 保持 OPEN
 
 本片将真实非空 ReadingCopy 的首写接在原 P1 操作内。它只形成私有 `PACKAGE_STAGED` 事实，不代表完整 C2/D、业务发布或生产接入。实现来源为 `c4cf09afeb8e5a8140941353502c1022c4369e5f`（开发仓库来源身份；公开仓库使用独立的连续快照历史）。本次冻结 13 个源码路径；最新 Linux 和 PG 使用该 R5 源码，OS 文件组件采用下述逐字等价的 R4 实测结果。当前 577 个 Git archive 成员正文与 R5 受验包逐字相同。
@@ -92,12 +121,11 @@ Linux 格式、类型检查、严格 Clippy 与三项纯测试通过。8 项 Roo
 
 ## 下一步
 
-1. 完整 publish/receipt、原业务 COMMIT 已知结果与 WRITE_CLOSED 的持久收束。
-2. 捕获排空、原写入许可与文件事实连接的 NoEffect/AlreadyCommitted 正向分类。
-3. 完整 C schema 与禁用目标角色的版本化导出/恢复合同，以及生产准入工厂。
-4. 冻结同一源码重跑归一化、全表完整性、阅读和故障整链，完成 Task6 后再推进 Task7–9。
+1. 把捕获排空、原写入许可、完整文件事实与持久关闭记录接成正式 NoEffect／AlreadyCommitted 分类。
+2. 完整 C schema 与禁用目标角色的版本化导出／恢复合同，以及生产准入工厂。
+3. 冻结同一源码重跑恢复归一化、全表完整性、阅读与故障整链；完成 Task6 后再推进 Task7–9。
 
-Task6/C4 保持 OPEN；独立备份存储、CompleteBackup 和生产另行验收。旧失败及未知结果保留。
+Task6/C4 保持 OPEN；独立备份存储、CompleteBackup 与生产另行验收。历史分项和失败／HOLD 证据均保留。
 
 ## 本轮验证与来源
 

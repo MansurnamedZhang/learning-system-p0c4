@@ -4,12 +4,13 @@ use crate::{
     AssetProcessOutcome, JobFailureClass, JobLease, JobStore, authorization, overlay::model,
     reading, references, request, storage,
 };
+use learning_assets::root_journal::SharedJournalBudget;
 use learning_assets::{
     FsAssetStore, SnapshotDirectory, SnapshotJobDirectory, sanitize_reading_copy, verify_snapshot,
 };
 use learning_core::*;
 use sqlx::{Postgres, Transaction};
-use std::{collections::BTreeSet, fs::File, path::PathBuf};
+use std::{collections::BTreeSet, fs::File, io, path::PathBuf};
 use uuid::Uuid;
 
 pub struct SnapshotDelivery {
@@ -44,6 +45,94 @@ impl PreparedSnapshotExport {
             }
             _ => Err(ContentError::Invalid("broker_reading_copy_required".into())),
         }
+    }
+    pub(crate) fn broker_matches(&self, lease: &JobLease, input: &JobInput) -> bool {
+        let Ok(expected) =
+            JobInput::snapshot_export(self.actor.actor_id, self.space, self.request.clone())
+        else {
+            return false;
+        };
+        self.lease.job_id == lease.job_id
+            && self.lease.token == lease.token
+            && self.lease.attempt_count == lease.attempt_count
+            && self.lease.lease_expires_at == lease.lease_expires_at
+            && expected.to_value() == input.to_value()
+    }
+    pub(crate) async fn broker_recheck(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        budget: &SharedJournalBudget,
+    ) -> Result<CheckedPublication, ContentError> {
+        checked_publication(tx, self, Some(budget)).await
+    }
+    pub(crate) async fn broker_initialize_publication(
+        &self,
+        tx: &mut Transaction<'static, Postgres>,
+    ) -> Result<(), ContentError> {
+        // Same fixed request transaction settings. The caller already owns the
+        // top-level transaction, so even a setup failure has an awaited rollback.
+        for sql in [
+            "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
+            "SET LOCAL lock_timeout='10s'",
+            "SET LOCAL statement_timeout='15s'",
+        ] {
+            sqlx::query(sql).execute(&mut **tx).await.map_err(storage)?;
+        }
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
+            .bind(format!(
+                "learning/content/request/{}:{}",
+                self.actor.actor_id, self.lease.job_id
+            ))
+            .execute(&mut **tx)
+            .await
+            .map_err(storage)?;
+        Ok(())
+    }
+}
+
+// Fresh collector data, never a caller-supplied SQL/JSON closure or authority.
+// The original publisher and the private broker use the same final SQL core.
+pub(crate) struct CheckedPublication {
+    capability: &'static str,
+    digest: String,
+    spaces: Vec<Uuid>,
+}
+impl CheckedPublication {
+    #[cfg(target_os = "linux")]
+    pub(crate) fn capability(&self) -> &str {
+        self.capability
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn digest(&self) -> &str {
+        &self.digest
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn spaces(&self) -> &[Uuid] {
+        &self.spaces
+    }
+    pub(crate) fn accepts(&self, manifest: &SnapshotManifest) -> bool {
+        matches!(
+            (self.capability, manifest),
+            ("exact_import_v1", SnapshotManifest::ExactImportV1(_))
+                | ("reading_copy_v1", SnapshotManifest::ReadingCopyV1(_))
+        )
+    }
+    pub(crate) async fn complete(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        prepared: &PreparedSnapshotExport,
+        directory: &SnapshotDirectory,
+    ) -> Result<bool, ContentError> {
+        sqlx::query_scalar("SELECT public.p0c3_complete_snapshot_job($1,$2,$3,$4,$5,$6)")
+            .bind(prepared.lease.job_id)
+            .bind(prepared.lease.token)
+            .bind(self.capability)
+            .bind(directory.manifest_sha256())
+            .bind(&self.digest)
+            .bind(&self.spaces)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(storage)
     }
 }
 enum ExportPlan {
@@ -84,9 +173,223 @@ impl ExportPlan {
             Self::Copy { .. } => "reading_copy_v1",
         }
     }
+    fn checked_digest(&self, budget: Option<&SharedJournalBudget>) -> Result<String, ContentError> {
+        let Some(budget) = budget else {
+            return Ok(self.digest());
+        };
+        let Self::Copy { copy, .. } = self else {
+            return Err(ContentError::NotFound);
+        };
+        metered_plan_digest(copy, &self.checked_spaces(Some(budget))?, budget)
+    }
+    fn checked_spaces(
+        &self,
+        budget: Option<&SharedJournalBudget>,
+    ) -> Result<Vec<Uuid>, ContentError> {
+        let Some(budget) = budget else {
+            return Ok(self.spaces());
+        };
+        let raw = match self {
+            Self::Exact { spaces, .. } | Self::Copy { spaces, .. } => spaces,
+        };
+        let mut sorted: Vec<Uuid> = Vec::new();
+        for (id, _) in raw {
+            budget.charge(16, 0).map_err(storage)?;
+            let (mut low, mut high) = (0, sorted.len());
+            let mut duplicate = false;
+            while low < high {
+                let mid = low + (high - low) / 2;
+                budget.charge(32, 0).map_err(storage)?;
+                match sorted[mid].cmp(id) {
+                    std::cmp::Ordering::Less => low = mid + 1,
+                    std::cmp::Ordering::Greater => high = mid,
+                    std::cmp::Ordering::Equal => {
+                        duplicate = true;
+                        break;
+                    }
+                }
+            }
+            if duplicate {
+                continue;
+            }
+            // Prepay a possible old-buffer read/write at reserve and the
+            // insertion shift, even when the allocator can grow in place.
+            let movement = sorted
+                .len()
+                .checked_add(sorted.len() - low)
+                .and_then(|n| n.checked_mul(32))
+                .and_then(|n| n.checked_add(16))
+                .ok_or(ContentError::Storage)?;
+            budget.charge(movement as u64, 0).map_err(storage)?;
+            sorted.try_reserve_exact(1).map_err(storage)?;
+            sorted.insert(low, *id);
+        }
+        Ok(sorted)
+    }
+    fn checked_spaces_match(
+        &self,
+        required: &[Uuid],
+        budget: Option<&SharedJournalBudget>,
+    ) -> Result<bool, ContentError> {
+        let actual = self.checked_spaces(budget)?;
+        if let Some(budget) = budget {
+            let comparison = actual
+                .len()
+                .min(required.len())
+                .checked_mul(32)
+                .ok_or(ContentError::Storage)?;
+            budget.charge(comparison as u64, 0).map_err(storage)?;
+        }
+        Ok(actual == required)
+    }
+}
+
+fn metered_plan_digest(
+    copy: &ReadingCopy,
+    spaces: &[Uuid],
+    budget: &SharedJournalBudget,
+) -> Result<String, ContentError> {
+    const CAP: usize = 64 * 1024 * 1024;
+    struct Count<'a> {
+        length: usize,
+        budget: &'a SharedJournalBudget,
+    }
+    impl io::Write for Count<'_> {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.length = self
+                .length
+                .checked_add(bytes.len())
+                .filter(|n| *n <= CAP)
+                .ok_or_else(|| io::Error::other("snapshot plan capacity"))?;
+            self.budget.charge(bytes.len() as u64, 0)?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut count = Count { length: 0, budget };
+    write_canonical_copy(&mut count, copy, spaces).map_err(storage)?;
+    // Prepay output before allocation. The second writer consumes exactly this
+    // paid bound, so neither extend nor allocator growth can copy unpaid bytes.
+    budget.charge(count.length as u64, 1).map_err(storage)?;
+    struct Bounded {
+        bytes: Vec<u8>,
+        limit: usize,
+    }
+    impl io::Write for Bounded {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self
+                .bytes
+                .len()
+                .checked_add(bytes.len())
+                .is_none_or(|n| n > self.limit)
+            {
+                return Err(io::Error::other("snapshot plan unpaid growth"));
+            }
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(count.length).map_err(storage)?;
+    let mut out = Bounded {
+        bytes,
+        limit: count.length,
+    };
+    write_canonical_copy(&mut out, copy, spaces).map_err(storage)?;
+    if out.bytes.len() != count.length {
+        return Err(ContentError::Storage);
+    }
+    budget.charge(out.bytes.len() as u64, 0).map_err(storage)?;
+    Ok(hex_digest(&out.bytes))
+}
+
+// This private D1 path emits only the fixed ReadingCopy schema, in the same
+// byte order as canonical_json. All strings stream through serde's escaping;
+// it creates no Value, recursive canonical String or leaf-sized temporary.
+fn write_canonical_copy(
+    out: &mut impl io::Write,
+    copy: &ReadingCopy,
+    spaces: &[Uuid],
+) -> io::Result<()> {
+    out.write_all(b"{\"copy\":{\"evidence\":[")?;
+    for (index, evidence) in copy.evidence.iter().enumerate() {
+        if index != 0 {
+            out.write_all(b",")?;
+        }
+        serde_json::to_writer(&mut *out, evidence)?;
+    }
+    out.write_all(b"],\"items\":[")?;
+    for (index, item) in copy.items.iter().enumerate() {
+        if index != 0 {
+            out.write_all(b",")?;
+        }
+        match item {
+            CopyItem::Heading { title } => {
+                out.write_all(b"{\"title\":")?;
+                serde_json::to_writer(&mut *out, title)?;
+                out.write_all(b",\"type\":\"heading\"}")?;
+            }
+            CopyItem::Content {
+                intent,
+                title,
+                display_text,
+            } => {
+                out.write_all(b"{\"display_text\":")?;
+                serde_json::to_writer(&mut *out, display_text)?;
+                out.write_all(b",\"intent\":")?;
+                serde_json::to_writer(&mut *out, intent)?;
+                out.write_all(b",\"title\":")?;
+                serde_json::to_writer(&mut *out, title)?;
+                out.write_all(b",\"type\":\"content\"}")?;
+            }
+            CopyItem::Omitted => out.write_all(b"{\"type\":\"omitted\"}")?,
+        }
+    }
+    out.write_all(b"]},\"spaces\":[")?;
+    for (index, id) in spaces.iter().enumerate() {
+        if index != 0 {
+            out.write_all(b",")?;
+        }
+        serde_json::to_writer(&mut *out, id)?;
+    }
+    out.write_all(b"]}")
+}
+
+async fn checked_publication(
+    tx: &mut Transaction<'_, Postgres>,
+    prepared: &PreparedSnapshotExport,
+    budget: Option<&SharedJournalBudget>,
+) -> Result<CheckedPublication, ContentError> {
+    let plan = recheck_locked_with_budget(
+        tx,
+        prepared.actor,
+        prepared.space,
+        &prepared.request,
+        &prepared.plan.checked_digest(budget)?,
+        &prepared.plan.checked_spaces(budget)?,
+        budget,
+    )
+    .await?;
+    Ok(CheckedPublication {
+        capability: plan.capability(),
+        digest: plan.checked_digest(budget)?,
+        spaces: plan.checked_spaces(budget)?,
+    })
 }
 
 impl SnapshotStore {
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn broker_begin_publication(
+        &self,
+    ) -> Result<Transaction<'static, Postgres>, ContentError> {
+        // Transfer the original owned value before any fallible setup SQL.
+        self.pool.begin().await.map_err(storage)
+    }
     /// Configure a non-public, service-owned 0700 export root, separate from the
     /// original asset and upload roots. Unsupported platforms fail closed on use.
     pub fn with_export_storage(mut self, root: PathBuf, assets: FsAssetStore) -> Self {
@@ -241,34 +544,12 @@ impl SnapshotStore {
     ) -> Result<AssetProcessOutcome, ContentError> {
         let p = &staged.prepared;
         let mut tx = request::begin(&self.pool, p.actor, p.lease.job_id).await?;
-        let plan = recheck_locked(
-            &mut tx,
-            p.actor,
-            p.space,
-            &p.request,
-            &p.plan.digest(),
-            &p.plan.spaces(),
-        )
-        .await?;
+        let plan = checked_publication(&mut tx, p, None).await?;
         let verified = verify_snapshot(&staged.directory).map_err(storage)?;
-        if !matches!(
-            (&plan, verified.manifest),
-            (ExportPlan::Exact { .. }, SnapshotManifest::ExactImportV1(_))
-                | (ExportPlan::Copy { .. }, SnapshotManifest::ReadingCopyV1(_))
-        ) {
+        if !plan.accepts(&verified.manifest) {
             return Err(ContentError::NotFound);
         }
-        let accepted: bool =
-            sqlx::query_scalar("SELECT public.p0c3_complete_snapshot_job($1,$2,$3,$4,$5,$6)")
-                .bind(p.lease.job_id)
-                .bind(p.lease.token)
-                .bind(plan.capability())
-                .bind(staged.directory.manifest_sha256())
-                .bind(plan.digest())
-                .bind(plan.spaces())
-                .fetch_one(&mut *tx)
-                .await
-                .map_err(storage)?;
+        let accepted = plan.complete(&mut tx, p, &staged.directory).await?;
         if !accepted {
             tx.rollback().await.map_err(storage)?;
             return Ok(AssetProcessOutcome::LeaseLost);
@@ -395,13 +676,31 @@ async fn recheck_locked(
     expected: &str,
     required: &[Uuid],
 ) -> Result<ExportPlan, ContentError> {
+    recheck_locked_with_budget(tx, actor, space, input, expected, required, None).await
+}
+async fn recheck_locked_with_budget(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    space: Uuid,
+    input: &SnapshotRequest,
+    expected: &str,
+    required: &[Uuid],
+    budget: Option<&SharedJournalBudget>,
+) -> Result<ExportPlan, ContentError> {
     let layer = model::load_view(tx, actor, input.reading.clone()).await?;
     if layer.space != space {
         return Err(ContentError::NotFound);
     }
     let fresh = collect_export(tx, actor, input).await?;
-    if fresh.digest() != expected || fresh.spaces() != required {
+    if fresh.checked_digest(budget)? != expected || !fresh.checked_spaces_match(required, budget)? {
         return Err(ContentError::NotFound);
+    }
+    if let Some(budget) = budget {
+        let grant_copy = required
+            .len()
+            .checked_mul(2 * std::mem::size_of::<(Uuid, bool)>())
+            .ok_or(ContentError::Storage)?;
+        budget.charge(grant_copy as u64, 0).map_err(storage)?;
     }
     authorization::lock_grants(
         tx,
@@ -411,8 +710,130 @@ async fn recheck_locked(
     .await?;
     // READ COMMITTED reread after locks handles revocation winning while planning.
     let locked = collect_export(tx, actor, input).await?;
-    if locked.digest() != expected || locked.spaces() != required {
+    if locked.checked_digest(budget)? != expected
+        || !locked.checked_spaces_match(required, budget)?
+    {
         return Err(ContentError::NotFound);
     }
     Ok(locked)
+}
+
+#[cfg(test)]
+mod publication_budget_tests {
+    use super::*;
+
+    fn plan() -> ExportPlan {
+        ExportPlan::Copy {
+            copy: ReadingCopy {
+                items: vec![CopyItem::Heading {
+                    title: "汉<\"".into(),
+                }],
+                evidence: vec!["actual".into()],
+            },
+            spaces: vec![(Uuid::from_u128(2), false), (Uuid::from_u128(1), false)],
+        }
+    }
+
+    #[test]
+    fn d1_metered_plan_preserves_canonical_copy_and_sorted_spaces() {
+        let budget = SharedJournalBudget::default();
+        let expected = canonical_record_hash(&serde_json::json!({
+            "copy": {"items": [{"type":"heading", "title":"汉<\""}], "evidence":["actual"]},
+            "spaces": ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"]
+        }));
+        assert_eq!(plan().checked_digest(Some(&budget)).unwrap(), expected);
+        assert!(budget.usage().unwrap().charged_bytes > 100);
+        assert_eq!(budget.usage().unwrap().charged_entries, 1);
+    }
+
+    #[test]
+    fn d1_plan_encoding_uses_original_exhausted_budget_without_reset() {
+        let budget = SharedJournalBudget::default();
+        budget.charge(512 * 1024 * 1024 - 100, 0).unwrap();
+        assert!(plan().checked_digest(Some(&budget)).is_err());
+        assert!(budget.usage().unwrap().exhausted);
+        assert!(plan().checked_digest(Some(&budget.clone())).is_err());
+    }
+
+    fn large_plan_and_legacy_wire() -> (ExportPlan, String) {
+        let plan = ExportPlan::Copy {
+            copy: ReadingCopy {
+                items: vec![
+                    CopyItem::Heading {
+                        title: "汉字 \" \\ /\n\r\t\u{0000}".into(),
+                    },
+                    CopyItem::Content {
+                        intent: "note".into(),
+                        title: "UTF8 与控制字符\u{001f}".into(),
+                        display_text: "a".repeat(1024 * 1024) + "汉\"\\/\n\r\t\u{0000}\u{001f}",
+                    },
+                    CopyItem::Omitted,
+                ],
+                evidence: vec!["evidence 汉\"\\/\n\u{0001}".into()],
+            },
+            spaces: vec![
+                (Uuid::from_u128(2), false),
+                (Uuid::from_u128(1), false),
+                (Uuid::from_u128(2), true),
+            ],
+        };
+        let ExportPlan::Copy { copy, .. } = &plan else {
+            unreachable!()
+        };
+        let legacy = canonical_json(&serde_json::json!({"copy": copy, "spaces": plan.spaces()}));
+        assert!(legacy.len() > 1024 * 1024 && legacy.len() < 1024 * 1024 + 1024);
+        (plan, legacy)
+    }
+
+    #[test]
+    fn d1_large_leaf_streaming_canonical_fits_only_output_and_hash_budget() {
+        let (plan, legacy) = large_plan_and_legacy_wire();
+        let budget = SharedJournalBudget::default();
+        // Count, bounded materialization and hash each emit/read n bytes.
+        // UUID inputs [2,1,2] pay 208 bytes: source48, comparisons64,
+        // inserted UUIDs32, one old-Vec move32 and one insertion shift32.
+        let linear = 3 * legacy.len() as u64 + 208;
+        budget.charge(512 * 1024 * 1024 - linear, 0).unwrap();
+        let actual = plan.checked_digest(Some(&budget)).expect(
+            "D1 linear output plus hash budget must be sufficient without recursive String copies",
+        );
+        assert_eq!(actual, hex_digest(legacy.as_bytes()));
+        assert_eq!(actual, plan.digest());
+        assert_eq!(budget.usage().unwrap().charged_bytes, 512 * 1024 * 1024);
+        assert_eq!(budget.usage().unwrap().charged_entries, 1);
+        assert!(!budget.usage().unwrap().exhausted);
+    }
+
+    #[test]
+    fn d1_canonical_output_or_hash_one_byte_short_rejects_sticky_shared_budget() {
+        let (plan, legacy) = large_plan_and_legacy_wire();
+        for (stage, available) in [
+            208 + legacy.len() as u64 - 1,
+            208 + 2 * legacy.len() as u64 - 1,
+            208 + 3 * legacy.len() as u64 - 1,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let budget = SharedJournalBudget::default();
+            let initial = 512 * 1024 * 1024 - available;
+            budget.charge(initial, 0).unwrap();
+            assert!(plan.checked_digest(Some(&budget)).is_err());
+            let used = budget.usage().unwrap();
+            assert!(used.exhausted);
+            assert!(used.charged_bytes <= 512 * 1024 * 1024);
+            assert_eq!(used.charged_entries, u64::from(stage == 2));
+            if stage != 0 {
+                // Output prepayment rejects before reservation; hash rejection
+                // retains exactly the already-paid count and output work.
+                assert_eq!(
+                    used.charged_bytes,
+                    initial + 208 + stage as u64 * legacy.len() as u64
+                );
+            }
+            assert!(budget.clone().charge(0, 0).is_err());
+            assert!(plan.checked_digest(Some(&budget.clone())).is_err());
+            assert_eq!(budget.usage().unwrap().charged_bytes, used.charged_bytes);
+        }
+    }
 }

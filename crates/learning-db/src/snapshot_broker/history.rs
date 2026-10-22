@@ -285,6 +285,14 @@ pub(super) mod runtime {
         BeforeStageSpawn,
         AfterStageCopy,
         AfterStageError,
+        BeforePublish,
+        BeforeBusinessCommit,
+        AfterBusinessCommit,
+        LoseBusinessCommitKnowledge,
+        BeforeBusinessEvent,
+        AfterBusinessEvent,
+        BeforeCloseEvent,
+        AfterCloseEvent,
     }
     #[cfg(test)]
     pub(in super::super) struct Hooks {
@@ -420,6 +428,31 @@ pub(super) mod runtime {
                 Some(retention),
                 move |owner, slot| async move {
                     super::super::writer::drive(owner, slot, job, request, runtime, writer).await
+                },
+            )
+        }
+        // A new original operation, never adoption of a returned staged value.
+        pub(in super::super) fn start_publish(
+            &mut self,
+            job: Uuid,
+            request: Uuid,
+            duration: Duration,
+            runtime: PgPool,
+            custody: &learning_assets::RootSnapshotCustody,
+        ) -> Result<Pending<super::super::writer::PublishedComponent>> {
+            let writer = custody
+                .writer()
+                .map_err(|_| rejected("D1 fresh custody unavailable"))?;
+            let retention = custody
+                .writer()
+                .map_err(|_| rejected("D1 owner custody unavailable"))?;
+            self.start_owned(
+                job,
+                request,
+                duration,
+                Some(retention),
+                move |owner, slot| async move {
+                    super::super::writer::publish(owner, slot, job, request, runtime, writer).await
                 },
             )
         }
@@ -770,7 +803,9 @@ pub(super) mod runtime {
                 #[cfg(test)]
                 if let Some(hooks) = &owner.hooks
                     && hooks.blocking_return
-                    && ordinal == 2
+                    && ((ordinal == 2 && hooks.stage == Stage::AfterOutcome)
+                        || (ordinal == 5 && hooks.stage == Stage::AfterBusinessEvent)
+                        || (ordinal == 6 && hooks.stage == Stage::AfterCloseEvent))
                 {
                     hooks.arrived.notify_one();
                     let (lock, wake) = &hooks.blocking_release;

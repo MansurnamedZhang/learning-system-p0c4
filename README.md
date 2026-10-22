@@ -2,7 +2,7 @@
 
 以“块”为最小修订单元的个人学习与知识系统。当前实现是 Rust、PostgreSQL 18 与私有文件存储内核，包含内容修订、组合、个人阅读、关系审查、原件、持久 Worker、快照交换及正在实现的备份恢复。
 
-**最新同步：2026-10-22：C2+D0 已接入真实队列领取、持久写入许可、同一 owner/budget 下的实际快照写入与包校验。Linux 30 项纯测、等价复用已接受的 R4 文件专项 10 项，以及真实 PG18 15 项（六项 C2＋九项回归）通过并独立复核。结果只证明私有 PACKAGE_STAGED 文件事实；业务发布/效果分类、完整 C 导出及最终同源整链尚未完成，Task6/C4 OPEN。**
+**最新同步：2026-10-23：Task6 D1 私有阅读副本发布组件已将原领取、实际快照写入、runtime 原事务 COMMIT 与 BUSINESS_COMMIT_KNOWN／WRITE_CLOSED 两条持久记录接通。Linux 36 项纯测试、PG18 六项 D1、三项受限观察接口专项＋十五项既有回归，以及三项旧 public publisher 回归通过并独立复核。形式化效果分类、完整 C 导出、生产准入及最终同源恢复整链仍待完成，Task6/C4 OPEN。**
 
 [Task6 实现、验证与剩余门](docs/p0c4-recovery-normalization.md)。
 
