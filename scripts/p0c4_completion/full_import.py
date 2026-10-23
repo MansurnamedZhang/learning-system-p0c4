@@ -406,7 +406,7 @@ class FullRehearsalContext:
         import p0c4_source_lifecycle_gate_acceptance as driver
         self._target_created_ids=copy.deepcopy(ids)
         driver.runner_base(self._runner).ownership.known(self._target_owner,ids['container_id'])
-        self._fs_owner.call('created',dict(before=before,after=after,ids=ids))
+        self._fs_owner.call('created',dict(before_sha256=hashlib.sha256(driver.canonical(before)).hexdigest(),after=after,ids=ids))
 
     def _verify_target_files(self,status):
         _require(self._fs_owner.call('check',dict(status=status))==dict(checked=True),'FULL_CREATED_FILES')

@@ -171,6 +171,7 @@ class _NativeOwner:
         self._recipe=_recipe
         self._retain_after_birth=_retain is _CLONE_TARGET_HOLD
         self.lock=None;self.root_fd=None;self.config=None;self.status=None
+        self._creation_before=None
         self._files_ready=False;self._birth_complete=False
     def perform(self,op,value):
         if op=='setup':return self._setup(value)
@@ -188,6 +189,7 @@ class _NativeOwner:
             return dict(precreation_sha256=pin._prepare_locked(root,case_id,c['subnet'],initdb,value['before']))
         if op=='files':
             _require(set(value)=={'before'})
+            if self._recipe is None:_require(self._creation_before is None)
             provisioner.admit_fresh(identity,c['subnet'],value['before'])
             _require(not target.exists())
             target.mkdir(mode=0o700);provisioner._sync_directory(target.parent)
@@ -206,11 +208,23 @@ class _NativeOwner:
                 _extend_document(document,identity,target)
                 if c.get('profile')=='snapshot_c0_d1_v1':document['services']['pg']['environment']['C4_FULL_SCHEMA_PROFILE']='snapshot_c0_d1_v1'
             raw=_canonical(document);provisioner._private_write(target/'compose.json',raw)
+            if self._recipe is None:
+                # Keep the complete observation from this session's files step.
+                # Immutable bytes prevent caller aliases changing the held input.
+                before_raw=_canonical(value['before'])
+                self._creation_before=(before_raw,hashlib.sha256(before_raw).hexdigest())
             self._files_ready=True
             return dict(compose_sha256=hashlib.sha256(raw).hexdigest())
         if op=='created':
-            _require(set(value)=={'before','after','ids'})
-            ids=provisioner.verify_created(identity,c['subnet'],value['before'],value['after'])
+            if self._recipe is None:
+                _require(set(value)=={'before_sha256','after','ids'} and self._creation_before is not None)
+                before_raw,before_sha=self._creation_before
+                _require(hashlib.sha256(before_raw).hexdigest()==before_sha==value['before_sha256'])
+                before=json.loads(before_raw,object_pairs_hook=_pairs)
+            else:
+                _require(set(value)=={'before','after','ids'})
+                before=value['before']
+            ids=provisioner.verify_created(identity,c['subnet'],before,value['after'])
             _require(ids==value['ids'])
             self.status=dict(state='CREATED_QUARANTINED',batch_id=case_id,project=identity['project'],database=identity['database'],network=identity['network'],subnet=c['subnet'],**ids)
             provisioner._private_write(target/'state.json',json.dumps(self.status,sort_keys=True).encode())
