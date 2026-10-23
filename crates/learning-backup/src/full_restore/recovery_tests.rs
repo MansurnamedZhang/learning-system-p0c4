@@ -271,6 +271,96 @@ async fn seed_job(
 
 // These are real fresh-source application writes and a genuine byte-verifying
 // C2 processor, never an admin-created digest or a positive snapshot finding.
+fn source_runtime_options(
+    admin: &sqlx::postgres::PgConnectOptions,
+) -> Result<sqlx::postgres::PgConnectOptions, BackupError> {
+    use sqlx::postgres::{PgConnectOptions, PgSslMode};
+    let database = admin.get_database().ok_or(BackupError::Invalid(
+        "recovery source fixture database absent",
+    ))?;
+    let case = database
+        .strip_prefix("learning_backup_c4_task3_")
+        .and_then(|value| Uuid::parse_str(value).ok().map(|id| (value, id)));
+    require(
+        admin.get_username() == "learning_admin"
+            && admin.get_host() == "localhost"
+            && admin.get_port() == 5432
+            && admin.get_socket().is_none()
+            && case.is_some_and(|(value, id)| id.get_version_num() == 4 && id.to_string() == value)
+            && std::env::var_os("PGPASSWORD").is_none(),
+        "recovery source fixture connection differs",
+    )?;
+    // This fresh source container already has local trust and a passwordless
+    // runtime role. Do not inherit the administrator's TCP SCRAM credentials,
+    // consult its passfile, or construct a recovery target connection.
+    Ok(PgConnectOptions::new_without_pgpass()
+        .host("localhost")
+        .socket("/var/run/postgresql")
+        .port(5432)
+        .username("learning_runtime")
+        .database(database)
+        .ssl_mode(PgSslMode::Disable))
+}
+
+#[test]
+fn recovery_runtime_fixture_does_not_inherit_admin_credentials() {
+    use sqlx::{ConnectOptions, postgres::PgConnectOptions};
+    let database = format!("learning_backup_c4_task3_{}", Uuid::new_v4());
+    let admin = PgConnectOptions::new_without_pgpass()
+        .host("localhost")
+        .port(5432)
+        .username("learning_admin")
+        .database(&database)
+        .password("distinct-administrator-password")
+        .application_name("administrator-only");
+    let runtime = source_runtime_options(&admin).unwrap();
+    assert!(runtime.to_url_lossy().password().is_none());
+    assert_eq!(runtime.get_username(), "learning_runtime");
+    assert_eq!(
+        runtime.get_socket().unwrap(),
+        Path::new("/var/run/postgresql")
+    );
+    assert_eq!(runtime.get_port(), 5432);
+    assert_eq!(runtime.get_database(), Some(database.as_str()));
+    assert_ne!(runtime.get_application_name(), admin.get_application_name());
+}
+
+#[test]
+fn recovery_runtime_fixture_refuses_other_roles_and_endpoints() {
+    use sqlx::postgres::PgConnectOptions;
+    let database = format!("learning_backup_c4_task3_{}", Uuid::new_v4());
+    let admin = PgConnectOptions::new_without_pgpass()
+        .host("localhost")
+        .port(5432)
+        .username("learning_admin")
+        .database(&database);
+    for other in [
+        admin.clone().username("learning_runtime"),
+        admin.clone().username("learning_snapshot_claim_broker"),
+        admin.clone().host("other-source"),
+        admin.clone().port(5433),
+        admin.clone().socket("/different/source"),
+    ] {
+        assert!(source_runtime_options(&other).is_err());
+    }
+}
+
+#[test]
+fn recovery_runtime_fixture_refuses_non_source_databases() {
+    use sqlx::postgres::PgConnectOptions;
+    let admin = PgConnectOptions::new_without_pgpass()
+        .host("localhost")
+        .port(5432)
+        .username("learning_admin");
+    for database in [
+        "postgres",
+        "learning_backup_c4_task3_not-a-case",
+        "learning_backup_c4_task3_00000000-0000-0000-0000-000000000000",
+    ] {
+        assert!(source_runtime_options(&admin.clone().database(database)).is_err());
+    }
+}
+
 fn seed_derived<'a>(
     pool: &'a PgPool,
     files: &'a learning_assets::FsAssetStore,
@@ -305,20 +395,27 @@ async fn seed_derived_inner(
     .await?;
     // Before source capture/drain only. No recovery target connection or
     // replacement for its held management guard is constructed here.
+    let source_identity: (String, i64, String) = sqlx::query_as(
+        "SELECT current_database(),oid::bigint,pg_postmaster_start_time()::text \
+         FROM pg_database WHERE datname=current_database()",
+    )
+    .fetch_one(pool)
+    .await?;
     let runtime = sqlx::postgres::PgPoolOptions::new()
         .max_connections(1)
-        .connect_with(
-            pool.connect_options()
-                .as_ref()
-                .clone()
-                .username("learning_runtime"),
-        )
+        .connect_with(source_runtime_options(pool.connect_options().as_ref())?)
         .await?;
     let result = async {
         let users: (String, String) = sqlx::query_as("SELECT current_user::text,session_user::text")
             .fetch_one(&runtime).await?;
         require(users == ("learning_runtime".into(), "learning_runtime".into()),
             "recovery source fixture requires actual runtime role")?;
+        let (database, oid, started, local): (String, i64, String, bool) = sqlx::query_as(
+            "SELECT current_database(),oid::bigint,pg_postmaster_start_time()::text,inet_server_addr() IS NULL \
+             FROM pg_database WHERE datname=current_database()",
+        ).fetch_one(&runtime).await?;
+        require(local && (database, oid, started) == source_identity,
+            "recovery runtime fixture source identity differs")?;
         let actor = Principal { actor_id };
         let saved = VersionedContentStore::new(runtime.clone()).create(actor, space, CreateContent {
             request_id: Uuid::new_v4(),
