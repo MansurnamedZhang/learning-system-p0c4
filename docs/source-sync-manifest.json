@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 130944,
+      "bytes": 131780,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "74f7efefa6d1884fa0b8c4d7446c26eade4ef9887568ef5fef8e015706f14d50",
+      "sha256": "e9d97c9ffcf4e8244b2ddd8cedda0e38da72cb10c2fc69840bca9625306c5690",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 15723,
+      "bytes": 17305,
       "path": "README.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "ba17778bb6c8d3050448b83898f50060c69b7cb7c0e13306f9f82c4810dd0ee4",
+      "sha256": "e5fd87f660d2028facb46f1e88117db6a16ddaef77d678f063b7708df4f0a262",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3545,10 +3545,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 28195,
+      "bytes": 29772,
       "path": "docs/p0c4-recovery-normalization.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "b9588a0d1142664720421b01d7e78e71bbb3164c28cc61c22cc2a2ba44d19f38",
+      "sha256": "0abdb1e777cd89fa947bf12474b06878ed5c397f956a5b3070f90af08df19aa2",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3581,10 +3581,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 34699,
+      "bytes": 36276,
       "path": "docs/p0c4-snapshot-components.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "ef9e58656331dfdb71186a7665abb7928459bd7e2f7c0377947adf5b8dce5805",
+      "sha256": "13e87765e2c5ad09aafe4c971959821c4283d8fc0bb2d8fb5afbd948a80c23be",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3785,10 +3785,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 49550,
+      "bytes": 51127,
       "path": "docs/项目最新进度.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "d13febedc215be03892f65cadd47a774943f252200810990a2dc972f9720489f",
+      "sha256": "1d7a54f9bc77e07729b9f3b841252e511c88bdfbc71eec7aca2eb37244419804",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4443,18 +4443,25 @@
       "sha256": "709c438622af6fc74cf660786907e50829a1fd577706b187d64b2369cbcdaeb9",
       "source_blob_sha256": "27d432a07ac71bb96a5f2cd4df479a9b1f1cb16511ca3a08bb611c02a5f9f4cf",
       "source_bytes_preserved": false
+    },
+    {
+      "path": "docs/task6-resource-guard-revalidation.md",
+      "bytes": 2325,
+      "sha256": "0f714f8d616298416e21e3f37d5ddcd8ce3b9145f9d284faa34d29ba99dd5c13",
+      "source_bytes_preserved": false,
+      "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 632,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "7f60deb1aef47c5e63847712aa6a64acc47324aa",
+  "previous_public_commit": "c29bc5e8fc5f6447ea1c768ba202a57bbfd62b1c",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "ba6f5c29b77edf5a6f569e835bfa34b918a0960a74e39e8d2ef31fe0806bc9ef",
   "progress_as_of": "2026-10-23",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK6_SOURCE_RUNTIME_FIXTURE_CANDIDATE_FRESH_SIXTEEN_PENDING",
+  "scope": "TASK6_SOURCE592_P6_ONE_ACCEPTED_HOST_SYNC_GUARD_QUIET_CONTINUATION_PENDING",
   "source_archive_sha256": "24a03ea7c08db2e4b4ba94d2a1d2d4ce42bef6ed199cc8f1b56b042cd8fd3344",
   "source_archive_status": "COMMITTED_CODE_CANDIDATE_NOT_FINAL_NATIVE_ACCEPTANCE",
   "source_capture_method": "EXACT_COMMITTED_SINGLE_FIXTURE_LEAF_AND_DOCUMENTATION_OVERLAYS",
@@ -9995,7 +10002,7 @@
     "c4_complete": false,
     "complete_backup_issued": false,
     "controller_pins": 21,
-    "native_accepted": 0,
+    "native_accepted": 1,
     "native_total": 16,
     "previous_source_execution_only": {
       "failed_case": "recovery-derived",
@@ -10027,7 +10034,34 @@
     "task6_complete": false,
     "task7_complete": false,
     "task8_complete": false,
-    "task9_complete": false
+    "task9_complete": false,
+    "actual_returned_cases": [
+      "recovery-derived",
+      "recovery-receipt-failure",
+      "recovery-effects",
+      "snapshot-p6",
+      "recovery-leases"
+    ],
+    "native_accepted_cases": [
+      "snapshot-p6"
+    ],
+    "native_acceptance_index_sha256": "618951448e5cfab34139b075572f585638d15a4f1f60a8721aa3a59dfad411d5",
+    "strict_rust_passed": 553,
+    "strict_ignored_not_executed": 136,
+    "root_python_passed": 322,
+    "root_python_skipped": 2,
+    "root_fs_passed": 3,
+    "root_os_passed": 3,
+    "ordinary_dac_passed": 1,
+    "cancel2_current_pending": true,
+    "resource_guard_environment_failure": true,
+    "guard_conditions_unchanged": true,
+    "quiet_start_utc_minutes": [
+      5,
+      50
+    ],
+    "quiet_start_wait_limit_seconds": 1800,
+    "continuation_new_cases": 11
   },
   "task6_native_observation_history": [
     {
@@ -10325,12 +10359,12 @@
   "task6_roadmap_current_labels": {
     "as_of": "2026-10-23",
     "c4_open": true,
-    "final_native_accepted": 0,
+    "final_native_accepted": 1,
     "final_native_total": 16,
     "historical_foundation_cases_accepted": 5,
     "historical_foundation_total": 5,
     "positive_snapshot_byte_authority": false,
-    "scope": "TASK6_SOURCE_RUNTIME_FIXTURE_CANDIDATE_FRESH_SIXTEEN_PENDING",
+    "scope": "TASK6_SOURCE592_P6_ONE_ACCEPTED_HOST_SYNC_GUARD_QUIET_CONTINUATION_PENDING",
     "task6_complete": false,
     "task7_open": true,
     "task8_open": true,
@@ -10360,5 +10394,45 @@
     "stage": "S1_DISABLED_TRANSPORT_ONLY",
     "task6_complete": false,
     "writer_enabled": false
-  }
+  },
+  "task6_progress_history": [
+    {
+      "c4_complete": false,
+      "complete_backup_issued": false,
+      "controller_pins": 21,
+      "native_accepted": 0,
+      "native_total": 16,
+      "previous_source_execution_only": {
+        "failed_case": "recovery-derived",
+        "failure_stage": "FIXTURE",
+        "returned_cases": [
+          "recovery-effects",
+          "snapshot-p6",
+          "recovery-leases",
+          "recovery-retry-limit"
+        ],
+        "source_commit": "d428b6298acc8aad5434b44eda47466949d0a083",
+        "sqlstate": "28P01",
+        "transferred_to_current": false
+      },
+      "production_accepted": false,
+      "publication_source_delta_count": 1,
+      "source_archive_sha256": "24a03ea7c08db2e4b4ba94d2a1d2d4ce42bef6ed199cc8f1b56b042cd8fd3344",
+      "source_commit": "592639fc83fa88ebb366e83ee26344109eaabbe8",
+      "source_files": 603,
+      "source_manifest_sha256": "6caf9b5cbd1050217957f89fd88095d52f7a2c3245dcaf492bf9f7f398933bd7",
+      "source_runtime_fixture": {
+        "admin_password_not_inherited": true,
+        "existing_unix_socket": true,
+        "hba_unchanged": true,
+        "independent_options": true,
+        "permissions_unchanged": true,
+        "target_admission_unchanged": true
+      },
+      "task6_complete": false,
+      "task7_complete": false,
+      "task8_complete": false,
+      "task9_complete": false
+    }
+  ]
 }
