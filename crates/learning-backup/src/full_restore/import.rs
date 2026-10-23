@@ -86,6 +86,31 @@ struct VerifiedPackage {
     roles: Vec<u8>,
     contract: SchemaContract,
     authority: PackageAuthority,
+    #[cfg(test)]
+    fresh_root: Option<BackupDir>,
+}
+#[cfg(all(test, target_os = "linux"))]
+impl VerifiedPackage {
+    fn current_pin_copy_binding(
+        &self,
+        captured: &crate::source::snapshot_effects::CapturedSnapshotEffectsV2,
+    ) -> Result<crate::destination::snapshot_effects::CurrentPinPackageBinding, BackupError> {
+        let PackageAuthority::Fresh(pin) = &self.authority else {
+            return Err(BackupError::Invalid(
+                "current-pin rehearsal requires original Fresh package",
+            ));
+        };
+        crate::destination::snapshot_effects::CurrentPinPackageBinding::from_fresh(
+            pin,
+            self.fresh_root
+                .as_ref()
+                .ok_or(BackupError::Invalid("current-pin original root missing"))?,
+            &self.directory,
+            &self.manifest,
+            &captured.budget,
+            &captured.journal_budget,
+        )
+    }
 }
 enum PackageAuthority {
     Complete {
@@ -160,6 +185,8 @@ impl VerifiedPackage {
                 _destination: Box::new(destination),
                 _proof: proof,
             },
+            #[cfg(test)]
+            fresh_root: None,
         })
     }
 }
@@ -1552,6 +1579,7 @@ impl FreshLocalCapture {
             roles,
             contract,
             authority: PackageAuthority::Fresh(self.pin),
+            fresh_root: Some(self.root),
         })
     }
 }

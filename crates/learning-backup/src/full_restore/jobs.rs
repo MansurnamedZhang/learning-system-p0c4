@@ -69,7 +69,7 @@ pub(crate) struct ExternalReconciliation {
     holds: Vec<Value>,
     findings: BTreeMap<Uuid, ExternalEffectFinding>,
     #[cfg(target_os = "linux")]
-    copied: Option<crate::destination::snapshot_effects::CopiedSnapshotEffectsV2>,
+    copied: Option<crate::destination::snapshot_effects::CheckedSnapshotCopy>,
 }
 
 /// A committed normalization delta, never recovery/activation eligibility.
@@ -837,6 +837,28 @@ pub(crate) fn inspect_copied_external_effects<'a>(
     registry: &'a crate::RegistryLease,
     copied: crate::destination::snapshot_effects::CopiedSnapshotEffectsV2,
 ) -> Pin<Box<dyn Future<Output = Result<ExternalReconciliation, BackupError>> + Send + 'a>> {
+    inspect_checked_external_effects(target, registry, copied.into())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn inspect_current_pin_external_effects<'a>(
+    target: &'a mut ImportedTarget,
+    registry: &'a crate::RegistryLease,
+    copied: crate::destination::snapshot_effects::CurrentPinSnapshotCopy,
+) -> Pin<Box<dyn Future<Output = Result<ExternalReconciliation, BackupError>> + Send + 'a>> {
+    inspect_checked_external_effects(
+        target,
+        registry,
+        crate::destination::snapshot_effects::CheckedSnapshotCopy::CurrentPin(copied),
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn inspect_checked_external_effects<'a>(
+    target: &'a mut ImportedTarget,
+    registry: &'a crate::RegistryLease,
+    copied: crate::destination::snapshot_effects::CheckedSnapshotCopy,
+) -> Pin<Box<dyn Future<Output = Result<ExternalReconciliation, BackupError>> + Send + 'a>> {
     Box::pin(async move {
         let result = async {
             let budget = target.recovery_metadata_budget();
@@ -904,20 +926,32 @@ pub(crate) async fn verify_copied_deliveries(
     let deadline = target.recovery_phase_deadline(std::time::Duration::from_secs(60));
     let identity = target.recovery_identity();
     let delivery_root = target.recovery_control()?.create_dir("snapshot-delivery")?;
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RESTORE_DELIVERIES_BEFORE");
     let restored =
         tokio::task::block_in_place(|| copied.restore_deliveries(&identity, &delivery_root))?;
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RESTORE_DELIVERIES_AFTER");
     if restored.target_identity() != &identity || std::time::Instant::now() >= deadline {
         return Err(BackupError::Invalid(
             "snapshot restored delivery target or deadline differs",
         ));
     }
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RECHECK_RESTORED_BEFORE");
     target.recheck().await?;
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RECHECK_RESTORED_AFTER");
     let mut delivered = Vec::new();
     for (job_id, finding) in &effects.findings {
         if *finding != ExternalEffectFinding::AlreadyCommitted {
             continue;
         }
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RECHECK_AUTHORIZATION_BEFORE");
         target.recheck().await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RECHECK_AUTHORIZATION_AFTER");
         let job = rows(&effects.before, "job")?
             .iter()
             .find(|row| id(row, "id").ok() == Some(*job_id))
@@ -930,6 +964,10 @@ pub(crate) async fn verify_copied_deliveries(
         let actor = learning_core::Principal {
             actor_id: id(event, "actor_id")?,
         };
+        #[cfg(test)]
+        eprintln!(
+            "FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_AUTHORIZE_RECOVERY_DELIVERY_BEFORE"
+        );
         let authorization = learning_db::SnapshotStore::authorize_recovery_delivery(
             target.recovery_reading_transaction(),
             actor,
@@ -937,6 +975,8 @@ pub(crate) async fn verify_copied_deliveries(
         )
         .await
         .map_err(|_| BackupError::Invalid("held snapshot delivery authorization failed"))?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_AUTHORIZE_RECOVERY_DELIVERY_AFTER");
         let token = authorization.stage_token();
         let manifest = authorization.manifest_sha256().to_owned();
         let receipt = rows(&effects.before, "snapshot_export_result")?
@@ -948,11 +988,15 @@ pub(crate) async fn verify_copied_deliveries(
                 "snapshot delivery winning receipt differs",
             ));
         }
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_WITH_PACKAGE_BEFORE");
         let files = restored.with_package(*job_id, |package| {
             authorization
                 .open_files(package)
                 .map_err(|_| BackupError::Invalid("snapshot copied delivery package differs"))
         })?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_WITH_PACKAGE_AFTER");
         let file_evidence = tokio::task::block_in_place(|| {
             let mut records = Vec::new();
             let mut buffer = [0_u8; 65536];
@@ -1003,7 +1047,11 @@ pub(crate) async fn verify_copied_deliveries(
         if std::time::Instant::now() >= deadline {
             return Err(BackupError::Capacity("snapshot delivery deadline"));
         }
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RECHECK_DELIVERED_BEFORE");
         target.recheck().await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_DELIVERY_CHECKPOINT step=JOBS_RECHECK_DELIVERED_AFTER");
         if std::time::Instant::now() >= deadline {
             return Err(BackupError::Capacity("snapshot delivery deadline"));
         }

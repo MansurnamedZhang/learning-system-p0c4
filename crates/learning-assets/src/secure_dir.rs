@@ -579,6 +579,14 @@ mod platform {
             }
             Ok(())
         }
+        pub(crate) fn require_sealed_directory(&self) -> io::Result<std::fs::Metadata> {
+            let meta = self.file.metadata()?;
+            if !meta.is_dir() || meta.uid() != 0 || meta.gid() != 0 || meta.mode() & 0o7777 != 0o500
+            {
+                return Err(invalid());
+            }
+            Ok(meta)
+        }
         pub(crate) fn try_clone(&self) -> io::Result<Self> {
             Ok(Self {
                 file: self.file.try_clone()?,
@@ -714,6 +722,9 @@ mod platform {
             unsupported()
         }
         pub(crate) fn require_private_directory(&self) -> io::Result<()> {
+            unsupported()
+        }
+        pub(crate) fn require_sealed_directory(&self) -> io::Result<std::fs::Metadata> {
             unsupported()
         }
         pub(crate) fn try_clone(&self) -> io::Result<Self> {

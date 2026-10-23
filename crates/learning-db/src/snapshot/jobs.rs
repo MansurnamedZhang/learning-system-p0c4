@@ -10,7 +10,12 @@ use learning_assets::{
 };
 use learning_core::*;
 use sqlx::{Postgres, Transaction};
-use std::{collections::BTreeSet, fs::File, io, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::File,
+    io,
+    path::PathBuf,
+};
 use uuid::Uuid;
 
 pub struct SnapshotDelivery {
@@ -161,12 +166,26 @@ struct SavedDelivery {
     capability: String,
 }
 
+enum GrantLockContext<'a> {
+    Runtime(Option<&'a SharedJournalBudget>),
+    HeldManagement,
+}
+
 // Shared by normal delivery and the held-target adapter: identical actor,
 // current plan, required-space, capability and grant-lock checks.
 async fn checked_delivery(
     tx: &mut Transaction<'_, Postgres>,
     actor: Principal,
     job_id: Uuid,
+) -> Result<SavedDelivery, ContentError> {
+    checked_delivery_in_context(tx, actor, job_id, GrantLockContext::Runtime(None)).await
+}
+
+async fn checked_delivery_in_context(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    job_id: Uuid,
+    context: GrantLockContext<'_>,
 ) -> Result<SavedDelivery, ContentError> {
     let saved: Option<(serde_json::Value, Uuid, String, String, Vec<Uuid>, String)> = sqlx::query_as(
         "SELECT e.payload,r.stage_token,r.manifest_sha256,r.plan_sha256,r.required_spaces,r.capability FROM public.snapshot_export_result r JOIN public.job j ON j.id=r.job_id JOIN public.job_outbox e ON e.id=j.outbox_id WHERE j.id=$1 AND j.status='succeeded' AND j.output_digest=r.manifest_sha256 AND e.actor_id=$2")
@@ -179,7 +198,23 @@ async fn checked_delivery(
     else {
         return Err(ContentError::NotFound);
     };
-    let plan = recheck_locked(tx, actor, space_id, &request, &plan_sha256, &spaces).await?;
+    let plan = match context {
+        GrantLockContext::Runtime(None) => {
+            recheck_locked(tx, actor, space_id, &request, &plan_sha256, &spaces).await?
+        }
+        context => {
+            recheck_locked_in_context(
+                tx,
+                actor,
+                space_id,
+                &request,
+                &plan_sha256,
+                &spaces,
+                context,
+            )
+            .await?
+        }
+    };
     if plan.capability() != capability {
         return Err(ContentError::NotFound);
     }
@@ -849,7 +884,9 @@ impl SnapshotStore {
                 "recovery_snapshot_management_context".into(),
             ));
         }
-        let saved = checked_delivery(tx, actor, job_id).await?;
+        let saved =
+            checked_delivery_in_context(tx, actor, job_id, GrantLockContext::HeldManagement)
+                .await?;
         Ok(RecoverySnapshotAuthorization {
             job_id,
             saved,
@@ -901,6 +938,31 @@ async fn recheck_locked_with_budget(
     required: &[Uuid],
     budget: Option<&SharedJournalBudget>,
 ) -> Result<ExportPlan, ContentError> {
+    recheck_locked_in_context(
+        tx,
+        actor,
+        space,
+        input,
+        expected,
+        required,
+        GrantLockContext::Runtime(budget),
+    )
+    .await
+}
+
+async fn recheck_locked_in_context(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    space: Uuid,
+    input: &SnapshotRequest,
+    expected: &str,
+    required: &[Uuid],
+    context: GrantLockContext<'_>,
+) -> Result<ExportPlan, ContentError> {
+    let budget = match &context {
+        GrantLockContext::Runtime(budget) => *budget,
+        GrantLockContext::HeldManagement => None,
+    };
     let layer = model::load_view(tx, actor, input.reading.clone()).await?;
     if layer.space != space {
         return Err(ContentError::NotFound);
@@ -916,12 +978,11 @@ async fn recheck_locked_with_budget(
             .ok_or(ContentError::Storage)?;
         budget.charge(grant_copy as u64, 0).map_err(storage)?;
     }
-    authorization::lock_grants(
-        tx,
-        actor,
-        &required.iter().map(|id| (*id, false)).collect::<Vec<_>>(),
-    )
-    .await?;
+    let grants = required.iter().map(|id| (*id, false)).collect::<Vec<_>>();
+    match context {
+        GrantLockContext::Runtime(_) => authorization::lock_grants(tx, actor, &grants).await?,
+        GrantLockContext::HeldManagement => lock_management_grants(tx, actor, &grants).await?,
+    }
     // READ COMMITTED reread after locks handles revocation winning while planning.
     let locked = collect_export(tx, actor, input).await?;
     if locked.checked_digest(budget)? != expected
@@ -930,6 +991,35 @@ async fn recheck_locked_with_budget(
         return Err(ContentError::NotFound);
     }
     Ok(locked)
+}
+
+// Only the context-checked held recovery adapter selects this path. The admin
+// owns space_grant but does not inherit EXECUTE on the auth-lock-owned runtime
+// helper. Use its exact predicate/row lock without changing role or catalog.
+async fn lock_management_grants(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    required: &[(Uuid, bool)],
+) -> Result<(), ContentError> {
+    let mut sorted = BTreeMap::new();
+    for (space, write) in required {
+        let entry = sorted.entry(*space).or_insert(false);
+        *entry |= *write;
+    }
+    for (space, write) in sorted {
+        let grant: Option<bool> = sqlx::query_scalar(
+            "SELECT g.can_write FROM public.space_grant AS g WHERE g.actor_id=$1 AND g.space_id=$2 FOR SHARE",
+        )
+        .bind(actor.actor_id)
+        .bind(space)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(storage)?;
+        if grant.is_none() || (write && grant != Some(true)) {
+            return Err(ContentError::NotFound);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

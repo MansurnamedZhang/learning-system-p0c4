@@ -1,7 +1,7 @@
 //! Fresh native tests. Only normal Root APIs create the cut and copied adjunct.
 //! These current-Pin rehearsals cannot construct CompleteBackup/RecoveredInstance.
 use super::*;
-use crate::destination::snapshot_effects::{CopiedSnapshotEffectsV2, copy_snapshot_effects};
+use crate::destination::snapshot_effects::copy_current_pin_snapshot_effects;
 use crate::source::{lifecycle_tests::live::Fixture, snapshot_effects::EnrolledSnapshotBroker};
 use learning_core::*;
 use learning_db::snapshot_broker::{BeforeWriteTransition, BrokerSignalResult};
@@ -59,7 +59,7 @@ struct SourceState {
     claims: usize,
 }
 struct CapturedState {
-    copied: CopiedSnapshotEffectsV2,
+    captured: crate::source::snapshot_effects::CapturedSnapshotEffectsV2,
     lease: crate::RegistryLease,
     source: SourceState,
 }
@@ -376,9 +376,19 @@ async fn enqueue(f: &Fixture, runtime: &PgPool) -> Result<Uuid, BackupError> {
 
 pub(super) async fn capture(f: &mut Fixture) -> Result<FreshLocalCapture, BackupError> {
     let case = SNAPSHOT.with(|s| s.case);
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_RUNTIME_POOL_BEFORE");
     let runtime = pool("learning_runtime").await?;
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_RUNTIME_POOL_AFTER");
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_ENQUEUE_BEFORE");
     let id = enqueue(f, &runtime).await?;
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_ENQUEUE_AFTER");
     runtime.close().await;
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_INSTALL_FRESH_BEFORE");
     let broker = EnrolledSnapshotBroker::install_fresh(
         pool("learning_admin").await?,
         pool("learning_snapshot_claim_broker").await?,
@@ -387,6 +397,8 @@ pub(super) async fn capture(f: &mut Fixture) -> Result<FreshLocalCapture, Backup
         &f.config,
     )
     .await?;
+    #[cfg(test)]
+    eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_INSTALL_FRESH_AFTER");
     for attempt in 1..=case.attempts() {
         if attempt > 1 {
             wait_eligible(&f.pool, id).await?;
@@ -403,7 +415,11 @@ pub(super) async fn capture(f: &mut Fixture) -> Result<FreshLocalCapture, Backup
             } else {
                 LEASE_MS
             };
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_SIGNAL_BEFORE");
         let result = signal(f, &broker, transition, lease).await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=CAPTURE_SIGNAL_AFTER");
         check(
             result
                 == if case == Case::P6 {
@@ -509,14 +525,7 @@ pub(super) async fn capture(f: &mut Fixture) -> Result<FreshLocalCapture, Backup
     };
     let registry = crate::ManagementRegistry::open_installed()?;
     let lease = registry.try_lock()?;
-    let control = BackupDir::open_trusted_private_root(&f.config.control_root)?;
-    let source = lease.admit_source(&control, &f.assets, &f.config)?;
-    let snapshot = crate::discover_backup_protection(&lease, &source)?;
-    let trust = crate::complete::load_trust(Path::new(crate::DESTINATION_TRUST_PATH))?;
-    let destination = lease.admit_destination(Path::new(&trust.destination_root))?;
-    let proof = crate::persist_captured_source_proof(&destination, &snapshot, f.config.backup_id)?;
-    let base_root = destination.destination().try_clone()?;
-    let copied = copy_snapshot_effects(&destination, &proof, captured)?;
+    let base_root = BackupDir::open_trusted_private_root(&f.config.local_pin_root)?;
     let source = SourceState {
         job: id,
         tokens,
@@ -526,7 +535,7 @@ pub(super) async fn capture(f: &mut Fixture) -> Result<FreshLocalCapture, Backup
     };
     SNAPSHOT.with(|s| {
         *s.captured.lock().unwrap() = Some(CapturedState {
-            copied,
+            captured,
             lease,
             source,
         })
@@ -590,7 +599,7 @@ pub(super) async fn after_import(
     }
     let case = SNAPSHOT.with(|s| s.case);
     let CapturedState {
-        copied,
+        captured,
         lease,
         source,
     } = SNAPSHOT
@@ -629,8 +638,13 @@ pub(super) async fn after_import(
         receipts.len() == source.receipt.len(),
         "snapshot original receipt count differs",
     )?;
+    target.recheck().await?;
+    let binding = package.current_pin_copy_binding(&captured)?;
+    let copied = copy_current_pin_snapshot_effects(target, binding, &lease, captured)?;
+    target.recheck().await?;
     let effects =
-        crate::full_restore::jobs::inspect_copied_external_effects(target, &lease, copied).await?;
+        crate::full_restore::jobs::inspect_current_pin_external_effects(target, &lease, copied)
+            .await?;
     let report =
         crate::full_restore::jobs::normalize_restored_jobs(target, &effects, SystemTime::now())
             .await?;

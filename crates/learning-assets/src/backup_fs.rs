@@ -113,6 +113,11 @@ impl BackupDir {
     pub fn require_private_directory(&self) -> io::Result<()> {
         self.0.require_private_directory()
     }
+    /// Inspect only an already-held Root:Root directory sealed exactly 0500.
+    /// This grants no path admission or business authority.
+    pub fn require_sealed_directory(&self) -> io::Result<std::fs::Metadata> {
+        self.0.require_sealed_directory()
+    }
     pub fn try_clone(&self) -> io::Result<Self> {
         self.0.try_clone().map(Self)
     }

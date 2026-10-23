@@ -83,18 +83,34 @@ impl EnrolledSnapshotBroker {
         if unsafe { libc::geteuid() } != 0 || unsafe { libc::getegid() } != 0 {
             return Err(invalid());
         }
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ADMISSION_ACQUIRE_BEFORE");
         let mut admission = super::admission::SourceAdmission::try_acquire(
             &admin_install,
             &config.expected_database,
         )
         .await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ADMISSION_ACQUIRE_AFTER");
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ADMIT_CONTROL_BEFORE");
         let control =
             super::binding::admit_control_root(&mut admission, &config.control_root).await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ADMIT_CONTROL_AFTER");
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_REGISTRY_ADMIT_BEFORE");
         let registry = ManagementRegistry::open_installed()?;
         let lease = registry.try_lock()?;
         let enrolled = lease.admit_source(&control, assets, config)?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_REGISTRY_ADMIT_AFTER");
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ISOLATION_BEFORE");
         let isolation =
             super::verify_isolation_attestation_metered(config, true, Some(&lease.budget))?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ISOLATION_AFTER");
         lease.recheck()?;
         let deployment = Uuid::parse_str(&enrolled.group.deployment_id).map_err(|_| invalid())?;
         let group = Uuid::parse_str(&enrolled.group.group_id).map_err(|_| invalid())?;
@@ -111,7 +127,11 @@ impl EnrolledSnapshotBroker {
         }
         let source_group = enrolled.group.clone();
         let source_roots = enrolled.roots.clone();
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ADMISSION_CLOSE_BEFORE");
         admission.close().await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ADMISSION_CLOSE_AFTER");
         lease.recheck()?;
         // A captured lease clone would hold the global registry lock for the
         // entire broker lifetime. Store the immutable original record bytes
@@ -119,9 +139,15 @@ impl EnrolledSnapshotBroker {
         drop(lease);
         let binding_id = Uuid::new_v4();
         let epoch_id = Uuid::new_v4();
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_CREATE_SOCKETS_BEFORE");
         let (socket_root, work_listener, management_listener, work_path, management_path) =
             create_sockets(binding_id, epoch_id)?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_CREATE_SOCKETS_AFTER");
         let cutover_deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_FRESH_MOUNTS_OPEN_BEFORE");
         let (mounts, companion_fd, export_fd) = cutover::FreshMounts::open(
             config,
             &source_roots,
@@ -130,6 +156,10 @@ impl EnrolledSnapshotBroker {
             cutover_deadline,
         )
         .await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_FRESH_MOUNTS_OPEN_AFTER");
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_BINDING_BEFORE");
         let installed = InstalledSnapshotBinding::install_fresh_empty_mounts(
             companion_fd,
             export_fd,
@@ -140,6 +170,10 @@ impl EnrolledSnapshotBroker {
             journal_budget.clone(),
         )
         .map_err(|_| invalid())?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_BINDING_AFTER");
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ROOT_BROKER_BEFORE");
         let broker = RootSnapshotBroker::install_fresh(
             installed,
             admin_install,
@@ -155,6 +189,8 @@ impl EnrolledSnapshotBroker {
         )
         .await
         .map_err(|_| invalid())?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_ROOT_BROKER_AFTER");
         let descriptor: Descriptor = serde_json::from_slice(broker.descriptor_bytes())?;
         descriptor_matches(&descriptor, &source_group)?;
         let companion = BackupDir::open_trusted_private_root(Path::new(
@@ -177,14 +213,26 @@ impl EnrolledSnapshotBroker {
         };
         // These durable records are written before this wrapper escapes and
         // therefore before its first actual Unix peer can request a claim.
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_MOUNTS_FINISH_BEFORE");
         let actual = mounts
             .finish(config, &descriptor, &enrollment.roots)
             .await?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_MOUNTS_FINISH_AFTER");
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_RECORDS_BEFORE");
         enrollment.install_records(&descriptor, broker.root_marker_bytes(), &actual)?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_RECORDS_AFTER");
         if std::time::Instant::now() >= cutover_deadline {
             return Err(invalid());
         }
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_REVALIDATE_BEFORE");
         broker.revalidate().map_err(|_| invalid())?;
+        #[cfg(test)]
+        eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_REVALIDATE_AFTER");
         Ok(Self {
             broker,
             enrollment,

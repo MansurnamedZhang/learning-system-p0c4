@@ -626,6 +626,30 @@ mod integration {
      {
         use std::io::Read;
         let (rig, actor, space, store, jobs, id, _) = queued().await;
+        let boundary: (String, String, bool, bool) = sqlx::query_as(
+            "SELECT current_user::text,session_user::text,pg_catalog.has_function_privilege(current_user,'public.lock_space_grant(uuid,uuid)','EXECUTE'),pg_catalog.has_function_privilege('learning_runtime','public.lock_space_grant(uuid,uuid)','EXECUTE')",
+        )
+        .fetch_one(&rig.admin_pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            boundary,
+            (
+                "learning_admin".into(),
+                "learning_admin".into(),
+                false,
+                true
+            ),
+            "management delivery must work without the runtime helper EXECUTE privilege"
+        );
+        sqlx::query(
+            "UPDATE public.space_grant SET can_write=false WHERE actor_id=$1 AND space_id=$2",
+        )
+        .bind(actor.actor_id)
+        .bind(space)
+        .execute(&rig.admin_pool)
+        .await
+        .unwrap();
         let (store, root) = storage(store);
         let lease = jobs
             .claim_snapshot(id, Duration::from_secs(30))
@@ -650,18 +674,16 @@ mod integration {
             "SELECT jsonb_build_object('job',to_jsonb(j),'result',to_jsonb(r)) FROM public.job j JOIN public.snapshot_export_result r ON r.job_id=j.id WHERE j.id=$1")
             .bind(id).fetch_one(&rig.admin_pool).await.unwrap();
         let mut ordinary_tx = rig.runtime_pool.begin().await.unwrap();
-        assert!(
-            SnapshotStore::authorize_recovery_delivery(&mut ordinary_tx, actor, id)
-                .await
-                .is_err()
-        );
+        assert!(matches!(
+            SnapshotStore::authorize_recovery_delivery(&mut ordinary_tx, actor, id).await,
+            Err(learning_core::ContentError::Invalid(_))
+        ));
         ordinary_tx.rollback().await.unwrap();
         let mut premature = rig.admin_pool.begin().await.unwrap();
-        assert!(
-            SnapshotStore::authorize_recovery_delivery(&mut premature, actor, id)
-                .await
-                .is_err()
-        );
+        assert!(matches!(
+            SnapshotStore::authorize_recovery_delivery(&mut premature, actor, id).await,
+            Err(learning_core::ContentError::Invalid(_))
+        ));
         premature.rollback().await.unwrap();
         rig.runtime_pool.close().await;
         sqlx::raw_sql("DO $$ BEGIN EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM learning_runtime',current_database()); END $$")
@@ -671,6 +693,10 @@ mod integration {
             .reopen(lease.token, &ordinary.manifest_sha256)
             .unwrap();
         let mut held = rig.admin_pool.begin().await.unwrap();
+        let held_pid: i32 = sqlx::query_scalar("SELECT pg_catalog.pg_backend_pid()")
+            .fetch_one(&mut *held)
+            .await
+            .unwrap();
         let authorization = SnapshotStore::authorize_recovery_delivery(&mut held, actor, id)
             .await
             .unwrap();
@@ -685,7 +711,59 @@ mod integration {
             })
             .collect::<Vec<_>>();
         assert_eq!(actual, expected);
+        // Even after the completed file reader releases its Rust borrow, the
+        // original transaction must retain the physical grant row lock.
+        let mut revoker = rig.admin_pool.begin().await.unwrap();
+        sqlx::query("SET LOCAL statement_timeout='10s'")
+            .execute(&mut *revoker)
+            .await
+            .unwrap();
+        let revoker_pid: i32 = sqlx::query_scalar("SELECT pg_catalog.pg_backend_pid()")
+            .fetch_one(&mut *revoker)
+            .await
+            .unwrap();
+        assert_ne!(held_pid, revoker_pid);
+        let revoke = tokio::spawn(async move {
+            let result =
+                sqlx::query("DELETE FROM public.space_grant WHERE actor_id=$1 AND space_id=$2")
+                    .bind(actor.actor_id)
+                    .bind(space)
+                    .execute(&mut *revoker)
+                    .await
+                    .unwrap();
+            revoker.commit().await.unwrap();
+            result.rows_affected()
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let blockers: Vec<i32> =
+                    sqlx::query_scalar("SELECT pg_catalog.pg_blocking_pids($1)")
+                        .bind(revoker_pid)
+                        .fetch_one(&rig.admin_pool)
+                        .await
+                        .unwrap();
+                if blockers.contains(&held_pid) {
+                    break;
+                }
+                assert!(
+                    !revoke.is_finished(),
+                    "grant revocation escaped the held lock"
+                );
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("grant revocation must block on the original held transaction");
+        assert!(!revoke.is_finished());
         held.rollback().await.unwrap();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(5), revoke)
+                .await
+                .unwrap()
+                .unwrap(),
+            1,
+            "ending the held transaction must release the original grant lock"
+        );
         let after: serde_json::Value = sqlx::query_scalar(
             "SELECT jsonb_build_object('job',to_jsonb(j),'result',to_jsonb(r)) FROM public.job j JOIN public.snapshot_export_result r ON r.job_id=j.id WHERE j.id=$1")
             .bind(id).fetch_one(&rig.admin_pool).await.unwrap();
@@ -693,13 +771,11 @@ mod integration {
             after, before,
             "read-only management delivery cannot republish or change receipts"
         );
-        rig.revoke(actor, space).await;
         let mut revoked = rig.admin_pool.begin().await.unwrap();
-        assert!(
-            SnapshotStore::authorize_recovery_delivery(&mut revoked, actor, id)
-                .await
-                .is_err()
-        );
+        assert!(matches!(
+            SnapshotStore::authorize_recovery_delivery(&mut revoked, actor, id).await,
+            Err(learning_core::ContentError::NotFound)
+        ));
         revoked.rollback().await.unwrap();
     }
     #[tokio::test]
