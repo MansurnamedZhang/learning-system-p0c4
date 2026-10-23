@@ -935,7 +935,7 @@ def _validate_history_gap_proof(proof,target):
 
 def _validate_history_gap_result(plan,row,target):
     from pathlib import Path
-    from . import evidence
+    from . import evidence,roles
     base=Path(plan['evidence_root'])/'driver'/('batch-'+plan['batch_id'])/plan['case_id']
     path=base/'full-snapshot-history-gap-result.json';ref=row.get('full_snapshot_history_gap_proof')
     _require(type(ref)is dict and set(ref)=={'path','sha256'} and ref['path']==str(path),'SNAPSHOT_GAP_RESULT_PATH')
@@ -946,7 +946,8 @@ def _validate_history_gap_result(plan,row,target):
     _require(entry.get('bytes')==len(raw)and entry.get('sha256')==ref['sha256'],'SNAPSHOT_GAP_NATIVE_INVENTORY')
     observation=row.get('full_rehearsal_profile');path=base/'full-profile/profile.json'
     _require(type(observation)is dict and observation['path']==str(path)and observation['source_mount_count']==18 and observation['target_mount_count']==5,'SNAPSHOT_GAP_PROFILE')
-    profile=_parse_pinned(evidence.private_read(path,PROFILE_CAP),observation['sha256'])
+    raw,_=roles._private_read(path,PROFILE_CAP)
+    profile=_parse_pinned(raw,observation['sha256'])
     _require(profile['format_version']==2 and profile['source_case_id']==plan['case_id']and profile['target_case_id']==plan['target']['case_id']and profile['application_build_sha256']==plan['source']['application_build_sha256']and profile['target_container_id']==target['status']['container_id']and profile['target_birth_sha256']==target['status']['birth_sha256'],'SNAPSHOT_GAP_PROFILE_BINDING')
     return profile
 

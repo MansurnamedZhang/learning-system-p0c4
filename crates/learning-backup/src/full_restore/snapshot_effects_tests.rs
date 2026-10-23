@@ -867,6 +867,10 @@ async fn history_gap() -> Result<(), BackupError> {
         "history gap did not obtain an actual new second token",
     )?;
     runtime.close().await;
+    // SQLx 0.8.6 may requeue an in-flight return after close's idle scan.
+    // Release the legacy producer's final pool handle before capture so
+    // that late idle connection cannot stay alive through this fixture.
+    drop(runtime);
     let input = broker.quiesce_for_capture(f.config.backup_id).await?;
     f.refresh().await;
     let result =

@@ -1,6 +1,9 @@
 """Pure negative gates for the private full-rehearsal topology, not live proof."""
 import copy
+import os
+import sys
 import unittest
+from contextlib import contextmanager
 from scripts.p0c4_completion import full_import as full
 
 S='550e8400-e29b-41d4-a716-446655440000'
@@ -801,6 +804,127 @@ class RecoveryFoundationProofTests(unittest.TestCase):
         forged=dict(imported,case=plan['case_name'],commit_attempted=False,import_catalog_verified=False,originals_verified=False)
         with self.assertRaises(full.FullImportError):full._validate_body_proof(forged,plan,target)
         full._validate_recovery_proof(proof,plan,target,imported)
+
+
+def _history_gap_result_fixture(root):
+    import hashlib
+    from pathlib import Path
+    _,plan=Fix1AuthorityTests().issued()
+    plan.update(format_version=3,capability='c4_full_snapshot_import_plan_v2',case_name='snapshot-history-gap',schema_profile='snapshot_c0_d1_v1',snapshot_profile='root_snapshot_broker_v2',evidence_root=str(root))
+    value=profile();value.update(format_version=2,capability='full_rehearsal_snapshot_profile_v2',application_build_sha256=plan['source']['application_build_sha256'])
+    prefix='kwc4c-'+S.replace('-','')
+    for key,suffix,ino in [('snapshot_effects','snapshot-effects',107),('snapshot_export','snapshot-export',108)]:
+        name=prefix+'-'+suffix
+        value['volumes'][key]=dict(name=name,path='/var/lib/docker/volumes/'+name+'/_data',dev=10,ino=ino,uid=0,gid=0,mode=0o700)
+    proof=dict(format_version=2,classification='FULL_SNAPSHOT_HISTORY_GAP_REFUSED_NO_CAPTURE_NOT_COMPLETE',case='snapshot-history-gap',backup_id='750e8400-e29b-41d4-a716-446655440000',job_id='850e8400-e29b-41d4-a716-446655440000',original_attempts=1,actual_attempts=2,original_claim_revoked=True,new_token_observed=True,failure_code='SNAPSHOT_EFFECTS_V2_CONTRACT',opaque_capture_returned=False,destination_copy_entered=False,target_import_entered=False,normalization_entered=False,target_admitted_clean=True,target_container_id=value['target_container_id'],stop_required=True,usable=False,task6_complete=False)
+    base=Path(root)/'driver'/('batch-'+plan['batch_id'])/S
+    proof_path=base/'full-snapshot-history-gap-result.json';profile_path=base/'full-profile/profile.json'
+    proof_raw=full._canonical(proof);profile_raw=full._canonical(value)
+    proof_sha=hashlib.sha256(proof_raw).hexdigest();profile_sha=hashlib.sha256(profile_raw).hexdigest()
+    target=dict(stopped=True,execs_absent=True,network_empty=True,identity=dict(database='learning_restore_c4_'+T),status=dict(container_id=value['target_container_id'],birth_sha256=value['target_birth_sha256']))
+    row=dict(test=full.CASE_TESTS[plan['case_name']],outcome=dict(passed=1,failed=0,ignored=0,exit_code=0),full_target=target,full_snapshot_history_gap_proof=dict(path=str(proof_path),sha256=proof_sha),full_rehearsal_profile=dict(path=str(profile_path),sha256=profile_sha,source_mount_count=18,target_mount_count=5))
+    files={proof_path:proof_raw,base/'inventory.json':full._canonical({'proofs/full-snapshot-history-gap-result.json':dict(bytes=len(proof_raw),sha256=proof_sha)}),profile_path:profile_raw}
+    return plan,dict(cases=[row]),value,files
+
+
+class HistoryGapResultPortableTests(unittest.TestCase):
+    """Real bytes and full validators; Linux metadata IO is explicitly replaced."""
+    @contextmanager
+    def fixture(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from scripts.p0c4_completion import evidence,roles
+        plan,result,value,files=_history_gap_result_fixture('/root/history-gap-postcheck')
+        profile_path=Path(result['cases'][0]['full_rehearsal_profile']['path'])
+        with tempfile.TemporaryDirectory()as directory:
+            local={}
+            for ordinal,(path,raw)in enumerate(files.items()):
+                local[path]=Path(directory)/str(ordinal);local[path].write_bytes(raw)
+            def private(path,cap):
+                path=Path(path);self.assertNotEqual(path,profile_path,'sealed profile must use its existing measured-profile reader')
+                raw=local[path].read_bytes();self.assertLessEqual(len(raw),cap);return raw
+            def measured(path,cap):
+                self.assertEqual((Path(path),cap),(profile_path,full.PROFILE_CAP))
+                return local[profile_path].read_bytes(),(10,200)  # Simulated identity, never Linux authority.
+            with patch.object(evidence,'private_read',side_effect=private),patch.object(roles,'_private_read',side_effect=measured)as read_profile:
+                yield plan,result,value,local,read_profile
+
+    def test_complete_postcheck_uses_profile_bytes_and_keeps_proof_inventory_separate(self):
+        with self.fixture()as(plan,result,value,local,read_profile):
+            self.assertEqual(full.validate_result(plan,result),value);read_profile.assert_called_once()
+
+    def test_profile_digest_and_build_birth_target_binding_are_still_required(self):
+        import hashlib
+        from pathlib import Path
+        for fault in ('digest','build','birth','target'):
+            with self.subTest(fault=fault),self.fixture()as(plan,result,value,local,read_profile):
+                observation=result['cases'][0]['full_rehearsal_profile'];path=Path(observation['path'])
+                if fault=='digest':observation['sha256']='0'*64
+                else:
+                    key={'build':'application_build_sha256','birth':'target_birth_sha256','target':'target_container_id'}[fault]
+                    value[key]='9'*64;raw=full._canonical(value);local[path].write_bytes(raw);observation['sha256']=hashlib.sha256(raw).hexdigest()
+                with self.assertRaisesRegex(full.FullImportError,'FULL_PROFILE_PIN'if fault=='digest'else'SNAPSHOT_GAP_PROFILE_BINDING'):
+                    full.validate_result(plan,result)
+
+    def test_proof_inventory_path_and_negative_authority_checks_remain_closed(self):
+        import hashlib,json
+        from pathlib import Path
+        for fault in ('proof-pin','inventory','profile-path','authority'):
+            with self.subTest(fault=fault),self.fixture()as(plan,result,value,local,read_profile):
+                row=result['cases'][0];ref=row['full_snapshot_history_gap_proof'];proof_path=Path(ref['path'])
+                if fault=='proof-pin':ref['sha256']='0'*64
+                elif fault=='inventory':local[proof_path.parent/'inventory.json'].write_bytes(b'{}')
+                elif fault=='profile-path':row['full_rehearsal_profile']['path']=str(proof_path)
+                else:
+                    proof=json.loads(local[proof_path].read_bytes());proof['opaque_capture_returned']=True
+                    raw=full._canonical(proof);local[proof_path].write_bytes(raw);ref['sha256']=hashlib.sha256(raw).hexdigest()
+                with self.assertRaises(full.FullImportError):full.validate_result(plan,result)
+                read_profile.assert_not_called()
+
+
+@unittest.skipUnless(sys.platform=='linux'and getattr(os,'geteuid',lambda:1)()==0,
+                     'actual root Linux profile reader contract; portable skips give no authority')
+class HistoryGapResultRootFileTests(unittest.TestCase):
+    @contextmanager
+    def fixture(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory(prefix='kwc4-history-profile-',dir='/root')as directory:
+            root=Path(directory);plan,result,value,files=_history_gap_result_fixture(root)
+            profile_path=Path(result['cases'][0]['full_rehearsal_profile']['path'])
+            for path,raw in files.items():
+                path.parent.mkdir(mode=0o700,parents=True,exist_ok=True);path.write_bytes(raw);path.chmod(0o444 if path==profile_path else 0o600)
+            for path in root.rglob('*'):
+                if path.is_dir():path.chmod(0o700)
+            yield plan,result,value,profile_path
+
+    def test_actual_0444_profile_passes_complete_postcheck(self):
+        import stat
+        with self.fixture()as(plan,result,value,path):
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode),0o444)
+            self.assertEqual(full.validate_result(plan,result),value)
+
+    def test_actual_profile_rejects_writable_foreign_linked_symlink_and_oversize_files(self):
+        from scripts.p0c4_completion import roles
+        for fault in ('writable','foreign','linked','symlink','oversize'):
+            with self.subTest(fault=fault),self.fixture()as(plan,result,value,path):
+                if fault=='writable':path.chmod(0o644)
+                elif fault=='foreign':os.chown(path,999,999)
+                elif fault=='linked':os.link(path,path.with_name('extra-hardlink'))
+                elif fault=='symlink':
+                    saved=path.with_name('retained');path.rename(saved);path.symlink_to(saved)
+                else:path.write_bytes(b'x'*(full.PROFILE_CAP+1))
+                with self.assertRaises((roles.RoleProvisioningError,OSError)):full.validate_result(plan,result)
+
+    def test_actual_0444_proof_and_inventory_still_require_their_0600_reader(self):
+        from scripts.p0c4_completion import evidence
+        from pathlib import Path
+        for selected in ('proof','inventory'):
+            with self.subTest(selected=selected),self.fixture()as(plan,result,value,path):
+                proof_path=Path(result['cases'][0]['full_snapshot_history_gap_proof']['path'])
+                (proof_path if selected=='proof'else proof_path.parent/'inventory.json').chmod(0o444)
+                with self.assertRaisesRegex(evidence.registry.RegistryError,'REGISTRY_PRIVATE_FILE'):full.validate_result(plan,result)
 
 
 if __name__=='__main__':unittest.main()
