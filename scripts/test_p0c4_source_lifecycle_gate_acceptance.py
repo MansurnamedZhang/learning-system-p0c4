@@ -1532,6 +1532,103 @@ class Fix3Tests(unittest.TestCase):
             self.assertTrue(destination.with_name('interrupted').exists())
 
 
+
+class FullCJournalObserverTests(unittest.TestCase):
+    ACTUAL={'closed.json': '{"format_version":2,"profile":"snapshot_c0_d1_v1","base":{"backup_id":"1dfb3148-9534-4388-a3c3-c9b193c8b7f1","phase":"closed","dump_and_index_sha256":null,"pins_sha256":null},"broker_oid":16394,"schema_contract_sha256":"3d510097d2ed7dcdf80ca7b756ae07c2ad0af3d3c6bedc259e57160e553b4f39","initial_connect":true,"capture_connect_closed":true,"capture_sessions_drained":false,"release_connect_restored":false}', 'intent.json': '{"format_version":2,"profile":"snapshot_c0_d1_v1","base":{"backup_id":"1dfb3148-9534-4388-a3c3-c9b193c8b7f1","phase":"intent","dump_and_index_sha256":null,"pins_sha256":null},"broker_oid":16394,"schema_contract_sha256":"3d510097d2ed7dcdf80ca7b756ae07c2ad0af3d3c6bedc259e57160e553b4f39","initial_connect":true,"capture_connect_closed":false,"capture_sessions_drained":false,"release_connect_restored":false}'}
+    def expected(self):
+        return dict(profile='snapshot_c0_d1_v1',broker_oid=16394,schema_contract_sha256='3d510097d2ed7dcdf80ca7b756ae07c2ad0af3d3c6bedc259e57160e553b4f39')
+    def encode(self,row):return json.dumps(row,ensure_ascii=False,separators=(',',':')).encode()
+    def records(self,end='released'):
+        files={}
+        for n,phase in enumerate(driver.JOURNAL_PHASES[:driver.JOURNAL_PHASES.index(end)+1]):
+            base=dict(backup_id=ATTEMPT,phase=phase,dump_and_index_sha256='a'*64 if n>=3 else None,pins_sha256='a'*64 if n>=4 else None)
+            row=dict(format_version=2,profile='snapshot_c0_d1_v1',base=base,broker_oid=16394,schema_contract_sha256=self.expected()['schema_contract_sha256'],initial_connect=True,capture_connect_closed=n>=1,capture_sessions_drained=n>=2,release_connect_restored=n==6)
+            files[phase.replace('_','-')+'.json']=self.encode(row)
+        return files
+    def classify(self,files,expected=None,attempt=ATTEMPT,sidecar=None):
+        return driver.classify_attempt_documents(attempt,'c'*64,files,sidecar or {},journal_exists=True,sidecar_exists=bool(sidecar),expected_profile=self.expected()if expected is None else expected)
+    def test_actual_two_raw_records_and_unchanged_drain_barrier(self):
+        files={k:v.encode()for k,v in self.ACTUAL.items()};attempt=json.loads(files['intent.json'])['base']['backup_id']
+        for phase in ('intent','closed'):
+            selected=files if phase=='closed'else{'intent.json':files['intent.json']}
+            state=self.classify(selected,attempt=attempt);self.assertEqual((state['journal']['status'],state['journal']['phase']),('CANONICAL',phase));self.assertEqual(state['journal']['last_record_sha256'],driver.digest(files[phase+'.json']))
+        state['publication']=dict(scan_complete=True,dump_files=[],manifest_files=[])
+        driver.validate_drain_barrier(dict(acl='f',runtime_state='idle in transaction',attempt_state=state))
+        self.assertEqual(driver.classify_attempt_documents(attempt,'c'*64,files,{},journal_exists=True)['journal']['status'],'CORRUPT')
+    def test_all_seven_full_c_phases_and_outer_hash_are_canonical(self):
+        for phase in driver.JOURNAL_PHASES:
+            files=self.records(phase);state=self.classify(files);self.assertEqual((state['journal']['status'],state['journal']['phase']),('CANONICAL',phase));self.assertEqual(state['journal']['last_record_sha256'],driver.digest(files[phase.replace('_','-')+'.json']))
+    def test_full_c_malformed_identity_profile_and_canonical_bytes_refuse(self):
+        import copy
+        files=self.records('closed');base=json.loads(files['closed.json'])
+        changes=[('format_version',True),('format_version',2.0),('profile','observation_v1'),('broker_oid',True),('broker_oid',0),('broker_oid',2**32),('broker_oid',16395),('schema_contract_sha256','b'*64),('initial_connect',1),('extra',False)]
+        for key,value in changes:
+            row=copy.deepcopy(base);row[key]=value
+            with self.subTest(key=key,value=value):self.assertEqual(self.classify(dict(files,**{'closed.json':self.encode(row)}))['journal']['status'],'CORRUPT')
+        variants=[files['closed.json']+b'\n',self.encode(dict(reversed(list(base.items())))),files['closed.json'].replace(b'"format_version":2',b'"format_version":2,"format_version":2')]
+        row=copy.deepcopy(base);row['base']=dict(reversed(list(row['base'].items())));variants.append(self.encode(row));row=copy.deepcopy(base);row['base']['extra']=None;variants.append(self.encode(row))
+        for bad in variants:self.assertEqual(self.classify(dict(files,**{'closed.json':bad}))['journal']['status'],'CORRUPT')
+    def test_full_c_exact_phase_flags_hash_transitions_and_mixed_versions_refuse(self):
+        import copy
+        for phase in driver.JOURNAL_PHASES:
+            files=self.records(phase);name=phase.replace('_','-')+'.json'
+            for flag in ('initial_connect','capture_connect_closed','capture_sessions_drained','release_connect_restored'):
+                row=json.loads(files[name]);row[flag]=not row[flag]
+                with self.subTest(phase=phase,flag=flag):self.assertEqual(self.classify(dict(files,**{name:self.encode(row)}))['journal']['status'],'CORRUPT')
+        files=self.records();row=json.loads(files['pins-durable.json']);row['base']['pins_sha256']='b'*64;self.assertEqual(self.classify(dict(files,**{'pins-durable.json':self.encode(row)}))['journal']['status'],'CORRUPT')
+        row=json.loads(files['pins-durable.json']);row['base']['pins_sha256']=row['base']['dump_and_index_sha256']='b'*64;self.assertEqual(self.classify(dict(files,**{'pins-durable.json':self.encode(row)}))['journal']['status'],'CORRUPT')
+        row=json.loads(files['closed.json']);row['base']['phase']='drained';self.assertEqual(self.classify(dict(files,**{'closed.json':self.encode(row)}))['journal']['status'],'CORRUPT')
+        self.assertEqual(self.classify({k:v for k,v in files.items()if k!='drained.json'})['journal']['status'],'CORRUPT')
+        row=json.loads(files['intent.json']);self.assertEqual(self.classify(dict(files,**{'intent.json':self.encode(row['base'])}))['journal']['status'],'CORRUPT')
+        for expected in [dict(self.expected(),broker_oid=True),dict(self.expected(),broker_oid=16395),dict(self.expected(),schema_contract_sha256='b'*64)]:self.assertEqual(self.classify(files,expected)['journal']['status'],'CORRUPT')
+    def test_v2_sidecar_uses_base_hash_and_never_replaces_outer_observation_hash(self):
+        files=self.records('closed');base=json.loads(files['closed.json'])['base'];base_sha=driver.digest(self.encode(base));outer_sha=driver.digest(files['closed.json']);self.assertNotEqual(base_sha,outer_sha)
+        ready=dict(format_version=1,capability='source_abandonment_v1',backup_id=ATTEMPT,action='abandon',source_binding_sha256='c'*64,journal_phase='closed',journal_record_sha256=base_sha,retained_artifacts='keep_all',state='release_ready')
+        raw=self.encode(ready);state=self.classify(files,sidecar={'ready.json':raw});self.assertEqual(state['sidecar']['status'],'READY');self.assertEqual(state['journal']['last_record_sha256'],outer_sha)
+        wrong=self.encode(dict(ready,journal_record_sha256=outer_sha));self.assertEqual(self.classify(files,sidecar={'ready.json':wrong})['sidecar']['status'],'CORRUPT')
+        legacy={k:self.encode(json.loads(v)['base'])for k,v in files.items()};self.assertEqual(driver.classify_attempt_documents(ATTEMPT,'c'*64,legacy,{'ready.json':raw},journal_exists=True,sidecar_exists=True)['sidecar']['status'],'READY');self.assertEqual(self.classify(legacy,sidecar={'ready.json':raw})['journal']['status'],'CORRUPT')
+    def test_initial_profile_and_once_binding_reject_v1_promotion_and_pending_observation(self):
+        init=dict(source_journal_profile='snapshot_c0_d1_v1',source_journal_contract_sha256=self.expected()['schema_contract_sha256']);pending=driver.initial_journal_profile(init);self.assertIsNone(driver.initial_journal_profile({}));message=dict(op='bind-journal-profile',**self.expected());bound=driver.bind_journal_profile(pending,message,{})
+        self.assertEqual(bound,self.expected())
+        for state,request,approved in [(None,message,{}),(bound,message,{}),(pending,message,{'request':True}),(pending,dict(message,broker_oid=True),{}),(pending,dict(message,broker_oid=2**32),{}),(pending,dict(message,schema_contract_sha256='b'*64),{}),(pending,dict(message,extra=True),{})]:
+            with self.assertRaises(driver.GateError):driver.bind_journal_profile(state,request,approved)
+        with self.assertRaises(driver.GateError):driver.validate_journal_profile(pending)
+        for bad in [dict(snapshot_profile='root_snapshot_broker_v2'),dict(init,source_journal_profile='observation_v1'),dict(init,source_journal_contract_sha256='b'*64)]:
+            with self.assertRaises(driver.GateError):driver.initial_journal_profile(bad)
+    def test_host_full_c_and_snapshot_init_fields_and_fixed_admin_oid_plumbing(self):
+        from types import SimpleNamespace
+        calls=[]
+        class Broker:
+            def call(self,message):calls.append(message);return {k:v for k,v in message.items()if k!='op'}
+        ident=dict(case_id=CASE,database=DB);record=dict(container_id='d'*64,identity=ident,full_c_source_role_created_fresh=True,migration_setup=dict(exit_code=0))
+        for version in (2,3):
+            ctx=SimpleNamespace(_full_c=lambda:True,_plan=dict(case_id=CASE,format_version=version,schema_profile='snapshot_c0_d1_v1'))
+            fields=driver.full_c_journal_init_fields(ctx);self.assertEqual(fields['source_journal_profile'],'snapshot_c0_d1_v1')
+            with patch.object(driver,'sql',return_value='16394')as query:driver.bind_full_c_journal_observer(None,'d'*64,ident,ctx,record,Broker())
+            self.assertEqual(record['source_journal_profile'],self.expected());self.assertEqual(calls[-1],dict(op='bind-journal-profile',**self.expected()));self.assertEqual(query.call_args.args[2],"SELECT oid::pg_catalog.int8 FROM pg_catalog.pg_roles WHERE rolname='learning_snapshot_claim_broker';");self.assertEqual(query.call_args.args[3:],(DB,'learning_admin'))
+        with patch.object(driver,'sql',side_effect=AssertionError('V1 no new query')):driver.bind_full_c_journal_observer(None,'d'*64,ident,None,record,Broker())
+        self.assertEqual(driver.full_c_journal_init_fields(None),{})
+    def test_remote_bind_observe_and_attempt_forward_real_module_context(self):
+        import ast,inspect
+        from types import SimpleNamespace
+        tree=ast.parse(inspect.getsource(driver.broker_main));branches={}
+        for node in ast.walk(tree):
+            if isinstance(node,ast.If)and isinstance(node.test,ast.Compare)and isinstance(node.test.left,ast.Name)and node.test.left.id=='operation'and isinstance(node.test.comparators[0],ast.Constant):branches[node.test.comparators[0].value]=node
+        pending=driver.initial_journal_profile(dict(source_journal_profile='snapshot_c0_d1_v1',source_journal_contract_sha256=self.expected()['schema_contract_sha256']))
+        env=dict(vars(driver));env.update(ident={},journal_profile=pending,message=dict(op='bind-journal-profile',**self.expected()),approved_requests={})
+        def run(operation):exec(compile(ast.fix_missing_locations(ast.Module(body=branches[operation].body,type_ignores=[])),'actual-remote-broker-branch','exec'),env)
+        run('bind-journal-profile');self.assertEqual(env['journal_profile'],self.expected())
+        with self.assertRaises(driver.GateError):run('bind-journal-profile')
+        env.update(message=dict(op='observe',nonce=NONCE,boundary='before_owned_commit',acl='f'),approved_requests={NONCE:dict(backup_id=ATTEMPT)},observation_counts={},control_fd=3,pin_fd=4,binding={},root=Path('/unused'),fault_test_exit=False)
+        with patch.object(driver,'attempt_snapshot',return_value={'synthetic':True})as snapshot,patch.object(driver,'new_private')as publish:
+            env['attempt_snapshot']=snapshot;env['new_private']=publish;run('observe');self.assertEqual(snapshot.call_args.kwargs['expected_profile'],self.expected());env['journal_profile']=pending
+            with self.assertRaises(driver.GateError):run('observe')
+        fake=SimpleNamespace(st_dev=1,st_ino=2,st_mode=0o40700,st_nlink=2,st_size=0,st_mtime_ns=1,st_ctime_ns=1)
+        with patch.object(driver.os,'O_DIRECTORY',0,create=True),patch.object(driver.os,'O_NOFOLLOW',0,create=True),patch.object(driver.os,'open',side_effect=FileNotFoundError),patch.object(driver.os,'stat',side_effect=FileNotFoundError),patch.object(driver.os,'fstat',return_value=fake),patch.object(driver.os,'listdir',return_value=[]),patch.object(driver,'classify_attempt_documents',wraps=driver.classify_attempt_documents)as classifier:
+            driver.attempt_snapshot(3,4,ATTEMPT,'c'*64,expected_profile=self.expected());self.assertEqual(classifier.call_args.kwargs['expected_profile'],self.expected())
+        self.assertIn('from p0c4_source_lifecycle_gate_acceptance import broker_main',driver.BROKER)
+
+
 if __name__ == '__main__':
     unittest.main()
 

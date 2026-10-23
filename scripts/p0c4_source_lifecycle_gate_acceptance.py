@@ -590,12 +590,53 @@ def fresh_resource_preflight(helper,runner,identities,subnets,result,case_id=Non
 JOURNAL_PHASES=('intent','closed','drained','dump_and_index_durable','pins_durable','release_ready','released')
 
 
-def classify_attempt_documents(attempt,binding,journal,sidecar,*,journal_exists,sidecar_exists=False):
+FULL_C_JOURNAL_PROFILE='snapshot_c0_d1_v1'
+FULL_C_JOURNAL_CONTRACT_SHA256='3d510097d2ed7dcdf80ca7b756ae07c2ad0af3d3c6bedc259e57160e553b4f39'
+
+
+def initial_journal_profile(message):
+    if 'source_journal_profile' not in message:
+        require('source_journal_contract_sha256' not in message and message.get('snapshot_profile')!='root_snapshot_broker_v2','JOURNAL_INITIAL_PROFILE')
+        return None
+    require(message['source_journal_profile']==FULL_C_JOURNAL_PROFILE and message.get('source_journal_contract_sha256')==FULL_C_JOURNAL_CONTRACT_SHA256,'JOURNAL_INITIAL_PROFILE')
+    return dict(profile=FULL_C_JOURNAL_PROFILE,broker_oid=None,schema_contract_sha256=FULL_C_JOURNAL_CONTRACT_SHA256)
+
+
+def validate_journal_profile(expected):
+    require(type(expected)is dict and set(expected)=={'profile','broker_oid','schema_contract_sha256'} and expected['profile']==FULL_C_JOURNAL_PROFILE and expected['schema_contract_sha256']==FULL_C_JOURNAL_CONTRACT_SHA256 and type(expected['broker_oid'])is int and 0<expected['broker_oid']<2**32,'JOURNAL_EXPECTED_PROFILE')
+    return expected
+
+
+def bind_journal_profile(pending,message,approved_requests):
+    require(type(pending)is dict and pending==dict(profile=FULL_C_JOURNAL_PROFILE,broker_oid=None,schema_contract_sha256=FULL_C_JOURNAL_CONTRACT_SHA256) and not approved_requests,'JOURNAL_BIND_ONCE_BEFORE_REQUESTS')
+    require(type(message)is dict and set(message)=={'op','profile','broker_oid','schema_contract_sha256'} and message['op']=='bind-journal-profile','JOURNAL_BIND_FIELDS')
+    expected={key:message[key] for key in ('profile','broker_oid','schema_contract_sha256')}
+    validate_journal_profile(expected)
+    return expected
+
+
+def full_c_journal_base(row,raw,expected,number):
+    validate_journal_profile(expected)
+    keys=('format_version','profile','base','broker_oid','schema_contract_sha256','initial_connect','capture_connect_closed','capture_sessions_drained','release_connect_restored')
+    base_keys=('backup_id','phase','dump_and_index_sha256','pins_sha256')
+    require(type(row)is dict and set(row)==set(keys) and type(row['format_version'])is int and row['format_version']==2 and type(row['base'])is dict and set(row['base'])==set(base_keys),'STATE_JOURNAL_V2_FIELDS')
+    require(type(row['broker_oid'])is int and row['broker_oid']==expected['broker_oid'] and row['profile']==expected['profile'] and row['schema_contract_sha256']==expected['schema_contract_sha256'],'STATE_JOURNAL_V2_PROFILE')
+    flags=('initial_connect','capture_connect_closed','capture_sessions_drained','release_connect_restored')
+    require(all(type(row[key])is bool for key in flags) and tuple(row[key] for key in flags)==(True,number>=1,number>=2,number==6),'STATE_JOURNAL_V2_FLAGS')
+    canonical={key:({k:row['base'][k] for k in base_keys} if key=='base' else row[key]) for key in keys}
+    require(0<len(raw)<=4096 and json.dumps(canonical,ensure_ascii=False,separators=(',',':')).encode()==raw,'STATE_JOURNAL_V2_CANONICAL')
+    if number>=4:require(row['base']['pins_sha256']==row['base']['dump_and_index_sha256'],'STATE_JOURNAL_V2_PIN_JOIN')
+    return row['base']
+
+
+
+def classify_attempt_documents(attempt,binding,journal,sidecar,*,journal_exists,sidecar_exists=False,expected_profile=None):
     """Observation only: missing/corrupt bytes never establish an API outcome."""
     answer=dict(journal=dict(status='ABSENT',phase=None,file_sha256={name:digest(raw) for name,raw in journal.items()}),
                 sidecar=dict(status='ABSENT',file_sha256={name:digest(raw) for name,raw in sidecar.items()}))
     def ordered(row):return json.dumps(row,ensure_ascii=False,separators=(',',':')).encode()
     try:
+        if expected_profile is not None:validate_journal_profile(expected_profile)
         require(journal_exists or not journal,'STATE_JOURNAL')
         if journal_exists:
             names=[phase.replace('_','-')+'.json' for phase in JOURNAL_PHASES]
@@ -604,8 +645,12 @@ def classify_attempt_documents(attempt,binding,journal,sidecar,*,journal_exists,
             for number,name in enumerate(names[:len(journal)]):
                 raw=journal[name];row=json.loads(raw,object_pairs_hook=unique_pairs)
                 keys=('backup_id','phase','dump_and_index_sha256','pins_sha256')
-                require(type(row) is dict and set(row)==set(keys) and 0<len(raw)<=4096 and ordered({k:row[k] for k in keys})==raw and
-                        row['backup_id']==attempt and row['phase']==JOURNAL_PHASES[number],'STATE_JOURNAL_CANONICAL')
+                if expected_profile is None:
+                    require(type(row) is dict and set(row)==set(keys) and 0<len(raw)<=4096 and ordered({k:row[k] for k in keys})==raw and
+                            row['backup_id']==attempt and row['phase']==JOURNAL_PHASES[number],'STATE_JOURNAL_CANONICAL')
+                else:
+                    row=full_c_journal_base(row,raw,expected_profile,number)
+                    require(row['backup_id']==attempt and row['phase']==JOURNAL_PHASES[number],'STATE_JOURNAL_CANONICAL')
                 for key,needed in (('dump_and_index_sha256',number>=3),('pins_sha256',number>=4)):
                     require((isinstance(row[key],str) and HEX64.fullmatch(row[key])) if needed else row[key] is None,'STATE_JOURNAL_PROOF')
                     if previous and previous[key] is not None:require(row[key]==previous[key],'STATE_JOURNAL_TRANSITION')
@@ -620,7 +665,7 @@ def classify_attempt_documents(attempt,binding,journal,sidecar,*,journal_exists,
                 require('abandoned.json' not in sidecar,'STATE_TERMINAL_ORPHAN');answer['sidecar']['status']='UNRESOLVED'
             else:
                 ready=dict(format_version=1,capability='source_abandonment_v1',backup_id=attempt,action='abandon',source_binding_sha256=binding,
-                           journal_phase=previous['phase'],journal_record_sha256=digest(last_raw),retained_artifacts='keep_all',state='release_ready')
+                           journal_phase=previous['phase'],journal_record_sha256=digest(last_raw if expected_profile is None else ordered(previous)),retained_artifacts='keep_all',state='release_ready')
                 require(ordered(ready)==sidecar['ready.json'],'STATE_READY_CANONICAL')
                 answer['sidecar']['status']='READY'
                 if 'abandoned.json' in sidecar:
@@ -666,7 +711,7 @@ def require_legacy_observation(record,values):
     return process
 
 
-def attempt_snapshot(control_fd,pin_fd,attempt,binding):
+def attempt_snapshot(control_fd,pin_fd,attempt,binding,*,expected_profile=None):
     """Bounded read-only observation from the originally held root handles."""
     def documents(parent,name):
         try:fd=os.open(name,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=parent)
@@ -687,7 +732,7 @@ def attempt_snapshot(control_fd,pin_fd,attempt,binding):
         return files,True,failure
     journal,exists,jerror=documents(control_fd,attempt+'.control')
     sidecar,side_exists,serror=documents(control_fd,attempt+'.abandonment')
-    state=classify_attempt_documents(attempt,binding,journal,sidecar,journal_exists=exists,sidecar_exists=side_exists)
+    state=classify_attempt_documents(attempt,binding,journal,sidecar,journal_exists=exists,sidecar_exists=side_exists,expected_profile=expected_profile)
     if jerror:state['journal'].update(status='CORRUPT',phase=None,error=jerror)
     if serror:state['sidecar'].update(status='CORRUPT',error=serror)
     state['raw_records']={'journal':{k:v.hex() for k,v in journal.items()},'sidecar':{k:v.hex() for k,v in sidecar.items()}}
@@ -1179,18 +1224,20 @@ def broker_main():
         require(stat.S_ISDIR(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022,'BROKER_ANCESTOR')
     ident=None;ledger=None;last=None;partial={};root_pins={};control_fd=None;pin_fd=None;approved_requests={};observation_counts={};fault_baseline=None;fault_test_exit=False;fault_audited=False;snapshot_protocol=None
     clone_setup=None;clone_observation=None;clone_observation_done=False;clone_refresh_seen=False
-    source_fault_test=None;source_fault_seen={};source_fault_pending=None;source_fault_paused=None
+    source_fault_test=None;source_fault_seen={};source_fault_pending=None;source_fault_paused=None;journal_profile=None
     while True:
         line=sys.stdin.buffer.readline(1024**2+1)
         if not line:break
         require(len(line)<=1024**2 and line.endswith(b'\n'),'BROKER_FRAME_BUDGET')
         message=json.loads(line,object_pairs_hook=unique_pairs)
-        require(type(message) is dict and message.get('op') in ('init','poll','refresh','denial','observe','audit','audit-incomplete-publication','inventory','stop','source-clone-setup','source-clone-poll','source-clone-observed','source-clone-result','source-fault-enable','source-fault-poll','source-fault-observed','snapshot-poll','snapshot-worker-result'),'BROKER_OPERATION')
+        require(type(message) is dict and message.get('op') in ('init','poll','refresh','denial','observe','audit','audit-incomplete-publication','inventory','stop','source-clone-setup','source-clone-poll','source-clone-observed','source-clone-result','source-fault-enable','source-fault-poll','source-fault-observed','snapshot-poll','snapshot-worker-result','bind-journal-profile'),'BROKER_OPERATION')
         operation=message['op']
         if snapshot_protocol is not None:snapshot_protocol.audit_credentials()
         if operation=='init':
             snapshot=message.get('snapshot_profile')=='root_snapshot_broker_v2'
-            require(set(message)=={'op','identity','sql','admin_password','registry_case'}|({'snapshot_profile'}if snapshot else set()) and ident is None,'ISSUER_FRESH_ROOT')
+            full_c='source_journal_profile' in message
+            require(set(message)=={'op','identity','sql','admin_password','registry_case'}|({'snapshot_profile'}if snapshot else set())|({'source_journal_profile','source_journal_contract_sha256'}if full_c else set()) and ident is None,'ISSUER_FRESH_ROOT')
+            journal_profile=initial_journal_profile(message)
             require(sorted(path.name for path in root.iterdir())==(['assets','snapshot-sockets']if snapshot else []),'ISSUER_FRESH_ROOT')
             if snapshot:
                 for name in ('assets','snapshot-sockets'):
@@ -1238,6 +1285,10 @@ def broker_main():
             new_private(root/'secrets/pgpass',f'localhost:5432:{ident["database"]}:learning_admin:{password}\n'.encode())
             ledger=GenerationLedger(ident)
             answer=dict(binding=binding,binding_sha256=digest(raw),sql=sql,issuer_euid=0,classification='INDEPENDENT_PRECOMPILE_BINDING',registry_provisioning=registry_receipt)
+        elif operation=='bind-journal-profile':
+            require(ident is not None,'JOURNAL_BIND_INITIALIZED')
+            journal_profile=bind_journal_profile(journal_profile,message,approved_requests)
+            answer=dict(journal_profile)
         elif operation=='snapshot-poll':
             require(set(message)=={'op'} and snapshot_protocol is not None,'SNAPSHOT_BROKER_PROFILE')
             answer=snapshot_protocol.poll()
@@ -1380,7 +1431,8 @@ def broker_main():
                     message['boundary'] in ('before_ack','acl_open','acl_closed','before_owned_commit','next_request','test_exit') and message['acl'] in ('t','f'),'BROKER_STATE_OBSERVATION')
             row=approved_requests[message['nonce']];count=observation_counts.get(message['nonce'],0)
             require(count<8,'GENERATION_OBSERVATION_COUNT')
-            state=attempt_snapshot(control_fd,pin_fd,row['backup_id'],digest(canonical(binding)))
+            if journal_profile is not None:validate_journal_profile(journal_profile)
+            state=attempt_snapshot(control_fd,pin_fd,row['backup_id'],digest(canonical(binding)),expected_profile=journal_profile)
             answer=dict(nonce=message['nonce'],backup_id=row['backup_id'],boundary=message['boundary'],acl=message['acl'],observed_unix_ms=int(time.time()*1000),attempt_state=state)
             new_private(root/'proofs/generations'/message['nonce']/f'boundary-{count:02d}.json',canonical(answer))
             observation_counts[message['nonce']]=count+1
@@ -1961,6 +2013,26 @@ COMMIT;"""
     sql(runner,container,'CREATE ROLE learning_snapshot_claim_broker LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 4;')
     record['full_c_source_role_created_fresh']=True
     return True
+
+
+def full_c_journal_init_fields(full_context):
+    if full_context is None or not full_context._full_c():return {}
+    try:from p0c4_completion.roles import _c0_d1_contract_sha256
+    except ModuleNotFoundError:from scripts.p0c4_completion.roles import _c0_d1_contract_sha256
+    require(_c0_d1_contract_sha256()==FULL_C_JOURNAL_CONTRACT_SHA256,'JOURNAL_COMPILED_CONTRACT')
+    return dict(source_journal_profile=FULL_C_JOURNAL_PROFILE,source_journal_contract_sha256=FULL_C_JOURNAL_CONTRACT_SHA256)
+
+
+def bind_full_c_journal_observer(runner,container,ident,full_context,record,broker):
+    fields=full_c_journal_init_fields(full_context)
+    if not fields:return
+    require(container==record['container_id'] and ident==record['identity'] and full_context._plan['case_id']==ident['case_id'] and record.get('full_c_source_role_created_fresh')is True and record['migration_setup']['exit_code']==0,'JOURNAL_SOURCE_OBSERVER_BINDING')
+    observed=sql(runner,container,"SELECT oid::pg_catalog.int8 FROM pg_catalog.pg_roles WHERE rolname='learning_snapshot_claim_broker';",ident['database'],'learning_admin')
+    require(type(observed)is str and re.fullmatch('[1-9][0-9]*',observed) is not None,'JOURNAL_BROKER_OID_OBSERVATION')
+    expected=dict(profile=fields['source_journal_profile'],broker_oid=int(observed),schema_contract_sha256=fields['source_journal_contract_sha256'])
+    validate_journal_profile(expected)
+    require(broker.call(dict(op='bind-journal-profile',**expected))==expected,'JOURNAL_BROKER_PROFILE_BOUND')
+    record['source_journal_profile']=expected
 
 
 def case_source_rpc(runner,record,container,operation,call):
@@ -2623,6 +2695,7 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         record['stage']='independent-issuer'
         init=dict(op='init',identity=ident,sql=observed,admin_password=passwords['admin'],registry_case=dict(batch_id=result['batch_id'],case_id=ident['case_id'],source_package_sha256=archive_sha,application_commit=manifest['base_commit'],application_build_sha256=archive_sha))
         if snapshot_effects:init['snapshot_profile']='root_snapshot_broker_v2'
+        init.update(full_c_journal_init_fields(_full_context))
         record['issuer']=validate_issuer(broker.call(init),observed)
         if snapshot_effects:record['snapshot_credential_pins_before']=snapshot_driver.audit_credentials(runner,record)
         if name in SOURCE_FAULT_TESTS:
@@ -2658,6 +2731,7 @@ def live_case(h,b,isolation,runner,batch,source,ident,subnet,name,images,result,
         record['migration_setup']=dict(exit_code=code,stdout_sha256=digest(out),stderr_sha256=digest(err),secret_scope='only_short_lived_inside_pg_setup_environment')
         record['migrations']=migration_rows(runner,container,ident,files,record=record)
         require(sql(runner,container,'SELECT count(*) FROM public.asset;',ident['database'],'learning_admin')=='0','EMPTY_MIGRATED_ASSETS')
+        bind_full_c_journal_observer(runner,container,ident,_full_context,record,broker)
         if clone_peer is not None:
             clone_peer.start(container,document,expected)
             record['source_clone']=clone_peer.record

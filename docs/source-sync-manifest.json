@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 125275,
+      "bytes": 127157,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "db16edaad0942ff93e424170bd6725fb3d8adef20ef6ea6138377347f3b65a03",
+      "sha256": "33d4f46426a792b785d45134445e8aa62d94e2fb26aa05a7eead66fab13d05db",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 9311,
+      "bytes": 10242,
       "path": "README.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "c892bed585e9a46a4d89df9f3e8616e17d703c69c950d9663cb3362bdb19a143",
+      "sha256": "7322eb9bcd950bc75ef52f6592e1b72839e8b5da6a88d8b4efaf51432234023b",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3538,10 +3538,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 21787,
+      "bytes": 22718,
       "path": "docs/p0c4-recovery-normalization.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "35b08fc048e95838b8773f970638f6acd414aa3cd398e710e6e81d01a43261da",
+      "sha256": "c66473357242554f420251ea889c8222d3c82190ce9859aa9540651b5ae213ea",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3574,10 +3574,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 28291,
+      "bytes": 29222,
       "path": "docs/p0c4-snapshot-components.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "fecf22600046a660b6a2c2d8753c4a395f5f4feef44881f7ae79de0de8ae3586",
+      "sha256": "ff6ac78858437f632c6dbef11960391221d63a13c13479b5454d20c57cdc66dd",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3778,10 +3778,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 43142,
+      "bytes": 44073,
       "path": "docs/项目最新进度.md",
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "17ec4c0b91f275d871afb6e706ee8fc1a6c5d53e62142e3fa034bb097194fcb1",
+      "sha256": "0cff6e4b0c4a0583b0a7625e0f42c9bdb05e0573c6b2ea6fefdca55e403b175f",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4116,10 +4116,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 235999,
+      "bytes": 241941,
       "path": "scripts/p0c4_source_lifecycle_gate_acceptance.py",
-      "sha256": "406f9bdd19937f9f000b0ab97cefb1354e584df3c9a9be465a03198069db3c17",
-      "source_blob_sha256": "406f9bdd19937f9f000b0ab97cefb1354e584df3c9a9be465a03198069db3c17",
+      "sha256": "46fcd1dbba8d79a925ea71649c47da39a96f7a24d10248df6690f4b31f792362",
+      "source_blob_sha256": "46fcd1dbba8d79a925ea71649c47da39a96f7a24d10248df6690f4b31f792362",
       "source_bytes_preserved": true
     },
     {
@@ -4389,10 +4389,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 141167,
+      "bytes": 154114,
       "path": "scripts/test_p0c4_source_lifecycle_gate_acceptance.py",
-      "sha256": "2a1f8926d0c275622d93430c875f95cec8691ccc7b90b2d341e8b51c01d4bc99",
-      "source_blob_sha256": "2a1f8926d0c275622d93430c875f95cec8691ccc7b90b2d341e8b51c01d4bc99",
+      "sha256": "06a2df7d017b37f6089e0e2a0ba12b24fe91dc6d4af0edf56fea9aaed89ecc25",
+      "source_blob_sha256": "06a2df7d017b37f6089e0e2a0ba12b24fe91dc6d4af0edf56fea9aaed89ecc25",
       "source_bytes_preserved": true
     },
     {
@@ -4434,19 +4434,19 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 608,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "6202fcff19a1af975488c39c26155924b9d5ab2b",
+  "previous_public_commit": "b49d29ac214b0ef5dd21882f1abd942e7b40dbaa",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "ba6f5c29b77edf5a6f569e835bfa34b918a0960a74e39e8d2ef31fe0806bc9ef",
   "progress_as_of": "2026-10-23",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
   "scope": "TASK6_COMMITTED_FIXES_AND_SAME_SOURCE_PREREQUISITES_NATIVE_ZERO_OF_SIXTEEN_OPEN",
-  "source_archive_sha256": "6faf4f73c80b4649e2747c4354ccf77dff0b18589dcb45197676cc3fd2e1959e",
+  "source_archive_sha256": "efcf3c411b8eb3dba54e1daa3aa683d73c0ff62e098ee93e6f53db5b2d676483",
   "source_archive_status": "COMMITTED_CODE_CANDIDATE_NOT_FINAL_NATIVE_ACCEPTANCE",
-  "source_capture_method": "EXACT_COMMITTED_GIT_BLOBS_WITH_TWO_REVIEWED_WORKER_CONTROL_FIX_PATHS_ON_PUBLISHED_TASK6_CANDIDATE_AND_EXPLICIT_PUBLIC_DOC_OVERLAYS",
-  "source_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d",
+  "source_capture_method": "EXACT_COMMITTED_GIT_BLOBS_WITH_TWO_REVIEWED_FULL_C_JOURNAL_OBSERVER_FIX_PATHS_ON_PUBLISHED_TASK6_CANDIDATE_AND_EXPLICIT_PUBLIC_DOC_OVERLAYS",
+  "source_commit": "625162207812d5b346792c1a21bb0398621c277f",
   "source_file_count": 601,
-  "source_manifest_sha256": "e21c4db439df8544aa03274c5d3db647073ea2f9937073a1c111b2a695066981",
+  "source_manifest_sha256": "2adac2deae33a620f78730ac7cc9b102df1b4659f9dcd9ea136b7cb30c2b4dc5",
   "source_overlays": [
     {
       "path": "crates/learning-db/src/snapshot_observation.rs",
@@ -4977,12 +4977,6 @@
       "source_commit": "2741d3d59986649242c4b6a7a6ed04c662f0cf3f"
     },
     {
-      "path": "scripts/test_p0c4_source_lifecycle_gate_acceptance.py",
-      "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
-      "sha256": "2a1f8926d0c275622d93430c875f95cec8691ccc7b90b2d341e8b51c01d4bc99",
-      "source_commit": "2741d3d59986649242c4b6a7a6ed04c662f0cf3f"
-    },
-    {
       "path": "scripts/p0c4_completion/full_import.py",
       "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
       "sha256": "4e4ffc1e5857b0460c3af70c4f106eb2723fcd33509fa778d04301b67ea0a7fc",
@@ -4993,12 +4987,6 @@
       "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
       "sha256": "3353e75e5766553d785933bbb9b5b7e44654ebd43007800a65c5dd1657980f52",
       "source_commit": "64755f651e3c0a30fbce1da132a5bec77ed9eb70"
-    },
-    {
-      "path": "scripts/p0c4_source_lifecycle_gate_acceptance.py",
-      "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
-      "sha256": "406f9bdd19937f9f000b0ab97cefb1354e584df3c9a9be465a03198069db3c17",
-      "source_commit": "90dcc39a0b595d5504daa35ff1565f9e5d1bbb1f"
     },
     {
       "path": "scripts/test_p0c4_full_source_privileges.py",
@@ -5023,6 +5011,18 @@
       "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
       "sha256": "01c99be8c4a0283612276cc68c16ebeb398e6c96167e906041ed67a458099561",
       "source_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d"
+    },
+    {
+      "path": "scripts/p0c4_source_lifecycle_gate_acceptance.py",
+      "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
+      "sha256": "46fcd1dbba8d79a925ea71649c47da39a96f7a24d10248df6690f4b31f792362",
+      "source_commit": "625162207812d5b346792c1a21bb0398621c277f"
+    },
+    {
+      "path": "scripts/test_p0c4_source_lifecycle_gate_acceptance.py",
+      "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
+      "sha256": "06a2df7d017b37f6089e0e2a0ba12b24fe91dc6d4af0edf56fea9aaed89ecc25",
+      "source_commit": "625162207812d5b346792c1a21bb0398621c277f"
     }
   ],
   "source_provenance_basis": "SOURCE_BLOB_SHA256_IS_GIT_ARCHIVE_MEMBER_BODY_SHA256_AT_SOURCE_COMMIT",
@@ -5319,6 +5319,18 @@
       "path": "scripts/test_p0c4_snapshot_worker.py",
       "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
       "sha256": "2b2522bc333036891e0860b5cf6326f849511f4a517fb57f5d19df2e25c3c0db",
+      "source_commit": "90dcc39a0b595d5504daa35ff1565f9e5d1bbb1f"
+    },
+    {
+      "path": "scripts/test_p0c4_source_lifecycle_gate_acceptance.py",
+      "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
+      "sha256": "2a1f8926d0c275622d93430c875f95cec8691ccc7b90b2d341e8b51c01d4bc99",
+      "source_commit": "2741d3d59986649242c4b6a7a6ed04c662f0cf3f"
+    },
+    {
+      "path": "scripts/p0c4_source_lifecycle_gate_acceptance.py",
+      "scope": "TASK6_FINAL_CANDIDATE_NOT_NATIVE_ACCEPTANCE",
+      "sha256": "406f9bdd19937f9f000b0ab97cefb1354e584df3c9a9be465a03198069db3c17",
       "source_commit": "90dcc39a0b595d5504daa35ff1565f9e5d1bbb1f"
     }
   ],
@@ -9323,6 +9335,126 @@
       "task7_complete": false,
       "task8_complete": false,
       "task9_complete": false
+    },
+    {
+      "c4_complete": false,
+      "code_paths": 82,
+      "compatible_historical_component_inputs": {
+        "acl_fix_review_sha256": "94f16e2ffd9d00da8ab2dbd82596b7f99502b38d750f4ba1b5ec1d48380d4dce",
+        "changed_backup_source_outside_component_closure": true,
+        "component_dependency_bytes_equal_to_actual2741": true,
+        "component_dependency_closure_count": 239,
+        "input_compatibility_review_sha256": "e809f0db1fda38938f6bee212f9eb2c394e470087c7852562e7bd95bbc6894b0",
+        "local_dependency_graph": {
+          "learning-assets": [
+            "learning-core"
+          ],
+          "learning-core": [],
+          "learning-db": [
+            "learning-assets",
+            "learning-core"
+          ]
+        },
+        "new_cb1bcc_OS_or_cancel2_execution": false,
+        "old_actual_source_commit": "2741d3d59986649242c4b6a7a6ed04c662f0cf3f",
+        "old_cancel2": {
+          "actual_tests": {
+            "calls": 198,
+            "client_exit": 0,
+            "failed": 0,
+            "ignored": 0,
+            "no_hold": true,
+            "passed": 2,
+            "pg_wait_exit": 0
+          },
+          "archive_sha256": "2e2b3db3843a75b2c122937014fb36530e2431781704425aa51b884271b67c38",
+          "batch": "11af214b-94fb-4e00-9fc2-75643942ded2",
+          "elf_sha256": "d1e14e008c007a7fdab0fd793ad3bc76dedef0df4e8f982f83c8075f895c856c",
+          "no_new_elf_or_run": true,
+          "source_commit": "2741d3d59986649242c4b6a7a6ed04c662f0cf3f"
+        },
+        "old_root_os": {
+          "actual_passed": 3,
+          "actual_tests": [
+            "snapshot_broker::lifecycle::tests::formal_socket_retains_pathname_inode_separately_from_listener_and_refuses_replacement",
+            "snapshot::custody::tests::fresh_empty_mount_admission_consumes_original_fds_and_never_adopts_existing_binding",
+            "snapshot::custody::tests::real_copy_hash_and_discard_retain_shared_custody_until_writer_drop"
+          ],
+          "batch": "8098260c-3f91-4faa-89e3-bc3c936dbd74",
+          "no_new_run": true,
+          "old_image_sha256": "fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b",
+          "result_sha256": "fc587edcf8130ec90621b550785e3fc85438328e1113dd4a0c4233bc90e5efc9"
+        },
+        "packet_structure_review_sha256": "5c8c246111d1d53286e4087c9823986dd0d096fa6843f726d16115b607c6a20d",
+        "parent_mode_fix_review_sha256": "5f1d41b0da9a91e9758f0c2cb09bb161493beb5cfd5131e9e0dbf8d76958a102"
+      },
+      "complete_backup_issued": false,
+      "controller_pins": 21,
+      "native_accepted": 0,
+      "native_current_observation": {
+        "accepted": 0,
+        "actual_native_batch": "515204a8-17f8-4ed7-8fbd-0cb984c030b0",
+        "actual_result_sha256": "487ed92dd84b2bf7697ba157550612bab35c81b71e98770c8e50b152593078af",
+        "case_id": "67fe9e1e-2d72-470d-a63d-6df973c6a134",
+        "classification": "FAILED_HOLD",
+        "completion_receipt_present": false,
+        "driver_batch": "da78622c-3aab-43e6-91e3-b18a7af3e7bc",
+        "driver_outcome_present": false,
+        "exact_test_entered": true,
+        "hold_sha256": "64dc41e097ffc9e7b84404f1b9435947a1c2c10835c1d96347060bc057acd344",
+        "native_credit": 0,
+        "observed_counts": null,
+        "observed_test_exit": null,
+        "primary_reason": "DRAIN_PREDUMP_BARRIER",
+        "raw_selected_test_observation": {
+          "basis": "CLOSED_PARTIAL_SELECTED_STDOUT_EMPTY_STDERR_AND_RAW_INDEX_PROCESS_ABSENCE_NOT_COMPLETION",
+          "completion_receipt_present": false,
+          "native_credit": 0,
+          "observed_counts": null,
+          "observed_test_exit": null,
+          "raw_index_sha256": "bc39a978b4d9253bd01851a571089bfbcf46a671c14a97bc41be59b3baa8ba43",
+          "same_stem_process_absent_in_raw_index": true,
+          "selected_test_observed": true,
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 159,
+          "stdout_sha256": "23c417980722ff146ece5d155856aaae50b2a86ac22463bb36e67ff11a9eda52",
+          "test_name": "restore_preflight::target_binding::controlled_import::full::snapshot_effects_tests::recovery_snapshot_p6_committed_copy_held_delivery"
+        },
+        "selected_test_observed": true,
+        "source_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d",
+        "stage": "actual-libtest",
+        "total": 16
+      },
+      "native_total": 16,
+      "normal_public_CompleteBackup_mandatory": true,
+      "prerequisites": {
+        "actual_counts": {
+          "errors": 0,
+          "failures": 0,
+          "ordinary_dac_passed": 1,
+          "python_passed": 308,
+          "python_root_dac_skipped": 1,
+          "python_twelve_modules_ran": 309,
+          "rust_ignored_not_executed": 133,
+          "rust_passed": 548
+        },
+        "independent_review_sha256": "01ccf539231da8d7d610a58e2574a15f77a64813122c0891fbf1a30482d2c076",
+        "not_native_acceptance": true,
+        "root_python_result_sha256": "67c46f62e31a45132a1e2da4332d22c941f0e6b0456ed09ac12afede1bbe7f80",
+        "strict_linux_result_sha256": "9a6e8d7fe67c9aeaed0dfeef848f54f3aa80b80d23098ba0c07891a8b0fb666a"
+      },
+      "private_current_pin_rehearsal_not_full_backup": true,
+      "production_accepted": false,
+      "publication_source_delta_count": 2,
+      "source_archive_sha256": "6faf4f73c80b4649e2747c4354ccf77dff0b18589dcb45197676cc3fd2e1959e",
+      "source_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d",
+      "source_files": 601,
+      "source_manifest_sha256": "e21c4db439df8544aa03274c5d3db647073ea2f9937073a1c111b2a695066981",
+      "task6_complete": false,
+      "task7_complete": false,
+      "task8_complete": false,
+      "task9_complete": false
     }
   ],
   "task6_checkpoint": {
@@ -9400,7 +9532,7 @@
     },
     "historical_actual_pg_attempted_at_first_case_publication": 3,
     "historical_actual_pg_test_bodies_executed_at_first_case_publication": 3,
-    "latest_code_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d",
+    "latest_code_commit": "625162207812d5b346792c1a21bb0398621c277f",
     "latest_component_source_commit": "64755f651e3c0a30fbce1da132a5bec77ed9eb70",
     "latest_fixture_code_commit": "0df5128a296eacec9358e8e5468750412b284ecf",
     "layout_is_not_native_cure_proof": true,
@@ -9442,7 +9574,7 @@
       "changed_backup_source_outside_component_closure": true,
       "component_dependency_bytes_equal_to_actual2741": true,
       "component_dependency_closure_count": 239,
-      "input_compatibility_review_sha256": "e809f0db1fda38938f6bee212f9eb2c394e470087c7852562e7bd95bbc6894b0",
+      "input_compatibility_review_sha256": "9e07f253fb076f12130bc1095c9907e92210284276c0fd7cdfbc11ed147181e7",
       "local_dependency_graph": {
         "learning-assets": [
           "learning-core"
@@ -9453,7 +9585,7 @@
           "learning-core"
         ]
       },
-      "new_cb1bcc_OS_or_cancel2_execution": false,
+      "new_625162_OS_or_cancel2_execution": false,
       "old_actual_source_commit": "2741d3d59986649242c4b6a7a6ed04c662f0cf3f",
       "old_cancel2": {
         "actual_tests": {
@@ -9483,7 +9615,7 @@
         "old_image_sha256": "fb91f085b6002b8f75570993722a762579ad392e15c390e8161ffb746c858b9b",
         "result_sha256": "fc587edcf8130ec90621b550785e3fc85438328e1113dd4a0c4233bc90e5efc9"
       },
-      "packet_structure_review_sha256": "5c8c246111d1d53286e4087c9823986dd0d096fa6843f726d16115b607c6a20d",
+      "packet_structure_review_sha256": "370fda09c6d313d9c7a466beab726f07158957b8d86d8afa93578c63bdde5984",
       "parent_mode_fix_review_sha256": "5f1d41b0da9a91e9758f0c2cb09bb161493beb5cfd5131e9e0dbf8d76958a102"
     },
     "complete_backup_issued": false,
@@ -9491,36 +9623,41 @@
     "native_accepted": 0,
     "native_current_observation": {
       "accepted": 0,
-      "actual_native_batch": "515204a8-17f8-4ed7-8fbd-0cb984c030b0",
-      "actual_result_sha256": "487ed92dd84b2bf7697ba157550612bab35c81b71e98770c8e50b152593078af",
-      "case_id": "67fe9e1e-2d72-470d-a63d-6df973c6a134",
+      "actual_native_batch": "a49f1843-a268-4291-9076-5ce5009ba467",
+      "actual_result_sha256": "4be5f260623e85800757be9c7df274c347d03a624fb03bed221d3771d1c94738",
+      "case_id": "a3d21ab8-78e0-4812-8c82-51e1b919d76f",
       "classification": "FAILED_HOLD",
-      "completion_receipt_present": false,
-      "driver_batch": "da78622c-3aab-43e6-91e3-b18a7af3e7bc",
+      "driver_batch": "db8d5276-75b4-4406-a4ad-4eff0640cf53",
       "driver_outcome_present": false,
       "exact_test_entered": true,
-      "hold_sha256": "64dc41e097ffc9e7b84404f1b9435947a1c2c10835c1d96347060bc057acd344",
+      "hold_sha256": "70c36d732207349bda47509d940b5261412ab25520e12d393414965cc6a50c20",
       "native_credit": 0,
-      "observed_counts": null,
-      "observed_test_exit": null,
-      "primary_reason": "DRAIN_PREDUMP_BARRIER",
-      "raw_selected_test_observation": {
-        "basis": "CLOSED_PARTIAL_SELECTED_STDOUT_EMPTY_STDERR_AND_RAW_INDEX_PROCESS_ABSENCE_NOT_COMPLETION",
-        "completion_receipt_present": false,
+      "observed_counts": {
+        "failed": 1,
+        "filtered": 522,
+        "ignored": 0,
+        "passed": 0
+      },
+      "observed_test_exit": 101,
+      "primary_reason": "EXACT_TEST_STDERR",
+      "raw_exact_body_observation": {
+        "basis": "CLOSED_PROCESS_AND_UNIQUE_SELECTED_LIBTEST_RAW_BYTES_NOT_DRIVER_OUTCOME",
         "native_credit": 0,
-        "observed_counts": null,
-        "observed_test_exit": null,
-        "raw_index_sha256": "bc39a978b4d9253bd01851a571089bfbcf46a671c14a97bc41be59b3baa8ba43",
-        "same_stem_process_absent_in_raw_index": true,
-        "selected_test_observed": true,
-        "stderr_bytes": 0,
-        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "stdout_bytes": 159,
-        "stdout_sha256": "23c417980722ff146ece5d155856aaae50b2a86ac22463bb36e67ff11a9eda52",
+        "observed_counts": {
+          "failed": 1,
+          "filtered": 522,
+          "ignored": 0,
+          "passed": 0
+        },
+        "observed_test_exit": 101,
+        "process_sha256": "a3a6277954e28ca0a922e6b6473639031870884e0fcb0d7f43646b13e0e33301",
+        "stderr_bytes": 77,
+        "stderr_sha256": "f71349dc2461c6244b85fd71d2eab42452c3f24035341d59141aed455435be6f",
+        "stdout_bytes": 1037,
+        "stdout_sha256": "fd5164ce89dd85cff69c6d0758422fb685d3ab522b722a2e5ec2337be79130be",
         "test_name": "restore_preflight::target_binding::controlled_import::full::snapshot_effects_tests::recovery_snapshot_p6_committed_copy_held_delivery"
       },
-      "selected_test_observed": true,
-      "source_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d",
+      "source_commit": "625162207812d5b346792c1a21bb0398621c277f",
       "stage": "actual-libtest",
       "total": 16
     },
@@ -9531,24 +9668,24 @@
         "errors": 0,
         "failures": 0,
         "ordinary_dac_passed": 1,
-        "python_passed": 308,
+        "python_passed": 316,
         "python_root_dac_skipped": 1,
-        "python_twelve_modules_ran": 309,
+        "python_twelve_modules_ran": 317,
         "rust_ignored_not_executed": 133,
         "rust_passed": 548
       },
-      "independent_review_sha256": "01ccf539231da8d7d610a58e2574a15f77a64813122c0891fbf1a30482d2c076",
+      "independent_review_sha256": "1d87f31d7408f191334853bf12dde9431880fab2c22208e1c065463720ef5728",
       "not_native_acceptance": true,
-      "root_python_result_sha256": "67c46f62e31a45132a1e2da4332d22c941f0e6b0456ed09ac12afede1bbe7f80",
-      "strict_linux_result_sha256": "9a6e8d7fe67c9aeaed0dfeef848f54f3aa80b80d23098ba0c07891a8b0fb666a"
+      "root_python_result_sha256": "e3c5e8df2c579ef6ebbbefc76e64b7df88234462d852d44fe65d8023d7903a24",
+      "strict_linux_result_sha256": "77f14faccee91d5489ba41a48dd04525c3967d0992fb6e6eca37dcc4af1d426c"
     },
     "private_current_pin_rehearsal_not_full_backup": true,
     "production_accepted": false,
     "publication_source_delta_count": 2,
-    "source_archive_sha256": "6faf4f73c80b4649e2747c4354ccf77dff0b18589dcb45197676cc3fd2e1959e",
-    "source_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d",
+    "source_archive_sha256": "efcf3c411b8eb3dba54e1daa3aa683d73c0ff62e098ee93e6f53db5b2d676483",
+    "source_commit": "625162207812d5b346792c1a21bb0398621c277f",
     "source_files": 601,
-    "source_manifest_sha256": "e21c4db439df8544aa03274c5d3db647073ea2f9937073a1c111b2a695066981",
+    "source_manifest_sha256": "2adac2deae33a620f78730ac7cc9b102df1b4659f9dcd9ea136b7cb30c2b4dc5",
     "task6_complete": false,
     "task7_complete": false,
     "task8_complete": false,
@@ -9667,6 +9804,41 @@
       },
       "selected_test_observed": true,
       "source_commit": "05c7dd28fd16641f9d96589e5398f263efd0e436",
+      "stage": "actual-libtest",
+      "total": 16
+    },
+    {
+      "accepted": 0,
+      "actual_native_batch": "515204a8-17f8-4ed7-8fbd-0cb984c030b0",
+      "actual_result_sha256": "487ed92dd84b2bf7697ba157550612bab35c81b71e98770c8e50b152593078af",
+      "case_id": "67fe9e1e-2d72-470d-a63d-6df973c6a134",
+      "classification": "FAILED_HOLD",
+      "completion_receipt_present": false,
+      "driver_batch": "da78622c-3aab-43e6-91e3-b18a7af3e7bc",
+      "driver_outcome_present": false,
+      "exact_test_entered": true,
+      "hold_sha256": "64dc41e097ffc9e7b84404f1b9435947a1c2c10835c1d96347060bc057acd344",
+      "native_credit": 0,
+      "observed_counts": null,
+      "observed_test_exit": null,
+      "primary_reason": "DRAIN_PREDUMP_BARRIER",
+      "raw_selected_test_observation": {
+        "basis": "CLOSED_PARTIAL_SELECTED_STDOUT_EMPTY_STDERR_AND_RAW_INDEX_PROCESS_ABSENCE_NOT_COMPLETION",
+        "completion_receipt_present": false,
+        "native_credit": 0,
+        "observed_counts": null,
+        "observed_test_exit": null,
+        "raw_index_sha256": "bc39a978b4d9253bd01851a571089bfbcf46a671c14a97bc41be59b3baa8ba43",
+        "same_stem_process_absent_in_raw_index": true,
+        "selected_test_observed": true,
+        "stderr_bytes": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_bytes": 159,
+        "stdout_sha256": "23c417980722ff146ece5d155856aaae50b2a86ac22463bb36e67ff11a9eda52",
+        "test_name": "restore_preflight::target_binding::controlled_import::full::snapshot_effects_tests::recovery_snapshot_p6_committed_copy_held_delivery"
+      },
+      "selected_test_observed": true,
+      "source_commit": "cb1bcc8dad01cb1389df83a44606f0e33cbd949d",
       "stage": "actual-libtest",
       "total": 16
     }
