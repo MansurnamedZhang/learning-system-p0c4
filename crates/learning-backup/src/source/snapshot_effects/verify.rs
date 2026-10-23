@@ -990,7 +990,7 @@ fn issue(
             != latest.lease_expires_at.ok_or_else(invalid)?
         || timestamp(&record["rows"]["observed_at"])?.created_at > clock
         || latest.lease_expires_at.is_none_or(|expiry| expiry <= clock)
-        || record["input_sha256"] != hash(&encode(&outbox.payload, budget, journal)?)
+        || record["input_sha256"] != hash(&super::files::typed_bytes(outbox, budget, journal)?)
     {
         return Err(invalid());
     }
@@ -1269,6 +1269,120 @@ fn namespace_closed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn actual_producer_p6_full_inventory_and_issue_digest_binding() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/snapshot-effects-p6-capture-v2.json"
+        ))
+        .unwrap();
+        let files: BTreeMap<String, Vec<u8>> = fixture["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| {
+                let raw = hex::decode(entry["hex"].as_str().unwrap()).unwrap();
+                assert_eq!(raw.len() as u64, entry["bytes"].as_u64().unwrap());
+                assert_eq!(hash(&raw), entry["sha256"].as_str().unwrap());
+                (entry["path"].as_str().unwrap().to_owned(), raw)
+            })
+            .collect();
+        assert_eq!(files.len(), 14);
+        let descriptor: Descriptor = serde_json::from_slice(&files["epoch.json"]).unwrap();
+        let ledger: Ledger = serde_json::from_slice(&files["ledger.json"]).unwrap();
+        let cut: Cut = serde_json::from_slice(&files["cut.json"]).unwrap();
+        let rows: JobInventory = serde_json::from_slice(&files["source-rows.json"]).unwrap();
+        let namespace: Vec<NamespaceEntry> =
+            serde_json::from_slice(&files["namespace.json"]).unwrap();
+        let journal_files = files
+            .iter()
+            .filter(|(path, _)| path.starts_with("journal/"))
+            .map(|(path, raw)| (path.clone(), raw.clone()))
+            .collect();
+        let prefix = Prefix::check(
+            &journal_files,
+            &files["epoch.json"],
+            descriptor.epoch_id,
+            descriptor.binding_id,
+            &cut.cut_record,
+        )
+        .unwrap();
+        super::cut(
+            &descriptor,
+            &ledger,
+            &cut,
+            (
+                cut.cut_record.sequence,
+                hex::decode(&cut.cut_record.sha256)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            ),
+            &files["epoch.json"],
+            &files["ledger.json"],
+            cut.backup_id,
+        )
+        .unwrap();
+        let budget =
+            std::sync::Arc::new(std::sync::Mutex::new(crate::registry::ScanBudget::default()));
+        let meter = SharedJournalBudget::default();
+        prefix_cut(
+            &prefix,
+            &cut,
+            &files["epoch.json"],
+            &files["ledger.json"],
+            &budget,
+            &meter,
+        )
+        .unwrap();
+        let known = &ledger.jobs[0];
+        let attempt = &known.attempts[0];
+        let findings = inventory(&rows, &ledger, &prefix, &namespace, &budget, &meter)
+            .expect("the original producer's complete P6 capture must verify");
+        assert_eq!(findings.len(), 1);
+        assert_eq!(
+            findings[&known.job_id],
+            ExternalEffectFinding::AlreadyCommitted
+        );
+
+        let issue_record = &prefix.records[&attempt.write_issued.as_ref().unwrap().sequence].1;
+        let claim_record = &prefix.records[&attempt.claim_record.sequence].1;
+        let latest = typed_job(&claim_record["data"]["after_job"]).unwrap();
+        let outbox = typed_outbox(&issue_record["rows"]["outbox"]).unwrap();
+        // writer.rs builds IssueRecord.input_sha256 from history::encode of the
+        // complete typed outbox. The request-key digest separately binds payload.
+        let producer_input = hash(&serde_json::to_vec(&outbox).unwrap());
+        let payload_input = hash(&serde_json::to_vec(&outbox.payload).unwrap());
+        assert_eq!(issue_record["input_sha256"], producer_input);
+        assert_eq!(known.source_job_binding_sha256, producer_input);
+        assert_ne!(producer_input, payload_input);
+        let validate = |record: &Value, observed_outbox: &OutboxObservation| {
+            issue(
+                record,
+                &latest,
+                observed_outbox,
+                attempt,
+                &prefix.records[&1].1,
+                &claim_record["data"]["request_id"],
+                &prefix,
+                &budget,
+                &meter,
+            )
+        };
+        assert!(validate(issue_record, &outbox).is_ok());
+        let mut forged = issue_record.clone();
+        forged["input_sha256"] = payload_input.clone().into();
+        assert!(validate(&forged, &outbox).is_err());
+        let mut changed = serde_json::to_value(&outbox).unwrap();
+        changed["business_key"] = "changed outside the payload".into();
+        let changed = typed_outbox(&changed).unwrap();
+        assert_eq!(changed.payload, outbox.payload);
+        let mut forged = issue_record.clone();
+        forged["rows"]["outbox"] = serde_json::to_value(&changed).unwrap();
+        assert!(validate(&forged, &changed).is_err());
+        forged["input_sha256"] = payload_input.into();
+        assert!(validate(&forged, &changed).is_err());
+    }
     fn job() -> Value {
         let id = "c13e17fb-4686-4d7d-92da-6e9765c7f2a2";
         serde_json::json!({"id":id,"outbox_id":id,"idempotency_key":"k","status":"snapshot_running",
