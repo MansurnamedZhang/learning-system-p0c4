@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 156556,
+      "bytes": 156796,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK7_PUBLIC_PROGRESS_DOCUMENTATION",
-      "sha256": "e4e6585ee6ba8de5fbfac213d3db06a44bdeef491a6bdb6131359ce7d88a4af2",
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
+      "sha256": "bcd194f5c869d049a07d4dd034abe2c666ae87b8862d8c3131585f5ac1807c05",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 33080,
+      "bytes": 32827,
       "path": "README.md",
-      "scope": "TASK7_PUBLIC_PROGRESS_DOCUMENTATION",
-      "sha256": "1043555421343bb56951fc50287ffffde189aa48ad15ec647cf6584981b6d766",
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
+      "sha256": "f1466b6e6e2be2a706ebb83b24dc53060510800e1efa623942ae3d0d53cc487a",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3541,10 +3541,10 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 4588,
-      "sha256": "49bc75ea13eaf60aa9e8da1f6c3e26dae3a9cd7751a2764ae247f85d086a41ef",
+      "bytes": 4325,
+      "sha256": "75df6ab6767e785c1a7a84caa5494737df1e59a5b22b6d3e295338f64f10c301",
       "source_bytes_preserved": false,
-      "scope": "TASK7_PUBLIC_PROGRESS_DOCUMENTATION"
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION"
     },
     {
       "bytes": 44233,
@@ -3822,10 +3822,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 66867,
+      "bytes": 66619,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK7_PUBLIC_PROGRESS_DOCUMENTATION",
-      "sha256": "55fae427637b96b672de729fc646ac8924a7474654c9c7ebca22c5db2c63582b",
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
+      "sha256": "7dbdb7a0d5edb5f304a04b238eff582c8f48f9fef1d01484e78ecade7c2bcd63",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4513,19 +4513,19 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 639,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "e9d764373e59efd9a58d28dbb904666e45eb258e",
+  "previous_public_commit": "f880afb2a784faed3de53a0e7f189c5adc823aaf",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "24a03ea7c08db2e4b4ba94d2a1d2d4ce42bef6ed199cc8f1b56b042cd8fd3344",
-  "progress_as_of": "2026-10-24T16:40:11+08:00",
+  "progress_as_of": "2026-10-24T18:39:40+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK7_REVIEWED_IMPLEMENTATION_CANDIDATE_PENDING_LINUX_NATIVE_ACCEPTANCE",
+  "scope": "TASK7_VERIFIED_FINITE_PRECONDITION_NATIVE_PREPARATION_REJECTED_OPEN",
   "source_archive_sha256": "ea4c39e58f23a69e1de446ae0e66e7d487bc1532fa825863e3a5d2beb1551964",
   "source_archive_status": "CANDIDATE_NOT_GREEN_ACCEPTANCE",
-  "source_capture_method": "EXACT_SIXTEEN_GIT_BLOBS_WITH_DOCUMENTATION_OVERLAY",
+  "source_capture_method": "EXACT_E2CE_GIT_SOURCE_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
   "source_commit": "e2ce9af96d6fbfad8be851533232bce984984723",
   "source_file_count": 608,
-  "source_manifest_sha256": "539dc89e8b22d22bb78eb8a9c39d2389dda4e05e593b1d5270050ef6412eedb0",
+  "source_manifest_sha256": "4bce09c4be31e04db5b6a66a07e49f6ab9acbbad7c5db6e667a5f37ab65f8e94",
   "source_overlays": [
     {
       "path": "crates/learning-db/src/snapshot_observation.rs",
@@ -11120,6 +11120,9 @@
       "python": "3f922db8d12cd6e03a848c2e86a9139f4f6998e973b8c879c84094f49b7daee6",
       "move": "4d449398ef91eadb31f9e4f867cf3606d058c32a9f9e60f8430e0441affcc625"
     },
-    "linux_finite_checks": "FRESH_RERUN_PENDING"
+    "linux_finite_checks": "VERIFIED_RUST_560_PASSED_142_IGNORED_PYTHON_ORDINARY_1_PASSED",
+    "linux_finite_review_sha256": "f0c49b1de222148ffaba43a2360e5e0694439d5fe4ca15c20e4c1357bcca5694",
+    "first_native_case": "PRE_BODY_ISSUER_EMPTY_ROOT_REJECTED_NO_CREDIT",
+    "native_failure_closeout_sha256": "05acb254bfc79ff5a87d0c451160034908b005dcfad57470fbac324ad805488a"
   }
 }
