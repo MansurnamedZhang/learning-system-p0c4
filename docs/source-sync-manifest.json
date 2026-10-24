@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 156356,
+      "bytes": 156503,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK7_PUBLIC_PROGRESS_DOCUMENTATION",
-      "sha256": "9ea16f03b4fdd1b22b1cf9916547f97025b9bff46cc1e5f073ee53e7158ebb5f",
+      "sha256": "353dc3dd528fe035c675290ba82d93be9c63fac66f6260a7e16a760d290187f9",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4492,7 +4492,7 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 637,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "5e402ef2a46d752eb7ce4391804d67c236c53520",
+  "previous_public_commit": "a07819590b5a2380fedba190f53761fa32051cd4",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "24a03ea7c08db2e4b4ba94d2a1d2d4ce42bef6ed199cc8f1b56b042cd8fd3344",
   "progress_as_of": "2026-10-24T15:49:42+08:00",
