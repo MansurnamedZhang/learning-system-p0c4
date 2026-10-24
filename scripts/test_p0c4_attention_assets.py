@@ -35,9 +35,9 @@ class AttentionAssetsTests(unittest.TestCase):
   for change in (lambda v:v.update(physical_files=5.0),lambda v:v['files'][0].update(ino=True),lambda v:v['files'][0].update(nlink=2),lambda v:v['files'][0].update(mode=0o644),lambda v:v['files'][0].update(uid=999),lambda v:v['files'][1].update(ino=v['files'][0]['ino']),lambda v:v['files'].pop()):
    value=seed_observation();change(value)
    with self.assertRaises(RuntimeError):a.validate_preseed_observation(value)
- def test_preseed_program_original_root_recipe_inverse(self):
-  program=a.prepare_roots_program(worker.PREPARE_ROOTS);insert=a.PRESEED_INSERT.replace('__FIXED_ORIGINALS__',repr(a.fixed_originals()))+'\n';self.assertEqual(program.replace(insert,''),worker.PREPARE_ROOTS);compile(program,'fixed-preseed','exec');self.assertIn('os.O_EXCL|os.O_NOFOLLOW',program)
-  with self.assertRaises(RuntimeError):a.prepare_roots_program(worker.PREPARE_ROOTS*2)
+ def test_preseed_is_a_separate_fixed_fd_program(self):
+  program=a.preseed_program();compile(program,'fixed-preseed','exec');self.assertIn('os.O_EXCL|os.O_NOFOLLOW',program)
+  self.assertNotIn('objects=',worker.PREPARE_ROOTS);self.assertNotIn('snapshot-sockets',program)
  def test_positive_and_negative_labels_are_distinct(self):
   self.assertEqual(a.classification('attention-full-chain'),a.POSITIVE)
   for case in a.EXPECTED_REJECTIONS:self.assertEqual(a.classification(case),a.NEGATIVE)

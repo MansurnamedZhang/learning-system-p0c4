@@ -1766,8 +1766,7 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
         self.assertTrue(observed['original_hashes_verified'])
 
     def test_full_positive_retained_original_producer_passes_actual_dispatch(self):
-        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS
-        CASE_TESTS={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS}
+        CASE_TESTS,_=self.capture_case_domains()
         for case,test in CASE_TESTS.items():
             with self.subTest(case=case):
                 try:observed=self.dispatch(*self.fixture(test=test))
@@ -1792,8 +1791,7 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
 
     def test_retained_original_missing_corrupt_extra_aliased_or_wrong_case_refuses(self):
         import copy
-        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS
-        CASE_TESTS={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS}
+        CASE_TESTS,_=self.capture_case_domains()
         for test in (driver.SOURCE_BOUND_DUMP_TEST,*CASE_TESTS.values()):
             fixture=self.fixture(test=test);original=next(path for path in fixture[1] if path.startswith('assets/') and not fixture[1][path].get('directory'))
             with self.subTest(test=test),self.assertRaisesRegex(driver.GateError,'FIXTURE_ORIGINAL_EXACT_SET'):
@@ -1816,8 +1814,7 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
 
     def test_retained_policy_preserves_full_sealed_source_migration_index_and_toc_checks(self):
         import copy
-        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS
-        CASE_TESTS={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS}
+        CASE_TESTS,_=self.capture_case_domains()
         for test in (driver.SOURCE_BOUND_DUMP_TEST,*CASE_TESTS.values()):
             fixture=self.fixture(test=test)
             for mutation in ('sealed-corrupt','sealed-extra','source','migration','index'):
@@ -1833,6 +1830,154 @@ class SourceBoundCaptureAuditTests(unittest.TestCase):
                 with self.subTest(test=test,mutation=mutation),self.assertRaises(driver.GateError):self.dispatch(record,inventory,rows,index_raw,prefix)
             with patch.object(driver,'validate_toc',side_effect=driver.GateError('PG_RESTORE_TOC_DIAGNOSTIC')):
                 with self.subTest(test=test),self.assertRaisesRegex(driver.GateError,'PG_RESTORE_TOC_DIAGNOSTIC'):self.dispatch(*self.fixture(test=test))
+
+    def capture_case_domains(self):
+        from scripts.p0c4_completion.full_import import CASE_TESTS, SNAPSHOT_CASE_TESTS, ATTENTION_CASE_TESTS
+        legacy={case:test for case,test in CASE_TESTS.items() if case not in SNAPSHOT_CASE_TESTS and case not in ATTENTION_CASE_TESTS}
+        self.assertEqual((len(legacy),len(SNAPSHOT_CASE_TESTS),len(ATTENTION_CASE_TESTS)),(14,11,6))
+        self.assertEqual(set(legacy.values()),set(driver.FULL_RETAINED_ORIGINAL_TESTS))
+        self.assertTrue(set(legacy).isdisjoint(SNAPSHOT_CASE_TESTS))
+        self.assertTrue(set(legacy).isdisjoint(ATTENTION_CASE_TESTS))
+        self.assertTrue(set(SNAPSHOT_CASE_TESTS).isdisjoint(ATTENTION_CASE_TESTS))
+        self.assertEqual(set(CASE_TESTS),set(legacy)|set(SNAPSHOT_CASE_TESTS)|set(ATTENTION_CASE_TESTS))
+        return legacy,ATTENTION_CASE_TESTS
+
+    def attention_fixture(self,case):
+        import base64
+        from scripts.p0c4_completion import attention,snapshot_worker
+        _,cases=self.capture_case_domains();rows=[];assets={};counter=1
+        for index,item in enumerate(attention.fixed_originals()):
+            assets['assets/'+item['storage_key']]=base64.b64decode(item['base64'],validate=True)
+            for ordinal in range(item['logical_registrations']):
+                space=(ATTEMPT,NONCE)[ordinal if item['logical_registrations']==2 else index%2]
+                rows.append(dict(space_id=space,id=f'00000000-0000-4000-8000-{counter:012d}',sha256=item['sha256'],byte_size=item['bytes'],storage_key=item['storage_key']));counter+=1
+        rows.sort(key=lambda row:(row['space_id'],row['id']))
+        index_raw=json.dumps(dict(format_version=1,assets=rows),ensure_ascii=False,separators=(',',':')).encode()
+        migrations=[dict(version=n,checksum_hex=f'{n:096x}') for n in range(1,16)]
+        source=dict(application_build_sha256='a'*64,application_commit=driver.BASE_COMMIT,postgres_major=18,migration_version=15,migrations=migrations,migration_fingerprint=driver.digest(json.dumps(migrations,separators=(',',':')).encode()))
+        files=dict(assets,**{'asset-index.json':index_raw,'database.dump':b'PGDMP-unit-capture-data','roles.json':b'unit-fixed-role-recipe'})
+        manifest=dict(capability='backup_full_v1',format_version=1,backup_id=ATTEMPT,source=source,logical_asset_count=6,unique_asset_bytes=601,
+                      files=[dict(path=path,size=len(value),sha256=driver.digest(value)) for path,value in sorted(files.items())])
+        files['manifest.json']=json.dumps(manifest,ensure_ascii=False,separators=(',',':')).encode()
+        prefix='pins/'+ATTEMPT+'.sealed/';inventory={}
+        def entry(raw,mode):return dict(bytes=len(raw),sha256=driver.digest(raw),mode=mode,uid=0,links=1)
+        for path,value in files.items():
+            inventory[prefix+path]=entry(value,0o400)
+            if path=='manifest.json':inventory[prefix+path]['raw_hex']=value.hex()
+            parts=path.split('/')
+            for end in range(1,len(parts)):inventory[prefix+'/'.join(parts[:end])]=dict(directory=True,mode=0o500,uid=0,links=2)
+        for path,value in assets.items():
+            inventory[path]=entry(value,0o600)
+            parts=path.split('/')
+            for end in range(1,len(parts)):
+                if end>1:inventory['/'.join(parts[:end])]=dict(directory=True,mode=0o700,uid=0,links=2)
+        record=dict(identity=dict(database=DB),test=cases[case],archive_sha256='a'*64,migrations=migrations,evidence_directory='/private/case',
+                    snapshot_worker_binary=dict(exit_code=0,sha256='9'*64))
+        record['snapshot_worker_results']=[dict(op='snapshot-worker-result',request_id=f'{i+1:08x}-1111-4111-8111-111111111111',client_exit=0,disposition=status,
+            client_stdout_sha256=driver.digest(snapshot_worker.scheduling_output(status)),client_stderr_sha256=driver.digest(b''),client_container_id=str(i+1)*64,worker_binary_sha256='9'*64)
+            for i,status in enumerate(('COMPLETED','REVOKED_BEFORE_WRITE','REVOKED_BEFORE_WRITE'))]
+        return record,inventory,rows,index_raw,prefix
+
+    def dispatch_attention(self,case,record,inventory,rows,index_raw,prefix):
+        import ast
+        from types import SimpleNamespace
+        from scripts.p0c4_completion import attention,snapshot_worker
+        from scripts.p0c4_completion.full_import import ATTENTION_CASE_TESTS
+        tree=ast.parse(FILE.read_bytes());live=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=='live_case')
+        # Keep the outer production selector: Attention uses the real snapshot
+        # postcheck, while the old text-only and 96-byte guards stay intact.
+        nodes=[node for node in ast.walk(live) if isinstance(node,ast.If) and isinstance(node.test,ast.Name) and node.test.id=='snapshot_effects' and
+               any(isinstance(item,ast.Subscript) and isinstance(item.slice,ast.Constant) and item.slice.value=='snapshot_capture_byte_audit' for item in ast.walk(node))]
+        self.assertEqual(len(nodes),1)
+        ready='\n'.join('|'.join(str(row[key]) for key in ('space_id','id','sha256','byte_size','storage_key')) for row in rows)
+        toc=Fix1ReviewTests().toc();calls=[]
+        def pg_exec(runner,container,command,**kwargs):
+            calls.append(command)
+            if command==['cat',driver.ROOT+'/'+prefix+'asset-index.json']:return 0,index_raw,b''
+            self.assertEqual(command,['/usr/lib/postgresql/18/bin/pg_restore','--list',driver.ROOT+'/'+prefix+'database.dump'])
+            return 0,toc,b''
+        with patch.object(driver,'sql',return_value=ready),patch.object(driver,'pg_exec',side_effect=pg_exec),patch.object(driver,'new_private') as publish,\
+             patch.object(driver,'real_index_postcheck',side_effect=AssertionError('Attention reached the legacy capture audit')) as legacy,\
+             patch.object(snapshot_worker,'_driver',return_value=driver),patch.object(snapshot_worker,'capture_postcheck',wraps=snapshot_worker.capture_postcheck) as route,\
+             patch.object(attention,'capture_full_chain',wraps=attention.capture_full_chain) as capture:
+            context=dict(driver.__dict__,runner=None,container='a'*64,record=record,inventory=inventory,first=True,name=record['test'],snapshot_effects=True,
+                         snapshot_driver=snapshot_worker,_full_context=SimpleNamespace(_case_name=case))
+            try:exec(compile(ast.Module(body=nodes,type_ignores=[]),str(FILE),'exec'),context)
+            finally:
+                route.assert_called_once_with(None,'a'*64,record,inventory);legacy.assert_not_called()
+                if record['test'] in ATTENTION_CASE_TESTS.values():capture.assert_called_once_with(driver,None,'a'*64,record,inventory)
+                else:capture.assert_not_called()
+            self.assertNotIn('independent_capture_audit',record)
+            self.assertEqual(publish.call_count,1);self.assertEqual(publish.call_args.args,(Path('/private/case/attention-capture.toc'),toc))
+        self.assertEqual(len(calls),2)
+        return record['snapshot_capture_byte_audit']
+
+    def test_attention_retained_fixed_original_producer_passes_actual_snapshot_dispatch(self):
+        _,cases=self.capture_case_domains()
+        for case in cases:
+            with self.subTest(case=case):
+                observed=self.dispatch_attention(case,*self.attention_fixture(case))
+                self.assertEqual((observed['logical_rows'],observed['physical_files'],observed['unique_asset_bytes']),(6,5,601))
+                self.assertEqual(observed['original_policy'],'attention_fixed_five_physical_six_logical_originals')
+                self.assertTrue(observed['full_retained_hashes']);self.assertTrue(observed['toc_only_no_restore'])
+                self.assertEqual(observed['observed_workers'],dict(worker_signals=3,completed=1,revoked_before_write=2))
+                self.assertIs(observed['positive_effect_authority'],False);self.assertIs(observed['complete_backup'],False)
+
+    def test_attention_retained_original_mutations_refuse_actual_snapshot_dispatch(self):
+        import copy
+        from scripts.p0c4_completion import attention,snapshot_worker
+        _,cases=self.capture_case_domains()
+        for case in cases:
+            fixture=self.attention_fixture(case);original=next(path for path in fixture[1] if path.startswith('assets/') and not fixture[1][path].get('directory'))
+            for mutation in ('all-missing','missing','corrupt','size','extra','alias','link-bool','uid-bool','mode-bool','writable','executable','wrong-case','unknown-case'):
+                record,inventory,rows,index_raw,prefix=copy.deepcopy(fixture)
+                if mutation=='all-missing':
+                    for path in list(inventory):
+                        if path.startswith('assets/') and not inventory[path].get('directory'):del inventory[path]
+                elif mutation=='missing':inventory.pop(original)
+                elif mutation=='corrupt':inventory[original]['sha256']='f'*64
+                elif mutation=='size':inventory[original]['bytes']+=1
+                elif mutation=='extra':inventory['assets/extra-original']=inventory[original].copy()
+                elif mutation=='alias':inventory[original]['links']=2
+                elif mutation=='link-bool':inventory[original]['links']=True
+                elif mutation=='uid-bool':inventory[original]['uid']=False
+                elif mutation=='mode-bool':inventory[original]['mode']=False
+                elif mutation=='writable':inventory[original]['mode']=0o666
+                elif mutation=='executable':inventory[original]['mode']=0o755
+                elif mutation=='wrong-case':record['test']=driver.PG_TESTS[0]
+                else:record['test']+='-unadmitted'
+                token='SNAPSHOT_TEXT_ONLY_ASSETS' if mutation in ('wrong-case','unknown-case') else 'ATTENTION_SOURCE_ORIGINAL_EXACT_ROSTER' if mutation in ('all-missing','missing','extra') else 'ATTENTION_SOURCE_AND_SEALED_FIXED_ORIGINAL_BYTES'
+                with self.subTest(case=case,mutation=mutation),self.assertRaisesRegex((driver.GateError,attention.AttentionError,snapshot_worker.SnapshotDriverError),token):
+                    self.dispatch_attention(case,record,inventory,rows,index_raw,prefix)
+
+    def test_attention_retained_policy_preserves_sealed_source_migration_index_toc_and_budget_checks(self):
+        import copy
+        from scripts.p0c4_completion import attention
+        _,cases=self.capture_case_domains()
+        manifest_mutations={'logical-low':('logical_asset_count',5),'logical-high':('logical_asset_count',7),'logical-bool':('logical_asset_count',True),
+                            'logical-float':('logical_asset_count',6.0),'budget-low':('unique_asset_bytes',600),'budget-high':('unique_asset_bytes',602),
+                            'budget-bool':('unique_asset_bytes',True),'budget-float':('unique_asset_bytes',601.0)}
+        for case in cases:
+            fixture=self.attention_fixture(case);original=next(path for path in fixture[1] if path.startswith('assets/') and not fixture[1][path].get('directory'))
+            for mutation in ('sealed-corrupt','sealed-extra','sealed-missing','sealed-size','sealed-writable','source','migration','index',*manifest_mutations):
+                record,inventory,rows,index_raw,prefix=copy.deepcopy(fixture)
+                if mutation=='sealed-corrupt':inventory[prefix+'database.dump']['sha256']='f'*64
+                elif mutation=='sealed-extra':inventory[prefix+'extra']=dict(inventory[prefix+'database.dump'])
+                elif mutation=='sealed-missing':inventory.pop(prefix+original)
+                elif mutation=='sealed-size':inventory[prefix+original]['bytes']+=1
+                elif mutation=='sealed-writable':inventory[prefix+original]['mode']=0o600
+                elif mutation=='index':index_raw=index_raw.replace(b'"format_version":1',b'"format_version":2')
+                else:
+                    entry=inventory[prefix+'manifest.json'];manifest=json.loads(bytes.fromhex(entry['raw_hex']))
+                    if mutation=='source':manifest['source']['application_build_sha256']='f'*64
+                    elif mutation=='migration':manifest['source']['migration_fingerprint']='f'*64
+                    else:key,value=manifest_mutations[mutation];manifest[key]=value
+                    raw=json.dumps(manifest,ensure_ascii=False,separators=(',',':')).encode();entry.update(raw_hex=raw.hex(),bytes=len(raw),sha256=driver.digest(raw))
+                token='ATTENTION_CAPTURE_MANIFEST_COUNTS' if mutation in manifest_mutations else 'ATTENTION_CAPTURE_MANIFEST_CURRENT_SOURCE' if mutation in ('source','migration') else 'INDEX_DB_ROWS' if mutation=='index' else 'ATTENTION_SEALED_EXACT_TREE' if mutation=='sealed-extra' else 'ATTENTION_SEALED_READONLY_ROOT_FILE_METADATA' if mutation=='sealed-writable' else 'ATTENTION_RETAINED_FILE_HASH'
+                with self.subTest(case=case,mutation=mutation),self.assertRaisesRegex((driver.GateError,attention.AttentionError),token):
+                    self.dispatch_attention(case,record,inventory,rows,index_raw,prefix)
+            with self.subTest(case=case,mutation='toc'),patch.object(driver,'validate_toc',side_effect=driver.GateError('PG_RESTORE_TOC_DIAGNOSTIC')):
+                with self.assertRaisesRegex(driver.GateError,'PG_RESTORE_TOC_DIAGNOSTIC'):self.dispatch_attention(case,*self.attention_fixture(case))
 
 
 class RegistryFaultAuditProtocolTests(unittest.TestCase):

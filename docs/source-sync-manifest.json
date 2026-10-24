@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 156796,
+      "bytes": 156611,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
-      "sha256": "bcd194f5c869d049a07d4dd034abe2c666ae87b8862d8c3131585f5ac1807c05",
+      "scope": "TASK7_REVIEWED_CANDIDATE_DOCUMENTATION",
+      "sha256": "228008c62f3585336a48bfae2d62cb2e820636c64acfaed518aac7d50703e474",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 32827,
+      "bytes": 34400,
       "path": "README.md",
-      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
-      "sha256": "f1466b6e6e2be2a706ebb83b24dc53060510800e1efa623942ae3d0d53cc487a",
+      "scope": "TASK7_REVIEWED_CANDIDATE_DOCUMENTATION",
+      "sha256": "97f6ac138ad9f4d078f058ec2864fbbf84723b18b8778039c1932bba03fe698a",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3541,10 +3541,10 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 4325,
-      "sha256": "75df6ab6767e785c1a7a84caa5494737df1e59a5b22b6d3e295338f64f10c301",
+      "bytes": 5898,
+      "sha256": "013795739e23948f274c5e10a1cca3ae15216305ca376543bffded09f36a698f",
       "source_bytes_preserved": false,
-      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION"
+      "scope": "TASK7_REVIEWED_CANDIDATE_DOCUMENTATION"
     },
     {
       "bytes": 44233,
@@ -3822,10 +3822,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 66619,
+      "bytes": 68192,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
-      "sha256": "7dbdb7a0d5edb5f304a04b238eff582c8f48f9fef1d01484e78ecade7c2bcd63",
+      "scope": "TASK7_REVIEWED_CANDIDATE_DOCUMENTATION",
+      "sha256": "be2a668bbf6ad31dcb078b60583d3d5e7b34adf68f3a54d43e1286b4d43e62f6",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3979,11 +3979,11 @@
     },
     {
       "path": "scripts/p0c4_completion/attention.py",
-      "bytes": 45232,
-      "sha256": "436798c8d0b5b8ee9b4d934ad85eb065002f40b5810f1f9f96d171e9c2b13337",
-      "source_blob_sha256": "436798c8d0b5b8ee9b4d934ad85eb065002f40b5810f1f9f96d171e9c2b13337",
+      "bytes": 49457,
+      "sha256": "bdee3cb60f52a42e9e64dc7127958752d9e00724a3647a0521840d44c5395d0d",
+      "source_blob_sha256": "bdee3cb60f52a42e9e64dc7127958752d9e00724a3647a0521840d44c5395d0d",
       "source_bytes_preserved": true,
-      "scope": "TASK7_EXACT_CANDIDATE_SOURCE_BLOB"
+      "scope": "TASK7_EXACT_REVIEWED_SIX_LEAF_CANDIDATE_BLOB"
     },
     {
       "bytes": 75097,
@@ -4007,12 +4007,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 87557,
+      "bytes": 87701,
       "path": "scripts/p0c4_completion/full_import.py",
-      "sha256": "54e9a697dc95fc3255e3c146852adcc3d7ee26baadb0e918dff697bdcff07610",
-      "source_blob_sha256": "54e9a697dc95fc3255e3c146852adcc3d7ee26baadb0e918dff697bdcff07610",
+      "sha256": "03cf38dc7b344eed337dc100dde304a74bae6eaac49b618707044904be44b072",
+      "source_blob_sha256": "03cf38dc7b344eed337dc100dde304a74bae6eaac49b618707044904be44b072",
       "source_bytes_preserved": true,
-      "scope": "TASK7_EXACT_CANDIDATE_SOURCE_BLOB"
+      "scope": "TASK7_EXACT_REVIEWED_SIX_LEAF_CANDIDATE_BLOB"
     },
     {
       "bytes": 35030,
@@ -4058,12 +4058,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 29937,
+      "bytes": 29531,
       "path": "scripts/p0c4_completion/snapshot_worker.py",
-      "sha256": "a12cef11c0abda50142146933945f42e4f5bbb601072d00a02a2446103a0ead5",
-      "source_blob_sha256": "a12cef11c0abda50142146933945f42e4f5bbb601072d00a02a2446103a0ead5",
+      "sha256": "b65c57bb837e395b65e6863424b34a03e298d6961a7c231e6bcd7d8a9dd56d27",
+      "source_blob_sha256": "b65c57bb837e395b65e6863424b34a03e298d6961a7c231e6bcd7d8a9dd56d27",
       "source_bytes_preserved": true,
-      "scope": "TASK7_EXACT_CANDIDATE_SOURCE_BLOB"
+      "scope": "TASK7_EXACT_REVIEWED_SIX_LEAF_CANDIDATE_BLOB"
     },
     {
       "bytes": 43342,
@@ -4230,11 +4230,19 @@
     },
     {
       "path": "scripts/test_p0c4_attention_assets.py",
-      "bytes": 26487,
-      "sha256": "4b98994c4552a3416c983c078c830cf675c2f750c3fd4315159a4acea63f8176",
-      "source_blob_sha256": "4b98994c4552a3416c983c078c830cf675c2f750c3fd4315159a4acea63f8176",
+      "bytes": 26313,
+      "sha256": "f1e2a7edabc81e28eeb577b8a19bcc5e9379aeb989cceb507488012643511372",
+      "source_blob_sha256": "f1e2a7edabc81e28eeb577b8a19bcc5e9379aeb989cceb507488012643511372",
       "source_bytes_preserved": true,
-      "scope": "TASK7_EXACT_CANDIDATE_SOURCE_BLOB"
+      "scope": "TASK7_EXACT_REVIEWED_SIX_LEAF_CANDIDATE_BLOB"
+    },
+    {
+      "path": "scripts/test_p0c4_attention_preseed_lifecycle.py",
+      "bytes": 18545,
+      "sha256": "cbc2af5ba394f6862dac7bb7f66a469a62e8ac6ce72cba9b85a8f5cf1aaf867b",
+      "source_blob_sha256": "cbc2af5ba394f6862dac7bb7f66a469a62e8ac6ce72cba9b85a8f5cf1aaf867b",
+      "source_bytes_preserved": true,
+      "scope": "TASK7_EXACT_REVIEWED_SIX_LEAF_CANDIDATE_BLOB"
     },
     {
       "bytes": 12613,
@@ -4468,11 +4476,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 154114,
+      "bytes": 167118,
       "path": "scripts/test_p0c4_source_lifecycle_gate_acceptance.py",
-      "sha256": "06a2df7d017b37f6089e0e2a0ba12b24fe91dc6d4af0edf56fea9aaed89ecc25",
-      "source_blob_sha256": "06a2df7d017b37f6089e0e2a0ba12b24fe91dc6d4af0edf56fea9aaed89ecc25",
-      "source_bytes_preserved": true
+      "sha256": "0b212d7be11d7cfa70726b9220ed0abc9494b4a1fea6b8ab894eac2ae7e8a5b4",
+      "source_blob_sha256": "0b212d7be11d7cfa70726b9220ed0abc9494b4a1fea6b8ab894eac2ae7e8a5b4",
+      "source_bytes_preserved": true,
+      "scope": "TASK7_EXACT_REVIEWED_SIX_LEAF_CANDIDATE_BLOB"
     },
     {
       "bytes": 42359,
@@ -4511,21 +4520,21 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 639,
+  "manifest_file_count_excludes_manifest_itself": 640,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "f880afb2a784faed3de53a0e7f189c5adc823aaf",
+  "previous_public_commit": "632d69c6820ae700260d18170007252b1d4f80d4",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "24a03ea7c08db2e4b4ba94d2a1d2d4ce42bef6ed199cc8f1b56b042cd8fd3344",
-  "progress_as_of": "2026-10-24T18:39:40+08:00",
+  "progress_as_of": "2026-10-24T19:11:30+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK7_VERIFIED_FINITE_PRECONDITION_NATIVE_PREPARATION_REJECTED_OPEN",
-  "source_archive_sha256": "ea4c39e58f23a69e1de446ae0e66e7d487bc1532fa825863e3a5d2beb1551964",
+  "scope": "TASK7_REVIEWED_SIX_LEAF_PHASE_AND_DISPATCH_FIX_CANDIDATE_PENDING_NATIVE",
+  "source_archive_sha256": "e1b4c0c3f085fb3fc106a2c67c0a86366e17dbc1024643e62c9a48e4e8c60b65",
   "source_archive_status": "CANDIDATE_NOT_GREEN_ACCEPTANCE",
-  "source_capture_method": "EXACT_E2CE_GIT_SOURCE_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
-  "source_commit": "e2ce9af96d6fbfad8be851533232bce984984723",
-  "source_file_count": 608,
-  "source_manifest_sha256": "4bce09c4be31e04db5b6a66a07e49f6ab9acbbad7c5db6e667a5f37ab65f8e94",
+  "source_capture_method": "EXACT_COMMITTED_GIT_SOURCE_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
+  "source_commit": "b51da4cd69d0e4b566c56997e2c454c2f3f9defd",
+  "source_file_count": 609,
+  "source_manifest_sha256": "81f9bf89254f626ac9b4be4fcc497ad71e1cbd9505b17a4653d4b12a99074fb1",
   "source_overlays": [
     {
       "path": "crates/learning-db/src/snapshot_observation.rs",
@@ -11064,8 +11073,8 @@
     "source_review_sha256": "f950622bcb07920b9c3eeac7f3d58cbc322625c4acd19c72c95c82b8fd49186b",
     "task6_complete": false
   },
-  "previous_source_commit": "2ced6366a23fcc472d7b6995cddc474194313d6b",
-  "source_git_parent": "59bfe232a94b6697c6bbb4e8bc05bd8278ba18d0",
+  "previous_source_commit": "e2ce9af96d6fbfad8be851533232bce984984723",
+  "source_git_parent": "e2ce9af96d6fbfad8be851533232bce984984723",
   "task6_diagnostic_context_scope": "DATED_HISTORY_ONLY_NOT_2E5026_SOURCE_EXECUTION",
   "task6_cbe_first_case_observation": {
     "source_commit": "cbe729725bf36a1beac8baf1f4ff2443b5071cd3",
@@ -11114,15 +11123,20 @@
     "task9_complete": false,
     "complete_backup": false,
     "production": false,
-    "implementation_commit": "e2ce9af96d6fbfad8be851533232bce984984723",
-    "static_review_sha256": {
-      "rust": "6c6ae7b74c02f0795d2620a897b550b19b2b3116cdbf81dd7a7915b19b8e3a1a",
-      "python": "3f922db8d12cd6e03a848c2e86a9139f4f6998e973b8c879c84094f49b7daee6",
-      "move": "4d449398ef91eadb31f9e4f867cf3606d058c32a9f9e60f8430e0441affcc625"
+    "implementation_commit": "b51da4cd69d0e4b566c56997e2c454c2f3f9defd",
+    "linux_finite_checks": "FRESH_CURRENT_SOURCE_CHECKS_PENDING_OLD_E2CE_EVIDENCE_HISTORICAL_ONLY",
+    "historical_e2ce_checkpoint": {
+      "source_commit": "e2ce9af96d6fbfad8be851533232bce984984723",
+      "static_review_sha256": {
+        "rust": "6c6ae7b74c02f0795d2620a897b550b19b2b3116cdbf81dd7a7915b19b8e3a1a",
+        "python": "3f922db8d12cd6e03a848c2e86a9139f4f6998e973b8c879c84094f49b7daee6",
+        "move": "4d449398ef91eadb31f9e4f867cf3606d058c32a9f9e60f8430e0441affcc625"
+      },
+      "linux_finite_review_sha256": "f0c49b1de222148ffaba43a2360e5e0694439d5fe4ca15c20e4c1357bcca5694",
+      "first_native_case": "PRE_BODY_ISSUER_EMPTY_ROOT_REJECTED_NO_CREDIT",
+      "native_failure_closeout_sha256": "05acb254bfc79ff5a87d0c451160034908b005dcfad57470fbac324ad805488a"
     },
-    "linux_finite_checks": "VERIFIED_RUST_560_PASSED_142_IGNORED_PYTHON_ORDINARY_1_PASSED",
-    "linux_finite_review_sha256": "f0c49b1de222148ffaba43a2360e5e0694439d5fe4ca15c20e4c1357bcca5694",
-    "first_native_case": "PRE_BODY_ISSUER_EMPTY_ROOT_REJECTED_NO_CREDIT",
-    "native_failure_closeout_sha256": "05acb254bfc79ff5a87d0c451160034908b005dcfad57470fbac324ad805488a"
+    "phase_fix_review_sha256": "db83c71564c1438e81507dbf572910667e937ffac3c8121f92773b2b9cd14c08",
+    "dispatch_fix_review_sha256": "547ab728d3ba9b2b59609be61efcf642b0fc43be2a3570c2263d358614103e55"
   }
 }

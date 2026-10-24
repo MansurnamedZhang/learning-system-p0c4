@@ -45,23 +45,39 @@ def validate_ready_rows(rows):
  shared=[r for r in rows if r['sha256']==fixed[0]['sha256']];need(len(shared)==2 and shared[0]['space_id']!=shared[1]['space_id'],'ATTENTION_SHARED_PDF_TWO_SPACES')
  return dict(logical_assets=6,physical_files=5,unique_asset_bytes=601)
 
-# This is inserted before the original PREPARE_ROOTS print, only for a fixed
-# Attention context. No plan-provided pathname/content/SQL is accepted.
-PRESEED_INSERT=r"""
-import base64,hashlib
+# This separate root helper runs only after the unchanged issuer has admitted
+# empty roots. It mounts only the registered assets directory; no credentials,
+# SQL, source root, Docker socket, or plan-provided pathname/content is accepted.
+PRESEED_PROGRAM=r"""
+import base64,hashlib,json,os,stat,sys
+from pathlib import Path
+def require(v):
+ if not v:raise RuntimeError('attention fixed preseed refused')
+def pairs(rows):
+ value={}
+ for k,v in rows:require(k not in value);value[k]=v
+ return value
+require(sys.platform=='linux' and os.geteuid()==os.getegid()==0)
+request_raw=sys.stdin.buffer.read(4097);require(0<len(request_raw)<=4096)
+request=json.loads(request_raw,object_pairs_hook=pairs)
+require(type(request)is dict and set(request)=={'format_version','capability','source_binding_sha256','assets'})
+require(type(request['format_version'])is int and request['format_version']==1 and request['capability']=='attention_fixed_originals_preseed_v1')
+pin=request['source_binding_sha256'];require(type(pin)is str and len(pin)==64 and all(c in '0123456789abcdef'for c in pin))
+root=request['assets'];require(type(root)is dict and set(root)=={'dev','ino'} and all(type(root[k])is int and 0<root[k]<2**64 for k in root))
+out={}
 objects=__FIXED_ORIGINALS__
 assets=Path('/var/lib/knowweave-source/assets')
-rootfd=os.open(assets,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+rootfd=os.open(assets,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
 fds=[rootfd]
 try:
- before=os.fstat(rootfd);require(stat.S_ISDIR(before.st_mode) and before.st_uid==before.st_gid==0 and stat.S_IMODE(before.st_mode)==0o700 and before.st_nlink==2 and not os.listdir(rootfd))
- os.mkdir('sha256',0o700,dir_fd=rootfd);digestfd=os.open('sha256',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=rootfd);fds.append(digestfd);prefixes={};files=[]
+ before=os.fstat(rootfd);require((before.st_dev,before.st_ino)==(root['dev'],root['ino']) and stat.S_ISDIR(before.st_mode) and before.st_uid==before.st_gid==0 and stat.S_IMODE(before.st_mode)==0o700 and before.st_nlink==2 and not os.listdir(rootfd))
+ os.mkdir('sha256',0o700,dir_fd=rootfd);digestfd=os.open('sha256',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC,dir_fd=rootfd);fds.append(digestfd);prefixes={};files=[]
  for value in objects:
   raw=base64.b64decode(value['base64'],validate=True);digest=hashlib.sha256(raw).hexdigest();require(type(value['bytes'])is int and len(raw)==value['bytes']and digest==value['sha256']and value['storage_key']=='sha256/'+digest[:2]+'/'+digest)
   prefix=digest[:2]
   if prefix not in prefixes:
-   os.mkdir(prefix,0o700,dir_fd=digestfd);prefixes[prefix]=os.open(prefix,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=digestfd);fds.append(prefixes[prefix])
-  parent=prefixes[prefix];fd=os.open(digest,os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=parent)
+   os.mkdir(prefix,0o700,dir_fd=digestfd);prefixes[prefix]=os.open(prefix,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC,dir_fd=digestfd);fds.append(prefixes[prefix])
+  parent=prefixes[prefix];fd=os.open(digest,os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600,dir_fd=parent)
   try:
    m=os.fstat(fd);require(stat.S_ISREG(m.st_mode)and m.st_uid==m.st_gid==0 and m.st_nlink==1 and m.st_size==0 and stat.S_IMODE(m.st_mode)==0o600)
    with os.fdopen(os.dup(fd),'wb')as writer:require(writer.write(raw)==len(raw));writer.flush();os.fsync(writer.fileno())
@@ -74,15 +90,39 @@ try:
  for prefix,fd in prefixes.items():require(sorted(os.listdir(fd))==sorted(x['sha256']for x in files if x['sha256'].startswith(prefix)))
  os.fsync(digestfd);os.fsync(rootfd);named=assets.lstat();require((named.st_dev,named.st_ino)==(before.st_dev,before.st_ino)and named.st_uid==named.st_gid==0 and stat.S_IMODE(named.st_mode)==0o700)
  out['attention_originals']=dict(scope='FIXED_FRESH_ATTENTION_BYTES_PRESEEDED_NOT_ASSET_REGISTRATION',physical_files=5,logical_ready_assets=6,unique_original_bytes=601,files=files)
+ out.update(request_sha256=hashlib.sha256(request_raw).hexdigest(),assets=dict(dev=before.st_dev,ino=before.st_ino))
 finally:
  for fd in reversed(fds):os.close(fd)
+print(json.dumps(out,sort_keys=True,separators=(',',':')))
 """
 
-def prepare_roots_program(original):
- fixed=fixed_originals();marker="print(json.dumps(out,sort_keys=True,separators=(',',':')))"
- need(type(original)is str and original.count(marker)==1,'ATTENTION_ORIGINAL_ROOT_PREPARE_MARKER')
- insertion=PRESEED_INSERT.replace('__FIXED_ORIGINALS__',repr(fixed));need('__FIXED_ORIGINALS__'not in insertion,'ATTENTION_FIXED_PRESEED_ONLY');program=original.replace(marker,insertion+'\n'+marker)
+def preseed_program():
+ program=PRESEED_PROGRAM.replace('__FIXED_ORIGINALS__',repr(fixed_originals()));need('__FIXED_ORIGINALS__'not in program,'ATTENTION_FIXED_PRESEED_ONLY')
  need(len(program.encode())<=65536,'ATTENTION_PRESEED_PROGRAM_CAP');compile(program,'fixed-attention-preseed','exec');return program
+
+def preseed_after_issuer(context,record):
+ from . import full_import,snapshot_worker
+ d=snapshot_worker._driver()
+ need(record is context._record and context._case_name in full_import.ATTENTION_CASE_TESTS and record.get('test')==context._selected_test() and record.get('stage')=='independent-issuer' and record.get('full_profile_stage')=='VERIFIED' and context._phase=='PROFILE_MEASURE' and 'attention_originals_preseed'not in record,'ATTENTION_PRESEED_FIXED_PHASE_ONCE')
+ issuer=d.validate_issuer(record.get('issuer'),record.get('sql_identity'));d.compile_binding(record);receipt=issuer['registry_provisioning']
+ expected=dict(batch_id=context._plan['batch_id'],case_id=context._plan['case_id'],source_package_sha256=record['archive_sha256'],application_commit=context._plan['source']['application_commit'],application_build_sha256=context._plan['source']['application_build_sha256'])
+ need(record['identity']==context._ident and all(receipt[k]==v for k,v in expected.items()),'ATTENTION_PRESEED_ISSUER_CASE')
+ for name,value in [('issuer.json',issuer),('registry-provisioning.json',receipt)]:
+  raw,_=full_import._measured_regular(context._case/name,16384);need(raw==d.canonical(value),'ATTENTION_PRESEED_ISSUER_DURABLE_READBACK')
+ asset=next(row for row in receipt['roots']if row['kind']=='source_assets')
+ need(asset['path']==snapshot_worker.ROOT+'/assets' and asset['dev']==record['snapshot_root_prepare']['source']['dev'] and context._snapshot_source_mountpoint is not None,'ATTENTION_PRESEED_REGISTERED_ASSETS')
+ root={key:asset[key]for key in ('dev','ino')};request=dict(format_version=1,capability='attention_fixed_originals_preseed_v1',source_binding_sha256=issuer['binding_sha256'],assets=root);raw=d.canonical(request)
+ mounts=[('bind',context._snapshot_source_mountpoint+'/assets',snapshot_worker.ROOT+'/assets',False)]
+ # Construction registers ownership and validates the fresh created container
+ # ID before run sends the fixed request; run verifies natural exit and closes
+ # that exact helper through the existing reserved cleanup path and case budget.
+ helper=d.HelperContainer(context._h,context._binding,context._runner,context._result,context._images[context._h.BUILDER],mounts,['python3','-I','-u','-c',preseed_program()],interactive=True)
+ code,out,err=helper.run(stdin=raw,timeout=30)
+ need(code==0 and type(code)is int and err==b'' and 0<len(out)<=16384,'ATTENTION_PRESEED_NATURAL_EXIT')
+ observed=json.loads(out,object_pairs_hook=d.unique_pairs)
+ need(type(observed)is dict and set(observed)=={'attention_originals','request_sha256','assets'} and observed['request_sha256']==sha(raw) and type(observed['assets'])is dict and observed['assets']==root and all(type(observed['assets'][k])is int for k in root) and out==d.canonical(observed)+b'\n' and helper.record['removed']is True,'ATTENTION_PRESEED_REGISTERED_READBACK')
+ record['attention_originals_preseed']=validate_preseed_observation(observed['attention_originals'])
+ record['attention_preseed_helper']=dict(container_id=helper.record['id'],request_sha256=sha(raw),source_binding_sha256=issuer['binding_sha256'],assets=root,exit_code=code,removed=helper.record['removed'])
 
 def validate_preseed_observation(value):
  fixed={x['storage_key']:x for x in fixed_originals()}

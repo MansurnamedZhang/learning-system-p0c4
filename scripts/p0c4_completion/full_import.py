@@ -587,6 +587,9 @@ class FullRehearsalContext:
         record['full_profile_stage']='SOURCE_MOUNTS'
         self._source_mount_projection(self._runner.inspect('container',record['container_id'])['Mounts'])
         record['full_profile_stage']='VERIFIED'
+        if self._case_name in ATTENTION_CASE_TESTS:
+            from . import attention
+            attention.preseed_after_issuer(self,record)
         self._phase='COMPLETE'
 
     def _compile_pins(self, record):
