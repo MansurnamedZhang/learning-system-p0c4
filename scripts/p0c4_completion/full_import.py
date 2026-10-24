@@ -21,6 +21,16 @@ RECOVERY_CASE_TESTS = MappingProxyType({
     'recovery-derived': 'full_restore::live_tests::recovery_missing_derived_export_and_digest_mismatch_stay_isolated',
     'recovery-receipt-failure': 'full_restore::live_tests::recovery_receipt_sync_failure_never_returns_recovered_instance',
 })
+ATTENTION_CASE_TESTS = MappingProxyType({
+    'attention-full-chain': 'restore_preflight::target_binding::controlled_import::full::attention_tests::attention_full_chain_preserves_authoritative_inventory_and_originals',
+    'attention-missing-asset': 'restore_preflight::target_binding::controlled_import::full::attention_tests::attention_missing_asset',
+    'attention-corrupt-dump': 'restore_preflight::target_binding::controlled_import::full::attention_tests::attention_corrupt_dump',
+    'attention-interrupted-transfer': 'restore_preflight::target_binding::controlled_import::full::attention_tests::attention_interrupted_transfer',
+    'attention-unknown-effect': 'restore_preflight::target_binding::controlled_import::full::attention_tests::attention_unknown_effect',
+    'attention-root-replacement': 'restore_preflight::target_binding::controlled_import::full::attention_tests::attention_root_replacement',
+})
+ATTENTION_PROOF_CLASSIFICATION = 'FULL_RESTORE_REHEARSAL_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
+
 RECOVERY_PROOF_CLASSIFICATION = 'FULL_RECOVERY_FOUNDATION_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
 _SNAPSHOT_TEST_PREFIX='restore_preflight::target_binding::controlled_import::full::snapshot_effects_tests::recovery_snapshot_'
 SNAPSHOT_CASE_TESTS=MappingProxyType({
@@ -42,6 +52,7 @@ RECOVERY_REPORT_CAP = 1024 * 1024
 
 CASE_TESTS = MappingProxyType({
     **RECOVERY_CASE_TESTS,
+    **ATTENTION_CASE_TESTS,
     **SNAPSHOT_CASE_TESTS,
     'full-import': 'full_restore::live_tests::full_import_preserves_one_writer_transaction_and_exact_endpoint',
     'full-precommit-eof': 'full_restore::live_tests::full_import_eof_before_commit_leaves_zero_objects',
@@ -219,7 +230,7 @@ class FullRehearsalContext:
         return self._plan.get('schema_profile')=='snapshot_c0_d1_v1'
 
     def _snapshot_effects(self):
-        return self._plan.get('format_version')==3 and self._plan.get('snapshot_profile')=='root_snapshot_broker_v2' and self._case_name in SNAPSHOT_CASE_TESTS
+        return self._plan.get('format_version')==3 and self._plan.get('snapshot_profile')=='root_snapshot_broker_v2' and self._case_name in (*SNAPSHOT_CASE_TESTS,*ATTENTION_CASE_TESTS)
 
     def _source_volume_created(self,volume):
         _require(self._snapshot_effects() and self._snapshot_source_mountpoint is None,'SNAPSHOT_ROOT_PREPARATION_ONCE')
@@ -614,6 +625,9 @@ class FullRehearsalContext:
 
     def _verify_body(self, record):
         _require(record['test']==self._selected_test() and record['outcome']['passed']==1 and record['outcome']['failed']==record['outcome']['ignored']==0,'FULL_BODY_COUNTS')
+        # Admission is available for the real native RED body; no old proof
+        # can stand for the not-yet-frozen Attention semantic wire contract.
+        _require(self._case_name not in ATTENTION_CASE_TESTS,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN')
         import p0c4_source_lifecycle_gate_acceptance as driver
         if self._case_name=='snapshot-history-gap':
             code,raw,err=driver.pg_exec(self._runner,record['container_id'],['cat','/var/lib/knowweave-source/proofs/full-snapshot-history-gap-result.json'])
@@ -823,7 +837,7 @@ def _measured_regular(path, cap):
 def validate_plan(value, case):
     from . import plan as base
     import ipaddress
-    snapshot=case in SNAPSHOT_CASE_TESTS
+    snapshot=case in SNAPSHOT_CASE_TESTS or case in ATTENTION_CASE_TESTS
     full_c=type(value)is dict and value.get('format_version') in (2,3)
     expected=base.PLAN_KEYS|{'target','schema_profile'} if full_c else base.PLAN_KEYS|{'target'}
     if snapshot:expected=expected|{'snapshot_profile'}
@@ -860,6 +874,7 @@ def validate_result(plan, result):
     _require(len(result['cases'])==1,'FULL_RESULT_CASE_COUNT')
     row=result['cases'][0]
     _require(row['test']==CASE_TESTS[plan['case_name']] and row['outcome']['passed']==1 and row['outcome']['failed']==row['outcome']['ignored']==0 and row['outcome']['exit_code']==0,'FULL_RESULT_BODY')
+    _require(plan['case_name'] not in ATTENTION_CASE_TESTS,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN')
     target=row.get('full_target')
     _require(type(target) is dict and target.get('stopped') is True and target.get('execs_absent') is True and target.get('network_empty') is True and target['identity']['database']=='learning_restore_c4_'+plan['target']['case_id'],'FULL_RESULT_TARGET')
     if plan['case_name']=='snapshot-history-gap':return _validate_history_gap_result(plan,row,target)

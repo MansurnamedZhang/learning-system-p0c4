@@ -31,7 +31,7 @@ def require(ok,token):
 def canonical(value):return registry.canonical(value)
 def digest(raw):return hashlib.sha256(raw).hexdigest()
 def validate_plan(plan,case):
-    if case.startswith(('full-', 'recovery-', 'snapshot-')):
+    if case.startswith(('full-', 'recovery-', 'snapshot-', 'attention-')):
         from . import full_import
         if case in full_import.CASE_TESTS:return full_import.validate_plan(plan,case)
     if case in DESTINATION_CASE_TESTS:

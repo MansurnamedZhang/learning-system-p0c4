@@ -219,6 +219,8 @@ def login_password(admin_secret,role):
 
 def capture_postcheck(runner,container,record,inventory):
     """Independent text-only fixture byte audit; never a finding issuer."""
+    from .full_import import ATTENTION_CASE_TESTS
+    require(record.get('test') not in ATTENTION_CASE_TESTS.values(),'ATTENTION_CAPTURE_CONTRACT_NOT_FROZEN')
     d=_driver();require(d.sql(runner,container,'SELECT count(*) FROM public.asset;',record['identity']['database'],'learning_admin')=='0','SNAPSHOT_TEXT_ONLY_ASSETS')
     require(not any(path.startswith('assets/')and not row.get('directory')for path,row in inventory.items()),'SNAPSHOT_ORIGINAL_ASSETS_MUST_BE_EMPTY')
     indexed=[path for path in inventory if re.fullmatch(r'pins/[0-9a-f-]{36}\.sealed/asset-index\.json',path)]

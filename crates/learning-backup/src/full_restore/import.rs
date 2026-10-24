@@ -26,6 +26,9 @@ pub use validation::{
     validate_recovery_with_snapshot_effects,
 };
 #[cfg(test)]
+#[path = "attention_tests.rs"]
+pub(crate) mod attention_tests;
+#[cfg(test)]
 #[path = "catalog_observation.rs"]
 mod catalog_observation;
 #[cfg(test)]
@@ -1749,6 +1752,7 @@ async fn rehearse_fresh_local_capture(
         let assets = restore_originals(&mut imported, &package).await?;
         full_stage(Stage::Recheck);
         imported.recheck().await?;
+        attention_tests::after_import(&mut imported, &expected).await?;
         recovery_tests::after_import(&mut imported, &package, &assets, &expected).await?;
         Box::pin(snapshot_effects_tests::after_import(
             &mut imported,
@@ -1804,7 +1808,7 @@ async fn real_full_import_rehearsal_inner(
     diagnostic: Diagnostic,
 ) -> Result<(), BackupError> {
     diagnostic.enter(Stage::Fixture);
-    let mut fixture = if snapshot_effects_tests::active() {
+    let mut fixture = if snapshot_effects_tests::active() || attention_tests::active() {
         crate::source::lifecycle_tests::live::Fixture::text_only().await
     } else {
         crate::source::lifecycle_tests::live::Fixture::new().await

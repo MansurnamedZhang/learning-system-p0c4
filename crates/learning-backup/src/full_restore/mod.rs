@@ -23,6 +23,8 @@ macro_rules! dump_error {
 }
 #[cfg(any(test, target_os = "linux"))]
 pub(crate) mod assets;
+#[cfg(test)]
+pub(crate) mod attention_fixture;
 mod copy;
 #[cfg(any(test, target_os = "linux"))]
 pub(crate) mod data;
