@@ -45,19 +45,22 @@ class AttentionAdmissionTests(unittest.TestCase):
   value=plan('snapshot-p6');full.validate_plan(value,'snapshot-p6');self.assertTrue(full.FullRehearsalContext(full._TOKEN,value)._snapshot_effects())
   old=plan('full-import');old.update(format_version=1,capability='c4_full_import_plan_v1');del old['schema_profile'];del old['snapshot_profile'];full.validate_plan(old,'full-import');self.assertFalse(full.FullRehearsalContext(full._TOKEN,old)._snapshot_effects())
  def test_attention_label_is_quarantined_not_complete(self):
-  for case in CASES:self.assertEqual(runner.full_case_pass_status(case),'FULL_RESTORE_REHEARSAL_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE')
+  for case in CASES:self.assertEqual(runner.full_case_pass_status(case),'FULL_RESTORE_REHEARSAL_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'if case=='attention-full-chain'else'EXPECTED_REJECTION_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE')
   self.assertEqual(runner.full_case_pass_status('snapshot-p6'),runner.SNAPSHOT_PASS);self.assertEqual(runner.full_case_pass_status('recovery-effects'),runner.RECOVERY_PASS)
  def test_unimplemented_attention_evidence_cannot_adopt_old_import_success(self):
   value=plan();context=full.FullRehearsalContext(full._TOKEN,value);record=dict(test=PREFIX+CASES[value['case_name']],outcome=dict(exit_code=0,passed=1,failed=0,ignored=0))
-  with self.assertRaisesRegex(full.FullImportError,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN'):context._verify_body(record)
-  with self.assertRaisesRegex(full.FullImportError,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN'):full.validate_result(value,dict(cases=[record]))
+  from scripts.p0c4_completion import attention
+  with patch.object(attention,'WIRE_CONTRACT',None):
+   with self.assertRaisesRegex(full.FullImportError,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN'):context._verify_body(record)
+   with self.assertRaisesRegex(full.FullImportError,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN'):full.validate_result(value,dict(cases=[record]))
  def test_original_task6_text_only_guard_is_not_removed(self):
   record=dict(test=full.SNAPSHOT_CASE_TESTS['snapshot-p6'],identity=dict(database='fake'))
   with patch.object(snapshot_worker,'_driver')as driver:
    driver.return_value.sql.return_value='1'
    with self.assertRaisesRegex(snapshot_worker.SnapshotDriverError,'SNAPSHOT_TEXT_ONLY_ASSETS'):snapshot_worker.capture_postcheck(None,'fake',record,{})
-  with patch.object(snapshot_worker,'_driver')as driver:
-   record['test']=PREFIX+CASES['attention-full-chain']
-   with self.assertRaisesRegex(snapshot_worker.SnapshotDriverError,'ATTENTION_CAPTURE_CONTRACT_NOT_FROZEN'):snapshot_worker.capture_postcheck(None,'fake',record,{})
-   driver.return_value.sql.assert_not_called()
+  from scripts.p0c4_completion import attention
+  with patch.object(snapshot_worker,'_driver')as driver,patch.object(attention,'capture_full_chain',return_value={'unit_only':True})as capture:
+   record['test']=PREFIX+CASES['attention-missing-asset']
+   self.assertEqual(snapshot_worker.capture_postcheck(None,'fake',record,{}),{'unit_only':True})
+   capture.assert_called_once();driver.return_value.sql.assert_not_called()
 if __name__=='__main__':unittest.main()

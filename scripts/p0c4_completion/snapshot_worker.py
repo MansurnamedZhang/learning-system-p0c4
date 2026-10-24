@@ -157,8 +157,16 @@ def prepare_volumes(h,b,runner,result,image,source,ident,record,context):
         ledger.known(owner,name);ledger.release(owner,'retained');record['volumes'][key]=value;values.append(value);result['resource_creation_unknown']=False
     context._source_volume_created(record['volumes']['source_volume']);context._snapshot_volumes_created(*values)
     mount=[('volume',ident['source_volume'],ROOT,False),('volume',values[0]['Name'],'/fresh-effects',False),('volume',values[1]['Name'],'/fresh-export',False)]
-    _,out,err=d.run_helper(h,b,runner,result,image,mount,['python3','-c',PREPARE_ROOTS])
+    from .full_import import ATTENTION_CASE_TESTS
+    attention_case=record.get('test') in ATTENTION_CASE_TESTS.values()
+    program=PREPARE_ROOTS
+    if attention_case:
+        from . import attention
+        program=attention.prepare_roots_program(PREPARE_ROOTS)
+    _,out,err=d.run_helper(h,b,runner,result,image,mount,['python3','-c',program])
     require(err==b'','SNAPSHOT_ROOT_PREPARATION_STDERR');facts=json.loads(out,object_pairs_hook=_pairs)
+    if attention_case:
+        record['attention_originals_preseed']=attention.validate_preseed_observation(facts.pop('attention_originals',None))
     require(set(facts)=={'source','snapshot_effects','snapshot_export'} and all(type(row)is dict and set(row)=={'dev','ino','uid','gid','mode'} and row['uid']==row['gid']==0 and row['mode']==0o700 for row in facts.values()),'SNAPSHOT_ROOT_PREPARATION_FACTS')
     record['snapshot_root_prepare']=facts
 
@@ -220,7 +228,11 @@ def login_password(admin_secret,role):
 def capture_postcheck(runner,container,record,inventory):
     """Independent text-only fixture byte audit; never a finding issuer."""
     from .full_import import ATTENTION_CASE_TESTS
-    require(record.get('test') not in ATTENTION_CASE_TESTS.values(),'ATTENTION_CAPTURE_CONTRACT_NOT_FROZEN')
+    if record.get('test') in ATTENTION_CASE_TESTS.values():
+        from . import attention
+        # Every fixed negative mutates only its independent candidate; the
+        # original current source package and all original bytes stay healthy.
+        return attention.capture_full_chain(_driver(),runner,container,record,inventory)
     d=_driver();require(d.sql(runner,container,'SELECT count(*) FROM public.asset;',record['identity']['database'],'learning_admin')=='0','SNAPSHOT_TEXT_ONLY_ASSETS')
     require(not any(path.startswith('assets/')and not row.get('directory')for path,row in inventory.items()),'SNAPSHOT_ORIGINAL_ASSETS_MUST_BE_EMPTY')
     indexed=[path for path in inventory if re.fullmatch(r'pins/[0-9a-f-]{36}\.sealed/asset-index\.json',path)]

@@ -51,10 +51,11 @@ FULL_PASS='FULL_IMPORT_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
 RECOVERY_PASS='RECOVERY_FOUNDATION_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_TASK6_COMPLETE'
 SNAPSHOT_PASS='SNAPSHOT_EFFECT_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_TASK6_COMPLETE'
 ATTENTION_PASS=full_lane.ATTENTION_PROOF_CLASSIFICATION
+ATTENTION_REJECTION_PASS=full_lane.ATTENTION_REJECTION_CLASSIFICATION
 
 def full_case_pass_status(case):
     require(case in full_lane.CASE_TESTS,'FULL_FIXED_CASE_STATUS')
-    if case in full_lane.ATTENTION_CASE_TESTS:return ATTENTION_PASS
+    if case in full_lane.ATTENTION_CASE_TESTS:return ATTENTION_PASS if case=='attention-full-chain'else ATTENTION_REJECTION_PASS
     if case in full_lane.SNAPSHOT_CASE_TESTS:return SNAPSHOT_PASS
     return RECOVERY_PASS if case in full_lane.RECOVERY_CASE_TESTS else FULL_PASS
 
@@ -107,9 +108,9 @@ def _installed_full_controller_bytes(relative):
     finally:os.close(fd)
 
 
-def _verify_full_import_closure(files,*,snapshot=False):
+def _verify_full_import_closure(files,*,snapshot=False,attention=False):
     closure=('p0c4_restore_target.py','p0c4_restore_target_birth.py','p0c4_restore_target_pin_prepare.py','p0c4_restore_target_pin.py','p0c4_restore_birth_acceptance.py','p0c4_completion/roles.py','p0c4_completion/full_import.py','p0c4_completion/full_target_fs.py','p0c4_controlled_import_acceptance.py','p0c4_maintenance_gate_acceptance.py')
-    for relative in closure+(('p0c4_completion/snapshot_worker.py',)if snapshot else ()):
+    for relative in closure+(('p0c4_completion/snapshot_worker.py',)if snapshot else ())+(('p0c4_completion/attention.py',)if attention else ()):
         entry='scripts/'+relative
         require(entry in files and _installed_full_controller_bytes(relative)==files[entry],'INSTALLED_FULL_CONTROLLER')
 
@@ -128,7 +129,7 @@ def accepted_source(plan):
         entry='scripts/'+Path(module.__file__).resolve().relative_to(Path(__file__).resolve().parent).as_posix()
         require(entry in files and files[entry]==Path(module.__file__).read_bytes(),'INSTALLED_PACKAGE_CONTROLLER')
     if plan['case_name'] in full_lane.CASE_TESTS:
-        _verify_full_import_closure(files,snapshot=plan['case_name'] in (*full_lane.SNAPSHOT_CASE_TESTS,*full_lane.ATTENTION_CASE_TESTS))
+        _verify_full_import_closure(files,snapshot=plan['case_name'] in (*full_lane.SNAPSHOT_CASE_TESTS,*full_lane.ATTENTION_CASE_TESTS),attention=plan['case_name'] in full_lane.ATTENTION_CASE_TESTS)
         import p0c4_restore_target, p0c4_restore_target_birth, p0c4_restore_target_pin_prepare, p0c4_restore_target_pin, p0c4_restore_birth_acceptance
         from p0c4_completion import roles as full_roles, full_target_fs
         import p0c4_controlled_import_acceptance, p0c4_maintenance_gate_acceptance
@@ -140,6 +141,11 @@ def accepted_source(plan):
             else:from p0c4_completion import snapshot_worker
             entry='scripts/p0c4_completion/snapshot_worker.py'
             require(entry in files and files[entry]==Path(snapshot_worker.__file__).read_bytes(),'INSTALLED_SNAPSHOT_CONTROLLER')
+        if plan['case_name'] in full_lane.ATTENTION_CASE_TESTS:
+            if __package__:from .p0c4_completion import attention
+            else:from p0c4_completion import attention
+            entry='scripts/p0c4_completion/attention.py'
+            require(entry in files and files[entry]==Path(attention.__file__).read_bytes(),'INSTALLED_ATTENTION_CONTROLLER')
     driver.PUBLIC_PINS={entry:digest(files[entry]) for entry in driver.PUBLIC_PINS}
     driver.PRODUCT_PINS={entry:(digest(files[entry]),len(files[entry])) for entry in (*driver.PRODUCT_PINS,'crates/learning-backup/src/registry.rs','crates/learning-backup/src/protection.rs')}
     driver.BASE_COMMIT=manifest['base_commit'];binding.HELPER_SHA=digest(helper_raw)
@@ -346,7 +352,7 @@ def _verify_envelope(root,receipt,*,raw_budget=None,reserve_recheck=False):
         except registry.RegistryError as error:raise CompletionError('RESULT_UUID') from error
     for key in ('plan_sha256','registry_provisioning_sha256','source_archive_sha256','source_manifest_sha256','application_build_sha256','binary_sha256'):
         require(type(receipt[key]) is str and registry.HEX64.fullmatch(receipt[key]),'RESULT_DIGEST')
-    require(all(registry.integer(receipt[k],0,100000) for k in ('passed','failed','ignored')) and registry.integer(receipt['test_exit'],-255,255) and receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS,'FAILED_UNUSABLE','UNCONFIRMED_UNUSABLE'),'RESULT_STATUS')
+    require(all(registry.integer(receipt[k],0,100000) for k in ('passed','failed','ignored')) and registry.integer(receipt['test_exit'],-255,255) and receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS,ATTENTION_REJECTION_PASS,'FAILED_UNUSABLE','UNCONFIRMED_UNUSABLE'),'RESULT_STATUS')
     evidence.validate_ref(receipt['driver_result'],32*1024**2);evidence.validate_ref(receipt['raw_index'],driver.raw_evidence_limits(1)[1])
     plan_raw=private_read(root/'case-plan.json',65536);plan=validate_plan(registry.parse_record(plan_raw),receipt['case_name'])
     require(digest(plan_raw)==receipt['plan_sha256'] and all(receipt[k]==plan[k] for k in ('batch_id','case_id','case_name')) and receipt['test_name']==ALL_CASE_TESTS[receipt['case_name']],'RESULT_PLAN_LINK')
@@ -364,10 +370,10 @@ def _verify_envelope(root,receipt,*,raw_budget=None,reserve_recheck=False):
     require(type(other) is str and other.startswith(prefix) and other!=case['identity']['database'],'RESULT_CASE_IDENTITY')
     try:registry.v4(other[len(prefix):])
     except registry.RegistryError as error:raise CompletionError('RESULT_CASE_IDENTITY') from error
-    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS) or 'compile_source' in case:
+    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS,ATTENTION_REJECTION_PASS) or 'compile_source' in case:
         require(case.get('compile_source')==dict(application_commit=source['application_commit'],application_build_sha256=source['application_build_sha256'],source_binding_sha256=issuer['source_binding_sha256']),'RESULT_COMPILE_SOURCE_LINK')
     _verify_raw_evidence(root,receipt,nested,raw_budget,reserve_recheck,case_count=1)
-    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS):
+    if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS,ATTENTION_REJECTION_PASS):
         require(receipt['test_exit']==0 and (receipt['passed'],receipt['failed'],receipt['ignored'])==(1,0,0) and nested['status']==receipt['status'] and nested.get('current_source') is True and nested.get('cleanup_verified') is True and len(nested['cases'])==1,'RESULT_NO_FALSE_PASS')
         case=nested['cases'][0];require(case['test']==receipt['test_name'] and all(case.get(k) is True for k in ('stopped','execs_absent','transports_reaped','retained_network_empty')) and canonical(case.get('audit_after'))==canonical(case.get('audit_final')) and case['compiled']['lib']['sha256']==receipt['binary_sha256'] and all(type(case['outcome'][k]) is int and case['outcome'][k]==v for k,v in dict(exit_code=0,passed=1,failed=0,ignored=0).items()),'RESULT_NESTED_CASE')
         if case['test'] in driver.REGISTRY_INCOMPLETE_TESTS:
@@ -420,7 +426,7 @@ def main(argv=None):
     args=parser.parse_args(argv)
     try:
         receipt=run(args.plan,args.case) if args.operation=='run' else verify(args.result)
-        print(canonical(receipt).decode());return 0 if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',LIFECYCLE_PASS,SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS,schema_lane.PASS) else 1
+        print(canonical(receipt).decode());return 0 if receipt['status'] in ('REGISTRY_TASK1_CASE_PASSED_NOT_COMPLETE',LIFECYCLE_PASS,SOURCE_PASS,DESTINATION_PASS,FULL_PASS,RECOVERY_PASS,SNAPSHOT_PASS,ATTENTION_PASS,ATTENTION_REJECTION_PASS,schema_lane.PASS) else 1
     except BaseException as error:
         print(canonical(dict(status='UNCONFIRMED_UNUSABLE',reason=str(error) if isinstance(error,(CompletionError,registry.RegistryError,driver.GateError,resources.ResourceError)) else 'UNEXPECTED_ERROR')).decode());return 1
 if __name__=='__main__':sys.exit(main())

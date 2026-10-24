@@ -541,11 +541,166 @@ fn verify_target_rows_inner<'a>(
     })
 }
 
+/// A test-only full source observation. It cannot authorize import or recovery.
+#[cfg(test)]
+pub(crate) struct SourceRecoveryRows {
+    tables: Vec<TableObservation>,
+}
+#[cfg(test)]
+impl SourceRecoveryRows {
+    pub(crate) fn evidence(&self) -> serde_json::Value {
+        serde_json::json!({"format_version":1,"tables":self.tables,"excluded_columns":[],"observation":"CLOSED_SOURCE_SAME_ADMITTED_CONNECTION_ALL_64_PK_ORDERED_ROWS"})
+    }
+    pub(crate) fn require_dump(&self, expected: &ExpectedRecoveryRows) -> Result<(), BackupError> {
+        if self.tables.len() != 64
+            || expected.tables.len() != 64
+            || self
+                .tables
+                .iter()
+                .zip(&expected.tables)
+                .any(|(a, b)| !a.same_data(b))
+        {
+            return Err(BackupError::Invalid(
+                "attention source and frozen dump rows differ",
+            ));
+        }
+        Ok(())
+    }
+}
+/// Uses the original trusted PK grammar, COPY bounds and exact typed row hash.
+/// The caller is the test-only hook on the already drained admitted connection.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn capture_source_rows<'a>(
+    connection: &'a mut sqlx::PgConnection,
+    contract: &'a SchemaContract,
+    scratch: &'a BackupDir,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<SourceRecoveryRows, BackupError>> + Send + 'a>,
+> {
+    Box::pin(async move {
+        let end = tokio::time::Instant::now() + Duration::from_secs(900);
+        let keys = table_keys(contract)?;
+        if keys.len() != 64 {
+            return Err(BackupError::Invalid(
+                "attention source complete table roster",
+            ));
+        }
+        // Same connection-local text rendering as the target verifier. These are
+        // read observations; no transaction, grants or source lease is constructed.
+        for statement in [
+            "SET LOCAL TimeZone='UTC'",
+            "SET LOCAL DateStyle='ISO,YMD'",
+            "SET LOCAL IntervalStyle='postgres'",
+            "SET LOCAL bytea_output='hex'",
+            "SET LOCAL extra_float_digits=3",
+            "SET LOCAL statement_timeout='15s'",
+        ] {
+            tokio::time::timeout_at(end, sqlx::query(statement).execute(&mut *connection))
+                .await
+                .map_err(|_| BackupError::Invalid("recovery row setup deadline"))??;
+        }
+        let mut copied = 0_u64;
+        let mut tables = Vec::new();
+        for (i, key) in keys.iter().enumerate() {
+            let columns = key
+                .table
+                .columns
+                .iter()
+                .map(|c| c.sql_name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let order = key
+                .indices
+                .iter()
+                .map(|&j| {
+                    let c = &key.table.columns[j];
+                    if c.ty == "text" {
+                        format!("{} COLLATE \"C\"", c.sql_name)
+                    } else {
+                        c.sql_name.clone()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let query = format!(
+                "COPY (SELECT {columns} FROM public.{} ORDER BY {order}) TO STDOUT",
+                key.table.sql_name
+            );
+            let name = format!("source-{i:03}.copy");
+            let (file, bytes) = copy_table(
+                connection,
+                &query,
+                scratch.create_file(&name)?,
+                crate::full_restore::spool::MAX_DECODE - copied,
+                end,
+            )
+            .await?;
+            copied = copied.checked_add(bytes).ok_or(BackupError::Overflow)?;
+            scratch.sync()?;
+            let file = reopen_scratch(scratch, &name, &file)?;
+            let owned = contract.clone();
+            let read_end =
+                Instant::now() + end.saturating_duration_since(tokio::time::Instant::now());
+            let observation = tokio::task::spawn_blocking(move || {
+                deadline(read_end)?;
+                let keys = table_keys(&owned)?;
+                observe_sorted(
+                    &keys[i],
+                    &mut BufReader::new(TimedRead {
+                        inner: file,
+                        end: read_end,
+                    }),
+                    &mut DataBudget::default(),
+                )
+            })
+            .await
+            .map_err(|_| BackupError::Invalid("recovery target row reader lost"))??;
+            tables.push(observation);
+        }
+        tables.sort_unstable_by(|a, b| a.table.cmp(&b.table));
+        Ok(SourceRecoveryRows { tables })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Cursor;
 
+    #[test]
+    fn source_inventory_requires_all_tables_and_exact_rows_including_empty_migrations() {
+        let contract = SchemaContract::embedded().unwrap();
+        let tables = table_keys(&contract)
+            .unwrap()
+            .iter()
+            .map(|k| TableObservation {
+                table: k.table.table.clone(),
+                rows: 0,
+                raw_bytes: 0,
+                digest: [7; 32],
+            })
+            .collect::<Vec<_>>();
+        let mut tables = tables;
+        tables.sort_by(|a, b| a.table.cmp(&b.table));
+        assert_eq!(tables.len(), 64);
+        assert!(tables.iter().any(|t| t.table == "_sqlx_migrations"));
+        let source = SourceRecoveryRows {
+            tables: tables.clone(),
+        };
+        let mut expected = ExpectedRecoveryRows {
+            decoded_sha256: "a".repeat(64),
+            tables,
+        };
+        source.require_dump(&expected).unwrap();
+        expected.tables[0].rows = 1;
+        assert!(source.require_dump(&expected).is_err());
+        expected.tables[0].rows = 0;
+        expected.tables[0].digest = [8; 32];
+        assert!(source.require_dump(&expected).is_err());
+        expected.tables[0].digest = [7; 32];
+        expected.tables.pop();
+        assert!(source.require_dump(&expected).is_err());
+    }
     fn entry(key: i64, byte: u8) -> Entry {
         Entry {
             key: vec![KeyPart::Integer(key)],

@@ -365,6 +365,15 @@ pub(super) async fn prepare_linux_with_effects(
         c0_d1::SourceProfile::BaseV1 => role_recipe(endpoint.connection()).await?,
         c0_d1::SourceProfile::C0D1 { .. } => c0_d1::role_recipe(endpoint.connection()).await?,
     };
+    #[cfg(test)]
+    Box::pin(
+        crate::full_restore::attention_fixture::observe_closed_source(
+            endpoint.connection(),
+            &role_bytes,
+            config,
+        ),
+    )
+    .await?;
     let mut roles_write = source.create_file("roles.json")?;
     roles_write.write_all(&role_bytes)?;
     roles_write.sync_all()?;

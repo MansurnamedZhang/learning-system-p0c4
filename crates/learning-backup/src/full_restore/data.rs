@@ -9,6 +9,8 @@ use std::io::BufRead;
 
 mod rows;
 pub(crate) use rows::{ExpectedRecoveryRows, capture_expected};
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) use rows::{SourceRecoveryRows, capture_source_rows};
 #[cfg(target_os = "linux")]
 pub(crate) use rows::{verify_target_rows, verify_unchanged_rows_after_normalization};
 

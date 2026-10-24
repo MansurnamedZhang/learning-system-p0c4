@@ -92,7 +92,7 @@ fn private(path: &Path) -> Result<Vec<u8>, BackupError> {
     )?;
     Ok(std::fs::read(path)?)
 }
-async fn pool(role: &'static str) -> Result<PgPool, BackupError> {
+pub(super) async fn pool(role: &'static str) -> Result<PgPool, BackupError> {
     let key = match role {
         "learning_admin" => "ADMIN_DSN_FILE",
         "learning_runtime" => "RUNTIME_DSN_FILE",
@@ -157,7 +157,7 @@ struct SignalAck {
 }
 // Root starts a real, separately measured UID/GID65532 worker with a single
 // epoch leaf RO mount. This request carries no actor, job, token or credential.
-async fn signal(
+pub(super) async fn signal(
     f: &Fixture,
     broker: &EnrolledSnapshotBroker,
     transition: Option<BeforeWriteTransition>,
@@ -235,7 +235,7 @@ async fn job(pool: &PgPool, id: Uuid) -> Result<Value, BackupError> {
             .await?,
     )
 }
-async fn wait_eligible(pool: &PgPool, id: Uuid) -> Result<(), BackupError> {
+pub(super) async fn wait_eligible(pool: &PgPool, id: Uuid) -> Result<(), BackupError> {
     let end = Instant::now() + Duration::from_secs(40);
     loop {
         let due:bool=sqlx::query_scalar("SELECT (status='snapshot_running' AND lease_expires_at<=clock_timestamp()) OR (status='snapshot_retry_wait' AND next_attempt_at<=clock_timestamp()) FROM public.job WHERE id=$1").bind(id).fetch_one(pool).await?;

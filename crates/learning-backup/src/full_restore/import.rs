@@ -1532,6 +1532,9 @@ impl FreshLocalCapture {
     async fn capture(
         fixture: &mut crate::source::lifecycle_tests::live::Fixture,
     ) -> Result<Self, BackupError> {
+        if attention_tests::active() {
+            return Box::pin(attention_tests::capture(fixture)).await;
+        }
         if snapshot_effects_tests::active() {
             return Box::pin(snapshot_effects_tests::capture(fixture)).await;
         }
@@ -1679,6 +1682,7 @@ async fn rehearse_fresh_local_capture(
         .run_async(Stage::TargetAdmission, target.admit(&package))
         .await?;
     let result = async {
+        attention_tests::before_import(&mut imported, &package).await?;
         full_stage(Stage::Spool);
         let spool = imported
             .admitted()
@@ -1752,7 +1756,13 @@ async fn rehearse_fresh_local_capture(
         let assets = restore_originals(&mut imported, &package).await?;
         full_stage(Stage::Recheck);
         imported.recheck().await?;
-        attention_tests::after_import(&mut imported, &expected).await?;
+        Box::pin(attention_tests::after_import(
+            &mut imported,
+            &package,
+            &assets,
+            &expected,
+        ))
+        .await?;
         recovery_tests::after_import(&mut imported, &package, &assets, &expected).await?;
         Box::pin(snapshot_effects_tests::after_import(
             &mut imported,
@@ -1808,7 +1818,9 @@ async fn real_full_import_rehearsal_inner(
     diagnostic: Diagnostic,
 ) -> Result<(), BackupError> {
     diagnostic.enter(Stage::Fixture);
-    let mut fixture = if snapshot_effects_tests::active() || attention_tests::active() {
+    let mut fixture = if attention_tests::active() {
+        crate::source::lifecycle_tests::live::Fixture::attention().await
+    } else if snapshot_effects_tests::active() {
         crate::source::lifecycle_tests::live::Fixture::text_only().await
     } else {
         crate::source::lifecycle_tests::live::Fixture::new().await
@@ -2020,6 +2032,7 @@ async fn real_full_import_rehearsal_inner(
     file.write_all(&serde_json::to_vec(&proof)?)?;
     file.sync_all()?;
     root.sync()?;
+    attention_tests::finish(&mut fixture).await?;
     fixture.pool.close().await;
     Ok(())
 }

@@ -30,6 +30,7 @@ ATTENTION_CASE_TESTS = MappingProxyType({
     'attention-root-replacement': 'restore_preflight::target_binding::controlled_import::full::attention_tests::attention_root_replacement',
 })
 ATTENTION_PROOF_CLASSIFICATION = 'FULL_RESTORE_REHEARSAL_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
+ATTENTION_REJECTION_CLASSIFICATION = 'EXPECTED_REJECTION_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
 
 RECOVERY_PROOF_CLASSIFICATION = 'FULL_RECOVERY_FOUNDATION_CASE_PASSED_SINGLE_HOST_QUARANTINED_NOT_COMPLETE'
 _SNAPSHOT_TEST_PREFIX='restore_preflight::target_binding::controlled_import::full::snapshot_effects_tests::recovery_snapshot_'
@@ -625,9 +626,10 @@ class FullRehearsalContext:
 
     def _verify_body(self, record):
         _require(record['test']==self._selected_test() and record['outcome']['passed']==1 and record['outcome']['failed']==record['outcome']['ignored']==0,'FULL_BODY_COUNTS')
-        # Admission is available for the real native RED body; no old proof
-        # can stand for the not-yet-frozen Attention semantic wire contract.
-        _require(self._case_name not in ATTENTION_CASE_TESTS,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN')
+        if self._case_name in ATTENTION_CASE_TESTS:
+            self._verify_attention_body(record)
+            self._probe_target_stopped(record)
+            return
         import p0c4_source_lifecycle_gate_acceptance as driver
         if self._case_name=='snapshot-history-gap':
             code,raw,err=driver.pg_exec(self._runner,record['container_id'],['cat','/var/lib/knowweave-source/proofs/full-snapshot-history-gap-result.json'])
@@ -646,6 +648,18 @@ class FullRehearsalContext:
             self._verify_recovery_body(record,proof)
         if self._snapshot_effects():self._verify_snapshot_body(record,proof)
         self._probe_target_stopped(record)
+
+    def _verify_attention_body(self,record):
+        from . import attention
+        _require(attention.WIRE_CONTRACT is not None,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN')
+        import p0c4_source_lifecycle_gate_acceptance as driver
+        try:
+            bundle=attention.read_fixed_bundle(driver,self._runner,record['container_id'],self._case_name)
+            attention.validate_bundle(bundle,self._plan,self._target_status,record.get('snapshot_capture_byte_audit'))
+        except attention.AttentionError as error:raise FullImportError(str(error))from error
+        for name,cap,key in attention.fixed_proof_files(self._case_name):
+            raw=bundle[name];path=self._case/name;self._h.write_new(path,raw)
+            record[key]=dict(path=str(path),sha256=hashlib.sha256(raw).hexdigest())
 
     def _verify_snapshot_body(self,record,imported):
         import p0c4_source_lifecycle_gate_acceptance as driver
@@ -874,7 +888,7 @@ def validate_result(plan, result):
     _require(len(result['cases'])==1,'FULL_RESULT_CASE_COUNT')
     row=result['cases'][0]
     _require(row['test']==CASE_TESTS[plan['case_name']] and row['outcome']['passed']==1 and row['outcome']['failed']==row['outcome']['ignored']==0 and row['outcome']['exit_code']==0,'FULL_RESULT_BODY')
-    _require(plan['case_name'] not in ATTENTION_CASE_TESTS,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN')
+    if plan['case_name'] in ATTENTION_CASE_TESTS:return _validate_attention_result(plan,row)
     target=row.get('full_target')
     _require(type(target) is dict and target.get('stopped') is True and target.get('execs_absent') is True and target.get('network_empty') is True and target['identity']['database']=='learning_restore_c4_'+plan['target']['case_id'],'FULL_RESULT_TARGET')
     if plan['case_name']=='snapshot-history-gap':return _validate_history_gap_result(plan,row,target)
@@ -908,8 +922,12 @@ def validate_result(plan, result):
         for name,raw in [('full-recovery-result.json',recovery_raw),('full-recovery-normalization.json',report)]:
             entry=inventory.get('proofs/'+name,{})
             _require(entry.get('bytes')==len(raw) and entry.get('sha256')==hashlib.sha256(raw).hexdigest(),'RECOVERY_RESULT_NATIVE_INVENTORY')
+    return _validate_result_profile(plan,row,target,proof_path,proof,inventory)
+
+
+def _validate_result_profile(plan,row,target,proof_path,proof=None,inventory=None):
     observation=row.get('full_rehearsal_profile')
-    _require(type(observation) is dict and observation['source_mount_count']==(18 if plan['case_name']in SNAPSHOT_CASE_TESTS else 14) and observation['target_mount_count']==5,'FULL_RESULT_PROFILE')
+    _require(type(observation) is dict and observation['source_mount_count']==(18 if plan['case_name']in (*SNAPSHOT_CASE_TESTS,*ATTENTION_CASE_TESTS) else 14) and observation['target_mount_count']==5,'FULL_RESULT_PROFILE')
     from . import evidence
     from pathlib import Path
     from . import roles
@@ -918,7 +936,7 @@ def validate_result(plan, result):
     raw,_=roles._private_read(expected_path,PROFILE_CAP)
     profile=_parse_pinned(raw,observation['sha256'])
     _require(profile['source_case_id']==plan['case_id'] and profile['target_case_id']==plan['target']['case_id'] and profile['application_build_sha256']==plan['source']['application_build_sha256'] and profile['target_container_id']==target['status']['container_id'] and profile['target_birth_sha256']==target['status']['birth_sha256'],'FULL_RESULT_PROFILE_BINDING')
-    _require(profile['format_version']==(2 if plan['case_name']in SNAPSHOT_CASE_TESTS else 1),'FULL_RESULT_SELECTED_PROFILE')
+    _require(profile['format_version']==(2 if plan['case_name']in (*SNAPSHOT_CASE_TESTS,*ATTENTION_CASE_TESTS) else 1),'FULL_RESULT_SELECTED_PROFILE')
     if plan['case_name']in SNAPSHOT_CASE_TESTS:
         paths=[('full-snapshot-effect-result.json','full_snapshot_effect_proof'),('full-snapshot-effect-normalization.json','full_snapshot_effect_normalization')]
         returned=[]
@@ -933,6 +951,27 @@ def validate_result(plan, result):
         _validate_snapshot_proof(snapshot,plan,target['status'],proof)
         _require(len(returned[1])==snapshot['normalization_report_bytes'] and hashlib.sha256(returned[1]).hexdigest()==snapshot['normalization_report_sha256'],'SNAPSHOT_RESULT_NORMALIZATION_PIN')
     return profile
+
+
+def _validate_attention_result(plan,row):
+    from . import attention,evidence
+    from pathlib import Path
+    _require(attention.WIRE_CONTRACT is not None,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN')
+    target=row.get('full_target')
+    _require(type(target)is dict and target.get('stopped')is True and target.get('execs_absent')is True and target.get('network_empty')is True and target['identity']['database']=='learning_restore_c4_'+plan['target']['case_id'],'ATTENTION_RESULT_TARGET')
+    directory=Path(plan['evidence_root'])/'driver'/('batch-'+plan['batch_id'])/plan['case_id']
+    source_inventory=json.loads(evidence.private_read(directory/'inventory.json',32*1024**2),object_pairs_hook=_pairs);bundle={}
+    for name,cap,key in attention.fixed_proof_files(plan['case_name']):
+        path=directory/name;ref=row.get(key)
+        _require(type(ref)is dict and set(ref)=={'path','sha256'}and ref['path']==str(path),'ATTENTION_RESULT_FIXED_PATH')
+        raw=evidence.private_read(path,cap);original=source_inventory.get('proofs/'+name,{})
+        _require(hashlib.sha256(raw).hexdigest()==ref['sha256']and type(original.get('bytes'))is int and original['bytes']==len(raw)and original.get('sha256')==ref['sha256'],'ATTENTION_RESULT_ORIGINAL_HASH')
+        bundle[name]=raw
+    try:
+        attention.validate_worker_results(row)
+        attention.validate_bundle(bundle,plan,target['status'],row.get('snapshot_capture_byte_audit'))
+    except attention.AttentionError as error:raise FullImportError(str(error))from error
+    return _validate_result_profile(plan,row,target,directory/'full-attention-result.json')
 
 
 def _import_proof_plan(plan):
