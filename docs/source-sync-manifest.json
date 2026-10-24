@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 158216,
+      "bytes": 159628,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK7_PREPARE_HOLD_TRUTHFUL_STATUS_ONLY",
-      "sha256": "47dad98bd4a66edc12ddfda4aab6c3abf1db8a98bad382ed5e31b99a4b85f824",
+      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
+      "sha256": "e493676c49438a9a5f9d22608c640086c46689bbd3622d4f995b83fa77dfaaa5",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 50211,
+      "bytes": 51839,
       "path": "README.md",
-      "scope": "TASK7_PREPARE_HOLD_TRUTHFUL_STATUS_ONLY",
-      "sha256": "03b36469f665ef64e413cdfeeced54d80084b7a0201b497b40ec255ecd6aab50",
+      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
+      "sha256": "686441159da510eb779398844d6e41ec513be999dbaa8a7512775c2f231d9591",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3542,10 +3542,10 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 21709,
-      "sha256": "ca86f57b6ff4b561a5ca714bf2b23c137000ab58d04f4d3180d24336c83b4502",
+      "bytes": 23337,
+      "sha256": "efac0c373482ff4e5a266c499ef1b2a89e8f3adffebe07ed99300b02c83b73bc",
       "source_bytes_preserved": false,
-      "scope": "TASK7_PREPARE_HOLD_TRUTHFUL_STATUS_ONLY"
+      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY"
     },
     {
       "bytes": 44233,
@@ -3823,10 +3823,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 84003,
+      "bytes": 85631,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK7_PREPARE_HOLD_TRUTHFUL_STATUS_ONLY",
-      "sha256": "efd62813e2d01daf5c3fb152d2650336aa0a983a6ca693ed7c7e02f7f4c8510e",
+      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
+      "sha256": "6de04224d1011ed0e72ab51c0a813ee990002e749e166a5dbefb6480eabd6cbc",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4545,13 +4545,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 642,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "ebde02dd08761f4f5ef302d78efb70a239ea850e",
+  "previous_public_commit": "8fc88270ff17080759b9aa60660e7d4eeeddc299",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-25T01:18:40+08:00",
+  "progress_as_of": "2026-10-25T02:35:01+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "SOURCE36_NATIVE_PREPARE_BASELINE_HOLD_PENDING_EXPLICIT_CONTINUATION_AND_ORIGINAL_REVIEW",
+  "scope": "SOURCE36_EXPLICIT_PRIOR_ORIGIN_AND_FRESH_RETURNS_PENDING_FULL_ADMISSION_AND_ORIGINAL_REVIEW",
   "source_archive_sha256": "99288c6b8074b8ff2009ee06724518eeee056864f8917b7a8aee60e9e88b1096",
   "source_archive_status": "REVIEWED_SOURCE36_CANDIDATE_LINUX_NATIVE_PENDING_NOT_ACCEPTANCE",
   "source_capture_method": "EXACT_SOURCE36_GIT_BLOBS_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
@@ -11136,7 +11136,9 @@
     "precondition_review_sha256": "3e44f27d6c5b7a1fef3f84d32b6e8621e3c23bc631336ae0ff88be4a374ff497",
     "attention_native_observation": {
       "source_commit": "36c89f2e94dccdc90652f8b196372bb62fa398a5",
-      "driver_cases_returned": 3,
+      "prior_origin_cases": 3,
+      "fresh_cases_returned": 1,
+      "driver_cases_returned": 4,
       "independently_accepted": 0,
       "raw_case_counts_independently_verified": false
     },
@@ -11145,7 +11147,7 @@
     "root_python_return_result_sha256": "454a449004cd843c29d47e31dcd6235309ea646c4f9f043ffb9cbc5b5218de53",
     "accepted": 0,
     "total": 6,
-    "native_returned": 3,
+    "native_returned": 4,
     "task7_complete": false,
     "task8_complete": false,
     "task9_complete": false,
@@ -11220,7 +11222,7 @@
       "skipped": 1
     },
     "first_native_case": "MISSING_ASSET_FIVE_PHASES_RETURNED_PENDING_ORIGINAL_REVIEW",
-    "remaining_cases_status": "THREE_NEW_UUIDS_PENDING_EXPLICIT_SAME_SOURCE_ORIGINAL_ADOPTION_REVIEW",
+    "remaining_cases_status": "2_FRESH_RETURNS_PENDING_ALL_ORIGINAL_REVIEWS_PENDING",
     "rust_new_unit_tests": {
       "added": 2,
       "executed": true,
@@ -11397,7 +11399,7 @@
         "no_credit_transfer_to_current_source": true
       }
     },
-    "current_dispatch_status": "HOLD_PREPARE_BASELINE_CHANGED_NO_NATIVE_BODY_FOR_FOURTH",
+    "current_dispatch_status": "SOURCE36_PRIOR3_FRESH_CONTINUATION_ACTIVE",
     "attention_precondition_listing_observation": {
       "ignored": 6,
       "listed": 6,
@@ -11408,31 +11410,49 @@
     },
     "current_native_returns": {
       "attention-missing-asset": {
+        "case_id": "5ed9059c-47e2-45d9-9f4f-97449efa976a",
         "returned_receipt_sha256": "76d669220ef7135a72586a3973b6b5c85388b291e0a94dd466486fba00a59a3c",
         "native_original_sha256": "2ca8987143b759a220d2e5a1f9f136b8343a73fc2fdb43b292fc4fbf989a9b4e",
-        "case_id": "5ed9059c-47e2-45d9-9f4f-97449efa976a"
+        "origin": "prior_origin"
       },
       "attention-full-chain": {
+        "case_id": "3b3aab22-6b94-4477-917c-065a099c6c51",
         "returned_receipt_sha256": "ca6c26e53397e9e713b5992ae0d6d0ee2f947771e2eb5c3176a4a58402df33b0",
         "native_original_sha256": "31ba00265f52e83d5f5b15f7e644a608738f357e662f15fa6ba5f9a3e701adbd",
-        "case_id": "3b3aab22-6b94-4477-917c-065a099c6c51"
+        "origin": "prior_origin"
       },
       "attention-corrupt-dump": {
+        "case_id": "18007583-4df3-4e96-a10f-b675fd90e880",
         "returned_receipt_sha256": "b9ca3906bf2d7c1e7cf3fb803f67cc6f23f287a14e8514534b76361046ac00cd",
         "native_original_sha256": "5fb5b160f67341a1b8a19591b668d8a991bc9b121f0d56051d966496ddc7d83d",
-        "case_id": "18007583-4df3-4e96-a10f-b675fd90e880"
+        "origin": "prior_origin"
+      },
+      "attention-interrupted-transfer": {
+        "case_id": "9e27432a-26b9-4b3f-8b9f-c900dca5e95b",
+        "returned_receipt_sha256": "afcde9e03f77eeda8f0adcecc39195bf49f630c783e1cd90598892c72bc12d15",
+        "native_original_sha256": "3df990068ac8780a87a0bde2e80c61a33b01c7f1659c56935e3ad7c9f40efcc9",
+        "origin": "fresh_run"
       }
     },
-    "current_queue_state": "HOLD_NO_REPLAY",
+    "current_queue_state": "ACTIVE_NO_HOLD_AT_SNAPSHOT",
     "prior_receipts_are_not_new_execution": true,
-    "queue_hold_sha256": "e18143b9e4ab2362c5c47abc3fa80f2f2e8397ee5dac70a780a6e008f4dccfad",
-    "failed_prepare_process_sha256": "6637f56d99b7f605518c1ac415f1a5720937bdbc0c4a231fce5f11eac95963e3",
-    "failed_case_id": null,
-    "failed_known_capsules": 0,
-    "exact_failure_projection_not_saved": true,
-    "failure_reason": "WHOLE_CURRENT_BASELINE_MISMATCH",
-    "failure_stage": "prepare",
-    "failure_full_projection_available": false
+    "historical_prepare_hold": {
+      "failure_reason": "WHOLE_CURRENT_BASELINE_MISMATCH",
+      "failure_stage": "prepare",
+      "failed_prepare_process_sha256": "6637f56d99b7f605518c1ac415f1a5720937bdbc0c4a231fce5f11eac95963e3",
+      "failed_case_id": null,
+      "failed_known_capsules": 0,
+      "exact_failure_projection_not_saved": true,
+      "failure_full_projection_available": false,
+      "queue_hold_sha256": "e18143b9e4ab2362c5c47abc3fa80f2f2e8397ee5dac70a780a6e008f4dccfad"
+    },
+    "prior_origin_returned": 3,
+    "fresh_cases_returned": 1,
+    "prior_is_not_new_execution": true,
+    "typed_full_admission_complete": false,
+    "original_review_complete": false,
+    "old_queue_hold_preserved": true,
+    "failed_uuid_replayed": false
   },
   "source_controller_pin_count": 22
 }
