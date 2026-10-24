@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 159203,
+      "bytes": 158132,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK7_SOURCE36_CANDIDATE_PENDING_DOCUMENTATION",
-      "sha256": "15a46c593a3ddf016ea5394b774175c639aa2516fec4767e8e87a7f80d9cf9b5",
+      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS",
+      "sha256": "4d67ab270a7fd151124ce5f8aa84d9cfac57a403e4ffb048c2ad1c1020c4e650",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 43678,
+      "bytes": 45528,
       "path": "README.md",
-      "scope": "TASK7_SOURCE36_CANDIDATE_PENDING_DOCUMENTATION",
-      "sha256": "fb5464fb5e1f7afb5fd8a05976891092b3e13429b823f100ddd37db69d00ddcf",
+      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS",
+      "sha256": "49848541694f0f01de0fdfd8cbdf1c28fabe1c8b1ca59678e7648a394090d946",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3542,10 +3542,10 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 15176,
-      "sha256": "0e3c2d5ae03bd2418ae361d9c5981dc82d691c6efb7baa21988bcb4036a384d9",
+      "bytes": 17026,
+      "sha256": "28b9a367c4dff9b3462e436b5f7dab22ba6ac10247b9c1a7322690bfb3f19fc1",
       "source_bytes_preserved": false,
-      "scope": "TASK7_SOURCE36_CANDIDATE_PENDING_DOCUMENTATION"
+      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS"
     },
     {
       "bytes": 44233,
@@ -3823,10 +3823,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 77470,
+      "bytes": 79320,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK7_SOURCE36_CANDIDATE_PENDING_DOCUMENTATION",
-      "sha256": "c91ef5026b702f0a84e07b94abcbec4d57321bb4cec13508eb403abd1900c22a",
+      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS",
+      "sha256": "331858adf3dbea4c880be0ec2f5abfa23ee7564388992f7bc0317c4dd068d178",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4545,13 +4545,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 642,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "9a4d431a80d08e8c7f000516f376bddf8eb2e232",
+  "previous_public_commit": "21edc8e8ff961fa063a4a60c532530e159a6b52c",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-24T22:08:02+08:00",
+  "progress_as_of": "2026-10-24T23:00:43+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK7_SOURCE36_REVIEWED_PROOF_BUDGET_FIX_LINUX_NATIVE_PENDING_OPEN",
+  "scope": "SOURCE36_SERIAL_QUEUE_ACTIVE_HISTORICAL_F63_P6_CLOSED_NOT_CURRENT_ACCEPTANCE",
   "source_archive_sha256": "99288c6b8074b8ff2009ee06724518eeee056864f8917b7a8aee60e9e88b1096",
   "source_archive_status": "REVIEWED_SOURCE36_CANDIDATE_LINUX_NATIVE_PENDING_NOT_ACCEPTANCE",
   "source_capture_method": "EXACT_SOURCE36_GIT_BLOBS_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
@@ -11220,8 +11220,8 @@
       "errors": 0,
       "skipped": 1
     },
-    "first_native_case": "NOT_STARTED_SOURCE36_SIX_NEW_UUIDS_REQUIRED",
-    "remaining_cases_status": "ALL_SIX_PENDING_NOT_STARTED_NEW_SOURCE_NO_CREDIT_TRANSFER",
+    "first_native_case": "QUEUED_MISSING_ASSET_WAITING_ORIGINAL_SAFETY_WINDOW_AT_SNAPSHOT",
+    "remaining_cases_status": "SIX_FRESH_CASES_SERIAL_QUEUE_ACTIVE_NONE_RETURNED_AT_SNAPSHOT",
     "rust_new_unit_tests": {
       "added": 2,
       "executed": true,
@@ -11299,9 +11299,7 @@
       }
     ],
     "pending_root_finalize": [
-      "NEW_SAME_SOURCE_SIX_NATIVE_CASES_AND_ORIGINAL_P6_DELIVERY_REVIEW",
-      "PUBLIC_ELEVEN_FILE_DRAFT_INDEPENDENT_REVIEW",
-      "ROOT_ACTUAL_CURRENT_RUN_CHECKPOINT_FINALIZE_THEN_REGULAR_CANDIDATE_BRANCH_PUBLICATION"
+      "SAME_SOURCE_SIX_NATIVE_CASES_AND_FULL_ORIGINAL_REVIEW"
     ],
     "actual_red": {
       "exit": 101,
@@ -11387,8 +11385,20 @@
         "source_manifest_sha256": "823719bea6985e26c8a8d8fd6b58986054a5061a59b2dc58a33339ea5c67b9a5",
         "source_file_count": 609,
         "controller_pin_count": 22
+      },
+      "p6_closeout_2026_10_24": {
+        "as_of": "2026-10-24T23:00:43+08:00",
+        "source_commit": "f63c48ecd9ed62304434291ed5140bc82ec751f8",
+        "status": "HISTORICAL_F63_POSITIVE_P6_ORIGINAL_BYTES_CLOSED_DESCRIPTIVE_ONLY",
+        "review_sha256": "a4ddfa8ffb27ffb9be61c6f5fe08fc3a018893e2ec54da953f6e0c3ca311b009",
+        "wire_bytes": 9283670,
+        "original_files": 245,
+        "root_frames": 15,
+        "reading_files_bytes": 1172,
+        "no_credit_transfer_to_current_source": true
       }
-    }
+    },
+    "current_dispatch_status": "SERIAL_QUEUE_ACTIVE_WAITING_ORIGINAL_SAFETY_WINDOW_AT_SNAPSHOT"
   },
   "source_controller_pin_count": 22
 }
