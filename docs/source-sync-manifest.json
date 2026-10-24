@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-24",
+  "date": "2026-10-25",
   "documentation_transform": "redact machine locations, resolve published links, add current progress; private references remain labels",
   "excluded_source_files": [
     ".artifacts/.gitignore",
@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 157954,
+      "bytes": 157963,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY",
-      "sha256": "6c8fb240d20dab498d7de005eec453186d079912d0209c84d7a0aaca427a5238",
+      "sha256": "ec9acc84669900ec56760062897eb20cf2b2067e6f24334058c76c02ae288183",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 47028,
+      "bytes": 48528,
       "path": "README.md",
       "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY",
-      "sha256": "140925b22c9b33e7c971f20f8390753bef6adf279a0ff7dc38c5eca4102b4dea",
+      "sha256": "86ba04988f479c79d30618429e8930bfe0415dd0626c469c8f4ff446a7ea37f6",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3542,8 +3542,8 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 18526,
-      "sha256": "e9b8478be17dc67bbba46922b1be87d2d33e50267a25c226722301a0f48dc365",
+      "bytes": 20026,
+      "sha256": "f147c4a1d04ba06f1772686c1e28f6f12856ecfc3d48073c89f46c336f28de4e",
       "source_bytes_preserved": false,
       "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY"
     },
@@ -3823,10 +3823,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 80820,
+      "bytes": 82320,
       "path": "docs/项目最新进度.md",
       "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY",
-      "sha256": "bed67955f7b2d3de7908964135eaaaee332a52e2a9c040931acf28b4a0b2462d",
+      "sha256": "84f0e09688064693e2826780d306c04de5161af7180a3b47fdfc6625a59ef145",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4545,10 +4545,10 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 642,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "16511d2c277370da47fb5731aaeaa4e29aa0c912",
+  "previous_public_commit": "fcdeed8df66212418eb0e7fca942cc9d1a4f3966",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-24T23:56:04+08:00",
+  "progress_as_of": "2026-10-25T00:34:48+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
   "scope": "SOURCE36_NATIVE_RETURNS_PENDING_ORIGINAL_INDEPENDENT_REVIEW",
@@ -11136,7 +11136,7 @@
     "precondition_review_sha256": "3e44f27d6c5b7a1fef3f84d32b6e8621e3c23bc631336ae0ff88be4a374ff497",
     "attention_native_observation": {
       "source_commit": "36c89f2e94dccdc90652f8b196372bb62fa398a5",
-      "driver_cases_returned": 2,
+      "driver_cases_returned": 3,
       "independently_accepted": 0,
       "raw_case_counts_independently_verified": false
     },
@@ -11145,7 +11145,7 @@
     "root_python_return_result_sha256": "454a449004cd843c29d47e31dcd6235309ea646c4f9f043ffb9cbc5b5218de53",
     "accepted": 0,
     "total": 6,
-    "native_returned": 2,
+    "native_returned": 3,
     "task7_complete": false,
     "task8_complete": false,
     "task9_complete": false,
@@ -11220,7 +11220,7 @@
       "skipped": 1
     },
     "first_native_case": "MISSING_ASSET_FIVE_PHASES_RETURNED_PENDING_ORIGINAL_REVIEW",
-    "remaining_cases_status": "4_CASE_RETURNS_PENDING_ALL_SIX_ORIGINAL_REVIEWS_PENDING",
+    "remaining_cases_status": "3_CASE_RETURNS_PENDING_ALL_SIX_ORIGINAL_REVIEWS_PENDING",
     "rust_new_unit_tests": {
       "added": 2,
       "executed": true,
@@ -11416,6 +11416,11 @@
         "returned_receipt_sha256": "ca6c26e53397e9e713b5992ae0d6d0ee2f947771e2eb5c3176a4a58402df33b0",
         "native_original_sha256": "31ba00265f52e83d5f5b15f7e644a608738f357e662f15fa6ba5f9a3e701adbd",
         "case_id": "3b3aab22-6b94-4477-917c-065a099c6c51"
+      },
+      "attention-corrupt-dump": {
+        "returned_receipt_sha256": "b9ca3906bf2d7c1e7cf3fb803f67cc6f23f287a14e8514534b76361046ac00cd",
+        "native_original_sha256": "5fb5b160f67341a1b8a19591b668d8a991bc9b121f0d56051d966496ddc7d83d",
+        "case_id": "18007583-4df3-4e96-a10f-b675fd90e880"
       }
     }
   },
