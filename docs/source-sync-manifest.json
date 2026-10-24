@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 158132,
+      "bytes": 157954,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS",
-      "sha256": "4d67ab270a7fd151124ce5f8aa84d9cfac57a403e4ffb048c2ad1c1020c4e650",
+      "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY",
+      "sha256": "6c8fb240d20dab498d7de005eec453186d079912d0209c84d7a0aaca427a5238",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 45528,
+      "bytes": 47028,
       "path": "README.md",
-      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS",
-      "sha256": "49848541694f0f01de0fdfd8cbdf1c28fabe1c8b1ca59678e7648a394090d946",
+      "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY",
+      "sha256": "140925b22c9b33e7c971f20f8390753bef6adf279a0ff7dc38c5eca4102b4dea",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3542,10 +3542,10 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 17026,
-      "sha256": "28b9a367c4dff9b3462e436b5f7dab22ba6ac10247b9c1a7322690bfb3f19fc1",
+      "bytes": 18526,
+      "sha256": "e9b8478be17dc67bbba46922b1be87d2d33e50267a25c226722301a0f48dc365",
       "source_bytes_preserved": false,
-      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS"
+      "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY"
     },
     {
       "bytes": 44233,
@@ -3823,10 +3823,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 79320,
+      "bytes": 80820,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK7_CURRENT_QUEUE_AND_HISTORICAL_RAW_REVIEW_PROGRESS",
-      "sha256": "331858adf3dbea4c880be0ec2f5abfa23ee7564388992f7bc0317c4dd068d178",
+      "scope": "TASK7_SOURCE36_ACTUAL_RETURN_PROGRESS_ONLY",
+      "sha256": "bed67955f7b2d3de7908964135eaaaee332a52e2a9c040931acf28b4a0b2462d",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4545,13 +4545,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 642,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "21edc8e8ff961fa063a4a60c532530e159a6b52c",
+  "previous_public_commit": "16511d2c277370da47fb5731aaeaa4e29aa0c912",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-24T23:00:43+08:00",
+  "progress_as_of": "2026-10-24T23:56:04+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "SOURCE36_SERIAL_QUEUE_ACTIVE_HISTORICAL_F63_P6_CLOSED_NOT_CURRENT_ACCEPTANCE",
+  "scope": "SOURCE36_NATIVE_RETURNS_PENDING_ORIGINAL_INDEPENDENT_REVIEW",
   "source_archive_sha256": "99288c6b8074b8ff2009ee06724518eeee056864f8917b7a8aee60e9e88b1096",
   "source_archive_status": "REVIEWED_SOURCE36_CANDIDATE_LINUX_NATIVE_PENDING_NOT_ACCEPTANCE",
   "source_capture_method": "EXACT_SOURCE36_GIT_BLOBS_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
@@ -11132,21 +11132,20 @@
     "source_commit": "36c89f2e94dccdc90652f8b196372bb62fa398a5",
     "implementation_commit": "36c89f2e94dccdc90652f8b196372bb62fa398a5",
     "parent_source_commit": "f63c48ecd9ed62304434291ed5140bc82ec751f8",
-    "current_precondition_status": "ACCEPTED_LIMITED_FINITE_AND_ROOTPY_ONLY_NATIVE_NOT_STARTED",
+    "current_precondition_status": "ACCEPTED_LIMITED_FINITE_AND_ROOTPY_ONLY_NATIVE_CREDIT_SEPARATE",
     "precondition_review_sha256": "3e44f27d6c5b7a1fef3f84d32b6e8621e3c23bc631336ae0ff88be4a374ff497",
     "attention_native_observation": {
-      "ignored": 6,
-      "listed": 6,
-      "executed": 0,
-      "accepted": 0,
-      "listing_and_compilation_are_execution_credit": false
+      "source_commit": "36c89f2e94dccdc90652f8b196372bb62fa398a5",
+      "driver_cases_returned": 2,
+      "independently_accepted": 0,
+      "raw_case_counts_independently_verified": false
     },
     "task8_real_pg_and_four_upgrades_accepted": false,
     "linux_finite_return_result_sha256": "91a4c17139af68a090c33b35cbbef30a15a19f8765e8948fe1f73ac08308ae21",
     "root_python_return_result_sha256": "454a449004cd843c29d47e31dcd6235309ea646c4f9f043ffb9cbc5b5218de53",
     "accepted": 0,
     "total": 6,
-    "native_returned": 0,
+    "native_returned": 2,
     "task7_complete": false,
     "task8_complete": false,
     "task9_complete": false,
@@ -11220,8 +11219,8 @@
       "errors": 0,
       "skipped": 1
     },
-    "first_native_case": "QUEUED_MISSING_ASSET_WAITING_ORIGINAL_SAFETY_WINDOW_AT_SNAPSHOT",
-    "remaining_cases_status": "SIX_FRESH_CASES_SERIAL_QUEUE_ACTIVE_NONE_RETURNED_AT_SNAPSHOT",
+    "first_native_case": "MISSING_ASSET_FIVE_PHASES_RETURNED_PENDING_ORIGINAL_REVIEW",
+    "remaining_cases_status": "4_CASE_RETURNS_PENDING_ALL_SIX_ORIGINAL_REVIEWS_PENDING",
     "rust_new_unit_tests": {
       "added": 2,
       "executed": true,
@@ -11398,7 +11397,27 @@
         "no_credit_transfer_to_current_source": true
       }
     },
-    "current_dispatch_status": "SERIAL_QUEUE_ACTIVE_WAITING_ORIGINAL_SAFETY_WINDOW_AT_SNAPSHOT"
+    "current_dispatch_status": "SERIAL_SOURCE36_VALIDATION_ACTIVE_PENDING_ORIGINAL_REVIEW",
+    "attention_precondition_listing_observation": {
+      "ignored": 6,
+      "listed": 6,
+      "executed": 0,
+      "accepted": 0,
+      "listing_and_compilation_are_execution_credit": false,
+      "scope": "FINITE_PRECONDITION_LISTING_ONLY_NOT_CURRENT_NATIVE_RUN_COUNTS"
+    },
+    "current_native_returns": {
+      "attention-missing-asset": {
+        "returned_receipt_sha256": "76d669220ef7135a72586a3973b6b5c85388b291e0a94dd466486fba00a59a3c",
+        "native_original_sha256": "2ca8987143b759a220d2e5a1f9f136b8343a73fc2fdb43b292fc4fbf989a9b4e",
+        "case_id": "5ed9059c-47e2-45d9-9f4f-97449efa976a"
+      },
+      "attention-full-chain": {
+        "returned_receipt_sha256": "ca6c26e53397e9e713b5992ae0d6d0ee2f947771e2eb5c3176a4a58402df33b0",
+        "native_original_sha256": "31ba00265f52e83d5f5b15f7e644a608738f357e662f15fa6ba5f9a3e701adbd",
+        "case_id": "3b3aab22-6b94-4477-917c-065a099c6c51"
+      }
+    }
   },
   "source_controller_pin_count": 22
 }
