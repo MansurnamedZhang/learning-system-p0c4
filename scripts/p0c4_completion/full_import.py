@@ -657,7 +657,7 @@ class FullRehearsalContext:
         _require(attention.WIRE_CONTRACT is not None,'ATTENTION_PROOF_CONTRACT_NOT_FROZEN')
         import p0c4_source_lifecycle_gate_acceptance as driver
         try:
-            bundle=attention.read_fixed_bundle(driver,self._runner,record['container_id'],self._case_name)
+            bundle=attention.read_fixed_bundle(driver,self._runner,record['container_id'],self._case_name,context=self)
             attention.validate_bundle(bundle,self._plan,self._target_status,record.get('snapshot_capture_byte_audit'))
         except attention.AttentionError as error:raise FullImportError(str(error))from error
         for name,cap,key in attention.fixed_proof_files(self._case_name):

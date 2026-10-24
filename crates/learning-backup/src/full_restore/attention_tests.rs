@@ -680,6 +680,7 @@ pub(super) async fn finish(_f: &mut Fixture) -> Result<(), BackupError> {
         let mut result = base_negative(&full, &crate::digest(&inventory_raw));
         let audit =
             preflight::read_limited(&root, "full-negative-inventory.json", 64 * 1024 * 1024)?;
+        put_corrupt_audit_split(&root, &audit, &full["negative_evidence"])?;
         let audit: Value = serde_json::from_slice(&audit)?;
         require(
             audit["injected"] == "dump_freeze"
@@ -701,6 +702,171 @@ pub(super) async fn finish(_f: &mut Fixture) -> Result<(), BackupError> {
     put(&root, "full-attention-result.json", &result)?;
     Ok(())
 }
+const CORRUPT_AUDIT_BEFORE: &str = "full-attention-corrupt-before.json";
+const CORRUPT_AUDIT_AFTER: &str = "full-attention-corrupt-after.json";
+const CORRUPT_AUDIT_INDEX: &str = "full-attention-corrupt-audit-index.json";
+const CORRUPT_LEGACY_PREFIX: &[u8] =
+    b"{\"audit_failed\":false,\"injected\":\"dump_freeze\",\"refused\":\"dump_freeze\",\"before\":";
+const CORRUPT_LEGACY_MIDDLE: &[u8] = b",\"after\":";
+const CORRUPT_LEGACY_SUFFIX: &[u8] = b"}";
+
+struct CorruptAuditSplit {
+    before: Vec<u8>,
+    after: Vec<u8>,
+    index: Value,
+}
+
+fn split_corrupt_audit(legacy: &[u8], reference: &Value) -> Result<CorruptAuditSplit, BackupError> {
+    let audit: Value = serde_json::from_slice(legacy)?;
+    require(
+        audit.as_object().is_some_and(|fields| {
+            fields.len() == 5
+                && ["before", "after", "injected", "refused", "audit_failed"]
+                    .iter()
+                    .all(|key| fields.contains_key(*key))
+        }) && audit["injected"] == "dump_freeze"
+            && audit["refused"] == "dump_freeze"
+            && audit["audit_failed"] == false
+            && audit["before"] == audit["after"],
+        "attention corrupt legacy complete audit",
+    )?;
+    for side in ["before", "after"] {
+        require(
+            audit[side].as_object().is_some_and(|fields| {
+                fields.len() == 3
+                    && ["catalog", "assets", "attempts"]
+                        .iter()
+                        .all(|key| fields.contains_key(*key))
+            }),
+            "attention corrupt complete inventory",
+        )?;
+    }
+    let before = serde_json::to_vec(&audit["before"])?;
+    let after = serde_json::to_vec(&audit["after"])?;
+    if before.is_empty()
+        || after.is_empty()
+        || before.len() > 16 * 1024 * 1024
+        || after.len() > 16 * 1024 * 1024
+    {
+        return Err(BackupError::Capacity("attention corrupt split part"));
+    }
+    let mut hash = Sha256::new();
+    let mut offset = 0_usize;
+    for part in [
+        CORRUPT_LEGACY_PREFIX,
+        before.as_slice(),
+        CORRUPT_LEGACY_MIDDLE,
+        after.as_slice(),
+        CORRUPT_LEGACY_SUFFIX,
+    ] {
+        let next = offset
+            .checked_add(part.len())
+            .ok_or(BackupError::Overflow)?;
+        require(
+            legacy.get(offset..next) == Some(part),
+            "attention corrupt legacy byte grammar",
+        )?;
+        hash.update(part);
+        offset = next;
+    }
+    let legacy_sha256 = hex::encode(hash.finalize());
+    require(
+        offset == legacy.len()
+            && reference["stage"] == "dump_freeze"
+            && reference["sha256"].as_str() == Some(legacy_sha256.as_str())
+            && reference["bytes"].as_u64() == Some(offset as u64)
+            && reference["unchanged"] == true,
+        "attention corrupt legacy original reference",
+    )?;
+    let index = json!({"format_version":1,"capability":"attention_legacy_dump_audit_split_v1",
+        "case":"attention-corrupt-dump","injected":"dump_freeze","refused":"dump_freeze","audit_failed":false,
+        "before":{"path":CORRUPT_AUDIT_BEFORE,"size":before.len(),"sha256":crate::digest(&before)},
+        "after":{"path":CORRUPT_AUDIT_AFTER,"size":after.len(),"sha256":crate::digest(&after)},
+        "legacy":{"path":"full-negative-inventory.json","size":offset,"sha256":legacy_sha256,
+            "encoding":"SERDE_NEGATIVE_EVIDENCE_DUMP_FREEZE_V1"}});
+    require(
+        serde_json::to_vec(&index)?.len() <= 16384,
+        "attention corrupt split index bound",
+    )?;
+    Ok(CorruptAuditSplit {
+        before,
+        after,
+        index,
+    })
+}
+
+fn put_corrupt_audit_split(
+    root: &BackupDir,
+    legacy: &[u8],
+    reference: &Value,
+) -> Result<(), BackupError> {
+    let split = split_corrupt_audit(legacy, reference)?;
+    for (name, bytes) in [
+        (CORRUPT_AUDIT_BEFORE, split.before.as_slice()),
+        (CORRUPT_AUDIT_AFTER, split.after.as_slice()),
+    ] {
+        let mut file = root.create_file(name)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        root.sync()?;
+    }
+    put(root, CORRUPT_AUDIT_INDEX, &split.index)?;
+    Ok(())
+}
+
+#[test]
+fn corrupt_split_reconstructs_large_legacy_without_cropping_catalog() {
+    use crate::full_restore::negative::{Boundary, NegativeEvidence};
+    let snapshot = json!({"catalog":{"large_complete_catalog":"x".repeat(9*1024*1024)},"assets":{},"attempts":{}});
+    let mut audit = NegativeEvidence::default();
+    audit.injected(Boundary::DumpFreeze);
+    audit.refused(Boundary::DumpFreeze);
+    audit.before(snapshot.clone());
+    audit.after(snapshot.clone());
+    audit.validate(Boundary::DumpFreeze, true).unwrap();
+    let raw = serde_json::to_vec(&audit).unwrap();
+    let reference = json!({"stage":"dump_freeze","sha256":crate::digest(&raw),"bytes":raw.len(),"unchanged":true});
+    let split = split_corrupt_audit(&raw, &reference).unwrap();
+    assert!(
+        raw.len() > 16 * 1024 * 1024
+            && split.before.len() < 16 * 1024 * 1024
+            && split.after.len() < 16 * 1024 * 1024
+    );
+    assert_eq!(split.before, split.after);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&split.before).unwrap(),
+        snapshot
+    );
+    assert_eq!(split.index["legacy"]["sha256"], reference["sha256"]);
+    let mut bad = reference.clone();
+    bad["sha256"] = json!("0".repeat(64));
+    assert!(split_corrupt_audit(&raw, &bad).is_err());
+    let mut changed = raw.clone();
+    changed.insert(0, b' ');
+    assert!(split_corrupt_audit(&changed, &reference).is_err());
+}
+
+#[test]
+fn corrupt_split_keeps_part_cap_and_requires_complete_equal_inventories() {
+    use crate::full_restore::negative::{Boundary, NegativeEvidence};
+    let mut audit = NegativeEvidence::default();
+    audit.injected(Boundary::DumpFreeze);
+    audit.refused(Boundary::DumpFreeze);
+    audit.before(json!({"catalog":{},"assets":{},"attempts":{}}));
+    audit.after(json!({"catalog":{"changed":true},"assets":{},"attempts":{}}));
+    let raw = serde_json::to_vec(&audit).unwrap();
+    assert!(split_corrupt_audit(&raw, &json!({})).is_err());
+    let huge = json!({"catalog":{"large":"x".repeat(16*1024*1024)},"assets":{},"attempts":{}});
+    audit.before(huge.clone());
+    audit.after(huge);
+    let raw = serde_json::to_vec(&audit).unwrap();
+    let reference = json!({"stage":"dump_freeze","sha256":crate::digest(&raw),"bytes":raw.len(),"unchanged":true});
+    assert!(matches!(
+        split_corrupt_audit(&raw, &reference),
+        Err(BackupError::Capacity("attention corrupt split part"))
+    ));
+}
+
 async fn root_replacement() -> Result<(), BackupError> {
     let mut f = Fixture::attention().await;
     let source = Box::pin(capture(&mut f)).await?;

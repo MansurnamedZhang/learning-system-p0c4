@@ -108,7 +108,12 @@ def proof_fixture(case):
   negative=dict(boundary={'attention-missing-asset':'DESTINATION_DECLARED_ORIGINAL_OPEN','attention-corrupt-dump':'DUMP_FREEZE_CUSTOM_HEADER','attention-interrupted-transfer':'DESTINATION_AFTER_TARGET_CHUNK','attention-unknown-effect':'POST_IMPORT_EXTERNAL_EFFECT_VALIDATION','attention-root-replacement':'HELD_TARGET_CONTROL_CURRENT_NAME_IDENTITY'}[case],injected=True,refused=True,unchanged=not unknown,bad_input_import_started=unknown,previous_pin_verified=True,previous_pin_restore_verified=case in ('attention-missing-asset','attention-interrupted-transfer'));proof['negative']=negative
   if unknown:negative.update(snapshot_holds=3,snapshot_runnable=0)
   elif case=='attention-corrupt-dump':
-   data=dict(catalog={},assets={},attempts={});audit=dict(before=data,after=data,injected='dump_freeze',refused='dump_freeze',audit_failed=False);objects['full-negative-inventory.json']=audit;auditraw=a.canonical(audit);negative.update(before_sha256=a.sha(a.canonical(data)),after_sha256=a.sha(a.canonical(data)),original_negative_inventory_sha256=a.sha(auditraw));original['negative_evidence']=dict(stage='dump_freeze',sha256=a.sha(auditraw),bytes=len(auditraw),unchanged=True)
+   data=dict(catalog={},assets={},attempts={});part=a.canonical(data)
+   auditraw=b'{"audit_failed":false,"injected":"dump_freeze","refused":"dump_freeze","before":'+part+b',"after":'+part+b'}'
+   before_name='full-attention-corrupt-before.json';after_name='full-attention-corrupt-after.json'
+   objects[before_name]=copy.deepcopy(data);objects[after_name]=copy.deepcopy(data)
+   objects['full-attention-corrupt-audit-index.json']=dict(format_version=1,capability='attention_legacy_dump_audit_split_v1',case=case,injected='dump_freeze',refused='dump_freeze',audit_failed=False,before=dict(path=before_name,size=len(part),sha256=a.sha(part)),after=dict(path=after_name,size=len(part),sha256=a.sha(part)),legacy=dict(path='full-negative-inventory.json',size=len(auditraw),sha256=a.sha(auditraw),encoding='SERDE_NEGATIVE_EVIDENCE_DUMP_FREEZE_V1'))
+   negative.update(before_sha256=a.sha(part),after_sha256=a.sha(part),original_negative_inventory_sha256=a.sha(auditraw));original['negative_evidence']=dict(stage='dump_freeze',sha256=a.sha(auditraw),bytes=len(auditraw),unchanged=True)
   else:
    data=dict(catalog={},assets={},attempts={});objects['full-attention-negative-before.json']=copy.deepcopy(data);objects['full-attention-negative-after.json']=copy.deepcopy(data);negative.update(before_sha256=a.sha(a.canonical(data)),after_sha256=a.sha(a.canonical(data)))
    if case=='attention-root-replacement':negative.update(held_identity=[1,2],replacement_identity=[1,3])
@@ -162,6 +167,10 @@ class AttentionProofTests(unittest.TestCase):
  def test_body_reader_saves_only_valid_fixed_originals_after_independent_capture(self):
   import sys
   objects,value,target,capture=proof_fixture('attention-full-chain');bundle={k:a.canonical(v)for k,v in objects.items()};context=full.FullRehearsalContext(full._TOKEN,value);context._runner=None;context._target_status=target;saved={};context._h=SimpleNamespace(write_new=lambda path,raw:saved.setdefault(path.name,raw));context._case=Path('/unit-only');record=dict(container_id='fake',snapshot_capture_byte_audit=capture);fake=SimpleNamespace(pg_exec=lambda r,c,args:(0,bundle[args[-1].split('/')[-1]],b''))
-  with patch.dict(sys.modules,{'p0c4_source_lifecycle_gate_acceptance':fake}):context._verify_attention_body(record)
+  inventory={'proofs':dict(directory=True,dev=1,ino=2,uid=0,mode=0o700)}
+  inventory.update({'proofs/'+name:dict(bytes=len(raw),sha256=a.sha(raw),mode=0o600,uid=0,links=1)for name,raw in bundle.items()});raw_inventory=a.canonical(inventory)
+  context._record=record;context._phase='COMPLETE';record.update(identity=dict(case_id=value['case_id']),test=context._selected_test(),stage='actual-libtest',full_profile_stage='VERIFIED',outcome=dict(exit_code=0,passed=1,failed=0,ignored=0),inventory_sha256=a.sha(raw_inventory))
+  fake.LIMIT=2*1024**2;fake.unique_pairs=a._pairs;fake.canonical=a.canonical
+  with patch.dict(sys.modules,{'p0c4_source_lifecycle_gate_acceptance':fake}),patch.object(full,'_measured_regular',return_value=(raw_inventory,{})):context._verify_attention_body(record)
   self.assertEqual(saved,bundle);self.assertEqual(record['full_attention_proof']['sha256'],a.sha(bundle['full-attention-result.json']))
 if __name__=='__main__':unittest.main()

@@ -1,5 +1,38 @@
 # 知织 · KnowWeave
 
+## Task7 读取修复及同源有限前置已独核，六案 native 待验 · 2026-10-24 22:08:02（北京时间，候选草稿）
+
+当前候选源码 **`36c89f2e94dccdc90652f8b196372bb62fa398a5`**（父提交 `f63c48ecd9ed62304434291ed5140bc82ec751f8`）已纳入六份经双向独立源码审查的修复。新 source 的 Linux 有限检查与 Root Python **已按原始回执独立核对，仅接受为有限前置**，审查 INDEX：`3e44f27d6c5b7a1fef3f84d32b6e8621e3c23bc631336ae0ff88be4a374ff497`。六项同源 native 尚未开始，**正式接受 0/6，Task7 OPEN**；后续六案原件独核仍 pending。
+
+读取修复仅在固定 proof 超过原单进程预算时新增 **1 个 proofs 只读 helper**，保持原 **2MiB 单进程输出、16MiB proof 文件、2 个 helper 同时存活及 82 个累计 helper** 上限。固定持有 FD 的完整分块读取、身份核对、全量哈希、自然退出及精确清理保持闭合；当前小报告正例保留原 cat 顺序与零新增 helper。损坏 dump 使用固定小 index 与两份完整 before/after 重建原 legacy 字节及哈希，继续连接原 full-import negative_evidence；旧 generic producer、15 份迁移及既有守卫保持。
+
+新 source 的同源有限前置独核结果：Rust **562 passed／0 failed／142 ignored（未执行）**，新增两项 corrupt_split Rust 单测均实际 `ok`，ordinary DAC **1 passed**；Root Python 原始日志为 **Ran 386，OK (skipped=1)**，即 **385 passed／1 skipped**。16 份原始过程文件、611 源文件及 22 个 controller pin 已核；两只 builder 自然 exit0、精确移除，C624／N592／V2107 完整保护投影保持，未新增 PG、network 或 volume。有限结果 SHA：`91a4c17139af68a090c33b35cbbef30a15a19f8765e8948fe1f73ac08308ae21`；Root Python 结果 SHA：`454a449004cd843c29d47e31dcd6235309ea646c4f9f043ffb9cbc5b5218de53`。
+
+**六项 Attention native 为 6 ignored＋6 listed、实际 0 executed**，列举和编译不计执行信用。本有限配方不包含完整 workspace 的真实 PostgreSQL／四套旧版升级验收，不授予 Task8 完成信用。
+
+此前 Root 私有组合 57 项、独立合并 76 项属于 **portable**，范围有重叠、不相加、不代替上述 Linux 返回或 native 验收。reader 源码独审 INDEX：`481eb4e2f203f33f633d53ee2ad2c298025a3265aaea7258f8b6657070650a0c`；split 源码独审 INDEX：`0158518da952b4816b6fc09f34c2d3b370510a9433bf8edfbbf111a9ee0c16ad`。
+
+| 当前绑定 | 值 |
+|---|---|
+| SourceCommit | `36c89f2e94dccdc90652f8b196372bb62fa398a5` |
+| ParentSourceCommit | `f63c48ecd9ed62304434291ed5140bc82ec751f8` |
+| ArchivePIN / SHA-256 | `99288c6b8074b8ff2009ee06724518eeee056864f8917b7a8aee60e9e88b1096` |
+| SourceManifestPIN / SHA-256 | `c5ab0f0b371ff62db0fbbc0ca18a671cd6d5c339375538deed03de9cc42b3960` |
+| 源码包 | 611 个 Git 源文件、22 个 controller pin |
+| Linux 有限前置独核 | **Rust 562 passed／142 ignored；DAC 1 passed** |
+| Root Python 独核 | **386 项：385 passed／1 skipped** |
+| 两项新 Rust 单测 | **已实际 ok，纳入本轮有限独核** |
+| 有限独审 INDEX | `3e44f27d6c5b7a1fef3f84d32b6e8621e3c23bc631336ae0ff88be4a374ff497` |
+| 六案 native / P6 与交付原件闭合 | **pending：新源码全部重新执行；正式接受 0/6** |
+
+`historical_f63`：旧 f63 的有限 Rust 560 通过／142 ignored、ordinary DAC 1 通过、Root Python 363 通过／1 跳过，以及正例五阶段返回、P6／交付待核、missing-asset 后置 `PROCESS_LOG_BUDGET`／`FAILED_UNUSABLE` 和旧 timer 保护差异，均保留在下方历史区及 manifest 的 historical_f63 内。旧源码信用不转授本源码；原 `2ced636` RED 与失败／HOLD 记录保持。
+
+Task6 私有单机 16/16 历史范围保持。**Task7／Task8／Task9／P0-C4 整关、独立存储、CompleteBackup、公开恢复与生产全部 OPEN**；候选分支 `feat/task7-attention-recovery` 不表示 main 合并或部署。本 prep 仅准备草稿，未推送或修改公开 checkout。
+
+---
+
+<details id="historical_f63"><summary>historical_f63 与此前封存检查点（仅历史，不转授当前源码）</summary>
+
 ## Task7 大报告读取修复中，剩余隔离验证尚未接受 · 2026-10-24 20:57:44（北京时间，固定检查点）
 
 当前源码 `f63c48ecd9ed62304434291ed5140bc82ec751f8`：完整 Attention 正例已返回五阶段通过，原始1 passed／0 failed／0 ignored；64源表、63表不变与六任务表／10个任务／13列归一化、48函数及两项明确目录差异已完成报告层独核。4,416份核心与追加原件已导回，P6／Root findings及实际阅读交付文件仍待完整原件闭合。**正式接受仍0/6，Task7保持OPEN**。
@@ -335,6 +368,8 @@ cargo test --offline --locked -p learning-backup --lib
 本次从固定 Git 源码字节导出并更新文档。源码检查点属于开发仓库历史，仅作来源身份标识；公开仓库保留自己的连续快照提交历史。代码、迁移、协议和二进制资料保持原字节，公开文档中的本机路径、服务器连接及私有证据链接做脱敏处理。
 
 凭据、课程原件、编译缓存、测试包、服务器原始日志与私有验收记录不在本仓库。分项审查与历史结果各有范围，不能称整个 HEAD、恢复能力、C4 或生产已验收。
+
+</details>
 
 </details>
 
