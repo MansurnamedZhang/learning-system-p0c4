@@ -1,5 +1,21 @@
 # P0-C4 Task7：完整 Attention 与隔离验收
 
+## Task7 六案metadata限定通过，首Core／四报告独核闭合 · 2026-10-25 04:57:17（北京时间，固定快照）
+
+当前源码 **`36c89f2e94dccdc90652f8b196372bb62fa398a5`** 的同源五阶段回执保持 **6/6＝此前3项来源保留＋新3项返回**；此前三项没有重跑计数。六案 typed 来源准入及六次 metadata 原件复读均已限定 PASS，metadata 取证不等于业务接受，**正式接受仍0/6，Task7 OPEN**。
+
+首个完整正例的 Core 4,458 份、Proof 4,464 份原件及四报告已独立复读：64张表、10个任务、5个物理原件／601字节（6项logical）连接一致。该结论只覆盖本案 Core／四报告；其余五案 Core／Proof、三个 good-pin 路径的 P6 与实际交付字节仍待导出和独核，三项finding或ReadingCopy文件声明不代替实际原件。
+
+metadata 首次 namespace 四字段到原采样器两字段的映射失败、随后固定image继承OCI标签校验失败，均已定位并经窄修独审；原native采样器、全C/N/V保护与预算保持。所有失败UUID、原件和HOLD原样保留、不重放。仅在现场严格重核后精确移除了唯一已知自建、从未启动的helper；源目标／suite／owner原件留存，不扩展到其他资源清理。
+
+有限前置Rust562通过／142忽略、ordinary DAC1通过、Root Python385通过／1跳过，以及Task6私有单机16/16历史结论保持；旧f63不转授当前源码。应用2MiB进程／16MiB文件与Root原件512MiB完整流预算保持。Task8／9、P0-C4整关、独立故障域与外部备份存储、CompleteBackup、公开恢复和生产仍OPEN；候选分支 `feat/task7-attention-recovery` 未合并main、未部署。
+
+独审逻辑标识与SHA256：metadata-full-chain `60d4d43bf583bc816866808346e6b77087d78307c797de26833d2a749270ae0a`；metadata-other-five `f41d051233dc8a9363d4216d441f112ff7561bc3e7a5edf4c9e6a7a6807ec06e`；full-chain-core-four-reports `77b966a6f69bd277d4226c1e7ca93f44e9bf2a4f10b7359a611bab51bb79bc0e`；known-never-started-helper-cleanup `37ff26963fc575c2e9094f138a060d714f0927bd29d99e0c4688466c457efebc`。
+
+---
+
+<details><summary>此前检查点（保留当时状态）</summary>
+
 ## Task7 同源回执6/6：此前三项来源采用＋新3项返回 · 2026-10-25 03:27:08（北京时间，固定快照）
 
 六案 typed 来源准入已实际重读通过：此前3项＋新3项，30个控制容器均完成精确清理。正式原件接受仍0/6。首个只读取证操作在 sample-before 因命名空间四字段与原采样器两字段的接口映射错误而拒绝，尚未创建helper；失败UUID/HOLD与完整原件保留，正作窄修，不重放、不放宽资源保护。
@@ -13,6 +29,8 @@
 有限前置仍为Rust562通过／142忽略、ordinary DAC1通过、Root Python385通过／1跳过；Task6私有单机16/16历史保持。进度同步候选分支 `feat/task7-attention-recovery`，main未合并、未部署；**Task7–9／P0-C4整关、独立存储、CompleteBackup、公开恢复与生产仍OPEN**。
 
 ---
+
+</details>
 
 <details><summary>此前检查点（保留当时状态）</summary>
 

@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 162876,
+      "bytes": 163501,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
-      "sha256": "50ae30e7fb6aab6e6f119b4daa1cb725cbdf0e458e6a997f1a28c199a5fb6743",
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
+      "sha256": "a41a6acb3b10e4a881576f397c74900b7ee930266aee0625939c4bc803af93cc",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 55501,
+      "bytes": 57708,
       "path": "README.md",
-      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
-      "sha256": "b15b9aafa4d2cd84a2e480533a501774d17c780f52c31d4610e99f22adf3b662",
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
+      "sha256": "90b5b4341e64abe46a558db0182b8de527456be8bfd3d8ab60b8bd7055aa361b",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3542,10 +3542,10 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 26999,
-      "sha256": "802418f73de5b6ec3c49fdab7e9cf531900f2e86df0e0083ae0303da4736570c",
+      "bytes": 29206,
+      "sha256": "0a26dfd04a7d879d0e32b626c2167e6075f21fd93a40d09fdd74eba625174a50",
       "source_bytes_preserved": false,
-      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY"
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION"
     },
     {
       "bytes": 44233,
@@ -3823,10 +3823,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 89293,
+      "bytes": 91500,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
-      "sha256": "d6e7369915f9dfe822b42363a7956d8dcec3f65022cb135a06f78bb53767df77",
+      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
+      "sha256": "f1d8eb510541e3cb9338ef57d935b3c50580a33b4f9e886cd575e0f6be050dd2",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4545,13 +4545,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 642,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "611e108ce1222997a38565e448364a12fb219ee4",
+  "previous_public_commit": "11f1610f9acd3ee1b62ee12eba9e4eec4f12bf08",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-25T03:27:08+08:00",
+  "progress_as_of": "2026-10-25T04:57:17+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "SOURCE36_SIX_RETURNS_TYPED_ADMISSION_PASSED_METADATA_SCHEMA_FIX_PENDING_ORIGINAL_REVIEW",
+  "scope": "SOURCE36_SIX_METADATA_LIMITED_PASS_FIRST_CORE_FOUR_REPORTS_PASS_P6_PENDING_FORMAL_ZERO",
   "source_archive_sha256": "99288c6b8074b8ff2009ee06724518eeee056864f8917b7a8aee60e9e88b1096",
   "source_archive_status": "REVIEWED_SOURCE36_CANDIDATE_LINUX_NATIVE_PENDING_NOT_ACCEPTANCE",
   "source_capture_method": "EXACT_SOURCE36_GIT_BLOBS_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
@@ -11300,7 +11300,9 @@
       }
     ],
     "pending_root_finalize": [
-      "FULL_ORIGINAL_CORE_PROOF_P6_DELIVERY_REVIEW_AND_TASK7_CLOSEOUT"
+      "REMAINING_FIVE_CORE_PROOF_ORIGINAL_READBACK",
+      "THREE_GOOD_PIN_P6_AND_ACTUAL_DELIVERY_ORIGINAL_BYTES",
+      "SIX_CASE_FORMAL_ACCEPTANCE_AND_TASK7_CLOSEOUT"
     ],
     "actual_red": {
       "exit": 101,
@@ -11399,7 +11401,7 @@
         "no_credit_transfer_to_current_source": true
       }
     },
-    "current_dispatch_status": "SOURCE36_PRIOR3_FRESH3_ALL_RETURNED_PENDING_ORIGINAL_REVIEW",
+    "current_dispatch_status": "SOURCE36_SIX_METADATA_LIMITED_PASS_FIRST_CORE_REPORTS_VERIFIED_P6_PENDING",
     "attention_precondition_listing_observation": {
       "ignored": 6,
       "listed": 6,
@@ -11471,13 +11473,44 @@
       "acceptance_credit": 0,
       "label": "SOURCE36_PRIOR3_FRESH3_TYPED_ADMISSION_BEFORE_METADATA"
     },
-    "current_metadata_failure": {
-      "operation": "120ec373-48f0-4e3c-9f4f-44e832b62590",
-      "stage": "sample-before",
-      "reason": "NATIVE_NAMESPACE_FOUR_TO_TWO_SCHEMA_LINK_MISMATCH",
-      "helper_created": false,
-      "hold_sha256": "b1ca5b15ef0521c9f97f6a151ca542f62834d2469957535eea402a04d68b4b78",
-      "replay": false
+    "metadata_originals_limited_pass": 6,
+    "metadata_original_review_sha256": {
+      "metadata-full-chain": "60d4d43bf583bc816866808346e6b77087d78307c797de26833d2a749270ae0a",
+      "metadata-other-five": "f41d051233dc8a9363d4216d441f112ff7561bc3e7a5edf4c9e6a7a6807ec06e"
+    },
+    "first_core_four_report_review_sha256": "77b966a6f69bd277d4226c1e7ca93f44e9bf2a4f10b7359a611bab51bb79bc0e",
+    "first_core_files": 4458,
+    "first_proof_files": 4464,
+    "first_report_tables": 64,
+    "first_report_jobs": 10,
+    "first_report_physical_originals": 5,
+    "first_report_unique_original_bytes": 601,
+    "remaining_core_proof_cases": 5,
+    "good_pin_p6_delivery_paths_pending": 3,
+    "historical_metadata_failures": [
+      {
+        "operation": "120ec373-48f0-4e3c-9f4f-44e832b62590",
+        "stage": "sample-before",
+        "reason": "NATIVE_NAMESPACE_FOUR_TO_TWO_SCHEMA_LINK_MISMATCH",
+        "helper_created": false,
+        "hold_sha256": "b1ca5b15ef0521c9f97f6a151ca542f62834d2469957535eea402a04d68b4b78",
+        "replay": false
+      },
+      {
+        "operation": "45806e13-27d1-4bcc-b252-99c4cde9833e",
+        "stage": "inspect-created",
+        "reason": "FIXED_IMAGE_INHERITED_OCI_LABEL_EXACT_SET_GUARD",
+        "helper_started": false,
+        "replay": false,
+        "originals_and_hold_retained": true
+      }
+    ],
+    "metadata_namespace_and_fixed_image_label_narrow_fixes": "INDEPENDENTLY_REVIEWED_ORIGINAL_NATIVE_SAMPLER_AND_GUARDS_RETAINED",
+    "exact_never_started_helper_cleanup": {
+      "scope": "ONLY_KNOWN_OWN_CREATED_NEVER_STARTED_HELPER_EXACT_REMOVAL",
+      "review_sha256": "37ff26963fc575c2e9094f138a060d714f0927bd29d99e0c4688466c457efebc",
+      "owner_and_suite_retained": true,
+      "metadata_credit": 0
     }
   },
   "source_controller_pin_count": 22
