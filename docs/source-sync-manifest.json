@@ -42,10 +42,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 161015,
+      "bytes": 162876,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
-      "sha256": "8043cc100744333367fa77c76165f6b3a94cd440b3fca9d13eb0c2af1d4cafb1",
+      "sha256": "50ae30e7fb6aab6e6f119b4daa1cb725cbdf0e458e6a997f1a28c199a5fb6743",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +57,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 53467,
+      "bytes": 55501,
       "path": "README.md",
       "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
-      "sha256": "6a85a12632bc2412bf20df73b264ac7ea5e5d5008219436d94c5bc999e24ca49",
+      "sha256": "b15b9aafa4d2cd84a2e480533a501774d17c780f52c31d4610e99f22adf3b662",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3542,8 +3542,8 @@
     },
     {
       "path": "docs/p0c4-completion-acceptance.md",
-      "bytes": 24965,
-      "sha256": "7d35e65816973044e73f5431a146bfc5701f49edde4fe206e6b84cf0bf4bc682",
+      "bytes": 26999,
+      "sha256": "802418f73de5b6ec3c49fdab7e9cf531900f2e86df0e0083ae0303da4736570c",
       "source_bytes_preserved": false,
       "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY"
     },
@@ -3823,10 +3823,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 87259,
+      "bytes": 89293,
       "path": "docs/项目最新进度.md",
       "scope": "TASK7_EXPLICIT_ORIGIN_AND_FRESH_RETURN_PROGRESS_ONLY",
-      "sha256": "665a7731c973057ec41651cda08c35ca96603f82baacbee24f45044522f08e05",
+      "sha256": "d6e7369915f9dfe822b42363a7956d8dcec3f65022cb135a06f78bb53767df77",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4545,13 +4545,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 642,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "9933633c93ee26c8c5ec28af79c57442dc559665",
+  "previous_public_commit": "611e108ce1222997a38565e448364a12fb219ee4",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-25T03:00:40+08:00",
+  "progress_as_of": "2026-10-25T03:27:08+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "SOURCE36_EXPLICIT_PRIOR_ORIGIN_AND_FRESH_RETURNS_PENDING_FULL_ADMISSION_AND_ORIGINAL_REVIEW",
+  "scope": "SOURCE36_SIX_RETURNS_TYPED_ADMISSION_PASSED_METADATA_SCHEMA_FIX_PENDING_ORIGINAL_REVIEW",
   "source_archive_sha256": "99288c6b8074b8ff2009ee06724518eeee056864f8917b7a8aee60e9e88b1096",
   "source_archive_status": "REVIEWED_SOURCE36_CANDIDATE_LINUX_NATIVE_PENDING_NOT_ACCEPTANCE",
   "source_capture_method": "EXACT_SOURCE36_GIT_BLOBS_WITH_PUBLIC_DOCUMENTATION_OVERLAY",
@@ -11137,8 +11137,8 @@
     "attention_native_observation": {
       "source_commit": "36c89f2e94dccdc90652f8b196372bb62fa398a5",
       "prior_origin_cases": 3,
-      "fresh_cases_returned": 2,
-      "driver_cases_returned": 5,
+      "fresh_cases_returned": 3,
+      "driver_cases_returned": 6,
       "independently_accepted": 0,
       "raw_case_counts_independently_verified": false
     },
@@ -11147,7 +11147,7 @@
     "root_python_return_result_sha256": "454a449004cd843c29d47e31dcd6235309ea646c4f9f043ffb9cbc5b5218de53",
     "accepted": 0,
     "total": 6,
-    "native_returned": 5,
+    "native_returned": 6,
     "task7_complete": false,
     "task8_complete": false,
     "task9_complete": false,
@@ -11222,7 +11222,7 @@
       "skipped": 1
     },
     "first_native_case": "MISSING_ASSET_FIVE_PHASES_RETURNED_PENDING_ORIGINAL_REVIEW",
-    "remaining_cases_status": "1_FRESH_RETURNS_PENDING_ALL_ORIGINAL_REVIEWS_PENDING",
+    "remaining_cases_status": "ALL_SIX_RETURNED_ALL_ORIGINAL_REVIEWS_PENDING",
     "rust_new_unit_tests": {
       "added": 2,
       "executed": true,
@@ -11300,7 +11300,7 @@
       }
     ],
     "pending_root_finalize": [
-      "SAME_SOURCE_SIX_NATIVE_CASES_AND_FULL_ORIGINAL_REVIEW"
+      "FULL_ORIGINAL_CORE_PROOF_P6_DELIVERY_REVIEW_AND_TASK7_CLOSEOUT"
     ],
     "actual_red": {
       "exit": 101,
@@ -11399,7 +11399,7 @@
         "no_credit_transfer_to_current_source": true
       }
     },
-    "current_dispatch_status": "SOURCE36_PRIOR3_FRESH_CONTINUATION_ACTIVE",
+    "current_dispatch_status": "SOURCE36_PRIOR3_FRESH3_ALL_RETURNED_PENDING_ORIGINAL_REVIEW",
     "attention_precondition_listing_observation": {
       "ignored": 6,
       "listed": 6,
@@ -11438,9 +11438,15 @@
         "returned_receipt_sha256": "01573b29d75b490d9dc2d6add5ebe0b72bd8a3ce915ca0d2803f2711e8d757ed",
         "native_original_sha256": "11d30db4aac1ef1319c92120dbbdd8826d44d18f937c8ecd06c3713e2e05c7cd",
         "origin": "fresh_run"
+      },
+      "attention-root-replacement": {
+        "case_id": "5fad6560-77fe-4d2c-b914-c74d4204e266",
+        "returned_receipt_sha256": "67b1afdc00a183d7a7aa66f1982784eada0fd7c34878c2a5097307ca2639d96b",
+        "native_original_sha256": "e7e8b950bb46a76187554f0f8402c99706eb509274d24f2e07786548b887ec7d",
+        "origin": "fresh_run"
       }
     },
-    "current_queue_state": "ACTIVE_NO_HOLD_AT_SNAPSHOT",
+    "current_queue_state": "COMPLETE_RETURNS_NO_NATIVE_HOLD",
     "prior_receipts_are_not_new_execution": true,
     "historical_prepare_hold": {
       "failure_reason": "WHOLE_CURRENT_BASELINE_MISMATCH",
@@ -11453,12 +11459,26 @@
       "queue_hold_sha256": "e18143b9e4ab2362c5c47abc3fa80f2f2e8397ee5dac70a780a6e008f4dccfad"
     },
     "prior_origin_returned": 3,
-    "fresh_cases_returned": 2,
+    "fresh_cases_returned": 3,
     "prior_is_not_new_execution": true,
-    "typed_full_admission_complete": false,
+    "typed_full_admission_complete": true,
     "original_review_complete": false,
     "old_queue_hold_preserved": true,
-    "failed_uuid_replayed": false
+    "failed_uuid_replayed": false,
+    "typed_admission_before_metadata": {
+      "bytes": 29888,
+      "sha256": "eff62364c432b354bbac5290886f169f307b1a7dbc39ad64636b044152c2fd27",
+      "acceptance_credit": 0,
+      "label": "SOURCE36_PRIOR3_FRESH3_TYPED_ADMISSION_BEFORE_METADATA"
+    },
+    "current_metadata_failure": {
+      "operation": "120ec373-48f0-4e3c-9f4f-44e832b62590",
+      "stage": "sample-before",
+      "reason": "NATIVE_NAMESPACE_FOUR_TO_TWO_SCHEMA_LINK_MISMATCH",
+      "helper_created": false,
+      "hold_sha256": "b1ca5b15ef0521c9f97f6a151ca542f62834d2469957535eea402a04d68b4b78",
+      "replay": false
+    }
   },
   "source_controller_pin_count": 22
 }
