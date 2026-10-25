@@ -11,7 +11,7 @@ export const meta={
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。",
-  "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。RootFS33已有638范围独审；a5规定专项在资源守卫窄修后继续。",
+  "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。当前a5的Root FS/OS 33/33另有120原件独审采用；规定PG专项继续补验。",
   "boundarySummary": "Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
   "roadmapHeadline": "当前进度 · 十门及四升级独审通过，规定专项补验中",
   "taskPlanScope": "编号依据2026-10-04补齐计划，和原五任务父里程碑分开。Task8已进入新隔离执行；Task4内容3/3、Task6/7历史限定通过不等于当前源码全回归。Task9独立目标未就绪，C4整体仍开放。",
@@ -1777,7 +1777,7 @@ export const c4Tasks=[
     "title": "当前回归、旧版升级与审查",
     "status": "next",
     "detail": "a5eb28d已在全新隔离批次完整回归十门通过：Rust1052/0/169、四套升级、格式/全特性Clippy、普通与Root Python及deploy。规定专项原件与最终独审继续，Task8未关闭。",
-    "evidence": "新十门192份原件已独立逐份复审通过，PG精确停机留卷；专项前5回执成功待inner原件，第6保护拒绝后已停止后续，旧HOLD保留。638的RootFS33不冒称a5新执行；169 ignored逐行披露，规定54 fresh与6历史桥单列，终审后才可关闭Task8。",
+    "evidence": "新十门192份原件已独立逐份复审通过，PG精确停机留卷；专项前5回执成功待inner原件，第6保护拒绝后已停止后续，旧HOLD保留。当前a5的RootFS33/33已有120原件独审；历史638范围保留。169 ignored逐行披露，规定54 fresh与6历史桥单列，终审后才可关闭Task8。",
     "statusLabel": "十门独审通过 · 规定专项补验中"
   },
   {

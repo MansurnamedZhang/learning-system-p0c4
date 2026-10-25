@@ -21,11 +21,19 @@
 
 完整回归通过不包括169项ignored正文。清单已按原始listing逐行处置：规定主专项60项中，54项安排当前新资源执行，6项Attention仅采用Source36实证及其业务代码闭包未变的显式桥接。其它FS/OS、兼容入口、可选EXPLAIN、父进程专用子入口与额外PG正文分别披露；未执行入口不授current pass，Task9排除为0。
 
+## 当前a5 Root文件系统／OS补验已独审采用
+
+另一个全新a5组件批次在Root身份下精确运行33个被workspace忽略的FS/OS正文，逐项1通过／0失败／0忽略；120份原件共4,256,229字节已全部回读并经独立复审，结果SHA-256为`14c3116f0d89c093b745240fa4c1cdaff358af7a0c10ab995e207f927c413865`。源码/七份ELF、UID0及四项必要cap、只读10 bind与3 tmpfs、4CPU／8GiB／pids512、精确容器清理和清理后完整资源投影等值均逐项关联。ELF没有另行下载，依据producer实际FD前后哈希观察；rm/ps各原reply未另存的限制也保留。
+
+这33项属于当前a5的额外限定补验，与历史638组件分开，不改写workspace原169 ignored数，不计为PG专项或Task8整关完成。
+
 ## 规定专项：前5回执成功，第6资源保护拒绝
 
 恢复基础/快照效果16项中，`snapshot-history-gap`、`recovery-derived`、`recovery-receipt-failure`、`recovery-effects`、`snapshot-p6`五项已完成五阶段并返回公开runner的1/0/0回执。suite内原始stdout、driver结果及raw_index尚未导出独核，仍不计专项接受。
 
 第6项`recovery-leases`执行结束后，外围保护谓词以`PROTECTED_RESOURCE_CHANGED_OR_UNKNOWN`拒绝，原run-settled未生成。只读原件对比确认，原有资源唯一摘要变化为`spicylabtag_default`网络；同一观察内新增外部同步容器。后续只读投影中外部同步容器已消失，原有C/N/V逐项恢复原基线。本案两PG均Running=false、Pid=0、无ExecIDs，控制capsule当前不存在，卷保留。以上定位保护检查的差异，不推断该网络内部具体字段或外部任务的因果关系；内部公开回执虽报1/0/0，仍不能覆盖外围HOLD。
+
+新增的被动观察窄修经代码独审及11项本地机制检查后，在另一全新批次的前置sampler暴露`time`模块缺失；它在创建PG和执行正文之前以0.5秒退出1，case_id为空，0项接受。该记录另留HOLD。最小导入修复与完整生成脚本命名空间检查另行进行，业务源码与既有十门/33组件结论未变。
 
 原失败批次与后续自动停止队列均保留，未在旧资源重放。下一步只审查外围有界只读等待窄修：固定原基线与严格谓词、记录全部观察，到期不接受，不排除或停止外部项目，不重放业务正文。审后仅用新UUID补未接受的11项；前5不重复执行。其余规定专项、inner原件及整分支审查继续开放。
 
