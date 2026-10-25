@@ -106,7 +106,7 @@ class CloneSetupDiagnosticTests(unittest.TestCase):
         data = RUNNER.read_bytes().replace(b"\r\n", b"\n")
         self.assertNotEqual(hashlib.sha256(data).hexdigest(),
                             diagnostic.AUTHORIZED_RUNNER_SHA256)
-        with tempfile.TemporaryDirectory(dir=RUNNER.parent) as temporary:
+        with tempfile.TemporaryDirectory() as temporary:
             installed = Path(temporary) / "installed-runner.py"
             installed.write_bytes(data)
             docker = DockerFake()
@@ -118,7 +118,7 @@ class CloneSetupDiagnosticTests(unittest.TestCase):
     def test_modified_runner_bytes_are_rejected_before_docker(self):
         data = bytearray(RUNNER.read_bytes().replace(b"\r\n", b"\n"))
         data[0] ^= 1
-        with tempfile.TemporaryDirectory(dir=RUNNER.parent) as temporary:
+        with tempfile.TemporaryDirectory() as temporary:
             installed = Path(temporary) / "modified-runner.py"
             installed.write_bytes(data)
             docker = DockerFake()

@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -21,12 +22,33 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 class PackageContract(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # The snapshot provider boundary is real HEAD's immutable Git blobs.
-        cls.commit, cls.entries = packager.tracked_snapshot(REPOSITORY)
+        # Exercise real committed Git blobs in a private fixture. Source-only
+        # verification archives intentionally contain no caller's .git history.
+        temporary=tempfile.TemporaryDirectory()
+        cls.addClassCleanup(temporary.cleanup)
+        cls.repository=Path(temporary.name)/'repository';cls.repository.mkdir()
+        template=Path(temporary.name)/'empty-template';template.mkdir()
+        for name in sorted(set(contract.REQUIRED)|{'docs/architecture/KnowWeave架构设计.html'}):
+            path=cls.repository/name;path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes((REPOSITORY/name).read_bytes())
+        def git(*args):
+            return subprocess.check_output(['git','-c','core.autocrlf=false','-c','commit.gpgsign=false','-c','core.hooksPath='+str(template),'-c','user.name=Package fixture','-c','user.email=fixture@example.invalid',*args],cwd=cls.repository,stderr=subprocess.PIPE)
+        git('init','--quiet','--template='+str(template))
+        git('add','--all');git('commit','--quiet','-m','Synthetic packaging test fixture')
+        cls.commit, cls.entries = packager.tracked_snapshot(cls.repository)
+
+    def test_tracked_snapshot_uses_committed_blobs_despite_dirty_worktree(self):
+        path=self.repository/contract.ENTRY;original=path.read_bytes()
+        untracked=self.repository/'untracked-private-fixture.txt'
+        try:
+            path.write_bytes(b'uncommitted bytes\n');untracked.write_bytes(b'untracked fixture\n')
+            self.assertEqual(packager.tracked_snapshot(self.repository),(self.commit,self.entries))
+        finally:
+            path.write_bytes(original);untracked.unlink()
 
     def package_snapshot(self, destination, entries):
         with patch.object(packager, "tracked_snapshot", return_value=(self.commit, entries)):
-            return packager.package(REPOSITORY, destination)
+            return packager.package(self.repository, destination)
 
     def verify_with_unchanged_receiver(self, root, package_identity):
         installed = root / Path(contract.ENTRY).name

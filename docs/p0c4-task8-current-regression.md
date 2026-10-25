@@ -2,7 +2,21 @@
 
 更新：2026-10-25。状态：**实施中，Task8未完成**。本文件记录当前运行事实；新候选尚无整组通过结论。
 
-当前冻结源码：`638cb0f630fd4360c9d8b3df6f3f394fe8547e93`；父源码：`36c89f2e94dccdc90652f8b196372bb62fa398a5`。
+当前冻结源码：`a5eb28d0ffc36d6434576fbd083eb20f07566f41`；父源码：`638cb0f630fd4360c9d8b3df6f3f394fe8547e93`。本轮当前结果、历史采用和未执行项分别记账。
+
+## 最新实际返回
+
+638候选在全新Linux/PG18批次的常规workspace为**1052通过、0失败、169忽略**，108组汇总均与原始清单相连。四套旧程序夹具`p0a / b1 / b3-schema / b2`由冻结程序`b60056ba08892d69efdfa4778c976154a421e17d`生成；真实升级及迁移checksum验证退出0。格式、全工作区/所有target/所有feature严格Clippy均退出0。
+
+该批在普通用户Python全发现运行901项后，以3失败、19错误、82跳过退出1，Root与deploy门因此未执行。失败原件、源码未变和全量保护资源核验、精确PG停机留卷均保留。Root回读162份原件，所有字节数和SHA-256与远端索引相符；结果摘要为`81dfa44494548592bdde1371aeb52512d60d2dd2947a6979d516bc12a20b2c9e`。这不是Task8整组通过。
+
+另一个全新638组件批次实际通过33项Root FS/OS正文，每项精确1通过/0失败/0忽略，覆盖Root journal、custody、固定副本、candidate/supervisor、Unix socket和UID65532子进程边界。120份原件已全部哈希回读；结果为`0c459881ae0dd88131e859d5106e9f187f06f8e1dd02de1e7dd4f2aba06cbf9a`。固定镜像、实际UID0及四项必要cap、独立tmpfs、只读ELF、精确容器清理和清理后全量资源等值另由子代理独核。旧组件批次第29项因缺少broker可执行文件挂载失败，原失败保留；33项新通过不来自改写旧结果，也不代表PG专项或a5新构建执行。
+
+## Python修复与新候选
+
+仅修改六个`scripts/test_*.py`测试文件：临时文件移到私有临时目录；纯mock envelope不再访问宿主`/root/case`，并增加pending存在必须拒绝的负例；共享actor允许的两个固定case与测试断言对齐；打包测试使用临时真实Git仓库，另验脏工作区及未跟踪文件不能进入包。原生产控制器、Rust产品代码和迁移未变。六文件静态独审通过，最终Linux各身份检查须由新批次实际结果支持。
+
+另已在新隔离诊断容器复现shell测试的`127 / psql: Permission denied`：默认tmpfs禁止执行临时standin。新配方只对本批私有`/tmp`显式启用exec，保留网络、只读源码、cap和全部资源守卫。a5候选正在新UUID、新PG18卷及新子网从头运行完整门，不复用失败数据库。
 
 ## 本轮发现与修复
 
@@ -18,14 +32,14 @@ Source36的新隔离完整workspace实际运行到`snapshot_jobs`，该二进制
 
 | 项目 | 当前固定事实 |
 |---|---|
-| 源码包 | 611个精确Git文件；仅上述测试文件相对Source36改变 |
-| ZIP SHA-256 | `653078579d00da9ec84009049a307f0f5f4ac7899a0dd95a17f6f1fc3ecbd7ec` |
-| Manifest SHA-256 | `9f5e7cc6f798dc88006193175d3a073dbce987d706568ddb8df829be1fec77ae` |
+| 源码包 | 611个精确Git文件；相对638仅六个Python测试文件改变 |
+| ZIP SHA-256 | `f740f7ab7d1e62328e76f614d664912ef345b34d06cc97a492defd351df64a97` |
+| Manifest SHA-256 | `f45498c18ceceac1154b685b334ba6178c2b78c215d8c200fa24aa29594c4d19` |
 | 迁移／控制器 | 15项迁移与22项控制器原字节不变 |
-| 完整回归 | 新隔离Linux/PG18正在执行，未宣称完整通过 |
-| 四套旧版升级 | `p0a / b1 / b3-schema / b2`由冻结旧程序生成；等待新候选升级后原始checksum验证 |
-| ignored | Source36实际workspace listing为1221总列举／169 ignored；这是列举，不是执行。新候选清单及每项处置另核 |
-| 独立审查 | 配方、故障因果与11行窄补已静态复核；新结果与整分支最终审查尚待完成 |
+| 完整回归 | 638实际1052通过；a5新隔离批次正在完整重验 |
+| 四套旧版升级 | 638四套实际升级成功；a5新候选仍按冻结夹具重验 |
+| ignored | 638实际列举1221总数／169 ignored，另有33个精确Root组件正文已实跑；其余按current专项矩阵处置，不能把列举当执行 |
+| 独立审查 | 运行配方、测试窄补和新冻结包已复核；完整新结果、规定专项与整分支最终审查待完成 |
 
 实际执行顺序为：11个命名库空库检查 → 四套冻结旧夹具生成 → 实际listing → `cargo test --offline --locked --workspace -- --test-threads=1` → `legacy-upgrades`逐项迁移checksum → 格式 → `--workspace --all-targets --all-features`严格Clippy → 普通Linux Python全发现 → Root身份与专用FS目录Python全发现 → deploy Python。每门原始stdout、stderr、进程退出、实际容器inspect和资源前后投影单独留存；失败停止后门，超时保持HOLD，不重放失败批次。
 

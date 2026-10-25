@@ -9,6 +9,19 @@ try:import p0c4_storage_registry as driver_registry
 except ModuleNotFoundError:from scripts import p0c4_storage_registry as driver_registry
 
 class CompletionTests(unittest.TestCase):
+    def setUp(self):
+        # Envelope fixtures mock all file reads. Model this one synthetic
+        # pending path too, rather than probing the host's private /root.
+        exists=Path.exists
+        pending=Path('/root/case/driver/evidence/result.pending')
+        filesystem=patch.object(Path,'exists',autospec=True,side_effect=lambda path:False if path==pending else exists(path))
+        filesystem.start();self.addCleanup(filesystem.stop)
+
+    def test_pending_marker_rejects_the_mocked_envelope(self):
+        plan,issuer,nested,receipt=self.envelope()
+        with patch.object(Path,'exists',return_value=True),self.assertRaisesRegex(runner.CompletionError,'RESULT_PENDING'):
+            self.check_envelope(plan,issuer,nested,receipt)
+
     def test_eight_schedule_publishes_and_verifies_real_8201_logs(self):
         import contextlib,os,stat,tempfile
         from types import SimpleNamespace

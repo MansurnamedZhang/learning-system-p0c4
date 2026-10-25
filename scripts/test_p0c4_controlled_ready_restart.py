@@ -65,7 +65,12 @@ class RestartContextTests(unittest.TestCase):
             with patch.object(sys, 'argv', argv):
                 try: self.assertEqual(fixture._actor_main_contract(suite), ('python3', ['-B', '-u', *argv]))
                 except fixture.ControlledRejected as error: self.fail('restart actor rejected: '+str(error))
-            for tail in ([], ['wrong-endpoint'], [CASE, '--env'], [CASE, '/plan.json'], [CASE, 'a'*64]):
+            # Other fixed profiles share this argv guard, but no extra argv
+            # or caller-selected case is admitted by it.
+            argv = [adapter, operation, 'wrong-endpoint']
+            with patch.object(sys,'argv',argv):
+                self.assertEqual(fixture._actor_main_contract(suite),('python3',['-B','-u',*argv]))
+            for tail in ([], ['unknown'], [CASE, '--env'], [CASE, '/plan.json'], [CASE, 'a'*64]):
                 with patch.object(sys, 'argv', [adapter, operation, *tail]), self.assertRaises(fixture.ControlledRejected):
                     fixture._actor_main_contract(suite)
 

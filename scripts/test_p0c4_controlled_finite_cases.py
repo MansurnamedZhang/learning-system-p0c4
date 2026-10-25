@@ -112,13 +112,15 @@ class FiniteCaseTests(unittest.TestCase):
     def test_actor_accepts_only_closed_fixed_operations_and_exact_arguments(self):
         suite = Path('/private/suite'); adapter = str(suite/'current11/adapter.py')
         for operation in ('--fixed-prepare-case', '--fixed-run-case'):
-            for case in CASES:
+            # The shared actor also supports the separately admitted restart
+            # and physical-clone cases; each plan still binds its own case.
+            for case in (*CASES,'ready-restart','wrong-endpoint'):
                 argv = [adapter, operation, case]
                 with self.subTest(argv=argv), patch.object(sys, 'argv', argv):
                     try: actual = fixture._actor_main_contract(suite)
                     except fixture.ControlledRejected as error: self.fail('fixed argv rejected: '+str(error))
                     self.assertEqual(actual, ('python3', ['-B', '-u', *argv]))
-            for tail in ([], ['success'], ['wrong-endpoint'], ['unknown'],
+            for tail in ([], ['success'], ['unknown'],
                          ['ready-eof', '--env'], ['ready-eof', '/plan.json']):
                 with patch.object(sys, 'argv', [adapter, operation, *tail]), self.assertRaises(fixture.ControlledRejected):
                     fixture._actor_main_contract(suite)

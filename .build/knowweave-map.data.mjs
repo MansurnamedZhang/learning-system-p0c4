@@ -3,17 +3,17 @@ export const meta={
   "title": "知织 · KnowWeave｜实施路线与系统架构",
   "date": "2026-10-25",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "638cb0f630fd4360c9d8b3df6f3f394fe8547e93",
-  "state": "C4 实施中 · Task8 新候选完整回归中 · Task9待独立存储",
-  "progressSummary": "截至2026-10-25：Task1限定分项通过；Task2代码与单机补验、Task3单机收尾；Task4内容3/3；Task5代码与规定单机补验限定完成；Task6在2e5026d私有单机16/16、Task7在36c89f2私有单机6/6分别限定关闭。Task8已实际启动新隔离完整回归，修复共享测试库CONNECT未恢复导致的后续9项失败，当前新候选638cb0f重新验证。历史采用不转授新build。",
+  "sourceCommit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
+  "state": "C4 实施中 · Task8 Rust与四升级已返回，Python补验及专项中 · Task9待独立存储",
+  "progressSummary": "截至2026-10-25：Task6在2e5026d私有单机16/16、Task7在36c89f2私有单机6/6限定关闭。Task8的638候选实际工作区1052通过/169忽略，四套冻结旧版升级、格式与全特性严格Clippy通过；普通Python发现901项时失败3/错误19。已独审修复六个测试文件，冻结a5eb28d新候选完整重验；产品授权、15项迁移和22项控制器不变。",
   "progressEvidence": "Task7 Root采用：TASK7_SOURCE36_PRIVATE_SINGLE_HOST_SIX_CASE_ORIGINALS_ACCEPTED；SHA-256 1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4。六案来源为此前3项保留＋本轮新3项，不是六项新跑。三个good-pin场景每案四份阅读文件合计1172字节，package/source capture/destination copy/held target delivery四处逐字一致；同机不同inode不等于独立存储故障域。详见验收清单。",
-  "pendingSummary": "当前Task8：等待638cb0f全工作区、四套旧版升级、严格检查及Python各门实际返回；对169项ignored逐行绑定专项实证与缺口，并完成整分支与原始证据独审。Task9仍需真实独立故障域、密钥托管、首签/新发布权限集成及源端不可访问恢复。C4整关保持OPEN。",
+  "pendingSummary": "当前Task8：a5eb28d新隔离完整回归及普通/Root/deploy Python实际返回；54个规定fresh主专项与额外ignored处置、整分支和原始证据独审。638另有33项Root FS/OS实际通过，保留其源码与构建范围。Task9独立故障域、密钥托管与正常首签/发布/恢复仍开放。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。",
-  "snapshotSummary": "Task8新候选638cb0f仅修复一处测试收尾：管理交付测试撤销runtime连接权限后，恢复该测试库原CONNECT授权并实证新登录；产品授权、15项迁移和22项控制器未改。新隔离回归正排除资源静止窗口问题，尚未授予Task8完成信用。",
+  "snapshotSummary": "638已实跑1052项工作区及四套旧版升级成功；其Python普通用户门失败原件保留。新a5eb28d仅再修六个Python测试夹具：私有临时目录、合成pending状态、固定actor断言与临时真实Git仓库。执行配方为测试standin的私有tmpfs显式启用exec，未修改业务授权。",
   "boundarySummary": "Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · Task8正在执行完整回归与四套升级",
+  "roadmapHeadline": "当前进度 · Task8 Rust与四升级通过，Python修复后新批重验",
   "taskPlanScope": "编号依据2026-10-04补齐计划，和原五任务父里程碑分开。Task8已进入新隔离执行；Task4内容3/3、Task6/7历史限定通过不等于当前源码全回归。Task9独立目标未就绪，C4整体仍开放。",
   "nextSteps": [
     [
@@ -762,7 +762,7 @@ export const diagrams=[
     "title": "03 · Rust 代码与授权边界",
     "subtitle": "实线显示现有模块依赖与运行接口；虚线表示未来接入。crate 是代码模块，不是独立网络服务。",
     "notes": [
-      "当前638cb0f Cargo workspace有core、assets、db、worker、backup五个crate。真实直接依赖：backup → db/assets/core；worker → db/assets/core；db → assets/core；assets → core。assets不负责业务actor授权。API与Web尚未加入workspace。",
+      "当前a5eb28d Cargo workspace有core、assets、db、worker、backup五个crate。真实直接依赖：backup → db/assets/core；worker → db/assets/core；db → assets/core；assets → core。assets不负责业务actor授权。API与Web尚未加入workspace。",
       "Worker 原件与二进制只读，staging 私有可写；C3 另挂服务所有的私有可写 snapshots 卷，管理凭据不进入普通 Worker。",
       "数据库 runtime 是可信内部服务角色，非每位最终用户或每个 Worker 的独立数据库租户。用户权限由业务 actor、当前空间授权和必要引用闭包共同判定。",
       "两项 P2 契约缺口已记录：持当前 token 的共享 runtime 可调用通用 succeed 而不写专用结果；也可直接调用完成函数绕过 Rust 字节复核。正常 Worker 已验收路径使用原子结果函数。这里 P2 是问题优先级，不表示已安排在路线 P2 阶段。",
@@ -1776,8 +1776,8 @@ export const c4Tasks=[
     "id": 8,
     "title": "当前回归、旧版升级与审查",
     "status": "next",
-    "detail": "638cb0f新候选正在新隔离Linux/PG18环境执行完整workspace、四冻结旧程序夹具升级、格式/全特性严格Clippy、普通及Root Python。修复仅涉及一处测试CONNECT权限收尾。",
-    "evidence": "Source36首轮已实际运行并发现环境配置与测试隔离缺陷，原失败/停机留卷证据保留。新候选尚未完整通过；169 ignored实际清单单列，不当作已执行，整分支与新原件独审待完成。",
+    "detail": "638候选已实际工作区1052通过/169忽略、四套旧版升级、格式/全特性严格Clippy成功；普通Python失败3/错误19。a5eb28d仅修六个Python测试夹具，正在全新隔离批次完整重验。",
+    "evidence": "旧失败及停机留卷原件保留。638另有33项Root FS/OS实际通过；它们不是PG或新a5源码执行。当前规定专项、Python全门、ignored逐行处置及整分支原件独审未闭合，Task8保持OPEN。",
     "statusLabel": "实施中 · 新完整回归未闭合"
   },
   {

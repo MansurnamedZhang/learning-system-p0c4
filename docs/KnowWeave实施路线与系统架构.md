@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-25。当前状态：C4 实施中 · Task8 新候选完整回归中 · Task9待独立存储，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`638cb0f630fd4360c9d8b3df6f3f394fe8547e93`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-10-25。当前状态：C4 实施中 · Task8 Rust与四升级已返回，Python补验及专项中 · Task9待独立存储，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`a5eb28d0ffc36d6434576fbd083eb20f07566f41`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。截至2026-10-25：Task1限定分项通过；Task2代码与单机补验、Task3单机收尾；Task4内容3/3；Task5代码与规定单机补验限定完成；Task6在2e5026d私有单机16/16、Task7在36c89f2私有单机6/6分别限定关闭。Task8已实际启动新隔离完整回归，修复共享测试库CONNECT未恢复导致的后续9项失败，当前新候选638cb0f重新验证。历史采用不转授新build。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。截至2026-10-25：Task6在2e5026d私有单机16/16、Task7在36c89f2私有单机6/6限定关闭。Task8的638候选实际工作区1052通过/169忽略，四套冻结旧版升级、格式与全特性严格Clippy通过；普通Python发现901项时失败3/错误19。已独审修复六个测试文件，冻结a5eb28d新候选完整重验；产品授权、15项迁移和22项控制器不变。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,7 +61,7 @@ flowchart LR
 
 ## 下一步
 
-当前Task8：等待638cb0f全工作区、四套旧版升级、严格检查及Python各门实际返回；对169项ignored逐行绑定专项实证与缺口，并完成整分支与原始证据独审。Task9仍需真实独立故障域、密钥托管、首签/新发布权限集成及源端不可访问恢复。C4整关保持OPEN。
+当前Task8：a5eb28d新隔离完整回归及普通/Root/deploy Python实际返回；54个规定fresh主专项与额外ignored处置、整分支和原始证据独审。638另有33项Root FS/OS实际通过，保留其源码与构建范围。Task9独立故障域、密钥托管与正常首签/发布/恢复仍开放。
 
 - **01 · 冻结当前候选**：Task8固定源码包、完整文件清单、构建ID和迁移摘要；历史迁移不得改写，私有证据/密钥不进入源码仓。
 - **02 · 新隔离完整验证**：Linux/PG18完整workspace、四套冻结旧程序生成的真实升级、明确列出的ignored专项、格式/严格Clippy与正确身份的Python门。每门记录实际执行/跳过/退出。
@@ -72,9 +72,9 @@ flowchart LR
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-截至2026-10-25：Task1限定分项通过；Task2代码与单机补验、Task3单机收尾；Task4内容3/3；Task5代码与规定单机补验限定完成；Task6在2e5026d私有单机16/16、Task7在36c89f2私有单机6/6分别限定关闭。Task8已实际启动新隔离完整回归，修复共享测试库CONNECT未恢复导致的后续9项失败，当前新候选638cb0f重新验证。历史采用不转授新build。
+截至2026-10-25：Task6在2e5026d私有单机16/16、Task7在36c89f2私有单机6/6限定关闭。Task8的638候选实际工作区1052通过/169忽略，四套冻结旧版升级、格式与全特性严格Clippy通过；普通Python发现901项时失败3/错误19。已独审修复六个测试文件，冻结a5eb28d新候选完整重验；产品授权、15项迁移和22项控制器不变。
 
-当前Task8：等待638cb0f全工作区、四套旧版升级、严格检查及Python各门实际返回；对169项ignored逐行绑定专项实证与缺口，并完成整分支与原始证据独审。Task9仍需真实独立故障域、密钥托管、首签/新发布权限集成及源端不可访问恢复。C4整关保持OPEN。
+当前Task8：a5eb28d新隔离完整回归及普通/Root/deploy Python实际返回；54个规定fresh主专项与额外ignored处置、整分支和原始证据独审。638另有33项Root FS/OS实际通过，保留其源码与构建范围。Task9独立故障域、密钥托管与正常首签/发布/恢复仍开放。
 
 Task7 Root采用：TASK7_SOURCE36_PRIVATE_SINGLE_HOST_SIX_CASE_ORIGINALS_ACCEPTED；SHA-256 1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4。六案来源为此前3项保留＋本轮新3项，不是六项新跑。三个good-pin场景每案四份阅读文件合计1172字节，package/source capture/destination copy/held target delivery四处逐字一致；同机不同inode不等于独立存储故障域。详见验收清单。
 
@@ -114,7 +114,7 @@ flowchart LR
 | Task 5 · 受控整库导入与原件恢复 | 代码与规定单机补验限定完成 | 受控整库导入、提交前拒绝、取消与未知提交结果、角色/路由/目标/原件检查，按各次固定源码和实际回执分别留证。 2026-10-20 Root限定采用：85c九项native及最终Linux回归；受控11/11为10历史c749＋1当前85c，不能称当前源码新跑11项。旧失败与HOLD保留。 |
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
-| Task 8 · 当前回归、旧版升级与审查 | 实施中 · 新完整回归未闭合 | 638cb0f新候选正在新隔离Linux/PG18环境执行完整workspace、四冻结旧程序夹具升级、格式/全特性严格Clippy、普通及Root Python。修复仅涉及一处测试CONNECT权限收尾。 Source36首轮已实际运行并发现环境配置与测试隔离缺陷，原失败/停机留卷证据保留。新候选尚未完整通过；169 ignored实际清单单列，不当作已执行，整分支与新原件独审待完成。 |
+| Task 8 · 当前回归、旧版升级与审查 | 实施中 · 新完整回归未闭合 | 638候选已实际工作区1052通过/169忽略、四套旧版升级、格式/全特性严格Clippy成功；普通Python失败3/错误19。a5eb28d仅修六个Python测试夹具，正在全新隔离批次完整重验。 旧失败及停机留卷原件保留。638另有33项Root FS/OS实际通过；它们不是PG或新a5源码执行。当前规定专项、Python全门、ignored逐行处置及整分支原件独审未闭合，Task8保持OPEN。 |
 | Task 9 · 真实独立故障域闭合 | 待具备独立存储 | 使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。 当前无独立目标。除硬件与密钥外，还需首签/新发布权限的跨操作集成和源码端不可访问恢复；只有Task8及本门通过，才可关闭父里程碑与C4。 |
 
 ### 原五任务父里程碑（保留原编号）
@@ -313,7 +313,7 @@ flowchart TB
     classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362
 ```
 
-- 当前638cb0f Cargo workspace有core、assets、db、worker、backup五个crate。真实直接依赖：backup → db/assets/core；worker → db/assets/core；db → assets/core；assets → core。assets不负责业务actor授权。API与Web尚未加入workspace。
+- 当前a5eb28d Cargo workspace有core、assets、db、worker、backup五个crate。真实直接依赖：backup → db/assets/core；worker → db/assets/core；db → assets/core；assets → core。assets不负责业务actor授权。API与Web尚未加入workspace。
 - Worker 原件与二进制只读，staging 私有可写；C3 另挂服务所有的私有可写 snapshots 卷，管理凭据不进入普通 Worker。
 - 数据库 runtime 是可信内部服务角色，非每位最终用户或每个 Worker 的独立数据库租户。用户权限由业务 actor、当前空间授权和必要引用闭包共同判定。
 - 两项 P2 契约缺口已记录：持当前 token 的共享 runtime 可调用通用 succeed 而不写专用结果；也可直接调用完成函数绕过 Rust 字节复核。正常 Worker 已验收路径使用原子结果函数。这里 P2 是问题优先级，不表示已安排在路线 P2 阶段。

@@ -2,9 +2,9 @@
 
 ## Task8 实际回归进行中 · 2026-10-25
 
-新隔离完整workspace发现一处测试隔离缺陷：管理交付测试关闭runtime CONNECT后未恢复，导致随后9项登录失败。已独立定位并仅增加测试收尾与真实重连断言；冻结新源码 `638cb0f630fd4360c9d8b3df6f3f394fe8547e93`，产品授权、15项迁移和22项控制器不变。新候选推进完整workspace、四套冻结旧版升级与严格门；最近一轮在正文前被其它项目网络变化触发资源守卫，正等待完整基线静止后使用新批次继续，**Task8仍OPEN**。
+638候选已实际完成 workspace **1052通过/0失败/169忽略**、四套冻结旧版升级、格式和全特性严格Clippy。普通Python901项运行后失败3/错误19/跳过82，原失败及未执行Root/deploy保持；已独审修复六个测试夹具文件，冻结 `a5eb28d0ffc36d6434576fbd083eb20f07566f41`，正在全新隔离批次完整重验。15项迁移、22项控制器及产品授权不变。
 
-169项ignored实际清单另列，编译/列举不算执行。Task6/7历史采用保留原来源；新候选不能继承其新build信用。Task9、C4整关、CompleteBackup、RecoveredInstance、公开恢复与生产保持OPEN，未合并main。
+另有638的33项Root FS/OS新正文通过，120份原件全部哈希回读且经独立复核；它们不是PG专项或a5构建的新执行。**Task8仍OPEN**，规定主专项、ignored处置和整分支最终证据审查未闭合。Task6/7历史采用范围保留，Task9、独立存储、CompleteBackup、RecoveredInstance、公开恢复、C4整关和生产仍开放；未合并main。
 
 详见[Task8当前回归](docs/p0c4-task8-current-regression.md)与[实施路线图](KnowWeave实施路线与架构.html)。
 

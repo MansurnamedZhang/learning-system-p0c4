@@ -212,7 +212,7 @@ class AdmissionTests(unittest.TestCase):
                 gate.validate_builder(modified, expected, {})
 
     def test_atomic_evidence_refuses_replacement_and_reads_complete_bytes(self):
-        temporary_root = Path(__file__).resolve().parents[1] / ".test-tmp"
+        temporary_root = Path(tempfile.gettempdir())
         temporary_root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
             target = Path(directory) / "result.json"
@@ -225,7 +225,7 @@ class AdmissionTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "requires real POSIX file modes")
     def test_atomic_init_script_preserves_0444_under_private_umask(self):
-        temporary_root = Path(__file__).resolve().parents[1] / ".runtime"
+        temporary_root = Path(tempfile.gettempdir())
         temporary_root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
             target = Path(directory) / "initdb.sh"
@@ -240,7 +240,7 @@ class AdmissionTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "requires real POSIX file modes")
     def test_atomic_private_files_retain_literal_modes_under_private_umask(self):
-        temporary_root = Path(__file__).resolve().parents[1] / ".runtime"
+        temporary_root = Path(tempfile.gettempdir())
         temporary_root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
             previous_umask = os.umask(0o077)
@@ -256,7 +256,7 @@ class AdmissionTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "requires POSIX fchmod")
     def test_atomic_mode_failure_cannot_publish_destination(self):
-        temporary_root = Path(__file__).resolve().parents[1] / ".runtime"
+        temporary_root = Path(tempfile.gettempdir())
         temporary_root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
             target = Path(directory) / "initdb.sh"
@@ -272,7 +272,7 @@ class AdmissionTests(unittest.TestCase):
                 os.umask(previous_umask)
 
     def test_fresh_source_tree_rejects_extra_file_and_modified_bytes(self):
-        temporary_root = Path(__file__).resolve().parents[1] / ".test-tmp"
+        temporary_root = Path(tempfile.gettempdir())
         temporary_root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
             source = Path(directory)
@@ -344,7 +344,7 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual(runner.mutations, [])
 
     def test_unknown_observation_secrets_never_reach_durable_files(self):
-        temporary_root = Path(__file__).resolve().parents[1] / ".test-tmp"
+        temporary_root = Path(tempfile.gettempdir())
         temporary_root.mkdir(exist_ok=True)
         marker = "SYNTHETIC_UNKNOWN_OLD_SECRET_7ab98d3"
         facts = [{"Id": "a" * 64, "Name": "/legacy", "Config": {"Env": ["OLD_TOKEN=" + marker], "Cmd": [marker], "Labels": {"UNKNOWN_LABEL": marker}}, "Mounts": [{"Source": "/" + marker}], "State": {"Running": False}}]
