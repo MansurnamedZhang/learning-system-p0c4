@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 61425,
-      "sha256": "df191647021ac5ff321ec6a4144242a733d75a3d7097250e75a203623e3461b4",
+      "bytes": 61743,
+      "sha256": "4cfa6589f0ca29b9d42bbf149502ce4f12fcc3b155ba840c47f0faa9507de514",
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -63,26 +63,26 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 114410,
+      "bytes": 114728,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "0a1f57fe9fe29e9e802c46b3741c9a6cef87c11f9dcfa56440e571de6e9cf3bf",
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION",
+      "sha256": "9963f7d0b021c984b2e3fd701f574ba9f7c10b6bc69097dd9c29192ef2b8e8be",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 128578,
+      "bytes": 128671,
       "path": "KnowWeave架构设计.html",
-      "sha256": "41d1c2b4e82e1eb9d8f522f172ec5b217911c87dadabc86d431634bc8f17e16f",
+      "sha256": "d4e80cfbc009e2b771ec99ea9cf617a47c372cfa0dca4d514bac249f5e63bd37",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_CURRENT_DOCUMENTATION_STATUS_ALIGNMENT"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
-      "bytes": 65075,
+      "bytes": 65081,
       "path": "README.md",
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "0e6683667e35bda86b05fb2f9d74d6756513c7a83272e693135ddffd4b5a2765",
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION",
+      "sha256": "9c157f17eee2a4883d375a12609cb9054dbf39f67466175df33f645a124baf3c",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3084,20 +3084,20 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 46754,
+      "bytes": 47144,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "8655f9680dcbab228db63019648773945c7fa28cd8f80532ee3de2e72b9443cb",
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION",
+      "sha256": "964598fe2e162668604c60eeaec889fc0e3be27b4844263422391875a5bace9c",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 1862,
+      "bytes": 1974,
       "path": "docs/KnowWeave架构设计总览.md",
-      "sha256": "65e3278738cf1db688707caddfd61e43a28f275225d8375caddbbb66eee6f052",
+      "sha256": "d9aca5966cf0fb95a985fd4baef7ea4113eda93d0def237ee20581a0d6f3aee4",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_CURRENT_DOCUMENTATION_STATUS_ALIGNMENT"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 9214,
@@ -3163,10 +3163,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 11945,
+      "bytes": 12271,
       "path": "docs/architecture/06-portability-and-recovery.md",
-      "scope": "TASK8_CURRENT_DOCUMENTATION_STATUS_ALIGNMENT",
-      "sha256": "b7d6d84cdea90ab1efc34fbaf5763d168890c42c8111c32bab592b763ad6a436",
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION",
+      "sha256": "932498b0ffa3e9dcb95ec31d09983d14d0eb25161d0ffbb658f9acdf9e3c05fe",
       "source_blob_sha256": "8af20aff86682375100650140ba911b16a18ac7bad4702a2c6ebf0cec145dab5",
       "source_bytes_preserved": false
     },
@@ -3192,12 +3192,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 128348,
+      "bytes": 128441,
       "path": "docs/architecture/KnowWeave架构设计.html",
-      "sha256": "d891ec4b45b8b1c33c79d38d5a08da5d13834f997f68e42b4617adaa75c3fa70",
+      "sha256": "0ed34d159b7d12823a93b8a0366efdc67035a966d29990b986905f4c3f603a35",
       "source_blob_sha256": "bfbc20a58237a1adc398f16143f45313af7421f7bff694947af789664851bff8",
       "source_bytes_preserved": false,
-      "scope": "TASK8_CURRENT_DOCUMENTATION_STATUS_ALIGNMENT"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 4254,
@@ -3303,7 +3303,7 @@
       "sha256": "79b43ab7259f10bca6fd8e64933d5ed73cbf3b302b21b2c39a719e04bec72592",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 8518,
@@ -3311,7 +3311,7 @@
       "sha256": "9b268e58fb7c1f18113447c57de92163dba59993c413cda3c05b7510b1efff66",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 2115,
@@ -3319,7 +3319,7 @@
       "sha256": "0493bf624c73308dfd718b8689960ad8d1bf812418ef0f4df5bf90ecf507811c",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 8666,
@@ -3327,7 +3327,7 @@
       "sha256": "a14eb2f1774724ee743b92db18441fa3361c49c628160e28539217516c559d17",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 2565,
@@ -3335,7 +3335,7 @@
       "sha256": "8b6a5b591003ae4fdb786c104597f840a6aaaaa93db707a19b911d1449436c16",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 9639,
@@ -3343,7 +3343,7 @@
       "sha256": "3da24de13ab63e19189e3809720b5551d7e3f3eff3fe30e070cc86d29c087e7d",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 2193,
@@ -3351,7 +3351,7 @@
       "sha256": "ed6896aaa11016a61b0694e976033640a49d24c8637f1377f08bafd7e6bd9cf6",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 8666,
@@ -3359,7 +3359,7 @@
       "sha256": "aee91c5aa013f5b19cec8ddb2be0f82c92e7e4ea519a8b67675f951c64ef293d",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 2980,
@@ -3367,7 +3367,7 @@
       "sha256": "fb084e889f0eb6e19dbd0316e44e21cc33b1fe2fc090a8daf74845099611100c",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 11788,
@@ -3375,12 +3375,12 @@
       "sha256": "c35e61e39b19814affc977b5fe786d3277bc26686b22675590cadf500b121d9b",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 2358,
       "path": "docs/diagrams/knowweave-portability.mmd",
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION",
       "sha256": "984af7e0182d8c847608e8bdc4f6b7e4ab12c3f0ff741798764c950c163fb7ec",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
@@ -3388,7 +3388,7 @@
     {
       "bytes": 8985,
       "path": "docs/diagrams/knowweave-portability.svg",
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION",
       "sha256": "2919ad5e0786e7ebb4ac8771005432f1a60a821bc237666c94dd32be7d7610a7",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
@@ -3691,10 +3691,10 @@
     },
     {
       "path": "docs/p0c4-task8-current-regression.md",
-      "bytes": 15752,
-      "sha256": "c3c3c9911e907a48d913912753154869862d98957d9746736bcb517a8f3e1c87",
+      "bytes": 17949,
+      "sha256": "e30ac8667b8e6098d4d1c1fd5a319dc4ccea23dea2528a72eacb0a6426315eb8",
       "source_bytes_preserved": false,
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION"
     },
     {
       "bytes": 159881,
@@ -3872,10 +3872,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 98860,
+      "bytes": 98866,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "ba9725ef474bbda77ab56892bb1b55b2c28e1024ff74549f98c80425be5d906e",
+      "scope": "TASK8_HELD_NATIVE_DIAGNOSTIC_DOCUMENTATION",
+      "sha256": "d9b91672239be3beeea954863c495b62b758544b6fbe10c40750ca48623bc02c",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4600,7 +4600,7 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 647,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "3fa6ce58491ceb86578ce981b0f879a875dea6db",
+  "previous_public_commit": "1bb95a72bbf802da754aeeae74ffc2d4d0c4f784",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
   "progress_as_of": "2026-10-25T15:41:01+08:00",
@@ -11709,7 +11709,7 @@
   },
   "task8_checkpoint": {
     "source_commit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
-    "status": "CURRENT_A5_FULL_AND_FS33_REVIEWED_TWENTYFIVE_OUTER_RECEIPTS_INNER_PENDING",
+    "status": "CURRENT_A5_FULL_AND_FS33_ACCEPTED_LIMITED_NATIVE_FIRST_CASE_FAILED_HOLD",
     "product_files_changed": 0,
     "test_files_changed_since_source36": 7,
     "test_files_changed_since_source638": 6,
@@ -11803,7 +11803,7 @@
       "not_full_repository_security_scan": true
     },
     "passive_v4_continuation": {
-      "status": "RECOVERY16_AND_FULL9_OUTER_RETURNED_REMAINING22_RUNNING_NOT_ACCEPTANCE",
+      "status": "REMAINING22_FIRST_CASE_ACTUAL_LIBTEST_FAILED_POST_GUARD_DEADLINE_HOLD",
       "prior_positive_outer_receipts": 11,
       "old_P4_deadline_seconds": 600,
       "old_P4_body_executed": false,
@@ -11824,7 +11824,9 @@
       "new_five_stage_review_sha256": "41741dff546b4042009e5dab01628869ba4f9107e8ae3a85ac993a806cf81fce",
       "full9_outer_returned": 9,
       "full9_returned_sha256": "f0ed6e841103b9a8291930903612cc73408a365dc0b666ea2398f39c1706323a",
-      "full9_outer_root_adoption_sha256": "1a5ff57d0bcd41cec67c9589d74d3e6164258084dc5fc12b1d6c2e57ede65113"
+      "full9_outer_root_adoption_sha256": "1a5ff57d0bcd41cec67c9589d74d3e6164258084dc5fc12b1d6c2e57ede65113",
+      "remaining22_running": false,
+      "automatic_replay": false
     },
     "document_status_alignment": {
       "current_architecture_updated": true,
@@ -11832,6 +11834,21 @@
       "whole_regression_ambiguity_corrected_in_generator": true,
       "new_execution_credit": 0,
       "visual_acceptance": false
+    },
+    "as_of": "2026-10-26",
+    "native_first_failure": {
+      "case": "registry-reopen",
+      "stage": "actual-libtest",
+      "reason": "EXACT_TEST_EXIT",
+      "driver_result_sha256": "f220ce30180d128020401a23b82dc32c8294630c68b3eeb5720ae06c43bdbb37",
+      "raw_index_sha256": "f780db30b96a61eb7014ada7ba8eeddfad81ce0a36c904fc350ca4836762c601",
+      "exact_primary_exit_confirmed": true,
+      "native_test_exit": 101,
+      "native_test_stdout_sha256": "bb48f88ba78b3a7c3d4c74e91f9a64c844036937d80927bad566ca6750509a59",
+      "native_test_process_sha256": "69eff04cefd0e45b5dd07d4148846f3c4a413932a7fc6a00b5c65396c656d43d",
+      "queues_hold": true,
+      "resources_retained": true,
+      "diagnostic_read_is_not_fd9_acceptance": true
     }
   }
 }
