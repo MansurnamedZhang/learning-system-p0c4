@@ -15,8 +15,8 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 64045,
-      "sha256": "3203a8e9052c39cbf6dfed1da72b310c4a5b90ed6540771bb195d36d386bef56",
+      "bytes": 63964,
+      "sha256": "ab136c1b017de9db48f777c0904add7e0c0101186880b1f6fb037b3a45634ab3",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
@@ -68,26 +68,26 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 117030,
+      "bytes": 116949,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "a5faf49ecf94530ce9f27c5b2c36164bf3cd691c3dd78a4070728cf8dee14c37",
+      "sha256": "c4e293cc2dbf0b2622a5b8002600528438346a9e0769458d86db94f00dae4859",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 130467,
+      "bytes": 130415,
       "path": "KnowWeave架构设计.html",
-      "sha256": "ee1a57b0edbe3a6ada05f3da56a1646bd0b0a6e3d27644e9d0a75863727fadd9",
+      "sha256": "be280c1fbb451cdbef9afc3b919134282d7bf041cb0360a1ceb9fa4357595062",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
     {
-      "bytes": 65164,
+      "bytes": 65097,
       "path": "README.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "1155731a4be57e27479408f76c4e09e2ee1bfeeda239d56f461d9be5c07cb217",
+      "sha256": "4092fb21f102c5cc3cd98c09fbde3a694c993e2244ecdfd03d801ceb42b6cc0b",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3516,17 +3516,17 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 50653,
+      "bytes": 50500,
       "path": "docs/KnowWeave实施路线与系统架构.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "988c3ab7bfd60e813c9f94578f955ef53b655673a775c3ac060d217edc5c3303",
+      "sha256": "10c8427b1754f69eeddc17d55c9dad21046013d9454a32f9a272b99817a858e2",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 3075,
+      "bytes": 3049,
       "path": "docs/KnowWeave架构设计总览.md",
-      "sha256": "3596e05e6ea69a182eb682457005fe382925e0230c747efdcd7c37d2206541ca",
+      "sha256": "9327bf34864fd13d9e11e2d07a7fab820f04dc35e15bdd163a8230cd71c6d9fb",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
@@ -3601,10 +3601,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 14052,
+      "bytes": 14000,
       "path": "docs/architecture/06-portability-and-recovery.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "6a39a2c86981b30b307975ec0e08e934bed414e308f8dc830a8af7f6282aa171",
+      "sha256": "6f2486ff0f3a4317f23b025ec7528f1db563eb6ef1d6f8facf3f947e70d55725",
       "source_blob_sha256": "9b1b2bb4fb5f09d49ee2704fb04a42ccd3d05a30951e80c3f82a615c131ecd20",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3634,9 +3634,9 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 130237,
+      "bytes": 130185,
       "path": "docs/architecture/KnowWeave架构设计.html",
-      "sha256": "ee298593b75b223858b706c44c67fa96c70b1d117e6194ca836f17b83bcfe0b7",
+      "sha256": "c4e26b032bf69a343a0f84b07a2e9febddcc3d68f9254e7aa0361993d8b9144f",
       "source_blob_sha256": "eccd01137e3a61726d41fb7e987d9a35e2ea639551b50635e2a0cce57c707b2a",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
@@ -4186,8 +4186,8 @@
     },
     {
       "path": "docs/p0c4-task8-current-regression.md",
-      "bytes": 25914,
-      "sha256": "58accc148f100696f37f89e8033e91d1b4c762b35e81cd04baee6f84ad639b35",
+      "bytes": 27397,
+      "sha256": "56b88f43e0df8214d93aaa2ca739a4b9e36a7ed91d551c0b9a29af716b60e3b8",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
@@ -4383,10 +4383,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 98949,
+      "bytes": 98882,
       "path": "docs/项目最新进度.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "fbffcff2c66ac6e7c2f292b269329c576834a2e0b93086b188adf8b8538181d7",
+      "sha256": "beb0f1cc1ebda3c5c57185575631ecf7586ad0959e3ba345494ad7c645deaebd",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5205,10 +5205,10 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 647,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "bd6d114ea861c4526e17624b19529fbfe6873ba0",
+  "previous_public_commit": "d8f3b509c4abca7e364d363c1f2e48d0635f2d04",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-26T03:38:03+08:00",
+  "progress_as_of": "2026-10-26T03:56:31+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
   "scope": "SOURCE_679_WITH_ACTUAL_LINUX_QUALITY_AND_FOCUSED_PROGRESS_DOCS",
@@ -12314,7 +12314,7 @@
   },
   "task8_checkpoint": {
     "source_commit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
-    "status": "A5_FULL_LIMITED_679_QUALITY_ALL25_RAW_SIXTEEN_LIMITED_INNER_REMAINDER_RUNNING",
+    "status": "A5_ALL25_LIMITED_INNER_ADOPTED_REMAINING21_NATIVE_RUNNING_679_INNER_PENDING",
     "product_files_changed": 0,
     "test_files_changed_since_source36": 7,
     "test_files_changed_since_source638": 6,
@@ -12371,7 +12371,7 @@
       "new11_returned": 6,
       "new11_total": 11,
       "primary_outer_receipts_returned": 25,
-      "inner_raw_accepted": 16,
+      "inner_raw_accepted": 25,
       "new11_unrun": 5,
       "pre_sampler_import_hold_actual_cases": 0,
       "current_v3_generated_namespace_checks": 94,
@@ -12383,12 +12383,15 @@
         "old_failed_and_HOLD_preserved": true,
         "not_a_single_sixteen_case_batch": true
       },
-      "inner_accepted_scope": "A5 recovery/snapshot-effect sixteen-case limited inner acceptance; detailed evidence tiers retained",
+      "inner_accepted_scope": "A5 recovery/snapshot sixteen plus Full9 body/small-proof nine limited inner acceptance; evidence-tier omissions retained",
       "history_gap_root_sha256": "d153fc9727fc8becd37b1d2febe3ff3cd851b0beb78a33d3749236a602b415a7",
       "raw_original_sets_returned": 25,
       "all_operation_and_protected_originals_returned": true,
       "recovery_five_root_sha256": "47c03c059f44783c90c20db96e9d07a9b0ba94ff8e462f6387b0a5de4053ac29",
-      "snapshot_ten_root_sha256": "6c6d359b155323111b3c8fcc4f4f7faa70a04a26ec9a100d28004a6c529d6128"
+      "snapshot_ten_root_sha256": "6c6d359b155323111b3c8fcc4f4f7faa70a04a26ec9a100d28004a6c529d6128",
+      "full9_root_sha256": "8a83fa11d153cb34971de9875cbafb4619a0888a9420fee5eb5c29fa2855aeba",
+      "negative_physical_audit_files_not_exported": 5,
+      "remaining21_outer_returned_checkpoint": 3
     },
     "current_rootfs": {
       "source": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
