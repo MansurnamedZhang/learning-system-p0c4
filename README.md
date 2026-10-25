@@ -1,14 +1,14 @@
 # 知织 · KnowWeave
 
-## Task8 完整回归已独审，专项续跑中 · 2026-10-25
+## Task8 回归、四升级及源码差异独审通过 · 2026-10-25
 
-当前a5冻结源码已通过十道完整回归与四套旧版升级的限定独审：Rust1052通过/169忽略，普通与Root合并904个不同Linux Python正文，deploy21通过；192原件逐份复读。当前a5另有Root FS/OS 33正文、120原件独审采用。
+当前a5冻结源码的十门完整回归与四套真实旧版升级已限定独审通过：Rust1052通过/169忽略，普通与Root合并904个不同Linux Python正文，deploy21通过，192份原件逐份核对。另有当前Root FS/OS 33正文、120份原件独审采用。
 
-规定恢复/快照16项原前5回执保留；新11批次在本检查点已有4项五阶段回执返回（recovery-leases, recovery-retry-limit, snapshot-p1, snapshot-p2）。这些回执仍待inner原始日志与语义独核，专项最终接受数仍为0。原资源守卫HOLD、前置sampler导入失败及其0正文记录全部保留；最小修复、94条实际生成命名空间检查和11项等待机制检查已独审。全程使用新资源，不重放旧失败，原前5不重复执行。
+Source36→a5完整源码差异独审已采用：611个包叶，604未变、7个测试文件修正；没有放宽产品授权或旧断言，22controller、15迁移和Cargo原字节保持。当前611个实际Git blob与包相同；Windows checkout换行差异另记，不能冒称工作树全部物理字节相同。Task6/7旧采用范围不变；本次不是新的C3→a5全库安全扫描。
 
-余项、Full9和其余22操作继续按固定队列串行推进；读取工具的代码独审不计业务验收。Task8仍未完成；Task9独立存储、CompleteBackup、RecoveredInstance、公开恢复、C4整关、生产与main合并仍开放。
+规定恢复/快照16项原前5回执保留；新11批次在本检查点已有6项返回五阶段成功回执，原始inner日志与语义独核仍待进行，专项最终接受数仍为0。原失败HOLD不重放，原前5不重复执行；余项及Full9、其余22操作按固定队列串行继续，随后自动逐案读取原始证据与操作记录。
 
-详见[Task8当前回归](docs/p0c4-task8-current-regression.md)和[实施路线图](KnowWeave实施路线与架构.html)。
+Task8最终整组采用尚未完成；Task9独立存储、CompleteBackup、RecoveredInstance、公开恢复、C4整关、生产和main合并仍开放。详见[Task8当前回归](docs/p0c4-task8-current-regression.md)和[实施路线图](KnowWeave实施路线与架构.html)。
 
 ---
 
