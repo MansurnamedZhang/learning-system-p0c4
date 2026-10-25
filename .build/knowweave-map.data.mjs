@@ -4,16 +4,16 @@ export const meta={
   "date": "2026-10-25",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
-  "state": "C4 实施中 · Task8 Rust与四升级已返回，Python补验及专项中 · Task9待独立存储",
-  "progressSummary": "截至2026-10-25：Task6在2e5026d私有单机16/16、Task7在36c89f2私有单机6/6限定关闭。Task8的638候选实际工作区1052通过/169忽略，四套冻结旧版升级、格式与全特性严格Clippy通过；普通Python发现901项时失败3/错误19。已独审修复六个测试文件，冻结a5eb28d新候选完整重验；产品授权、15项迁移和22项控制器不变。",
+  "state": "C4 实施中 · Task8完整回归十门通过 · 规定专项与独审中",
+  "progressSummary": "截至2026-10-25：a5eb28d新隔离Linux/PG18完整回归十门全部自然退出0：Rust1052通过/169忽略、四套冻结旧版升级、格式/全特性Clippy、普通用户与Root Python、deploy测试。192份原件已由Root全部回读哈希。Task8仍需规定专项与整分支终审；Task6/7保留各自历史私有范围。",
   "progressEvidence": "Task7 Root采用：TASK7_SOURCE36_PRIVATE_SINGLE_HOST_SIX_CASE_ORIGINALS_ACCEPTED；SHA-256 1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4。六案来源为此前3项保留＋本轮新3项，不是六项新跑。三个good-pin场景每案四份阅读文件合计1172字节，package/source capture/destination copy/held target delivery四处逐字一致；同机不同inode不等于独立存储故障域。详见验收清单。",
-  "pendingSummary": "当前Task8：a5eb28d新隔离完整回归及普通/Root/deploy Python实际返回；54个规定fresh主专项与额外ignored处置、整分支和原始证据独审。638另有33项Root FS/OS实际通过，保留其源码与构建范围。Task9独立故障域、密钥托管与正常首签/发布/恢复仍开放。",
+  "pendingSummary": "Task8完整回归已实际返回通过，恢复/快照效果16项正在串行运行；另有规定registry/source/destination/schema/full专项与ignored逐行处置、原始证据及整分支终审待闭合。Task9真实独立目标、首签/发布权限与源端不可访问恢复仍开放。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。",
-  "snapshotSummary": "638已实跑1052项工作区及四套旧版升级成功；其Python普通用户门失败原件保留。新a5eb28d仅再修六个Python测试夹具：私有临时目录、合成pending状态、固定actor断言与临时真实Git仓库。执行配方为测试standin的私有tmpfs显式启用exec，未修改业务授权。",
+  "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。RootFS33已有638范围独审；规定专项继续。",
   "boundarySummary": "Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · Task8 Rust与四升级通过，Python修复后新批重验",
+  "roadmapHeadline": "当前进度 · Task8完整回归通过，规定专项与最终独审推进中",
   "taskPlanScope": "编号依据2026-10-04补齐计划，和原五任务父里程碑分开。Task8已进入新隔离执行；Task4内容3/3、Task6/7历史限定通过不等于当前源码全回归。Task9独立目标未就绪，C4整体仍开放。",
   "nextSteps": [
     [
@@ -1776,8 +1776,8 @@ export const c4Tasks=[
     "id": 8,
     "title": "当前回归、旧版升级与审查",
     "status": "next",
-    "detail": "638候选已实际工作区1052通过/169忽略、四套旧版升级、格式/全特性严格Clippy成功；普通Python失败3/错误19。a5eb28d仅修六个Python测试夹具，正在全新隔离批次完整重验。",
-    "evidence": "旧失败及停机留卷原件保留。638另有33项Root FS/OS实际通过；它们不是PG或新a5源码执行。当前规定专项、Python全门、ignored逐行处置及整分支原件独审未闭合，Task8保持OPEN。",
+    "detail": "a5eb28d已在全新隔离批次完整回归十门通过：Rust1052/0/169、四套升级、格式/全特性Clippy、普通与Root Python及deploy。规定专项与最终独审继续，Task8未关闭。",
+    "evidence": "新十门192份原件Root回读哈希相符，PG精确停机留卷；旧失败/HOLD保留。638的RootFS33不冒称a5新执行；169 ignored与54个规定fresh主专项单独核对，完成终审后才可关闭Task8。",
     "statusLabel": "实施中 · 新完整回归未闭合"
   },
   {
