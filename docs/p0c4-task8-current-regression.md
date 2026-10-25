@@ -27,15 +27,15 @@
 
 这33项属于当前a5的额外限定补验，与历史638组件分开，不改写workspace原169 ignored数，不计为PG专项或Task8整关完成。
 
-## 规定专项：前5回执成功，第6资源保护拒绝
+## 规定专项：旧失败保留，新资源串行补验
 
 恢复基础/快照效果16项中，`snapshot-history-gap`、`recovery-derived`、`recovery-receipt-failure`、`recovery-effects`、`snapshot-p6`五项已完成五阶段并返回公开runner的1/0/0回执。suite内原始stdout、driver结果及raw_index尚未导出独核，仍不计专项接受。
 
 第6项`recovery-leases`执行结束后，外围保护谓词以`PROTECTED_RESOURCE_CHANGED_OR_UNKNOWN`拒绝，原run-settled未生成。只读原件对比确认，原有资源唯一摘要变化为`spicylabtag_default`网络；同一观察内新增外部同步容器。后续只读投影中外部同步容器已消失，原有C/N/V逐项恢复原基线。本案两PG均Running=false、Pid=0、无ExecIDs，控制capsule当前不存在，卷保留。以上定位保护检查的差异，不推断该网络内部具体字段或外部任务的因果关系；内部公开回执虽报1/0/0，仍不能覆盖外围HOLD。
 
-新增的被动观察窄修经代码独审及11项本地机制检查后，在另一全新批次的前置sampler暴露`time`模块缺失；它在创建PG和执行正文之前以0.5秒退出1，case_id为空，0项接受。该记录另留HOLD。最小导入修复与完整生成脚本命名空间检查另行进行，业务源码与既有十门/33组件结论未变。
+新增的被动观察窄修经代码独审及11项本地机制检查后，在另一全新批次的前置sampler暴露`time`模块缺失；它在创建PG和执行正文之前以0.5秒退出1，case_id为空，0项接受。该记录另留HOLD。最小导入修复已独审，94条真实生成脚本命名空间检查与11项本地等待机制检查均通过；业务源码与既有十门/33组件结论未变。
 
-原失败批次与后续自动停止队列均保留，未在旧资源重放。下一步只审查外围有界只读等待窄修：固定原基线与严格谓词、记录全部观察，到期不接受，不排除或停止外部项目，不重放业务正文。审后仅用新UUID补未接受的11项；前5不重复执行。其余规定专项、inner原件及整分支审查继续开放。
+原失败批次与后续自动停止队列均保留，未在旧资源重放。已采用独审后的外围有界只读等待：固定原基线与严格谓词、记录全部完整观察，到期不接受，不排除或停止外部项目，不重放业务正文。新UUID与新资源仅补余11项，原前5不重复执行；其中租约和重试上限已完成五阶段并返回回执，正在串行推进快照专项。它们的inner原件尚未独核，当前主专项仍计0项最终接受；其余9/22操作与整分支审查继续开放。
 
 独立十门审查的证据边界亦保留：PG完整inspect/image Env没有另存原raw，依赖已固定配方、调用摘要及全资源投影；rm回复保存哈希，源码末态由执行守卫与期望聚合值核对，并非另外下载611叶末态。两项私有frame的Linux跳过不改写。Task8、Task9与C4整关保持开放。
 
@@ -49,7 +49,7 @@
 
 ## Python修复与新候选
 
-仅修改六个`scripts/test_*.py`测试文件：临时文件移到私有临时目录；纯mock envelope不再访问宿主`/root/case`，并增加pending存在必须拒绝的负例；共享actor允许的两个固定case与测试断言对齐；打包测试使用临时真实Git仓库，另验脏工作区及未跟踪文件不能进入包。原生产控制器、Rust产品代码和迁移未变。六文件静态独审通过，最终Linux各身份检查须由新批次实际结果支持。
+仅修改六个`scripts/test_*.py`测试文件：临时文件移到私有临时目录；纯mock envelope不再访问宿主`/root/case`，并增加pending存在必须拒绝的负例；共享actor允许的两个固定case与测试断言对齐；打包测试使用临时真实Git仓库，另验脏工作区及未跟踪文件不能进入包。原生产控制器、Rust产品代码和迁移未变。六文件静态独审通过，当前a5新批次已实际完成普通与Root Linux检查，结果与跳过边界见上方十门表。
 
 另已在新隔离诊断容器复现shell测试的`127 / psql: Permission denied`：默认tmpfs禁止执行临时standin。新配方只对本批私有`/tmp`显式启用exec，保留网络、只读源码、cap和全部资源守卫。此后a5候选已在新UUID、新PG18卷及新子网完成十门返回；规定专项和后验仍待完成，失败数据库未复用。
 
@@ -57,7 +57,7 @@
 
 Source36的新隔离完整workspace实际运行到`snapshot_jobs`，该二进制19项中10通过、9失败。管理交付测试自身通过，但它关闭共享测试库的runtime CONNECT后未恢复，后续9项都在建立新runtime连接时收到PostgreSQL `42501 / CONNECT privilege`拒绝。该轮退出101，后门停止，Root已逐字哈希回读78份原件，子代理另复读了关键失败原始日志与窄补，源与保护资源保持，PG停止留卷。结果摘要SHA-256：`7b223b7a1794d9ad0529d6f99bd2a9e6a42d6704b1a50e7ec92698206cc26482`。
 
-修复仅为`crates/learning-db/tests/snapshot_jobs.rs`的11行测试收尾：全部授权、只读、锁等待和撤权断言之后，恢复该隔离库原有的runtime CONNECT，再实际建立并关闭一个新runtime连接。没有修改产品授权、旧断言、迁移或控制器。静态独审与Windows格式检查通过；运行通过须由新候选实际回执支持。
+修复仅为`crates/learning-db/tests/snapshot_jobs.rs`的11行测试收尾：全部授权、只读、锁等待和撤权断言之后，恢复该隔离库原有的runtime CONNECT，再实际建立并关闭一个新runtime连接。没有修改产品授权、旧断言、迁移或控制器。静态独审与Windows格式检查通过；当前a5新批次workspace已1052通过/0失败，原Source36失败证据仍保留。
 
 此前单独保留的准备失败包括：归档内manifest名称识别、PG初始化脚本读取权限、Docker内建网络IPAM空值，以及资产目录专项缺少UUID独立空库。它们均未改写为通过。新638批次在进入workspace正文前，因其它项目的同步容器出现、spicylabtag_default网络摘要变化而被完整资源守卫拒绝；该轮结果SHA-256为`b2018547f00df5dc981f99ec19b9eff9502b31085cc5db642922721e3dae2eea`。尚无before原始网络inspect，不把摘要差异猜作某个内部字段的确定原因。旧失败不重放、不停止或排除其它项目；此后已独审并采用有时限的只读静止窗口等待，仍要求所有保护资源精确匹配原基线才执行测试。
 
@@ -71,16 +71,16 @@ Source36的新隔离完整workspace实际运行到`snapshot_jobs`，该二进制
 | ZIP SHA-256 | `f740f7ab7d1e62328e76f614d664912ef345b34d06cc97a492defd351df64a97` |
 | Manifest SHA-256 | `f45498c18ceceac1154b685b334ba6178c2b78c215d8c200fa24aa29594c4d19` |
 | 迁移／控制器 | 15项迁移与22项控制器原字节不变 |
-| 完整回归 | a5新隔离十门全部实际返回通过；专项与独审仍开放 |
+| 完整回归 | a5新隔离十门全部实际通过，192份原件已限定独审采用；专项与整分支终审仍开放 |
 | 四套旧版升级 | a5四套冻结夹具实际升级、checksum核验均通过 |
-| ignored | 638实际列举1221总数／169 ignored，另有33个精确Root组件正文已实跑；其余按current专项矩阵处置，不能把列举当执行 |
-| 独立审查 | 运行配方、测试窄补和新冻结包已复核；完整新结果、规定专项与整分支最终审查待完成 |
+| ignored | 当前a5列举1221正文、workspace实际1052通过／169 ignored；另有当前a5 Root组件33正文已独审。规定54 fresh与6 Attention历史桥单列，不能把列举当执行 |
+| 独立审查 | 测试窄补、冻结包、完整十门/四升级与当前Root FS33已限定独审；规定专项inner原件与整分支最终审查待完成 |
 
 实际执行顺序为：11个命名库空库检查 → 四套冻结旧夹具生成 → 实际listing → `cargo test --offline --locked --workspace -- --test-threads=1` → `legacy-upgrades`逐项迁移checksum → 格式 → `--workspace --all-targets --all-features`严格Clippy → 普通Linux Python全发现 → Root身份与专用FS目录Python全发现 → deploy Python。每门原始stdout、stderr、进程退出、实际容器inspect和资源前后投影单独留存；失败停止后门，超时保持HOLD，不重放失败批次。
 
 ## 当前仍未关闭
 
-- 169项ignored中的必需current专项处置；完整workspace、四升级、严格门和Python已返回通过，但不能替代这些专项。
+- 169项ignored中的必需current专项处置：当前主专项54 fresh逐项补验及6 Attention显式历史桥，另有当前Root FS33已独审。完整workspace、四升级、严格门和Python不能替代未闭合的专项。
 - 原始证据、当前构建/源码/二进制、迁移和角色权限的完整连接核对，以及独立整分支审查。
 - Task9独立故障域、托管密钥及真实首签/新发布权限集成；CompleteBackup、RecoveredInstance、公开恢复、C4整关与生产仍OPEN。
 

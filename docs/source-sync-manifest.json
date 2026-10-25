@@ -15,8 +15,8 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 60901,
-      "sha256": "50fbe973eba33b9b66722a9e2f16ed4fc727ce29c53f1a00c7a553d1c41e76c6",
+      "bytes": 61001,
+      "sha256": "1bbb40fe581ddc28017c5c4492bacefb0838214a1183f31399530b0a4976ef4e",
       "source_bytes_preserved": false,
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
     },
@@ -63,10 +63,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 113861,
+      "bytes": 113961,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "7faf674ebce6ac88d1d9aec76fea8ac5421b56846af13ef30b4f3789f3b28c7c",
+      "sha256": "6152ac3766a14d8c67ffb191159b153e5adf7b75321142f4311c27fb7408ce09",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -78,10 +78,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 65181,
+      "bytes": 64956,
       "path": "README.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "fbf5596f2293ef4a49f89a8e89b5a8fa8b6807a98169b447a7d990a10ef1c26e",
+      "sha256": "bb751d463765da09aeafe1b17816fb35ff31b9f0aaeb1540f502cc8cc5cba48c",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3083,10 +3083,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 45978,
+      "bytes": 46133,
       "path": "docs/KnowWeave实施路线与系统架构.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "38a059ad738a6e7a728169d1df0bd52c4f713fa09d923b131eaa4c2bd1e355dd",
+      "sha256": "54ff0ae8fa2f45fd90e769cff836117b0c12aecf529e6bfd9771d630129cffc6",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3688,8 +3688,8 @@
     },
     {
       "path": "docs/p0c4-task8-current-regression.md",
-      "bytes": 11386,
-      "sha256": "e4d77052d9a3c228c108bf2d91de7d7c42b235b7e4fcfe1492746d5a881e79cb",
+      "bytes": 11843,
+      "sha256": "b25bccc9051d0a4757fe0893e43b1d35842b6ca634643d93815d07bf50724c9c",
       "source_bytes_preserved": false,
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
     },
@@ -3869,10 +3869,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 98966,
+      "bytes": 98741,
       "path": "docs/项目最新进度.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "9ed2ab66f065572c04f654454ccb559dc5ee4bfcca9ad8a94033ab0a8f3bcdb5",
+      "sha256": "43be7a2e62c544dfe346bc86c854fd4925567681537690a0eeb0d5534c3c2559",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4597,7 +4597,7 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 647,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "59105a77bb2509a4ca63d685af919cb94810bea6",
+  "previous_public_commit": "9b188942b862aab41879ac3320c7176f75da9e63",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
   "progress_as_of": "2026-10-25T15:41:01+08:00",
@@ -11758,11 +11758,13 @@
       "independent_whole_review_pending": true
     },
     "focused_campaign": {
-      "recovery16_returned": 5,
-      "recovery16_outer_guard_hold": 1,
-      "recovery16_unrun": 10,
+      "original_recovery16_returned": 5,
+      "original_outer_guard_hold": 1,
+      "new11_returned": 4,
+      "new11_total": 11,
+      "primary_outer_receipts_returned": 9,
       "inner_raw_accepted": 0,
-      "remaining_new_cases": 11,
+      "new11_unrun": 7,
       "pre_sampler_import_hold_actual_cases": 0,
       "current_v3_generated_namespace_checks": 94
     },

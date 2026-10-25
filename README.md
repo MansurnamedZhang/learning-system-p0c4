@@ -1,14 +1,14 @@
 # 知织 · KnowWeave
 
-## Task8 十门、四升级及当前Root FS补验已独审 · 2026-10-25
+## Task8 完整回归已独审，专项续跑中 · 2026-10-25
 
-a5候选 `a5eb28d0ffc36d6434576fbd083eb20f07566f41` 已完成十道完整回归和四套冻结旧版升级的独立限定复审：192原件50,690,216字节，Rust1052通过/169忽略，普通与Root Python合并904个不同Linux正文，deploy21通过。另在当前a5新组件批次实际通过33个Root FS/OS正文，120原件逐份独核、精确清理和完整资源投影闭合；这33项不改写workspace的169 ignored数，也不计PG专项。
+当前a5冻结源码已通过十道完整回归与四套旧版升级的限定独审：Rust1052通过/169忽略，普通与Root合并904个不同Linux Python正文，deploy21通过；192原件逐份复读。当前a5另有Root FS/OS 33正文、120原件独审采用。
 
-规定恢复/快照16项中5项公开回执成功，inner原件未独核，0项专项接受；原第6项在外围资源守卫处拒绝，旧HOLD与停队列记录保留。外围只读等待修复的一次前置sampler缺少time导入，在创建PG/运行正文前退出1，仍计0；最小导入修复及94条真实生成命名空间检查、11项等待机制检查已独审。余11在新UUID/资源上串行补验；原失败资源不重放，前5不重复执行。
+规定恢复/快照16项原前5回执保留；新11批次在本检查点已有4项五阶段回执返回（recovery-leases, recovery-retry-limit, snapshot-p1, snapshot-p2）。这些回执仍待inner原始日志与语义独核，专项最终接受数仍为0。原资源守卫HOLD、前置sampler导入失败及其0正文记录全部保留；最小修复、94条实际生成命名空间检查和11项等待机制检查已独审。全程使用新资源，不重放旧失败，原前5不重复执行。
 
-规定主专项按54 fresh＋6 Attention显式历史桥记账。其余9/22操作与inner原件、整分支终审仍开放，**Task8尚未完成**。Task6/7历史接受范围不变；Task9、独立存储、CompleteBackup、RecoveredInstance、公开恢复、C4整关、生产及main合并均未由本轮关闭。
+余项、Full9和其余22操作继续按固定队列串行推进；读取工具的代码独审不计业务验收。Task8仍未完成；Task9独立存储、CompleteBackup、RecoveredInstance、公开恢复、C4整关、生产与main合并仍开放。
 
-详见[Task8当前回归](docs/p0c4-task8-current-regression.md)与[实施路线图](KnowWeave实施路线与架构.html)。
+详见[Task8当前回归](docs/p0c4-task8-current-regression.md)和[实施路线图](KnowWeave实施路线与架构.html)。
 
 ---
 
