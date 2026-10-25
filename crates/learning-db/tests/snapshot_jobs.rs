@@ -777,6 +777,17 @@ mod integration {
             Err(learning_core::ContentError::NotFound)
         ));
         revoked.rollback().await.unwrap();
+        // The management-only probe closes access to the shared test database.
+        // Restore the original runtime login after every authorization assertion
+        // so subsequent tests keep their independently established login contract.
+        sqlx::raw_sql("DO $$ BEGIN EXECUTE format('GRANT CONNECT ON DATABASE %I TO learning_runtime',current_database()); END $$")
+            .execute(&rig.admin_pool).await.unwrap();
+        let runtime = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(1)
+            .connect(&std::env::var("TEST_DATABASE_URL").unwrap())
+            .await
+            .expect("management delivery probe must restore runtime login");
+        runtime.close().await;
     }
     #[tokio::test]
     async fn revocation_after_plan_or_copy_prevents_result_and_delivery() {
