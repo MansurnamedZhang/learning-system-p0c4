@@ -1823,7 +1823,7 @@ export const c4ParentMilestones=[
     "title": "完整场景与故障注入验收",
     "status": "next",
     "detail": "完整 Attention、当前完整回归、四套旧版升级与整分支审查；由补齐计划Task7–9闭合。",
-    "evidence": "Task7规定私有六案已限定关闭；Task8当前完整回归/升级与Task9独立故障域未闭合，父里程碑仍开放。"
+    "evidence": "Task7规定私有六案已限定关闭；Task8完整十门/四升级已限定通过，规定专项及整组终审与Task9独立故障域仍未闭合，父里程碑仍开放。"
   }
 ];
 export const references=[

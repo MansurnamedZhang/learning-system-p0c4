@@ -10,7 +10,7 @@ main{min-width:0}header{padding:34px 40px;background:var(--paper);border:1px sol
 @media(max-width:1000px){.shell{grid-template-columns:220px minmax(0,1fr);gap:20px;padding:20px}.chapter,header{padding:26px}}
 @media(max-width:760px){.shell{display:block;padding:14px}aside{position:static;max-height:none;padding:10px 4px 18px}nav{grid-template-columns:1fr 1fr;gap:3px}.brand{font-size:22px}.controls{grid-template-columns:1fr auto}.counter{grid-column:1/-1}.aside-note{display:none}.chapter,header{padding:22px 18px}h1{font-size:29px}h2{font-size:22px}h3{font-size:19px}}
 @media print{body{background:#fff;color:#111}.shell{display:block;padding:0;max-width:none}aside,.chapter-source,.empty{display:none}.chapter,header{border:0;border-radius:0;padding:12px 0;box-shadow:none}h2,h3{break-after:avoid}.table-wrap,.diagram{overflow:visible}table{min-width:0;font-size:10px}svg{min-width:0}pre{white-space:pre-wrap}.chapter{break-before:page}.chapter:first-of-type{break-before:auto}.chapter[hidden]{display:block}.hide-code pre{display:block}a{color:#111;text-decoration:none}footer{font-size:10px}}
-</style></head><body><aside id="private-evidence-note" style="padding:16px;margin:16px;border:1px solid #9ca3af;border-radius:12px">公开同步：2026-10-10。P0-C4 仍在补验，当前 Task5 十一门实际 0/11；最新状态见 <a href="../项目最新进度.md">项目最新进度</a>。架构基础章节保留原核对日期；私有证据未随仓库公开。</aside><div class="shell"><aside><div class="brand">知织 · KnowWeave<small>项目架构设计 · 2026-09-30</small></div><div class="controls"><input id="search" type="search" aria-label="搜索架构章节" placeholder="搜索：版本、关系、恢复…"><button id="print" type="button">打印 / PDF</button><div id="counter" class="counter">全部 10 章</div></div><nav aria-label="章节目录"><a href="#chapter-index">阅读入口与状态</a><a href="#chapter-overview">01 总体架构与产品边界</a><a href="#chapter-domain">02 块与版本化领域模型</a><a href="#chapter-modules">03 Rust 模块与代码边界</a><a href="#chapter-permissions">04 事务授权与关系查询</a><a href="#chapter-assets">05 原件存储与持久任务</a><a href="#chapter-recovery">06 快照交换与备份恢复</a><a href="#chapter-interfaces">07 API 前端与学习闭环</a><a href="#chapter-deployment">08 部署运维与架构演进</a><a href="#chapter-evidence">09 决策记录与证据索引</a></nav><p class="aside-note">正文来自可编辑 Markdown。六张 SVG 图已嵌入，可离线阅读。绿色为阶段已验收，蓝色为实施中，灰色为待建设，紫色为可选。</p></aside><main><header><div class="eyebrow">ARCHITECTURE · 当前实现与目标边界</div><h1>整个项目的架构，在一处读清楚</h1><p>从语义块和个人思考，到事务、原件、任务、快照及恢复；再到待建设的浏览器学习应用与运维体系。</p><div class="badges"><span class="badge">Rust · PostgreSQL 18</span><span class="badge">5 个 crate</span><span class="badge">C3 已隔离验收</span><span class="badge">C4 实施中</span><span class="badge">API / 前端待建设</span></div></header><div id="empty" class="empty" hidden>没有匹配章节。试试“权限”“版本”“原件”或“恢复”。</div><section class="chapter" id="chapter-index" aria-label="阅读入口与状态"><h2 id="index-heading-1">KnowWeave 项目架构设计</h2>
+</style></head><body><aside id="private-evidence-note" style="padding:16px;margin:16px;border:1px solid #9ca3af;border-radius:12px">公开状态更新：2026-10-25。Task5规定单机补验、Task6私有16/16与Task7私有6/6已分别限定采用；当前a5完整十门/四升级已限定独审通过，Task8专项与整组审查、Task9及C4整关仍开放。原始私有证据未公开，历史章节保留各自核对日期。最新状态见 <a href="../p0c4-task8-current-regression.md">Task8当前回归</a>。</aside><div class="shell"><aside><div class="brand">知织 · KnowWeave<small>项目架构设计 · 2026-09-30</small></div><div class="controls"><input id="search" type="search" aria-label="搜索架构章节" placeholder="搜索：版本、关系、恢复…"><button id="print" type="button">打印 / PDF</button><div id="counter" class="counter">全部 10 章</div></div><nav aria-label="章节目录"><a href="#chapter-index">阅读入口与状态</a><a href="#chapter-overview">01 总体架构与产品边界</a><a href="#chapter-domain">02 块与版本化领域模型</a><a href="#chapter-modules">03 Rust 模块与代码边界</a><a href="#chapter-permissions">04 事务授权与关系查询</a><a href="#chapter-assets">05 原件存储与持久任务</a><a href="#chapter-recovery">06 快照交换与备份恢复</a><a href="#chapter-interfaces">07 API 前端与学习闭环</a><a href="#chapter-deployment">08 部署运维与架构演进</a><a href="#chapter-evidence">09 决策记录与证据索引</a></nav><p class="aside-note">正文来自可编辑 Markdown。六张 SVG 图已嵌入，可离线阅读。绿色为阶段已验收，蓝色为实施中，灰色为待建设，紫色为可选。</p></aside><main><header><div class="eyebrow">ARCHITECTURE · 当前实现与目标边界</div><h1>整个项目的架构，在一处读清楚</h1><p>从语义块和个人思考，到事务、原件、任务、快照及恢复；再到待建设的浏览器学习应用与运维体系。</p><div class="badges"><span class="badge">Rust · PostgreSQL 18</span><span class="badge">5 个 crate</span><span class="badge">C3 已隔离验收</span><span class="badge">C4 实施中</span><span class="badge">API / 前端待建设</span></div></header><div id="empty" class="empty" hidden>没有匹配章节。试试“权限”“版本”“原件”或“恢复”。</div><section class="chapter" id="chapter-index" aria-label="阅读入口与状态"><h2 id="index-heading-1">KnowWeave 项目架构设计</h2>
 <p>整理日期：2026-09-30。本文档集面向项目维护者、后续实现者与个人部署者，统一说明产品目标、数据模型、模块职责、关键流程、运行边界和阶段验收。</p>
 <p><strong>当前产品形态是 Rust 内核与隔离验收工具。P0-A、B1–B4、C1–C3 已完成各自隔离验收；C4 备份恢复仍在实施，登录、HTTP API、浏览器前端及学习闭环尚未建设。</strong> 目标架构与现状在各章分别标明，不能把设计图理解为已部署系统。</p>
 <p>本次以文档提交 <code>031f80d9108b4b5110c89e55cd9dcbb1e4d6db76</code> 对应的仓库结构核对代码；最新 C4 只读子进程门实际使用源码 <code>273f106e7addfcbc8bad3d96f5ba4dd7b8ab30c2</code>。整理文档不扩大该测试的覆盖范围。</p>
@@ -661,7 +661,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <p>当前只读绑定进一步核对精确容器、网络和挂载、PG system identifier/database OID、启动身份、会话与同一 SQLx 事务中的两把锁。只读子进程限定精确 Docker 目标和本地 Unix socket，不接受用户随意提供主机、端口或新的 passfile。</p>
 <p>物理克隆负例验证：即使两个实例拥有相同 system identifier 和 database OID，错误端点仍必须拒绝。因此仅核对数据库“身份数字相同”不够。</p>
 <p>同一 guard 重启负例验证：首次只读证明成功，目标重启后原会话被拒绝，旧 guard 不可复用，最终精确停机留卷。预期的 Session 拒绝是该负例成功条件，不是批次失败。</p>
-<h3 id="recovery-heading-7">C4 当前完成度与待完成门</h3>
+<h3 id="recovery-heading-7">C4 当前完成度与待完成门</h3><div class="current-status-update"><h4 id="recovery-current-20261025">当前状态更新 · 2026-10-25</h4><p>Task5代码与规定单机补验已限定采用；受控11/11保留10历史＋1项85c来源。Task6的2e5026d私有16/16、Task7的Source36私有6/6已分别采用，不能改记为a5新执行。</p><p>当前a5完整Linux/PG18十门、四套真实旧版升级、Root FS/OS 33项及七叶测试差异已限定独审通过。恢复/快照效果16项五阶段回执已返回，正文与效果证明仍待独核；其余专项串行补验，Task8仍开放。</p><p>Task9独立目标、密钥托管及首签/发布权限与正常恢复尚未通过；CompleteBackup、RecoveredInstance、C4整关和生产均未关闭。</p><p>详见 <a href="../p0c4-task8-current-regression.md">Task8当前回归</a>及<a href="../p0c4-completion-acceptance.md">限定采用记录</a>。</p></div><h4 id="recovery-history-20260930">历史基线 · 2026-09-30</h4>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -706,7 +706,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <td>未验收；C4 不能标完成</td>
 </tr>
 </tbody></table></div>
-<p>下一阶段先定稿实际导入子进程与凭据契约，再用新空目标和受控小型 dump 验证首次写入；通过后扩展到资产、历史、位置、关系、权限和作业恢复。不能将只读门直接升级成恢复许可，也不复用停机隔离的旧验收卷。</p>
+<p>上述表格与当时的待设计门是2026-09-30历史快照；当前Task5/6/7限定采用及Task8补验见本节更新。只读门不能单独升级为恢复许可，旧停机隔离卷不复用。</p>
 <h3 id="recovery-heading-8">恢复后的作业与失败隔离</h3>
 <p>恢复政策代码已区分终态、旧租约和未完成作业，实际执行与验证仍待整链验收。旧 token 不能在新目标继续完成，外部副作用不能因恢复而无条件重放。验证一致后再开放服务，派生物另行重建。</p>
 <p>发生 ACL 变更、目标身份无法证明或恢复失败时，目标标为脏/不可用/禁止复用，按精确容器 ID 停机，保留卷与证据。不能用清理脚本把失败变成“干净目标”，也不能在同一失败批次重跑。</p>
@@ -862,7 +862,7 @@ evidence/        隔离验收记录与哈希索引
 <tr>
 <td>P0-C4</td>
 <td>完整备份、干净目标实际恢复与整关故障注入</td>
-<td>实施中；只读绑定专项通过</td>
+<td>Task5/6/7规定单机范围分别采用；Task8专项及整组审查、Task9和整关仍开放</td>
 </tr>
 <tr>
 <td>P1-A</td>
