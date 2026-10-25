@@ -1,54 +1,16 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-## 2026-10-23 · Task6 D1 发布组件分项完成
-
-2026-10-23：Task6 D1 私有阅读副本发布组件已将原领取、实际快照写入、runtime 原事务 COMMIT 与 BUSINESS_COMMIT_KNOWN／WRITE_CLOSED 两条持久记录接通。Linux 36 项纯测试、PG18 六项 D1、三项受限观察接口专项＋十五项既有回归，以及三项旧 public publisher 回归通过并独立复核。形式化效果分类、完整 C 导出、生产准入及最终同源恢复整链仍待完成，Task6/C4 OPEN。
-
-受验包 `6daf919dd144f2121ae507f93ea624b31833770431cdfc819c155581b9b22cd9`；来源 `1aa20a454bf72e737c40407ada37bb8b8f246feb`。详见[发布组件及剩余门](p0c4-snapshot-components.md)。来源 ID 不代表公开仓库存在同名提交。
-
-以下保留此前分项记录，历史结果与范围不作覆盖。
-
-## 2026-10-22 · Task6 首写组件分项完成
-
-2026-10-22：C2+D0 已接入真实队列领取、持久写入许可、同一 owner/budget 下的实际快照写入与包校验。Linux 30 项纯测、等价复用已接受的 R4 文件专项 10 项，以及真实 PG18 15 项（六项 C2＋九项回归）通过并独立复核。结果只证明私有 PACKAGE_STAGED 文件事实；业务发布/效果分类、完整 C 导出及最终同源整链尚未完成，Task6/C4 OPEN。
-
-来源 `c4cf09afeb8e5a8140941353502c1022c4369e5f`；受验包 `2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea`，577 个成员正文与 Git 导出逐字相同，未包含 A2 草稿。详见[首写组件与实际验证](p0c4-snapshot-components.md)。公开仓库保持自己的快照提交历史；来源 ID 不代表 GitHub 上同名提交。
-
-以下保留此前分项记录，历史结果与范围不作覆盖。
-
-2026-10-21 组件增量：可选数据库观察组件 A1（源码9944c02）已通过 Linux 严格检查、2项纯测试及真实PG三项＋源端拒绝一项，并完成214原件的独立复核。Root日志字节组件 S2-B（源码976a9cf）已通过 Linux严格检查、3项纯测试及8项真实Root文件专项，161原件独立复核通过。两者均为正向Snapshot恢复的依赖组件，尚未接入完整业务claim/写入/捕获链，不授 NoEffect/AlreadyCommitted 或恢复资格。
-
-基础恢复5/5仍按此前各自源码留证；本次组件分项测试不增加foundation计数，也不替代最终同源整链。Task6整体与C4保持OPEN。详见[组件实现与验证边界](p0c4-snapshot-components.md)。
-
-2026-10-21 最新：五项基础恢复现场已全部独立复核 **5/5**。旧令牌、重试上限与未知快照副作用三项属于 `509956e`；派生结果/阅读校验及恢复收据同步失败两项属于 `0df5128`。每项各自固定源码、全新源/目标与原件，尚不是最终集成代码的同源全回归。
-
-新增第五项精确 Rust 测试1 passed / 0 failed / 0 ignored，34份原件闭合；2任务、4次旧令牌拒绝、非空30字节Result-v1摘要独立一致。真实完整性及管理事务内的当前/历史阅读先完成，随后在收据文件 sync_all 已成功、目录同步及readback/资格登记之前注入一次错误，原guard保留到目标隔离完成，不返回恢复资格。此结果不是自然OS fsync故障实证，不证明部分收据不存在，也不回滚已经确认的归一化提交。
-
-下一阶段：完成观察组件真实PG门、Root日志文件专项与业务claim历史/permit，补齐 NoEffect / AlreadyCommitted 的正向快照字节证据，再跑最终同源整链与回归。当前5/5仅是基础场景里程碑；阅读正文/64表侧文件独立读回等既有边界、旧失败和UNKNOWN均保留。Task6整体、CompleteBackup、C4整关与生产验收仍 OPEN。
-
-此前发布检查点：2026-10-21 最新：基础恢复现场已独立复核 **4/5**。前三项（旧令牌、重试上限、未知快照副作用）来源为 `509956e`；第四项非空派生结果与阅读校验来源为夹具登录修复后的 `0df5128`，分别保留源码和现场身份，尚未合并为同一最终集成版本回归。
-
-第四项精确 Rust 测试 1 passed / 0 failed / 0 ignored，34 份原件闭合；2 个任务、4 次旧令牌拒绝，非空 Result-v1 的27字节内容摘要已独立复算一致。原管理事务内的完整性及三种阅读投影、当前/历史修订和拒绝路径先通过，再注入一次 digest 不一致，目标保持不可用并隔离。该例没有实际删除 Result-v1、破坏已存摘要或验证普通 runtime CONNECT；阅读正文、64表COPY/归一化侧文件和新一轮实时停机观察仍保留各自核验边界。
-
-第五项恢复收据同步失败正在新批次运行，未计通过。数据库观察组件通过 Linux 编译与纯单元；首轮真实PG尝试在初始健康检查静默采样前停止，未创建本批资源，正在复审限定时间采样脚本。字节日志后端源码独审通过，Linux Root 文件专项待跑。上述组件仍不授予正向 snapshot 字节权威；Task6、CompleteBackup、C4整关及生产验收保持 OPEN。旧失败和 UNKNOWN 原样保留。
-
-## Task6 当前检查点
-
-2026-10-20：Task6 恢复归一化与校验基础已提交。固定 Linux 格式、类型检查、严格 Clippy 通过；四组测试分别 21/15/3/7 通过，Python 封套 33 项通过。基础 PostgreSQL 现场场景已复核5/5；snapshot 正面字节证明未完成，缺证据的导出作业保留 Unknown/HOLD。Task5 代码与规定单机补验已限定收尾；Task6–9、C4、CompleteBackup 与生产激活仍未完成。 详见[Task6 进度](p0c4-recovery-normalization.md)。以下保留各阶段原有收尾结论与历史。
-
-> Task5单机补验限定收尾（2026-10-20）：Root已正式接受source85c代码与规定单机补验；native9/9，实际三组分别2/115/92通过、ignored0/17/13，不拼语义覆盖或新增native。Task6–9/C4仍OPEN，受控11仍10历史c749＋1当前85c。 outer SSH过程exit0、62.453秒、无timeout/unknown且outer stderr为0；三组Rust命令自身stderr分别4746/226/936字节，包含编译和通过的负例诊断。R3 FULL_REHEARSAL_FAILURE属于通过的unit反例诊断，不是新business live恢复结果。本次只接受既有三组回归，新增native/full案例信用为0。六项P1–P6为非测试预检；仅核对五workspace metadata与208 lock checksum结构，未独立验证dependency cache全部字节。 各原案例限制逐项保留：CU业务结果仍UNKNOWN，不是commit success或known rollback；wrong-endpoint仅different_database_route_only_not_same_id_clone。asset-corrupt是DBcatalog已提交后原件失败、无可用恢复回执，zeroDBwrites=false。角色SQL stdout、独立SQL/marker、raw full-negative正文、reader旧raw投影、运行时cache/write-order及TAR现场inode/nlink等原观察缺口不升级；各负例summary＋Suite entry闭合不等于负例正文或独立SQL读取。
-
-更新：2026-10-21。当前状态：Task2/3/5 按各自限定范围收尾；Task6 基础实现与指定 Linux 检查通过，基础PG现场5/5；C4 整关 OPEN，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；Task2已验收源码检查点：`ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1`。现场验收源码与当前 WIP 不混用。
+更新：2026-10-25。当前状态：C4 实施中 · Task6 私有单机16/16 · Task7 私有单机6/6 · 下一步 Task8 · Task9待独立存储，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`36c89f2e94dccdc90652f8b196372bb62fa398a5`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
-这是截至2026-10-20的实施进度与目标架构。当前推进Task6；新PG五场景及正面snapshot字节证明仍待验证。各阶段历史结果保留其原范围，颜色和连线不代表生产认证。
+当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。
 
-[离线图文版](../KnowWeave实施路线与架构.html)。此文为可编辑 Markdown 快照；可维护图数据在 .build/knowweave-map.data.mjs（私有或未公开参考），生成命令为 `node .build/build-knowweave-map.mjs`。
+[离线图文版](../KnowWeave实施路线与架构.html)。此文为可编辑 Markdown 快照；可维护图数据在 [.build/knowweave-map.data.mjs](../.build/knowweave-map.data.mjs)，生成命令为 `node .build/build-knowweave-map.mjs`。
 
 ## 实施路线
 
-历史说明（2026-10-18当时状态；当前进度见顶部）：P0-A、B1–B4、C1–C3 共 8 个分关已验收。2026-10-18更新：Task2代码与单机补验收尾完成。当前ba96561固定同包准入5/5、绑定4/4及首例两项live回归、全新replacement端点5/5、fresh生命周期8/8已分别独审接受，交付证据独立留档。旧normal/clone各保留来源，旧clone外层UNKNOWN_RETAINED不提升、不重放。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍OPEN，缺独立存储，未签发CompleteBackup，未生产部署。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。截至2026-10-25：Task1限定分项通过；Task2代码与单机补验收尾、Task3单机收尾；Task4内容三门3/3通过；Task5代码与规定单机补验限定关闭；Task6在2e5026d源码上私有单机16/16限定完成；Task7在36c89f2源码上私有单机六案6/6原件验收限定关闭。历史分项各保留原源码与范围，不作为最新源码全量回归。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -83,40 +45,49 @@ flowchart LR
 
 | 阶段 | 状态 | 交付 | 验收门 | 证据或范围 |
 | --- | --- | --- | --- | --- |
-| P0-A 块修订与权限 | 已验收 | 稳定块身份、不可变修订、当前授权、幂等请求和并发冲突。 | 真实 PostgreSQL 权限、重复写入、冲突与回滚验证。 | [29/29；已验收](p0a-verification.md) |
-| P0-B1 组合与原子发布 | 已验收 | 固定组合、重复出现的独立 occurrence、精确版本引用及原子发布。 | 两文档复用一个块；只升级指定组合；旧发布仍可复现。 | [68/68；已验收](p0b1-verification.md) |
-| P0-B2 个人层与融合阅读 | 已验收 | 间隙插入、个人位置、原文/融合/个人投影及固定阅读修订。 | 位置与正文同步保存；移动不改原文；无法迁移的内容可找回。 | [105/105；已验收](p0b2-verification.md) |
-| P0-B3 关系与认识审查 | 已验收 | 支持/反对等关系、猜想版本与证据判断、派生/拆分/合并谱系。 | 隐藏证据不泄露；猜想新版不自动继承旧判断。 | [222/222；已验收](p0b3-verification.md) |
-| P0-B4 读取投影与影响查询 | 已验收 | 固定范围反向引用、关系遍历、解释路径与有界查询。 | 按当前权限过滤；隐藏桥不扩展；截断和失败明确区分。 | [284 通过 / 3 忽略；已验收](p0b4-verification.md) |
-| P0-C1 原件、图片与附件 | 已验收 | 不可变原字节、资源版本定位、v3 图片/附件及精确使用授权。 | 独立卷原字节核验；中断/损坏/回滚/撤权；四套旧程序升级。 | [328 通过 / 3 忽略；已验收](p0c1-verification.md) |
-| P0-C2 持久任务与受限 Worker | 已验收 | 同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。 | 专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。 | [388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致](p0c2-verification.md) |
-| P0-C3 融合快照交换 | 已验收 | 精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。 | 授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。 | [整关隔离验收与 602 份证据哈希复核通过；未生产部署](p0c3-verification.md) |
-| P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task1已验收；Task2：ba96561代码与单机补验收尾完成；准入5/5、绑定4+2、新端点5/5、fresh life8/8独审接受；Task3单机完成；Task4内容3/3；Task5代码与规定单机补验已限定收尾；Task6基础检查通过、基础PG5/5；整关尚未闭合](p0c4-verification.md) |
-| P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [待建设；首次形成浏览器内容工作台](设计批准与实施路线.md) |
-| P1-B 学习与实践闭环 | 待建设 | 学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。 | 今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。 | [待建设；通过后形成完整学习系统试用版](学习系统设计方案.md) |
-| P2 批量演进与多领域复用 | 待建设 | 批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。 | 真实资料更新保留旧事实；第二领域不新增专属核心业务流程。 | [待建设](学习系统设计方案.md) |
-| P3 按需求增强 | 可选 | AI 辅助、OCR/预览等解析器、语义检索；独立评估 S3 和 Neo4j 可重建投影。 | 来源/版本可追溯、权限不绕过、失败可降级；按测量结果决定引入。 | [可选增强；不是首版必装组件](数据库选型实验审阅与首版决策.md) |
+| P0-A 块修订与权限 | 已验收 | 稳定块身份、不可变修订、当前授权、幂等请求和并发冲突。 | 真实 PostgreSQL 权限、重复写入、冲突与回滚验证。 | [29/29；已验收](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0a-verification.md) |
+| P0-B1 组合与原子发布 | 已验收 | 固定组合、重复出现的独立 occurrence、精确版本引用及原子发布。 | 两文档复用一个块；只升级指定组合；旧发布仍可复现。 | [68/68；已验收](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b1-verification.md) |
+| P0-B2 个人层与融合阅读 | 已验收 | 间隙插入、个人位置、原文/融合/个人投影及固定阅读修订。 | 位置与正文同步保存；移动不改原文；无法迁移的内容可找回。 | [105/105；已验收](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b2-verification.md) |
+| P0-B3 关系与认识审查 | 已验收 | 支持/反对等关系、猜想版本与证据判断、派生/拆分/合并谱系。 | 隐藏证据不泄露；猜想新版不自动继承旧判断。 | [222/222；已验收](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b3-verification.md) |
+| P0-B4 读取投影与影响查询 | 已验收 | 固定范围反向引用、关系遍历、解释路径与有界查询。 | 按当前权限过滤；隐藏桥不扩展；截断和失败明确区分。 | [284 通过 / 3 忽略；已验收](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b4-verification.md) |
+| P0-C1 原件、图片与附件 | 已验收 | 不可变原字节、资源版本定位、v3 图片/附件及精确使用授权。 | 独立卷原字节核验；中断/损坏/回滚/撤权；四套旧程序升级。 | [328 通过 / 3 忽略；已验收](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c1-verification.md) |
+| P0-C2 持久任务与受限 Worker | 已验收 | 同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。 | 专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。 | [388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c2-verification.md) |
+| P0-C3 融合快照交换 | 已验收 | 精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。 | 授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。 | [整关隔离验收与 602 份证据哈希复核通过；未生产部署](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c3-verification.md) |
+| P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task5限定收尾；Task6私有16/16；Task7私有6/6；Task8/9与整关OPEN](../docs/p0c4-completion-acceptance.md) |
+| P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [待建设；首次形成浏览器内容工作台](../docs/设计批准与实施路线.md) |
+| P1-B 学习与实践闭环 | 待建设 | 学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。 | 今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。 | [待建设；通过后形成完整学习系统试用版](../docs/学习系统设计方案.md) |
+| P2 批量演进与多领域复用 | 待建设 | 批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。 | 真实资料更新保留旧事实；第二领域不新增专属核心业务流程。 | [待建设](../docs/学习系统设计方案.md) |
+| P3 按需求增强 | 可选 | AI 辅助、OCR/预览等解析器、语义检索；独立评估 S3 和 Neo4j 可重建投影。 | 来源/版本可追溯、权限不绕过、失败可降级；按测量结果决定引入。 | [可选增强；不是首版必装组件](../docs/数据库选型实验审阅与首版决策.md) |
+
+## 下一步
+
+下一步Task8：冻结当前候选，完成新隔离Linux/PG18完整工作区、四套真实旧版升级、明确列出的当前专项、严格检查与整分支独立审查。Task9另需真实独立故障域、密钥托管及首签/新发布入口集成，随后完成源端不可访问的正常恢复演练。当前无独立备份存储，C4整关保持OPEN。
+
+- **01 · 冻结当前候选**：Task8固定源码包、完整文件清单、构建ID和迁移摘要；历史迁移不得改写，私有证据/密钥不进入源码仓。
+- **02 · 新隔离完整验证**：Linux/PG18完整workspace、四套冻结旧程序生成的真实升级、明确列出的ignored专项、格式/严格Clippy与正确身份的Python门。每门记录实际执行/跳过/退出。
+- **03 · 整分支独立审查**：核对实现diff、当前原始日志/哈希、资源停机与留存。修复只重跑受影响门；正常推送候选分支并回读，仍不关闭独立故障域。
+- **04 · 独立目标就绪后完成Task9**：安装并验证独立目标与密钥托管，接入首签/新发布权限；在源端不可访问时用真实CompleteBackup恢复，负例与独立审查通过后再关闭C4。
 
 ## 当前阶段 C4：九任务补齐计划
 
-任务编号依据 [2026-10-04 补齐计划](superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
+任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-历史说明（2026-10-18当时状态；当前进度见顶部）：2026-10-18更新：Task2代码与单机补验收尾完成。当前ba96561固定同包准入5/5、绑定4/4及首例两项live回归、全新replacement端点5/5、fresh生命周期8/8已分别独审接受，交付证据独立留档。旧normal/clone各保留来源，旧clone外层UNKNOWN_RETAINED不提升、不重放。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍OPEN，缺独立存储，未签发CompleteBackup，未生产部署。
+截至2026-10-25：Task1限定分项通过；Task2代码与单机补验收尾、Task3单机收尾；Task4内容三门3/3通过；Task5代码与规定单机补验限定关闭；Task6在2e5026d源码上私有单机16/16限定完成；Task7在36c89f2源码上私有单机六案6/6原件验收限定关闭。历史分项各保留原源码与范围，不作为最新源码全量回归。
 
-当前下一步：正面snapshot证据与最终同源整链回归，随后Task7–8整链、升级和回归；Task9待独立存储与密钥托管。历史UNKNOWN和失败现场保留，不复用旧卷。
+下一步Task8：冻结当前候选，完成新隔离Linux/PG18完整工作区、四套真实旧版升级、明确列出的当前专项、严格检查与整分支独立审查。Task9另需真实独立故障域、密钥托管及首签/新发布入口集成，随后完成源端不可访问的正常恢复演练。当前无独立备份存储，C4整关保持OPEN。
 
-固定源码ba965619d6b45e3e1cbbbb908e0ca47ea6e120d1的canonical ZIP为2278129字节、541个raw Git文件，SHA-256 0c2e70b7a6347bce0c409aa0b095ffe01bcbee25dc4dc9e21a528b9701ad6ae0；manifest e8152a2d7b873f7b5470b4d8fe649fbd0b871acef44435ccb936d33e4c996f54，source digest d9aeafa54dfa1d6275eed9466d4668120e8cd02d49a1939c68b35149fc71f203。Linux整库实际360通过/0失败/80忽略，maintenance4+1与strict Clippy退出0；fmt按固定helper/构建链退出记录接受，未导出的独立空输出process日志不补造。Windows startup15/15、整库326/326单列。新replacement五项独审整组报告e82561eeccde4be0dd1fde2db8956fc65b1234f9d7af9b9f90e1059469e733b0、INDEX5aea40b5a8f130d5fccab344c5ad865e09509c5450d318df054e0cbb5e90ff5b；锁失实证是session lock loss而非postmaster重启，cancel的9观测generation/6转换仅计一项。fresh life8和技术综合必须由当前同包真实原件及各自独立接受报告支持；不能借旧49528/5fcc生命周期信用。旧clone内部正文通过但outer exit1/UNKNOWN、79c normal45b4的libtest101及native_exit=null/native_wait未观察、旧9日志覆盖丢失均保留，旧public/private5/5预算不重置。
+Task7 Root采用：TASK7_SOURCE36_PRIVATE_SINGLE_HOST_SIX_CASE_ORIGINALS_ACCEPTED；SHA-256 1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4。六案来源为此前3项保留＋本轮新3项，不是六项新跑。三个good-pin场景每案四份阅读文件合计1172字节，package/source capture/destination copy/held target delivery四处逐字一致；同机不同inode不等于独立存储故障域。详见验收清单。
 
 ```mermaid
 flowchart LR
     C4T1["Task 1<br/>持久登记与原件保护<br/>限定分项已验收"]
     C4T2["Task 2<br/>精确源端绑定与捕获监督<br/>代码与单机补验收尾完成"]
     C4T3["Task 3<br/>保留校验与完成收据<br/>单机补验收尾完成，Task9开放"]
-    C4T4["Task 4<br/>全量模式与有界 COPY 数据<br/>内容三门已验收"]
-    C4T5["Task 5<br/>受控整库导入与原件恢复<br/>代码与规定单机补验限定收尾"]
-    C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>基础PG5/5 · 正向待验"]
-    C4T7["Task 7<br/>完整 Attention 链与负例<br/>未开始"]
-    C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>未开始"]
+    C4T4["Task 4<br/>全量模式与有界 COPY 数据<br/>内容范围3/3通过"]
+    C4T5["Task 5<br/>受控整库导入与原件恢复<br/>代码与规定单机补验限定完成"]
+    C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
+    C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
+    C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>下一步 · 整组尚未执行"]
     C4T9["Task 9<br/>真实独立故障域闭合<br/>待具备独立存储"]
     C4T1 --> C4T2
     C4T2 --> C4T3
@@ -126,9 +97,9 @@ flowchart LR
     C4T6 --> C4T7
     C4T7 --> C4T8
     C4T8 --> C4T9
-    class C4T1,C4T2,C4T3,C4T4,C4T5 done
-    class C4T6 next
-    class C4T7,C4T8,C4T9 planned
+    class C4T1,C4T2,C4T3,C4T4,C4T5,C4T6,C4T7 done
+    class C4T8 next
+    class C4T9 planned
     classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
     classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
     classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
@@ -137,26 +108,26 @@ flowchart LR
 | 任务 | 状态 | 工作与验收依据 |
 | --- | --- | --- |
 | Task 1 · 持久登记与原件保护 | 限定分项已验收 | 登记资产与本地 pin 根身份；独立发现保留保护，缺失或不完整时拒绝清理候选。 固定 Linux/PG 登记保护门 11/11 与五项文件系统门通过；本任务不签发完整备份，也不关闭 C4。 |
-| Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 当前ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包验收与交付证据独立留档。旧UNKNOWN与原预算保留；Task5已限定收尾，Task6基础与指定Linux检查通过，基础PG5/5，C4仍开放。 |
+| Task 2 · 精确源端绑定与捕获监督 | 代码与单机补验收尾完成 | 历史ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。 同包准入5/5、绑定4+2、新端点5/5和fresh life8/8分别独审采用。历史UNKNOWN和失败仍保留；当前源码全量回归归Task8。 |
 | Task 3 · 保留校验与完成收据 | 单机补验收尾完成，Task9开放 | 校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。 当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。 |
-| Task 4 · 全量模式与有界 COPY 数据 | 内容三门已验收 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 真实 PG18 内容三门 3/3 已核验；本分项不等于完整恢复资格或整关验收。 |
-| Task 5 · 受控整库导入与原件恢复 | Task5代码＋规定单机补验限定CLOSED；native9/9＋三组实际Rust回归，C4 OPEN | Root限定接受Task5代码与规定单机补验：native9/9；full_restore_contract 2通过/0忽略、controlled_import单元115通过/17忽略、full_restore单元92通过/13忽略，各组失败0、typed exit0/唯一完整summary。各组分别保留，不合计语义独立覆盖，ignored无native/live信用。 Task5仅代码＋规定单机补验范围CLOSED；Task6–9/C4整关OPEN，未证明独立备份存储、CompleteBackup或生产恢复/激活。未来共享协议变化仍按conditional149规则重新判断回归。 各原案例限制逐项保留：CU业务结果仍UNKNOWN，不是commit success或known rollback；wrong-endpoint仅different_database_route_only_not_same_id_clone。asset-corrupt是DBcatalog已提交后原件失败、无可用恢复回执，zeroDBwrites=false。角色SQL stdout、独立SQL/marker、raw full-negative正文、reader旧raw投影、运行时cache/write-order及TAR现场inode/nlink等原观察缺口不升级；各负例summary＋Suite entry闭合不等于负例正文或独立SQL读取。 |
-| Task 6 · 作业归一化与恢复资格校验 | 基础PG5/5 · 正向待验 | 固定代码 `5b0fa3157a0e6c688d54006c53b10e949434b106`：64表行摘要及真实目标COPY/外部排序、另绑顶层归一化事务、原guard保留、旧租约清除、完整性及应用读取校验、提交/取消与回执隔离均已接入。Linux格式/类型/严格Clippy及21/15/3/7四组分别通过并独审；基础PG已复核5/5，正面snapshot字节权威未实现，Task6全范围OPEN。 |
-| Task 7 · 完整 Attention 链与负例 | 未开始 | 完整备份—导入—恢复校验；原件、历史、位置、关系、权限和失败前不写入等整链核对。 当前整链尚未验收；Task5九门与历史受控小型dump结果不能代替本任务。 |
-| Task 8 · 当前回归、旧版升级与审查 | 未开始 | 当前源码旧11门/源端缺口、完整工作区、四套真实旧版升级、严格检查、整分支独立审查与受控发布。 当前完整门未执行；Task6全范围验收尚待完成。文档刷新与本地测试不授予全量回归或发布信用。 |
-| Task 9 · 真实独立故障域闭合 | 待具备独立存储 | 使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。 用户选择先完成代码与单机整链，目前没有真实独立备份目标；P0-C4整体、CompleteBackup与生产继续开放。 |
+| Task 4 · 全量模式与有界 COPY 数据 | 内容范围3/3通过 | 完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。 只关闭模式/TOC/COPY内容三门，不授予整库恢复资格；最终当前源码回归归Task8。 |
+| Task 5 · 受控整库导入与原件恢复 | 代码与规定单机补验限定完成 | 受控整库导入、提交前拒绝、取消与未知提交结果、角色/路由/目标/原件检查，按各次固定源码和实际回执分别留证。 2026-10-20 Root限定采用：85c九项native及最终Linux回归；受控11/11为10历史c749＋1当前85c，不能称当前源码新跑11项。旧失败与HOLD保留。 |
+| Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
+| Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
+| Task 8 · 当前回归、旧版升级与审查 | 下一步 · 整组尚未执行 | 冻结当前源码与迁移校验和；全新Linux/PG18完整工作区、四套旧程序生成的真实升级夹具、当前专项、全特性严格Clippy及Linux/root Python检查。 完成整分支独立审查与原始证据核对后按范围收尾。562项Rust/142忽略等有限前置与Task6/7历史专项不能替代本任务；本轮路线图审核没有执行这些门。 |
+| Task 9 · 真实独立故障域闭合 | 待具备独立存储 | 使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。 当前无独立目标。除硬件与密钥外，还需首签/新发布权限的跨操作集成和源码端不可访问恢复；只有Task8及本门通过，才可关闭父里程碑与C4。 |
 
 ### 原五任务父里程碑（保留原编号）
 
-对应 [2026-09-28 父计划](superpowers/plans/2026-09-28-p0c4-backup-recovery.md)，下表不是当前九任务的编号或完成计数。原 Task3–5 的完整门继续开放。
+对应 [2026-09-28 父计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-09-28-p0c4-backup-recovery.md)，下表不是当前九任务的编号或完成计数。原 Task3–5 的完整门继续开放。
 
 | 父里程碑 | 状态 | 工作与当前边界 |
 | --- | --- | --- |
 | 原 Task 1 · 全量备份契约与资产清单 | 分项已验收 | 版本化 manifest、规范摘要与全部 ready 资产目录；规划不冒充完成备份。 独立复审及全新 PG18 专项通过，含普通角色拒绝；C4 整关未验收。 |
 | 原 Task 2 · 安全封存与目标端校验 | 分项已验收 | 私有 staging、流式复制核哈希、no-follow 与封存；中断不发布可恢复包。 Linux 专项及 SIGKILL/部分写入故障门通过；同步故障使用测试钩子，非真实掉电证明。 |
-| 原 Task 3 · 维护窗与一致性数据库备份 | 实施中 | 受控写闸、在途排空、一致 dump 与资产清单；由补齐计划Task1–3继续完成。 历史源生命周期八主门与legacy、单机传输分项已接受；当前源端补验、独立目标、完成收据及父里程碑仍开放。 |
-| 原 Task 4 · 干净实例恢复 | 实施中，父里程碑OPEN | 目标准入、出生证明、精确端点绑定与完整导入由补齐计划Task4–6推进。Task5指定单机补验已有限收尾；Task6归一化和校验基础已接入，Linux格式、类型、严格Clippy与21/15/3/7四组通过，基础PostgreSQL现场5/5，正面snapshot字节权威仍待实现。父里程碑尚未验收。 |
-| 原 Task 5 · 完整场景与故障注入验收 | 未开始 | 完整 Attention、当前完整回归、四套旧版升级与整分支审查；由补齐计划Task7–9闭合。 当前整链、全量回归与独立故障域尚未闭合，仍未生产部署。 |
+| 原 Task 3 · 维护窗与一致性数据库备份 | 实施中 | 受控写闸、在途排空、一致 dump 与资产清单；由补齐计划Task1–3继续完成。 源端与单机保留/传输补验已收尾；真实独立目标、完成收据与发布权限仍归Task9，父里程碑保持开放。 |
+| 原 Task 4 · 干净实例恢复 | 实施中 | 目标准入、出生证明、精确端点绑定与完整导入；由补齐计划Task4–6继续完成。 Task4内容、Task5受控导入及Task6私有16/16分项已有证据；正常公开恢复资格仍待Task8/9，父里程碑保持开放。 |
+| 原 Task 5 · 完整场景与故障注入验收 | 实施中 | 完整 Attention、当前完整回归、四套旧版升级与整分支审查；由补齐计划Task7–9闭合。 Task7规定私有六案已限定关闭；Task8当前完整回归/升级与Task9独立故障域未闭合，父里程碑仍开放。 |
 
 ## C3 历史：七任务实施线
 
@@ -200,11 +171,11 @@ flowchart LR
 - **授权贯穿链路**：正文、必要引用、位置、关系、影响路径和精确资产使用都核对当前权限；HTTP、搜索与导出必须在后续阶段继承并另验此语义。
 - **知识证据与学习证据分开**：支持/反对关系和认识审查已有内核；学习任务、尝试、产物、评分规则、能力验收尚属 P1-B。阅读完成不会自动成为通过。
 - **模块化单体**：crate 分职责，API 与 Worker 可分进程；首版无需 Kafka、Redis、Kubernetes、向量数据库或常驻 Neo4j。
-- **生产状态诚实**：C3 已通过隔离整关验收；C4 单机导入九项场景已核验，恢复资格、Attention 整链、独立存储和整关尚未验收；Task6 本地测试不等于 PostgreSQL 现场验证。P1 尚未实施，生产未部署。
+- **生产状态诚实**：历史分关、当前源码前置、规定私有单机验收、公开恢复资格和生产部署分别标注。Task6/7有限范围完成；Task8/9与C4整关开放。P1产品入口尚未实施，GitHub候选分支更新不代表main合并或部署。
 
 ## 01 · 全系统架构总览
 
-模块化单体：共享业务契约，API 与 Worker 分进程；首版单机部署。
+模块化单体目标架构：业务契约与现有后端内核已实现；HTTP/API和Web产品入口待P1建设。
 
 [独立矢量图](diagrams/knowweave-overview.svg) · [Mermaid 源码](diagrams/knowweave-overview.mmd)
 
@@ -215,14 +186,14 @@ flowchart TB
     sources["课程与实践来源<br/>PDF / PPTX / Notebook / 代码 · 原格式资料与实验产物<br/>【上下文】"]
     learning["学习与计划模块<br/>单元 / 任务 / 尝试 / 验收 · P1-B；规则推荐延伸到 P2<br/>【待建设】"]
     api["Rust HTTP / 身份边界<br/>会话 · DTO · 授权入口 · P1-A；Axum 为建议<br/>【待建设】"]
-    import["交换与导入入口<br/>C3 授权快照；P1-B 首批资料 · 批量来源更新在后续阶段<br/>【待建设】"]
+    import["交换与导入入口<br/>C3 快照已验收；资料入口待建 · 批量更新属于后续阶段<br/>【实施中】"]
     content["内容与关系内核<br/>块 / 组合 / 个人层 / 审查 · P0-A / B1–B4 已验收<br/>【已验收】"]
     jobs["持久任务与 Worker<br/>job_outbox → job → 租约 · C2 资产完整性已验收<br/>【已验收】"]
     assetapi["资产与来源模块<br/>资源版本 · 精确使用授权 · C1 原字节与 v3 图片/附件<br/>【已验收】"]
     pg["PostgreSQL 权威库<br/>结构化正文与关系 / 作业状态 · SQLx · 事务 · 追加迁移<br/>【已验收】"]
     derived["可重建派生层<br/>预览 / OCR / 搜索 / 检索片段 · 处理器与索引后续按需建设<br/>【可选】"]
-    files["不可变原件库<br/>assets/sha256 · 独立持久卷 · staging 与原件分区<br/>【已验收】"]
-    portable["C3 / C4 可移植性<br/>C3 范围导出已验收 · C4 全量恢复实施中<br/>【实施中】"]
+    files["不可变原件库<br/>SHA-256 原件 · 独立持久卷 · 独立卷不等于独立故障域<br/>【已验收】"]
+    portable["C3 / C4 可移植性<br/>Task6/7 私有单机限定完成 · Task8/9 与 C4 整关开放<br/>【实施中】"]
     graph["Neo4j 可选投影<br/>首版不常驻 · 来源仍为 PostgreSQL<br/>【可选】"]
     ai["可选 AI / 外部执行<br/>仅建议；实验默认外部运行 · 关闭后不影响核心流程<br/>【可选】"]
     user -- "访问" --> web
@@ -243,8 +214,8 @@ flowchart TB
     pg -. "可重建投影" .-> graph
     derived -. "按需适配" .-> ai
     class content,jobs,assetapi,pg,files done
-    class portable next
-    class web,learning,api,import planned
+    class import,portable next
+    class web,learning,api planned
     class derived,graph,ai optional
     classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
     classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
@@ -255,6 +226,7 @@ flowchart TB
 - 浏览器工作台、HTTP 登录和学习闭环均为待建设。React + TypeScript + Vite、Axum 是建议组合，尚未作为已实施依赖固化。
 - PostgreSQL 保存身份、修订、权限、位置、关系和任务状态；文件卷保存不可变原件。JSON/Markdown/HTML 是交换或阅读副本。
 - 知识关系图由 PostgreSQL 数据构建；Neo4j 如以后采用，只作为可重建投影。AI 不决定权威知识和验收事实。
+- C4恢复管理代码与单机夹具已推进至Task7；Task8/9和独立完成收据仍开放，不能将单机ReadingCopy交付称为生产服务。
 
 ## 02 · 块、位置与版本关系
 
@@ -318,7 +290,7 @@ flowchart TB
     assets["learning-assets<br/>不可变字节 / staging / 校验 · Filesystem 原件存储<br/>【已验收】"]
     pg["PostgreSQL 内部接口<br/>最小权限 / 限定数据库函数 · 业务行、收据、两个独立 outbox<br/>【已验收】"]
     file["文件系统存储卷<br/>原件只读；staging 私有可写 · C3 挂私有可写 snapshots<br/>【已验收】"]
-    backup["learning-backup<br/>C4 管理侧备份与恢复绑定 · 高权凭据不下发给 Worker<br/>【实施中】"]
+    backup["learning-backup<br/>Task6/7 私有范围限定完成 · Task8/9 与公开恢复仍开放<br/>【实施中】"]
     web -. "JSON API" .-> api
     api -. "身份和命令" .-> db
     worker -- "作业与授权" --> db
@@ -341,11 +313,12 @@ flowchart TB
     classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362
 ```
 
-- 已核对当前 C4 Cargo workspace：core、assets、db、worker、backup 五个 crate。learning-backup 仍在 C4 实施，直接依赖 db/assets。Worker → db/assets/core；db → assets/core；assets → core。assets 不负责业务 actor 授权。
+- 当前36c89f2 Cargo workspace有core、assets、db、worker、backup五个crate。真实直接依赖：backup → db/assets/core；worker → db/assets/core；db → assets/core；assets → core。assets不负责业务actor授权。API与Web尚未加入workspace。
 - Worker 原件与二进制只读，staging 私有可写；C3 另挂服务所有的私有可写 snapshots 卷，管理凭据不进入普通 Worker。
 - 数据库 runtime 是可信内部服务角色，非每位最终用户或每个 Worker 的独立数据库租户。用户权限由业务 actor、当前空间授权和必要引用闭包共同判定。
 - 两项 P2 契约缺口已记录：持当前 token 的共享 runtime 可调用通用 succeed 而不写专用结果；也可直接调用完成函数绕过 Rust 字节复核。正常 Worker 已验收路径使用原子结果函数。这里 P2 是问题优先级，不表示已安排在路线 P2 阶段。
 - 旧 outbox_event 只保存 composition_released，C2 的 job_outbox / job 是独立协议；图与实现均不把两者合并成一张通用队列表。
+- 图省略backup→core直接连线以保持可读，代码依赖以Cargo.toml为准。
 
 ## 04 · 持久任务与真实故障恢复
 
@@ -388,10 +361,11 @@ flowchart TB
 - claim 使用 PostgreSQL 时钟和数据库生成 token。续租、检查点、成功和失败都校验当前 token；最多三次尝试，取消与终态不复活。
 - 专用 Worker 只挂 runtime secret、只读资产与只读二进制；真实 SIGKILL 后第二 Worker 接管 attempt 2，旧 token 的四种写入均被拒绝。
 - 完整性处理只核大小、SHA-256 与轻量元信息，不宣称已实现预览、OCR、完整媒体解析或恶意文件扫描。
+- C4 Task6/7恢复时会使旧租约/token失效，对已提交效果、确认无效果与未知效果分别处理；Unknown/HOLD不会自动变成可运行。其证据范围限规定私有单机场景。
 
 ## 05 · C3 交换与 C4 恢复
 
-C3 阅读快照交换已验收；C4 单机导入九项场景已核验，作业与完整恢复资格校验实施中，整关尚未验收。
+C3范围快照交换已验收；C4单机链推进至Task7，Task8全回归与Task9独立存储/正常恢复待完成。
 
 [独立矢量图](diagrams/knowweave-portability.svg) · [Mermaid 源码](diagrams/knowweave-portability.mmd)
 
@@ -403,11 +377,11 @@ flowchart TB
     visible["原子发布导入批次<br/>同 ID 同字节复用 · 失败无半可用视图<br/>【已验收】"]
     preflight["staging 校验与预检<br/>引用闭包 / 权限归属 / 路径 · 摘要冲突或缺件即拒绝<br/>【已验收】"]
     delivery["重验权限后交付<br/>完成时及下载时再检查 · 导入授权目标范围<br/>【已验收】"]
-    pause["C4 · 受控写入维护窗<br/>先停 runtime / Worker · 全量封存验证后再开放<br/>【实施中】"]
-    backup["一致数据库 + 资产清单<br/>内容3/3；源端补验开放 · 独立完成收据尚未验收<br/>【实施中】"]
+    pause["C4 · 受控写入维护窗<br/>Task2 源端与监督单机收尾 · 高权管理侧；非公开API<br/>【实施中】"]
+    backup["一致数据库 + 资产清单<br/>Task2/3 单机补验收尾 · 独立完成收据归 Task9<br/>【实施中】"]
     copy["独立故障域验收<br/>单机传输专项已通过 · Task9 尚缺独立存储与密钥<br/>【待建设】"]
-    check["完整恢复资格校验<br/>Task6 全表与任务校验 · 基础PG5/5 · 正向待验<br/>【实施中】"]
-    restore["干净目标导入与原件<br/>Task5 历史单机导入九门9/9 · Task6 基础PG5/5 · 正向待验<br/>【实施中】"]
+    check["完整恢复资格校验<br/>Task6 私有单机16/16 · Task7 三路 P6/字节独核<br/>【实施中】"]
+    restore["干净目标导入与原件<br/>Task5 规定单机补验完成 · 公开恢复资格仍未签发<br/>【实施中】"]
     future["P1-B 扩展恢复闭包<br/>学习事实 / 规则 / 产物 / 计划 · 另做全链恢复验收<br/>【待建设】"]
     view -- "固定输入" --> closure
     closure -- "精确清单" --> bundle
@@ -431,11 +405,11 @@ flowchart TB
 - C3 Task 1–7 已完成分项与整关隔离验收：Task 7 在全新 Compose 项目通过完整 workspace、四套旧版升级、真实 Worker SIGKILL/租约接管、双端往返和四组失败注入。独立 root 只读审计核验 602 份证据文件、341 个源码文件、301 项镜像输入；状态为 P0_C3_VERIFIED / NOT_PRODUCTION。
 - C3 输入为精确 ReadingViewRevision、模式和原件选项；当前授权求闭包，作业结束与交付时再次检查。已下载的文件无法被服务器远程撤回。
 - 无损交换以版本化 JSON 与 manifest 为准；HTML/Markdown 是阅读副本。导入同 ID 同字节幂等复用，不同字节拒绝。
-- 2026-10-18更新：Task2代码与单机补验收尾完成。当前ba96561固定同包准入5/5、绑定4/4及首例两项live回归、全新replacement端点5/5、fresh生命周期8/8已分别独审接受，交付证据独立留档。旧normal/clone各保留来源，旧clone外层UNKNOWN_RETAINED不提升、不重放。Task3仅单机收尾完成；Task5当前0/11，旧owner与保留现场不动。Task6–9及C4整关仍OPEN，缺独立存储，未签发CompleteBackup，未生产部署。
-- 继续推进Task5当前11门、Task6–8现场/升级/全回归/整分支审查，以及Task9独立存储和密钥托管。C4整关保持OPEN，无CompleteBackup和生产部署。旧UNKNOWN、历史失败与同包新验收分别留档，既有执行与修复预算不重置。
-- 早期 C4 源端、Linux 封存/单机传输、目标准入与精确子进程只读子门记录保留；历史受控小型 dump 计划中的 Task6 只覆盖固定合成夹具，与当前九任务计划的 Task6 作业恢复不同。历史维护三门、准入五门、绑定四门及两项回归分别绑定原源码/批次，不能累计为当前源码组合通过数。
-- 历史 Task5 九门覆盖完整导入、提交前 EOF、取消、提交结果未知、错误数据库路由、坏输入、坏角色、脏目标与损坏原件；错误路由门不是同身份物理克隆门。当前Task6基础代码与指定Linux检查已过，基础PG已复核5/5；正面snapshot字节证明及完整资格未完成。
-- C4 首先恢复现有内容事实；P1-B 后还必须把学习任务、尝试、产物、验收与计划历史加入完整恢复闭包。
+- C4 Task2/3/5分别在原固定源码上完成规定单机补验；Task4只覆盖内容三门。Task6的2e5026d私有16/16与Task7的36c89f2私有6/6分别留证，不作为当前全工作区或四套升级通过。
+- Task7六案：完整正例、缺失原件、损坏dump、传输中断、未知效果、原件根替换。未知效果在导入后拒绝并留3项UNKNOWN/runnable0；不是导入前目标不变。根替换只声明列举catalog/assets/attempt字节不变，不声明整个文件系统不变。
+- 三个good-pin恢复路径各四份ReadingCopy文件共1172B，四处逐字相等且inode独立；它们位于同一主机，不构成独立故障域。失败53df不计通过，历史未观测的外层OS收据不补造。
+- Task8须在最终当前源码执行完整Linux/PG18回归与四套真实旧版升级并独审；Task9须用真实独立目标、托管密钥及受控首签/发布权限完成正常CompleteBackup和源端不可访问恢复。当前均未验收。
+- 未来P1-B新增学习任务、尝试、产物、验收与计划历史后，须同步扩展恢复闭包并另验整链。
 
 ## 06 · 目标部署与存储边界
 
@@ -480,40 +454,30 @@ flowchart TB
 - 只有 HTTPS 入口面向浏览器；数据库、文件卷和高权管理入口不直接公开。API 与 Worker 复用业务代码而采用不同运行职责。
 - C2 专用 Worker 容器以非 root 运行、只读根文件系统、私有 tmpfs，限制资源；管理 secret 不在 Worker 文件系统中。宿主 root / Docker daemon 仍属于可信管理边界。
 - assets 是权威原字节；staging 是未完成工作；derived 是可重建派生物；验收 evidence 保存此次测试证据，并不等于将来学习产物的数据库模型。
-- 生产前明确门槛：完成 C4 恢复演练、P1-A 会话及 HTTP 授权；修复并验证服务器时间同步；处理已记录 runtime 契约缺口；按实际服务补日志、容量、升级与备份检查。
+- 生产部署前重新核对服务器时钟、runtime配置、HTTP授权、已记录的内部runtime契约缺口、日志/容量/升级/备份策略。当前没有本轮生产时钟或服务健康实测，不将历史故障写成实时状态。
 
 ## 状态依据
 
-- [项目架构设计文档集](KnowWeave架构设计总览.md)
-- [批准记录与阶段边界](设计批准与实施路线.md)
-- [总体设计 v0.3](学习系统设计方案.md)
-- [块与存储规范](内容分块与存储规范.md)
-- [连续阅读与思考块](连续阅读与思考块设计.md)
-- P0-C 分关设计（私有或未公开参考）
-- [C3 实施计划与任务边界](superpowers/plans/2026-09-24-p0c3-snapshot-exchange.md)
-- [C3 目录包格式说明](snapshot-directory-v1.md)
-- [C3 整关验证台账](p0c3-verification.md)
-- [C4 当前补齐设计](superpowers/specs/2026-10-04-p0c4-completion-design.md)
-- [C4 当前九任务补齐计划](superpowers/plans/2026-10-04-p0c4-completion.md)
-- Task5 九项现场原件核验汇总（私有或未公开参考）
-- Task6 本地检查点与未完成边界（私有或未公开参考）
-- [当前Task2/3/5补验与收尾](P0-C4补验与收尾.md)
-- [C4 父设计（2026-09-28）](superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md)
-- [C4 原五任务父计划（里程碑编号）](superpowers/plans/2026-09-28-p0c4-backup-recovery.md)
-- [C4 历史验证台账（原源码/批次）](p0c4-verification.md)
-- [历史维护闸补充验证](p0c4-maintenance-gates.md)
-- [历史源尝试生命周期运行说明](p0c4-source-attempt-lifecycle.md)
-- [历史源控制根绑定与实际四门](p0c4-source-control-binding.md)
-- [历史活会话维护准入与五门](p0c4-source-admission.md)
-- [C4 子进程端点绑定施工单](superpowers/plans/2026-09-29-p0c4-pg-restore-child-binding.md)
-- [C2 验收与已知边界](p0c2-verification.md)
-- [当前 C4 Cargo workspace](../Cargo.toml)
-- [Neo4j 首版决策](数据库选型实验审阅与首版决策.md)
+- [架构设计文档集（设计参考，状态以本图为准）](../docs/KnowWeave架构设计总览.md)
+- [批准记录与阶段边界](../docs/设计批准与实施路线.md)
+- [总体设计](../docs/学习系统设计方案.md)
+- [块与存储规范](../docs/内容分块与存储规范.md)
+- [连续阅读与思考块](../docs/连续阅读与思考块设计.md)
+- [当前Task7验收与范围](../docs/p0c4-completion-acceptance.md)
+- [本轮全路线审核记录](../docs/路线图更新审核记录-2026-10-25.md)
+- [Task2/3/5历史补验台账](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/P0-C4补验与收尾.md)
+- [Task6历史采用与项目进度](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/项目最新进度.md)
+- [C4九任务补齐施工单](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)
+- [C4补齐设计](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/specs/2026-10-04-p0c4-completion-design.md)
+- [C4原五任务父计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-09-28-p0c4-backup-recovery.md)
+- [C3整关验证台账](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c3-verification.md)
+- [当前任务源码workspace](https://github.com/MansurnamedZhang/learning-system-p0c4/tree/feat/task7-attention-recovery)
+- [Neo4j首版决策](../docs/数据库选型实验审阅与首版决策.md)
 
 ### 历史证据的范围
 
-历史live admission五门5/5属2026-10-03基于0adab2e的working-tree-green，后续a56ab16为公开源码基线；原批06a0882f结果SHA98b0883bef44abe10259006e34b5481e322fac38511421b35c37d56afd74cd98。旧c9f1cdaf维护三门3/3属07eaf416，结果SHA698eebc766e6aa137f7622111c456422f23d451ad8eee48a00f89275e216fc71。旧五门/三门不与当前四绑定门、两回归合并为同源计数。41f658ea Clippy基础设施失败和b2a63c86实际ACL行为RED均保留，不重放。Windows workspace--lib185、免环境contract28与Python331总数/324pass7skip分开记录；full package catalog_pg missing-env失败保留，不称完整DB/升级通过。
+各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。
 
-历史只读子进程绑定、同身份物理克隆与同 guard 重启拒绝证据保留。历史 Task5 九门中的错误端点场景为错误数据库路由，不能替代历史克隆或当前源端监督门；当前十一门仍待现场补验，Task8 须验证当前源码回归。
+历史只读子进程、同身份物理克隆、同guard重启与Task5受控用例保留各自原源码；不能相互替代。当前分项采用与历史检查点以验收清单为准；Task8当前完整回归与Task9独立故障域仍开放。
 
-路线图只更新文档与图示；生产未部署，CompleteBackup、完整恢复资格与 C4 整关未验收。六张 SVG 与 Mermaid 源码、HTML 与 Markdown 共 14 份输出由同一数据生成；本轮验证生成确定性、文本状态、链接和 SVG 几何，浏览器渲染与交互未验证。
+路线图只更新文档与图示。Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。六张SVG/Mermaid、HTML与Markdown共14份输出由同一数据生成。审核与验证范围见本轮审核记录；历史测试数量不能相加或换算项目完成百分比。

@@ -7,6 +7,27 @@
   ],
   "files": [
     {
+      "path": ".build/build-knowweave-map.mjs",
+      "bytes": 23804,
+      "sha256": "5bdd759cd536e9a987beae40f135edc47f1002453c5ecfd4a530532ee277283d",
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
+    },
+    {
+      "path": ".build/knowweave-map.data.mjs",
+      "bytes": 60466,
+      "sha256": "58e6a2171ab698cb9ca0e23fc8c64ad2667683a4a5f0ef2674558533c2c09aa3",
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
+    },
+    {
+      "path": ".build/verify-knowweave-map.py",
+      "bytes": 8360,
+      "sha256": "2ea5f18ee9d5ffd3e6d43ce98a6441a2f22d6fc3a2adeed27a2ba9a73594bde2",
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
+    },
+    {
       "bytes": 474,
       "path": ".dockerignore",
       "sha256": "8725eba60a633e0620b91a81acd1f9db3ce0cddc38872376a84fc1d89283f063",
@@ -42,10 +63,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 166696,
+      "bytes": 113394,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
-      "sha256": "43bde4c24376b3420e5bb72d2dd0aa06eff5fe40d2baf3f26ee12205be60a9cc",
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY",
+      "sha256": "0215ee6c4083f560fa59737cdc2daef96e663450fb030b38d0966114c2a98a8b",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -57,10 +78,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 63161,
+      "bytes": 63742,
       "path": "README.md",
-      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
-      "sha256": "b455fc334f465fa891f1a43adadc32e8e1f9cc8688e03264a1acb39ff0c2042e",
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY",
+      "sha256": "798f5c9fd3d9ddfdd32ee0baddb748bd051ab32b7f5dff749b0b90702feb21ed",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3061,10 +3082,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 52124,
+      "bytes": 45764,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "6a618df45b644ec7029e3acbf63c1a9c320f44fa7f06da1f4d953a56a1fc570c",
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY",
+      "sha256": "c681744418f4f61067b9e8dc82037dd9ec75aebb1a34f2188ed41c512c1f841a",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3275,86 +3296,96 @@
     {
       "bytes": 1949,
       "path": "docs/diagrams/knowweave-crates.mmd",
-      "sha256": "ccbe9b6db64a32a066dea52766ecbc75860f914f425467ed8244bda9b0a67e42",
+      "sha256": "79b43ab7259f10bca6fd8e64933d5ed73cbf3b302b21b2c39a719e04bec72592",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
       "bytes": 8518,
       "path": "docs/diagrams/knowweave-crates.svg",
-      "sha256": "391529b539294eb963e69ceb847c77115aded93963a3b125364fcb6762b39ade",
+      "sha256": "9b268e58fb7c1f18113447c57de92163dba59993c413cda3c05b7510b1efff66",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
       "bytes": 2115,
       "path": "docs/diagrams/knowweave-deployment.mmd",
       "sha256": "0493bf624c73308dfd718b8689960ad8d1bf812418ef0f4df5bf90ecf507811c",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
       "bytes": 8666,
       "path": "docs/diagrams/knowweave-deployment.svg",
       "sha256": "a14eb2f1774724ee743b92db18441fa3361c49c628160e28539217516c559d17",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
       "bytes": 2565,
       "path": "docs/diagrams/knowweave-domain.mmd",
       "sha256": "8b6a5b591003ae4fdb786c104597f840a6aaaaa93db707a19b911d1449436c16",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
       "bytes": 9639,
       "path": "docs/diagrams/knowweave-domain.svg",
       "sha256": "3da24de13ab63e19189e3809720b5551d7e3f3eff3fe30e070cc86d29c087e7d",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
       "bytes": 2193,
       "path": "docs/diagrams/knowweave-jobs.mmd",
       "sha256": "ed6896aaa11016a61b0694e976033640a49d24c8637f1377f08bafd7e6bd9cf6",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
       "bytes": 8666,
       "path": "docs/diagrams/knowweave-jobs.svg",
       "sha256": "aee91c5aa013f5b19cec8ddb2be0f82c92e7e4ea519a8b67675f951c64ef293d",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
-      "bytes": 2957,
+      "bytes": 2980,
       "path": "docs/diagrams/knowweave-overview.mmd",
-      "sha256": "80bbb51753182ec66140461676bf3c63f2ee4ce6a9a20589bcf44380dedff0bb",
+      "sha256": "fb084e889f0eb6e19dbd0316e44e21cc33b1fe2fc090a8daf74845099611100c",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
-      "bytes": 11740,
+      "bytes": 11788,
       "path": "docs/diagrams/knowweave-overview.svg",
-      "sha256": "bcbd48e7d91af72a9bf1ce2f9ceda9cc6c75f2e01d439c510aea9f37cce17aeb",
+      "sha256": "c35e61e39b19814affc977b5fe786d3277bc26686b22675590cadf500b121d9b",
       "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
     },
     {
-      "bytes": 2442,
+      "bytes": 2358,
       "path": "docs/diagrams/knowweave-portability.mmd",
-      "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "8406f1ea8f3aa88f34e7fcc698a38155d0395f914e65316fe6b5debaff9437b4",
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY",
+      "sha256": "984af7e0182d8c847608e8bdc4f6b7e4ab12c3f0ff741798764c950c163fb7ec",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 9852,
+      "bytes": 8953,
       "path": "docs/diagrams/knowweave-portability.svg",
-      "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "b8f46e1eb448fac2baf92a9ea4148687c332365e5c48897ffd56fbbfb64ff9dc",
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY",
+      "sha256": "27ccbda8dda15b68711a167823a12890ceff4f52fa9447c8e7baf00407be5041",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3816,6 +3847,13 @@
       "source_bytes_preserved": false
     },
     {
+      "path": "docs/路线图更新审核记录-2026-10-25.md",
+      "bytes": 4041,
+      "sha256": "1d64dc138d2c928264c1ef44475c0944445b2a5abe2d38e7ce4f60777ddb1f8a",
+      "source_bytes_preserved": false,
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY"
+    },
+    {
       "bytes": 27249,
       "path": "docs/连续阅读与思考块设计.md",
       "sha256": "7e48cd2e728d0358cf5df82aacaafdba6916f02ffc7d74f00e581cc3acb6407c",
@@ -3823,10 +3861,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 96953,
+      "bytes": 97529,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK7_VERIFIED_PROGRESS_DOCUMENTATION",
-      "sha256": "a246a9f9f4fbb5d83b5e7255100b9a15bca1394aa9b7b9bd34d899be0e78ee55",
+      "scope": "ROADMAP_FULL_AUDIT_DOCUMENTATION_AND_GENERATOR_ONLY",
+      "sha256": "b85b4eecedf60d1f9d005d702f0b12780d488d464746ad96e8dc157f3e7cdb32",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4543,9 +4581,9 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 642,
+  "manifest_file_count_excludes_manifest_itself": 646,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "1c8196ce7c36dd694349067161c3fa728d0267c6",
+  "previous_public_commit": "addf1193c98e18c6eadb548ed635c35eaff95707",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
   "progress_as_of": "2026-10-25T15:41:01+08:00",
@@ -11636,5 +11674,20 @@
     "p0_c4": "OPEN",
     "complete_backup": "OPEN",
     "production": "OPEN"
+  },
+  "roadmap_audit": {
+    "as_of": "2026-10-25",
+    "source_commit": "36c89f2e94dccdc90652f8b196372bb62fa398a5",
+    "task6_private_accepted": 16,
+    "task7_private_accepted": 6,
+    "task8_complete": false,
+    "task9_complete": false,
+    "c4_complete": false,
+    "complete_backup": false,
+    "production": false,
+    "generated_outputs": 14,
+    "static_issues": 0,
+    "browser_visual_verified": false,
+    "root_adoption_sha256": "1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4"
   }
 }

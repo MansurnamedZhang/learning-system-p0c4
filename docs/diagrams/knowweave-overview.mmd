@@ -4,14 +4,14 @@ flowchart TB
     sources["课程与实践来源<br/>PDF / PPTX / Notebook / 代码 · 原格式资料与实验产物<br/>【上下文】"]
     learning["学习与计划模块<br/>单元 / 任务 / 尝试 / 验收 · P1-B；规则推荐延伸到 P2<br/>【待建设】"]
     api["Rust HTTP / 身份边界<br/>会话 · DTO · 授权入口 · P1-A；Axum 为建议<br/>【待建设】"]
-    import["交换与导入入口<br/>C3 授权快照；P1-B 首批资料 · 批量来源更新在后续阶段<br/>【待建设】"]
+    import["交换与导入入口<br/>C3 快照已验收；资料入口待建 · 批量更新属于后续阶段<br/>【实施中】"]
     content["内容与关系内核<br/>块 / 组合 / 个人层 / 审查 · P0-A / B1–B4 已验收<br/>【已验收】"]
     jobs["持久任务与 Worker<br/>job_outbox → job → 租约 · C2 资产完整性已验收<br/>【已验收】"]
     assetapi["资产与来源模块<br/>资源版本 · 精确使用授权 · C1 原字节与 v3 图片/附件<br/>【已验收】"]
     pg["PostgreSQL 权威库<br/>结构化正文与关系 / 作业状态 · SQLx · 事务 · 追加迁移<br/>【已验收】"]
     derived["可重建派生层<br/>预览 / OCR / 搜索 / 检索片段 · 处理器与索引后续按需建设<br/>【可选】"]
-    files["不可变原件库<br/>assets/sha256 · 独立持久卷 · staging 与原件分区<br/>【已验收】"]
-    portable["C3 / C4 可移植性<br/>C3 范围导出已验收 · C4 全量恢复实施中<br/>【实施中】"]
+    files["不可变原件库<br/>SHA-256 原件 · 独立持久卷 · 独立卷不等于独立故障域<br/>【已验收】"]
+    portable["C3 / C4 可移植性<br/>Task6/7 私有单机限定完成 · Task8/9 与 C4 整关开放<br/>【实施中】"]
     graph["Neo4j 可选投影<br/>首版不常驻 · 来源仍为 PostgreSQL<br/>【可选】"]
     ai["可选 AI / 外部执行<br/>仅建议；实验默认外部运行 · 关闭后不影响核心流程<br/>【可选】"]
     user -- "访问" --> web
@@ -32,8 +32,8 @@ flowchart TB
     pg -. "可重建投影" .-> graph
     derived -. "按需适配" .-> ai
     class content,jobs,assetapi,pg,files done
-    class portable next
-    class web,learning,api,import planned
+    class import,portable next
+    class web,learning,api planned
     class derived,graph,ai optional
     classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
     classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866

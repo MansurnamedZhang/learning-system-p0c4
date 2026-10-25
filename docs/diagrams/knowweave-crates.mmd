@@ -7,7 +7,7 @@ flowchart TB
     assets["learning-assets<br/>不可变字节 / staging / 校验 · Filesystem 原件存储<br/>【已验收】"]
     pg["PostgreSQL 内部接口<br/>最小权限 / 限定数据库函数 · 业务行、收据、两个独立 outbox<br/>【已验收】"]
     file["文件系统存储卷<br/>原件只读；staging 私有可写 · C3 挂私有可写 snapshots<br/>【已验收】"]
-    backup["learning-backup<br/>C4 管理侧备份与恢复绑定 · 高权凭据不下发给 Worker<br/>【实施中】"]
+    backup["learning-backup<br/>Task6/7 私有范围限定完成 · Task8/9 与公开恢复仍开放<br/>【实施中】"]
     web -. "JSON API" .-> api
     api -. "身份和命令" .-> db
     worker -- "作业与授权" --> db
