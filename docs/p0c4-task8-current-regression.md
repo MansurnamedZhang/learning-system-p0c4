@@ -93,3 +93,11 @@ Source36的新隔离完整workspace实际运行到`snapshot_jobs`，该二进制
 Task6的2e5026d私有16/16、Task7的Source36私有6/6保留各自原采用范围，不改写为638/a5候选的新执行。候选分支同步不表示main合并或部署。
 
 本轮五项返回索引SHA-256：`a82e4d08beda8eceebcc256b7fccb0a0445e2749e17238c9c02c14c14b021ef1`；五阶段原件核对索引：`41741dff546b4042009e5dab01628869ba4f9107e8ae3a85ac993a806cf81fce`。这些是公开runner回执与stage字节核对，不能替代inner原始证据独核。
+
+## 完整恢复九场景回执与外层原件限定采用
+
+当前a5的正向导入、提交前断开、取消、提交结果未知、错误端点、损坏输入、错误角色、脏目标及原件损坏九项已分别闭合全部五阶段，逐项回执为1/0/0。45阶段、143个完整被动观察帧经三个互斥三案集合独审，Root以完整九案stage原件索引关联限定采用；未重读或覆写旧失败、不从晚到成功推断旧失败根因。
+
+九案返回SHA-256：`f0ed6e841103b9a8291930903612cc73408a365dc0b666ea2398f39c1706323a`；stage逐份核对索引：`c084c571e6b1f7f7a343047135188fb789e3b0e0ed828d68f1b85538b6dea160`；互斥peer组合摘要：`f352269ca0aab600132798ed865d15551d8ebcb2c2f67025ac54491ca9982805`；Root限定采用：`1a5ff57d0bcd41cec67c9589d74d3e6164258084dc5fc12b1d6c2e57ede65113`。
+
+与恢复/快照效果16项合为25个主正文的外层回执返回，不等于25项inner接受。余22次操作（29个正文）已进入串行执行；主专项最终接受数仍0，原始driver/raw_index/libtest/proof/终态与Task8整组审查待完成。私有inspect仅留digest和非独立外层OS计时的限制继续保留；Task8/Task9/C4整关、CompleteBackup、RecoveredInstance、公开恢复和生产仍开放。
