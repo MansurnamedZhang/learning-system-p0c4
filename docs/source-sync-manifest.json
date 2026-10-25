@@ -15,8 +15,8 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 61364,
-      "sha256": "9f040d48bd442f315eda4f886271c741ac31a97581ead9335f473145c44f1fa4",
+      "bytes": 60719,
+      "sha256": "22fcd4e588a330e2d5a7bcd9be467444386b2cb3c6342abcbafe91bc8b9ce62c",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
@@ -68,26 +68,26 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 114548,
+      "bytes": 113906,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "6ec6827f36661b7e4f0fd076494a525d7887c0f69ae34fb169774b22fc7fd685",
+      "sha256": "38d14a8290100dd0c7a333071bc4e1027cdaa94e7f224b909dd789bfa50a2d76",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 130202,
+      "bytes": 130277,
       "path": "KnowWeave架构设计.html",
-      "sha256": "b99a46b9821182d087980803f1a00380ac054ea3ca20bbca1a4767ba697b81e4",
+      "sha256": "484ec8a56b2d815e41cb42aa4bd4a367a67e967b98fa7a7cae604dbd46f900e5",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
     {
-      "bytes": 65334,
+      "bytes": 65396,
       "path": "README.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "b1e6d67ef03ab3739f3492226ebfa2b60277b1ae17ad753d95c06e52bce0d98c",
+      "sha256": "023e8465a9146fc0addd41aa77a0eef3e932a9408c89d004bbb76f6b3b157339",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3516,17 +3516,17 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 46392,
+      "bytes": 45809,
       "path": "docs/KnowWeave实施路线与系统架构.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "b925cd831a3cde470000376fae5a21192761cdc038b1666c62c036218bfec6a6",
+      "sha256": "cdf0a70eeb60fd1def28b141d344ed1f214485f84aead7fd33423a9cc7fd9e23",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 2658,
+      "bytes": 2784,
       "path": "docs/KnowWeave架构设计总览.md",
-      "sha256": "081e0a70ef5be9e5f41a3ea2dc6324e1365437c2d976b6dc95638062eadb5a97",
+      "sha256": "59a5b80b4f74f17ae32ceec53039a0f0353cf0a00566abc88e1b3fa6826503ca",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
@@ -3601,10 +3601,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 13700,
+      "bytes": 13810,
       "path": "docs/architecture/06-portability-and-recovery.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "1cfff49cc937f41b71f8f5db542a85c1cacc75acaa38e66c7c2cc8c42862f60c",
+      "sha256": "8dbc80186d7241aaf81404d85be3fb542d73d86285597bbdbeed49e0a0c20a98",
       "source_blob_sha256": "9b1b2bb4fb5f09d49ee2704fb04a42ccd3d05a30951e80c3f82a615c131ecd20",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3634,9 +3634,9 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 129972,
+      "bytes": 130047,
       "path": "docs/architecture/KnowWeave架构设计.html",
-      "sha256": "96f5894707bb68f6a76dd3d62c66889323ad81c1734725c49d715cd39c42a328",
+      "sha256": "4b2d5e444cd6ca22004c797713a5587e1f019c360c33a710a77538cbc32eb426",
       "source_blob_sha256": "eccd01137e3a61726d41fb7e987d9a35e2ea639551b50635e2a0cce57c707b2a",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
@@ -4186,8 +4186,8 @@
     },
     {
       "path": "docs/p0c4-task8-current-regression.md",
-      "bytes": 30278,
-      "sha256": "4cf9fc66a605af0d8a85d800cd7ae4c5fff5e5d94c35bc7eb37834937b20a526",
+      "bytes": 30867,
+      "sha256": "7471c14685f91c2016de989808742dc3f5b61b5bcc7011e12e3298891f5f7ad9",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
@@ -4383,10 +4383,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 99119,
+      "bytes": 99181,
       "path": "docs/项目最新进度.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "4e1f9f3f0bf7a97d6e482dd681a199afdc18e8d7bdc4f10477a7734e1c3a0496",
+      "sha256": "f3517b7acf9382fec15d6351ba117b95cedad25b707c5cc68002d90cbe30f217",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5205,10 +5205,10 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 647,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "5f70da28b005b6377e5f52616928e6eca62bb271",
+  "previous_public_commit": "4092672247e165889e7bf27d44a35ae0c75cb65c",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-26T06:41:23+08:00",
+  "progress_as_of": "2026-10-26T07:24:52+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
   "scope": "SOURCE_679_WITH_ACTUAL_LINUX_QUALITY_AND_FOCUSED_PROGRESS_DOCS",
@@ -12314,7 +12314,7 @@
   },
   "task8_checkpoint": {
     "source_commit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
-    "status": "A5_BASE25_PLUS_REGISTRY6_INNER_ADOPTED_ALL_NATIVE_CLOSED_REMAINING_RAW_PENDING",
+    "status": "A5_INNER42_PLUS_679_ONE_ADOPTED_ALL_RAW_CLOSED_ELEVEN_PENDING",
     "product_files_changed": 0,
     "test_files_changed_since_source36": 7,
     "test_files_changed_since_source638": 6,
@@ -12477,7 +12477,7 @@
       "controllers_unchanged": 22,
       "migrations_unchanged": 15,
       "independent_test_review_sha256": "10430fc7451d2dbac973dc6769da937ba47ac6aeec84e274a89182fd570e5399",
-      "native_status": "五阶段外层已返回，原件待独核",
+      "native_status": "五阶段与原件已限定独审；不授正常恢复资格",
       "linux_format_and_clippy_pending": false,
       "new_native_pass_credit": 0,
       "linux_format_and_clippy_passed": true,
@@ -12492,9 +12492,11 @@
       "native_returned_sha256": "8848b2f6e1407e763d25a4d8bf09dedd33260fe5e2df1a74c4fdf0d70ce88c0a",
       "native_outer_root_review_sha256": "c43f921cdd98118d8cf80e487ed535e9776b9a73c1beaa8ffe30ecf85cbffddd",
       "phase_original_bytes_rehashed": 137635671,
-      "inner_accepted": 0,
+      "inner_accepted": true,
       "native_outer_peer_review_sha256": "39c709c434d88192fe0d83806b067902bfe48ee8ac4474f6adda0b370557c6e3",
-      "v5_retry_condition_actually_exercised": false
+      "v5_retry_condition_actually_exercised": false,
+      "inner_root_sha256": "6dcbddc34660d19b2f86c2755e3b95fc7542cae601e98b4d6ee25d16860f305f",
+      "inner_source": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     "historical_originals_collection_first_attempt": {
       "source": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
@@ -12526,8 +12528,8 @@
       "operation_records_and_protected_originals_returned": true,
       "inner_semantic_accepted_limited": 25,
       "remaining21_outer_returned_checkpoint": 21,
-      "remaining21_inner_accepted": 6,
-      "registry679_inner_accepted": 0,
+      "remaining21_inner_accepted": 17,
+      "registry679_inner_accepted": 1,
       "business_replay": false,
       "old_HOLDs_preserved": true,
       "scope": "Original disjoint A5 fixed16 plus Full9 base25 subset only; current accepted total and remaining21 increments are separate fields",
@@ -12552,20 +12554,44 @@
       "inner_accepted": 0,
       "root_sha256": "b893ab73ab576c46a2a73ebbd12618267d2ab8cd98d91d7360fe0c76dbc57048"
     },
-    "current_fresh_inner_accepted": 31,
+    "current_fresh_inner_accepted": 43,
     "remaining21_core_collection": {
       "native_all21_closed": true,
       "native_returned_sha256": "8d2acd526ba1895a723342b802cfaa1744864e10d96328791403e09f2a4014bf",
       "all21_outer_root_sha256": "87da8ee04fed04e3b2cf4237c372d6a0228f992f082d14210dc940ee065b67da",
-      "current_core_returned_checkpoint": 11,
-      "remaining21_inner_accepted": 6,
+      "current_core_returned_checkpoint": 21,
+      "remaining21_inner_accepted": 17,
       "first2_root_sha256": "434906276e6b2d03a6b46a7cd76bb4d66f3f4b491721571846ea19bc9080c378",
       "next4_root_sha256": "82c1703a46d7a9cd959cd224481e384e967bbecc5c9bf7a0bb59676c2c1f71f3",
       "old_read_HOLD_preserved": true,
       "old_helper_never_started_retained": true,
       "all23_failed_observations_sha256": "d5dcbf0b0c9368ac5bc2d41f9b24ea9dd7d86c12e8ab0731c5bcdfcb0c273c4e",
       "new15_read_UUIDs": true,
-      "business_replay": false
+      "business_replay": false,
+      "all_core_and_ordinary_readback_closed": true,
+      "core_wire_bytes": 263038604,
+      "protected_complete_frames": 63,
+      "root_read_closure_sha256": "6540bc0a16f77cb51d5cbd3af9053950f6b0fe5cb7ff39aae3cbc69f35146f74"
+    },
+    "registry10_inner_root_sha256": "84e71241ac876a4138d4ee0c77bbe2045bb01c01573b0f5f9e358f6e35b76997",
+    "source5_inner_root_sha256": "67dd0b50e8b6c6feec10da6ab96c80fabfec7fed44006a068f0d89465a299d21",
+    "destination2_inner_root_sha256": "3dd45fd2f8dbbdf39c695ed37011edb1d5fe8aefb53604d6ec592250337442d0",
+    "registry679_inner_root_sha256": "6dcbddc34660d19b2f86c2755e3b95fc7542cae601e98b4d6ee25d16860f305f",
+    "fresh_inner_remaining": 11,
+    "lifecycle_read_budget_correction": {
+      "review_sha256": "b79120beb8389d69e5b5b24daefbdef47881f72c7b71ec8651a6491a1569ee9b",
+      "actual_logs": 13094,
+      "actual_files": 13099,
+      "file_cap": 16384,
+      "complete_index_cap": 16777216,
+      "metadata_operations_cap": 393416,
+      "read_and_output_cap": 536870912,
+      "single_file_cap": 33554432,
+      "child_seconds": 300,
+      "root_seconds": 360,
+      "predicate_unchanged": true,
+      "old_HOLD_preserved": true,
+      "inner_credit": 0
     }
   }
 }
