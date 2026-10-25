@@ -3,26 +3,26 @@ export const meta={
   "title": "知织 · KnowWeave｜实施路线与系统架构",
   "date": "2026-10-26",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
-  "state": "C4 实施中 · 十门与四升级已通过 · 专项首案失败排查",
-  "progressSummary": "截至2026-10-26：a5eb28d新隔离Linux/PG18完整回归十门全部自然退出0：Rust1052通过/169忽略、四套冻结旧版升级、格式/全特性Clippy、普通用户与Root Python、deploy测试。192份原件已由Root与独立审查逐份核对。Source36→a5完整七叶测试差异已独审，Task8仍需规定专项原件与最终整组采用；Task6/7保留各自历史私有范围。",
+  "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
+  "state": "C4 实施中 · A5完整十门已通过 · 679单案修复补验",
+  "progressSummary": "截至2026-10-26：a5eb28d新隔离Linux/PG18完整回归十门全部自然退出0：Rust1052通过/169忽略、四套冻结旧版升级、格式/全特性Clippy、普通用户与Root Python、deploy测试。192份原件已由Root与独立审查逐份核对。Source36→a5完整七叶测试差异已独审；679b11c另加九行测试锁生命周期修复，产品/控制器/迁移未变，单案新资源补验中，Task8仍需规定专项原件与最终整组采用；Task6/7保留各自历史私有范围。",
   "progressEvidence": "Task7 Root采用：TASK7_SOURCE36_PRIVATE_SINGLE_HOST_SIX_CASE_ORIGINALS_ACCEPTED；SHA-256 1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4。六案来源为此前3项保留＋本轮新3项，不是六项新跑。三个good-pin场景每案四份阅读文件合计1172字节，package/source capture/destination copy/held target delivery四处逐字一致；同机不同inode不等于独立存储故障域。详见验收清单。",
-  "pendingSummary": "完整十门、四升级、RootFS33及源码差异已限定独审。恢复/快照16项与完整恢复9项共25项外层回执返回；当前专项inner最终接受仍0。余22次操作（29个正文）的首案registry-reopen在actual-libtest阶段以EXACT_TEST_EXIT失败，随后外围资源保护1800秒截止；执行及原件收取队列均HOLD。已核验失败driver、raw-index与精确双流，正文退出101并报registry busy，正在独审锁生命周期窄修；旧失败资源保留，不自动重放。Task8整组与Task9仍开放。",
+  "pendingSummary": "A5完整十门、四升级、RootFS33及源码差异已限定独审。25项外层回执返回，inner最终接受仍0。原余22首案正文101／registry busy与后置保护截止分别保留HOLD；679b11c仅九行测试修复已独审，在新资源补验registry-reopen，其余21操作／28正文及原件独核待完成。不重放旧失败，Task8/Task9仍开放。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。",
   "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。当前a5的Root FS/OS 33/33另有120原件独审采用；规定PG专项继续补验。",
   "boundarySummary": "Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · 十门及四升级已通过，专项首案失败排查",
+  "roadmapHeadline": "当前进度 · A5完整回归已通过，679单案修复补验中",
   "taskPlanScope": "编号依据2026-10-04补齐计划。Task8已执行完整十门和四升级，规定专项保留25项外层回执；余22操作首案失败，队列HOLD。Task9独立目标未就绪，C4整体仍开放。",
   "nextSteps": [
     [
-      "01 · 定位专项失败",
-      "核对registry-reopen原始测试退出、stdout/stderr与固定源码；区分正文失败和后置资源保护HOLD，修复后仅用全新隔离资源补验。"
+      "01 · 验证锁生命周期修复",
+      "679b11c仅修改ignored registry-reopen测试：保留快照持锁拒绝，显式释放快照后再finish。新资源验证完整五阶段，旧A5失败保留。"
     ],
     [
-      "02 · 补齐规定专项",
-      "保留25项已返回外层回执，完成其余29个正文；按实际受影响范围复验，不重放旧失败批次，不把listing或外层回执作为inner接受。"
+      "02 · 收取已返回原件并补余项",
+      "新单案结算后先独核25项外层回执的原始证据，再新资源串行补余21操作／28正文；各来源单列，不把A5结果重标679。"
     ],
     [
       "03 · 原件与整组独审",
@@ -1777,8 +1777,8 @@ export const c4Tasks=[
     "title": "当前回归、旧版升级与审查",
     "status": "next",
     "detail": "a5eb28d已在全新隔离批次完整回归十门通过：Rust1052/0/169、四套升级、格式/全特性Clippy、普通与Root Python及deploy。源码差异已独审；规定专项原件与最终整组采用继续，Task8未关闭。",
-    "evidence": "新十门192份原件已独立逐份复审通过，PG精确停机留卷；恢复/快照效果16项五阶段回执已分别返回（原前5＋后续6＋本轮新5），inner原件尚待独核；旧HOLD保留，外围30分钟被动观察窄修未改变业务期限、资源基线或拒绝条件。完整恢复9案五阶段回执及外层原件限定独审已返回；余22次操作（29个正文）的首案registry-reopen在actual-libtest阶段以EXACT_TEST_EXIT失败，随后外围资源保护1800秒截止；执行及原件收取队列均HOLD。已核验失败driver、raw-index与精确双流，正文退出101并报registry busy，正在独审锁生命周期窄修；旧失败资源保留，不自动重放。当前a5的RootFS33/33已有120原件独审；历史638范围保留。169 ignored逐行披露，规定54 fresh与6历史桥单列，终审后才可关闭Task8。",
-    "statusLabel": "十门已通过 · 专项首案失败排查"
+    "evidence": "新十门192份原件已独立逐份复审通过，PG精确停机留卷；恢复/快照效果16项五阶段回执已分别返回（原前5＋后续6＋本轮新5），inner原件尚待独核；旧HOLD保留，外围30分钟被动观察窄修未改变业务期限、资源基线或拒绝条件。完整恢复9案五阶段回执及外层原件限定独审已返回；余22次操作（29个正文）的首案registry-reopen在actual-libtest阶段以EXACT_TEST_EXIT失败，随后外围资源保护1800秒截止；执行及原件收取队列均HOLD。已核验失败driver、raw-index与精确双流，正文退出101并报registry busy，正在独审锁生命周期窄修；旧失败资源保留，不自动重放。当前a5的RootFS33/33已有120原件独审；历史638范围保留。169 ignored逐行披露，规定54 fresh与6历史桥单列，终审后才可关闭Task8。 679b11c九行测试修复已独审，单独新资源补registry-reopen；A5失败/HOLD与来源保留，尚无该新单案最终采用。",
+    "statusLabel": "A5十门已通过 · 679单案补验"
   },
   {
     "id": 9,

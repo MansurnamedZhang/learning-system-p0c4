@@ -871,6 +871,15 @@ async fn real_registry_reopen() {
     assert_eq!(snapshot.backup_reference_counts().len(), 3);
     snapshot.recheck(&lease).unwrap();
     drop(lease);
+    // The snapshot clones the held lock descriptor. Dropping only the caller's
+    // lease must not release protection; release the snapshot before finishing.
+    assert!(matches!(
+        crate::ManagementRegistry::open_installed()
+            .unwrap()
+            .try_lock(),
+        Err(BackupError::Invalid("registry busy"))
+    ));
+    drop(snapshot);
     f.refresh().await;
     let original = f.legacy_bytes();
     crate::finish_source_backup(&f.pool, &f.config)
