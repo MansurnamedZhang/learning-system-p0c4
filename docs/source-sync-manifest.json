@@ -15,8 +15,8 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 61116,
-      "sha256": "eaaffcdf8cbca34cb49eea2cc30d017ba72437678b2574d9a096e7b55ff62593",
+      "bytes": 61193,
+      "sha256": "26b3481a7f6a5951d90a94ac2758e8abf39790d0c13289ae6ac93624a8da5716",
       "source_bytes_preserved": false,
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
     },
@@ -63,10 +63,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 114076,
+      "bytes": 114153,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "e37b64cdba21da516ff893012e7af727fa29b11574e0ce2b762e1394cbd026c4",
+      "sha256": "51fa62d2a89e03905f17eb0f67ef8cd9084a557dcdc806077856627e65948577",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -78,10 +78,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 65124,
+      "bytes": 65241,
       "path": "README.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "aa138a0b46711d29b4530a5ed6842e19101ed72801463bcefacd5314c642a0c2",
+      "sha256": "1ef5d0c7f58ef9178e9dbed8830d39b529998ba6389a02b3f3f61aedca6e9ca2",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3083,10 +3083,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 46333,
+      "bytes": 46438,
       "path": "docs/KnowWeave实施路线与系统架构.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "325ae203705e8c2ffd2a3787f137e77da64fc5e82eb41cc5f25e5991eb3350d9",
+      "sha256": "868c6e307deb3f54242f0ed65cb94e81bcecd969aab5c66ba51c783785564658",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3688,8 +3688,8 @@
     },
     {
       "path": "docs/p0c4-task8-current-regression.md",
-      "bytes": 12827,
-      "sha256": "c07927f739aa48dcd75b4ab877ccbbd01f7d1c3e7fce11b40169a91bb2f227f4",
+      "bytes": 13855,
+      "sha256": "bfa8966f816c154df8a586b32f67cf0365d5e60a16ed54a8004095b96ccb90a8",
       "source_bytes_preserved": false,
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
     },
@@ -3869,10 +3869,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 98909,
+      "bytes": 99026,
       "path": "docs/项目最新进度.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "c3cd7048b05e18b6463c1463b5e36bfdd99bf623e78b48d84075aaa6fcc1063d",
+      "sha256": "334e5a8761fa3c184e0b064827ee36ec7173f712ad7f83f9c902a61df1d35c9d",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4597,7 +4597,7 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 647,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "8c0d0efff2a3308c004bd4d7bb19096c3100b6a2",
+  "previous_public_commit": "c0640af10a54c0711961489346e383175cff21ad",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
   "progress_as_of": "2026-10-25T15:41:01+08:00",
@@ -11790,6 +11790,24 @@
       "independent_passed": true,
       "new_execution_credit": 0,
       "not_full_repository_security_scan": true
+    },
+    "passive_v4_continuation": {
+      "status": "FRESH_FIVE_RUNNING_REVIEWED_IDLE1800_NOT_ACCEPTANCE",
+      "prior_positive_outer_receipts": 11,
+      "old_P4_deadline_seconds": 600,
+      "old_P4_body_executed": false,
+      "old_P4_known_capsules_absent": true,
+      "old_P4_result_sha256": "9cbc73ac94c2d949dad4c680fd2978488626412cfef745a73a5f57fd1a4ee3ff",
+      "passive_idle_seconds": 1800,
+      "business_limits_unchanged": [
+        180,
+        7500
+      ],
+      "root_review_sha256": "55dd997003f8966f3f4005ec5fb5b28b59fd2f2c237f2496ac36bf7ef224d939",
+      "thin_independent_review_sha256": "1570262e1a109381e87543f9daef596bf12c2a3f6d5816a53942ec1ee095fd39",
+      "old_HOLD_preserved": true,
+      "new_five_execution_started": true,
+      "inner_raw_accepted": 0
     }
   }
 }
