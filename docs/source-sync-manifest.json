@@ -15,8 +15,8 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 60607,
-      "sha256": "6d99e3f96fd3ea56b09d3e775ca68079fad30ef3d794b120d1ed8dd8b750ccad",
+      "bytes": 60861,
+      "sha256": "e3218e123a61f601db131254a5e1f5ed7ba70e36d4054662d5ed60beddfefee6",
       "source_bytes_preserved": false,
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
     },
@@ -63,10 +63,10 @@
       "source_bytes_preserved": true
     },
     {
-      "bytes": 113535,
+      "bytes": 113821,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "263a95f20b87ae5621928ed479af460a43626f59951c0fb8783b882051ee2192",
+      "sha256": "06c1f4f0e62c6028085f7f54d83831170cfa6c33e2632d333e097c9eba41ecc6",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -78,10 +78,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 64814,
+      "bytes": 65093,
       "path": "README.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "52c49ba6d4e924c386b0a6090026444ab0bc800517a02a281897d063269ca9a3",
+      "sha256": "0e900e6c83fa4a5ad2cebaf1ddc6eebd09accface2b059336855a389667dd3f3",
       "source_blob_sha256": "3ea8bd7319a6fd643a88bcb21539ec01d6d7ba1851357aef195064a3cd7a9c7c",
       "source_bytes_preserved": false
     },
@@ -3083,10 +3083,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 45629,
+      "bytes": 45945,
       "path": "docs/KnowWeave实施路线与系统架构.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "a32a9e3b009242b36640c320c571908d5d3c266cac875e528509a7036c4fef76",
+      "sha256": "7f9953532de7da7747d3deec8a193834e8111845a3300f67c29d41c153a0f4ac",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3383,10 +3383,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 8953,
+      "bytes": 8985,
       "path": "docs/diagrams/knowweave-portability.svg",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "27ccbda8dda15b68711a167823a12890ceff4f52fa9447c8e7baf00407be5041",
+      "sha256": "2919ad5e0786e7ebb4ac8771005432f1a60a821bc237666c94dd32be7d7610a7",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3688,8 +3688,8 @@
     },
     {
       "path": "docs/p0c4-task8-current-regression.md",
-      "bytes": 8326,
-      "sha256": "9b90d63bd01ea1532a0121f3b7a70d65e7646d52ffc373cb8ef84e5832bafd64",
+      "bytes": 10244,
+      "sha256": "62ef6311eb46090f89be3339cb5acb5077ef28923628878156bccad5d671453c",
       "source_bytes_preserved": false,
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION"
     },
@@ -3869,10 +3869,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 98599,
+      "bytes": 98878,
       "path": "docs/项目最新进度.md",
       "scope": "TASK8_IN_PROGRESS_DOCUMENTATION",
-      "sha256": "85f4cd389ce71445bacc2ced8da3a60acdd3278d2a6df646f586acc1bfe9d52c",
+      "sha256": "cf17dcb47c256290665c940594dcc4d4f4cc7b7f9c78152e819a59ffc5a52821",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4597,13 +4597,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 647,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "d91141f197fefb0b3202fa04751552525912e52b",
+  "previous_public_commit": "2716d8703abc2c3029a70fe8beaf3d473e4683a1",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
   "progress_as_of": "2026-10-25T15:41:01+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "SOURCE_A5_FULL_REGRESSION_RETURNED_FOCUSED_PENDING_NOT_ACCEPTANCE",
+  "scope": "SOURCE_A5_FULL_GATES_REVIEWED_FOCUSED_HOLD_NOT_ACCEPTANCE",
   "source_archive_sha256": "f740f7ab7d1e62328e76f614d664912ef345b34d06cc97a492defd351df64a97",
   "source_archive_status": "REVIEWED_TEST_ONLY_FIX_FROZEN_PENDING_TASK8",
   "source_capture_method": "EXACT_SOURCE_A5_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -11706,7 +11706,7 @@
   },
   "task8_checkpoint": {
     "source_commit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
-    "status": "CURRENT_A5_FULL_GATES_RETURNED_FOCUSED_AND_WHOLE_REVIEW_PENDING",
+    "status": "CURRENT_A5_FULL_GATES_REVIEWED_FOCUSED_GUARD_HOLD",
     "product_files_changed": 0,
     "test_files_changed_since_source36": 7,
     "test_files_changed_since_source638": 6,
@@ -11754,7 +11754,15 @@
       "source_unchanged": true,
       "resource_projection_unchanged": true,
       "pg_stopped_volume_retained": true,
+      "independent_full_gate_review_passed": true,
       "independent_whole_review_pending": true
+    },
+    "focused_campaign": {
+      "recovery16_returned": 5,
+      "recovery16_outer_guard_hold": 1,
+      "recovery16_unrun": 10,
+      "inner_raw_accepted": 0,
+      "remaining_new_cases": 11
     }
   }
 }

@@ -4,16 +4,16 @@ export const meta={
   "date": "2026-10-25",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
-  "state": "C4 实施中 · Task8完整回归十门通过 · 规定专项与独审中",
-  "progressSummary": "截至2026-10-25：a5eb28d新隔离Linux/PG18完整回归十门全部自然退出0：Rust1052通过/169忽略、四套冻结旧版升级、格式/全特性Clippy、普通用户与Root Python、deploy测试。192份原件已由Root全部回读哈希。Task8仍需规定专项与整分支终审；Task6/7保留各自历史私有范围。",
+  "state": "C4 实施中 · Task8十门与四升级独审通过 · 专项补验中",
+  "progressSummary": "截至2026-10-25：a5eb28d新隔离Linux/PG18完整回归十门全部自然退出0：Rust1052通过/169忽略、四套冻结旧版升级、格式/全特性Clippy、普通用户与Root Python、deploy测试。192份原件已由Root与独立审查逐份核对。Task8仍需规定专项原件与整分支终审；Task6/7保留各自历史私有范围。",
   "progressEvidence": "Task7 Root采用：TASK7_SOURCE36_PRIVATE_SINGLE_HOST_SIX_CASE_ORIGINALS_ACCEPTED；SHA-256 1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4。六案来源为此前3项保留＋本轮新3项，不是六项新跑。三个good-pin场景每案四份阅读文件合计1172字节，package/source capture/destination copy/held target delivery四处逐字一致；同机不同inode不等于独立存储故障域。详见验收清单。",
-  "pendingSummary": "Task8完整回归已实际返回通过，恢复/快照效果16项正在串行运行；另有规定registry/source/destination/schema/full专项与ignored逐行处置、原始证据及整分支终审待闭合。Task9真实独立目标、首签/发布权限与源端不可访问恢复仍开放。",
+  "pendingSummary": "Task8十门与四升级已限定独审通过。恢复/快照效果16项前5项回执成功待inner原件，第6项在旧资源投影保护处拒绝，后续已停；被动观察窄修待独审后用新资源补余11。其它规定主专项及整分支终审待闭合。Task9真实独立目标、首签/发布权限与源端不可访问恢复仍开放。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。",
-  "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。RootFS33已有638范围独审；规定专项继续。",
+  "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。RootFS33已有638范围独审；a5规定专项在资源守卫窄修后继续。",
   "boundarySummary": "Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · Task8完整回归通过，规定专项与最终独审推进中",
+  "roadmapHeadline": "当前进度 · 十门及四升级独审通过，规定专项补验中",
   "taskPlanScope": "编号依据2026-10-04补齐计划，和原五任务父里程碑分开。Task8已进入新隔离执行；Task4内容3/3、Task6/7历史限定通过不等于当前源码全回归。Task9独立目标未就绪，C4整体仍开放。",
   "nextSteps": [
     [
@@ -1239,7 +1239,7 @@ export const diagrams=[
   {
     "id": "portability",
     "title": "05 · C3 交换与 C4 恢复",
-    "subtitle": "C3范围快照交换已验收；C4单机链推进至Task7，Task8全回归与Task9独立存储/正常恢复待完成。",
+    "subtitle": "C3范围快照交换已验收；C4单机链推进至Task7，Task8十门及四升级独审通过，规定专项、整分支终审与Task9仍待完成。",
     "notes": [
       "C3 Task 1–7 已完成分项与整关隔离验收：Task 7 在全新 Compose 项目通过完整 workspace、四套旧版升级、真实 Worker SIGKILL/租约接管、双端往返和四组失败注入。独立 root 只读审计核验 602 份证据文件、341 个源码文件、301 项镜像输入；状态为 P0_C3_VERIFIED / NOT_PRODUCTION。",
       "C3 输入为精确 ReadingViewRevision、模式和原件选项；当前授权求闭包，作业结束与交付时再次检查。已下载的文件无法被服务器远程撤回。",
@@ -1247,7 +1247,7 @@ export const diagrams=[
       "C4 Task2/3/5分别在原固定源码上完成规定单机补验；Task4只覆盖内容三门。Task6的2e5026d私有16/16与Task7的36c89f2私有6/6分别留证，不作为当前全工作区或四套升级通过。",
       "Task7六案：完整正例、缺失原件、损坏dump、传输中断、未知效果、原件根替换。未知效果在导入后拒绝并留3项UNKNOWN/runnable0；不是导入前目标不变。根替换只声明列举catalog/assets/attempt字节不变，不声明整个文件系统不变。",
       "三个good-pin恢复路径各四份ReadingCopy文件共1172B，四处逐字相等且inode独立；它们位于同一主机，不构成独立故障域。失败53df不计通过，历史未观测的外层OS收据不补造。",
-      "Task8须在最终当前源码执行完整Linux/PG18回归与四套真实旧版升级并独审；Task9须用真实独立目标、托管密钥及受控首签/发布权限完成正常CompleteBackup和源端不可访问恢复。当前均未验收。",
+      "Task8当前a5源码的完整Linux/PG18十门与四套真实旧版升级已限定独审通过，规定专项和整分支终审仍开放。Task9须用真实独立目标、托管密钥及受控首签/发布权限完成正常CompleteBackup和源端不可访问恢复；整Task8/9均未验收。",
       "未来P1-B新增学习任务、尝试、产物、验收与计划历史后，须同步扩展恢复闭包并另验整链。"
     ],
     "nodes": [
@@ -1776,9 +1776,9 @@ export const c4Tasks=[
     "id": 8,
     "title": "当前回归、旧版升级与审查",
     "status": "next",
-    "detail": "a5eb28d已在全新隔离批次完整回归十门通过：Rust1052/0/169、四套升级、格式/全特性Clippy、普通与Root Python及deploy。规定专项与最终独审继续，Task8未关闭。",
-    "evidence": "新十门192份原件Root回读哈希相符，PG精确停机留卷；旧失败/HOLD保留。638的RootFS33不冒称a5新执行；169 ignored与54个规定fresh主专项单独核对，完成终审后才可关闭Task8。",
-    "statusLabel": "实施中 · 新完整回归未闭合"
+    "detail": "a5eb28d已在全新隔离批次完整回归十门通过：Rust1052/0/169、四套升级、格式/全特性Clippy、普通与Root Python及deploy。规定专项原件与最终独审继续，Task8未关闭。",
+    "evidence": "新十门192份原件已独立逐份复审通过，PG精确停机留卷；专项前5回执成功待inner原件，第6保护拒绝后已停止后续，旧HOLD保留。638的RootFS33不冒称a5新执行；169 ignored逐行披露，规定54 fresh与6历史桥单列，终审后才可关闭Task8。",
+    "statusLabel": "十门独审通过 · 规定专项补验中"
   },
   {
     "id": 9,
