@@ -4,6 +4,14 @@
 
 本页完整十门已接受源码：`a5eb28d0ffc36d6434576fbd083eb20f07566f41`；当前单案测试修复候选：`679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`，格式/严格Clippy已过，专项五阶段外层已返回，原件待独核；父源码：`638cb0f630fd4360c9d8b3df6f3f394fe8547e93`。本轮当前结果、历史采用和未执行项分别记账。
 
+## 余项运行检查点：10/21外层已返 · 2026-10-26
+
+目录与保护注册表十项均已返回五阶段外层，当前串行进入源端绑定五项；它们的inner仍待本组实际结算后收取，未增加25案限定接受数。
+
+whole-change静态门已独审并经Root采用：Source36→A5仅七个测试叶，A5→679仅单测试九行，产品、22控制器、15迁移与Cargo闭包原字节不变；完整十门/四升级与679质量门各保留实测来源。静态Root采用SHA：`8d07b6979aa9afe713e720aeeb3c5ccdfc3707c36ac76566c8b4e203a1753fd4`。
+
+六项Attention桥的603叶保守依赖集合与selected函数三版字节相同，六行保留Source36原UUID/实际binary/采用记录；Root桥接SHA：`e66f253367d257315ae40afb89f4f4bf92edf1174986138f488b255b9188061a`。这不是六次A5或679新执行，fresh增量0，不授Task9或正常恢复权限。
+
 ## 最新：25案规定正文与小proof已限定采用 · 2026-10-26
 
 恢复／快照效果16案加Full9九案的互斥原件组均经独审并由Root限定采用，fresh专项inner累计25案。完整回归十门、四套真实旧版升级、RootFS33保持原范围；不把A5结果转名679，不关闭Task8。
@@ -12,9 +20,11 @@ Full9独审SHA：`9fcca84a4a6e4a9f95bd1df86269e2b684d49a17b6d50584c165e5dc3846a7
 
 五个negative的大审计原文件18–22MiB本体未导出，逐案路径/size/SHA和OMISSIONS保留；实际Rust完整before==after断言、精确injected/refused stage与小proof已核。本次只采用规定正文与小proof层级，不声称外部逐字段或逐字证明完整目标FS/DB不变，也不声称独立下载资产payload、大dump或ELF。其它issuer/inspect/monotonic原件层级限制保留。
 
-余21操作／28正文已开始新资源串行执行；当前已有3案完成五阶段外层，inner仍另核。679 registry-reopen来源单列。旧失败与HOLD不重放、不转绿；Task8整组、Task9、CompleteBackup、RecoveredInstance、C4整关、生产和main合并仍开放。
+余21操作／28正文已开始新资源串行执行；当前已有10案完成五阶段外层，inner仍另核。679 registry-reopen来源单列。旧失败与HOLD不重放、不转绿；Task8整组、Task9、CompleteBackup、RecoveredInstance、C4整关、生产和main合并仍开放。
 
-## 最新：恢复／快照效果16案已限定采用 · 2026-10-26
+## 历史检查点：恢复／快照效果16案 · 2026-10-26
+
+> 从此处起保留阶段性明细。“当前”“待核”等措辞和计数属于各段记录当时；现行计数以本页顶部两节为准，不累计重复采用。
 
 25项A5原件已全部收取，恢复五案、history-gap与快照效果十案合为16案限定采用，完整恢复九案原件尚待独核。余21次业务操作／28正文使用新资源串行推进；679注册表单案inner另核。
 
@@ -22,7 +32,7 @@ Full9独审SHA：`9fcca84a4a6e4a9f95bd1df86269e2b684d49a17b6d50584c165e5dc3846a7
 
 P6四文件共682字节为真实交付的元数据与摘要关联，本轮未另行逐字导出全部payload；64表post-normalization保持真实Rust断言/count/SHA层级，不声明独立全文下载。原ELF、issuer单独导出、inspect摘要与monotonic收据层级限制保留；不授正常CompleteBackup/RecoveredInstance、外部独立故障域或生产信用。Task8整组、Task9与C4整关仍开放。
 
-## 25项原件收齐与恢复五案限定采用 · 2026-10-26
+## 历史检查点：原件收齐与恢复五案 · 2026-10-26
 
 25项A5完整原件集合已闭合：此前9项固定继承，另16项用新只读UUID完成；每案operation8与所有protected完整观察原件均已回读，未重放业务。原第4项及第10项读取HOLD均保持原样。
 
@@ -32,9 +42,9 @@ P6四文件共682字节为真实交付的元数据与摘要关联，本轮未另
 
 余9项A5 inner、679注册表inner、21次新业务操作／28正文及Task8最终整组采用仍开放；若后续新批次中断，保留该批原失败再单独定位。
 
-## 最新原件独核检查点 · 2026-10-26
+## 历史检查点：history-gap单案独核 · 2026-10-26
 
-本节保留history-gap单案独核的明细；当前集合原件25项均已返回，fresh专项inner累计16案，见上方最新检查点。4,333个物理原件、实际libtest 1通过/0失败/0忽略、64次namespace audit、31个native helper清理和双PG停机已关联核对；3,815字节profile以原SHA补齐，旧4,332叶逐字及FD9元数据相同。Root再读4,436个引用、75,696,718字节。原件独审SHA：`9de44567fcb24009cd62b51ccd3887381faa4378e20caf57c9e1d850f3c1f828`；Root限定采用：`d153fc9727fc8becd37b1d2febe3ff3cd851b0beb78a33d3749236a602b415a7`。
+本节保留history-gap单案独核的明细；当时集合原件25项均已返回、fresh专项inner累计16案；当前25案限定采用及余项进度见顶部检查点。4,333个物理原件、实际libtest 1通过/0失败/0忽略、64次namespace audit、31个native helper清理和双PG停机已关联核对；3,815字节profile以原SHA补齐，旧4,332叶逐字及FD9元数据相同。Root再读4,436个引用、75,696,718字节。原件独审SHA：`9de44567fcb24009cd62b51ccd3887381faa4378e20caf57c9e1d850f3c1f828`；Root限定采用：`d153fc9727fc8becd37b1d2febe3ff3cd851b0beb78a33d3749236a602b415a7`。
 
 这是history-gap的拒绝边界证明，不计正向import/recovery/effect信用。ELF未另行全文下载，issuer/inventory未各自FD9导出，相关事实来自实际编译、物化、driver与独立RPC原件；export-helper完整inspect与独立monotonic收据的旧层级限制保留。
 
@@ -54,17 +64,17 @@ P6四文件共682字节为真实交付的元数据与摘要关联，本轮未另
 
 679此前单案正文回执为1通过／0失败／0忽略，但后置保护因外部同步容器数量不符而HOLD，不能计为单案通过。七份完整观察原件显示最后一帧原有资源均已恢复基线，外部同步容器仍在；旧资源与HOLD保留。V5仅为该已确认形状增加有界再观察，仍须原完整保护谓词满足，不过滤、停止外部项目或刷新基线。
 
-新V5隔离案已返回prepare/install/plan/run/verify五阶段外层回执，测试回执1通过／0失败，资源保护满足且五个胶囊精确清理；137,635,671字节阶段原件已重核，inner原件仍待独核。25项A5完整原件已收齐并经独审及Root限定采用：恢复／快照效果16案与Full9九案分别按规定正文、小proof和明确原件层级接受，不授正常恢复权威。75份完整保护观察及精确清理已核，旧HOLD保留。余21业务操作／28正文在新资源串行推进，当前已有3案外层回执返回，尚待各自inner独核；679注册表单案inner与Task8整组采用仍开放。
+新V5隔离案已返回prepare/install/plan/run/verify五阶段外层回执，测试回执1通过／0失败，资源保护满足且五个胶囊精确清理；137,635,671字节阶段原件已重核，inner原件仍待独核。25项A5完整原件已收齐并经独审及Root限定采用：恢复／快照效果16案与Full9九案分别按规定正文、小proof和明确原件层级接受，不授正常恢复权威。75份完整保护观察及精确清理已核，旧HOLD保留。余21业务操作／28正文在新资源串行推进，当前已有10案外层回执返回，尚待各自inner独核；679注册表单案inner与Task8整组采用仍开放。
 
 V5本地独核已重跑17项检查、47份精确逆补及94个真实采样入口，并重新解码七份完整失败观察原件。它不改变产品、控制器、业务期限、资源基线、接受谓词或一次性执行约束；等待截止和未知资源仍HOLD。本地机制审查不提供Linux用例信用。
 
 A5完整回归十门与四套真实旧版升级、RootFS33及源码差异保持已有限定采用。25项A5主正文外层回执已返回，fresh专项inner已限定接受25案（恢复／快照效果16＋Full9）。679九行测试修复的Linux格式与严格Clippy已通过，35份原始记录已回读核对；不把A5结果重标为679执行。
 
-后续先完成修复案外层结算与原始证据独核，再按已审查明确子集收取25项A5原件，随后补余21次操作／28正文。原失败不重放、不改写，所有来源分别记账。Task8整组、Task9、独立存储、CompleteBackup、RecoveredInstance、公开恢复、C4整关、生产及main合并仍开放。
+当时的后续计划为先完成修复案外层结算与原始证据独核、收取25项A5原件，再补余21次操作／28正文；其已执行状态以顶部检查点为准。原失败不重放、不改写，所有来源分别记账。Task8整组、Task9、独立存储、CompleteBackup、RecoveredInstance、公开恢复、C4整关、生产及main合并仍开放。
 
 候选ZIP SHA-256：`e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221`；manifest：`3d61680038016b8e46140435151e0dfe7f26f6f0260d86ef1c60048faf0c723b`。九行测试独审：`10430fc7451d2dbac973dc6769da937ba47ac6aeec84e274a89182fd570e5399`；V5 Root机制审查：`3715848854e4a028ce08ddf1cfd7ee8194c6021b37bf2b1f4b5c3b125bd9a9f7`。私有原件不公开凭据或服务器路径。
 
-## 原件收取当前进度与补齐项
+## 历史首次原件读取与当时补齐项
 
 snapshot-history-gap、recovery-derived、recovery-receipt-failure三项已收取；10,311个原导出文件共29,381,394字节逐份重核大小、SHA、完整清单和源端before/after元数据，另已读取各自八份导出操作原件。物理传输通过不等于语义独审接受。
 
@@ -101,7 +111,7 @@ Task8 fresh专项inner已限定接受25案（恢复／快照效果16＋Full9）�
 
 这33项属于当前a5的额外限定补验，与历史638组件分开，不改写workspace原169 ignored数，不计为PG专项或Task8整关完成。
 
-## 规定专项：旧失败保留，新资源串行补验
+## 历史专项执行：旧失败保留与新资源补验
 
 恢复基础/快照效果16项中，`snapshot-history-gap`、`recovery-derived`、`recovery-receipt-failure`、`recovery-effects`、`snapshot-p6`五项已完成五阶段并返回公开runner的1/0/0回执。suite内原始stdout、driver结果及raw_index尚未导出独核，仍不计专项接受。
 
@@ -168,10 +178,10 @@ Task6的2e5026d私有16/16、Task7的Source36私有6/6保留各自原采用范�
 
 本轮五项返回索引SHA-256：`a82e4d08beda8eceebcc256b7fccb0a0445e2749e17238c9c02c14c14b021ef1`；五阶段原件核对索引：`41741dff546b4042009e5dab01628869ba4f9107e8ae3a85ac993a806cf81fce`。这些是公开runner回执与stage字节核对，不能替代inner原始证据独核。
 
-## 完整恢复九场景回执与外层原件限定采用
+## 历史检查点：Full9外层回执与阶段原件
 
 当前a5的正向导入、提交前断开、取消、提交结果未知、错误端点、损坏输入、错误角色、脏目标及原件损坏九项已分别闭合全部五阶段，逐项回执为1/0/0。45阶段、143个完整被动观察帧经三个互斥三案集合独审，Root以完整九案stage原件索引关联限定采用；未重读或覆写旧失败、不从晚到成功推断旧失败根因。
 
 九案返回SHA-256：`f0ed6e841103b9a8291930903612cc73408a365dc0b666ea2398f39c1706323a`；stage逐份核对索引：`c084c571e6b1f7f7a343047135188fb789e3b0e0ed828d68f1b85538b6dea160`；互斥peer组合摘要：`f352269ca0aab600132798ed865d15551d8ebcb2c2f67025ac54491ca9982805`；Root限定采用：`1a5ff57d0bcd41cec67c9589d74d3e6164258084dc5fc12b1d6c2e57ede65113`。
 
-与恢复/快照效果16项合为25个主正文的外层回执返回，不等于25项inner接受。原余22次操作首案失败的旧队列HOLD保留；679新修复案已返回五阶段，其余21操作／28正文待补，25项A5原件正在收取；主专项fresh限定接受25案（恢复／快照效果16＋Full9），原始driver/raw_index/libtest/proof/终态与Task8整组审查待完成。私有inspect仅留digest和非独立外层OS计时的限制继续保留；Task8/Task9/C4整关、CompleteBackup、RecoveredInstance、公开恢复和生产仍开放。
+本节仅记录当时Full9外层回执的来源与阶段原件采用，不替代后续inner审查。当前25项A5原件已收齐且按规定正文／小proof限定采用，余21操作／28正文与679单案inner进度见顶部；旧余22队列首案失败HOLD保留。私有inspect仅留digest和非独立外层OS计时的限制不变；Task8最终整组、Task9、C4整关及正常恢复仍开放。

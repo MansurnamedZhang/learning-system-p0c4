@@ -15,8 +15,8 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 63964,
-      "sha256": "ab136c1b017de9db48f777c0904add7e0c0101186880b1f6fb037b3a45634ab3",
+      "bytes": 63968,
+      "sha256": "83fe12e02efe2506a4babd9552648d5bf0699cd9cafc9f5ac1e1ec2f4edead10",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
@@ -68,26 +68,26 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 116949,
+      "bytes": 116953,
       "path": "KnowWeave实施路线与架构.html",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "c4e293cc2dbf0b2622a5b8002600528438346a9e0769458d86db94f00dae4859",
+      "sha256": "963b16c4809e1111843b96b79183827894257ee7d2d19ec85c9e1be74e3f4a59",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 130415,
+      "bytes": 130417,
       "path": "KnowWeave架构设计.html",
-      "sha256": "be280c1fbb451cdbef9afc3b919134282d7bf041cb0360a1ceb9fa4357595062",
+      "sha256": "a9d19063057d7841d3fef1d5e7a4be4ff7857e1c5027809a36e7a71fd72e1757",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
     {
-      "bytes": 65097,
+      "bytes": 65233,
       "path": "README.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "4092fb21f102c5cc3cd98c09fbde3a694c993e2244ecdfd03d801ceb42b6cc0b",
+      "sha256": "e94311ffd3443c13298e8f3abf2c47d91942f38d3a20323c71568073412e3f88",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3516,17 +3516,17 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 50500,
+      "bytes": 50506,
       "path": "docs/KnowWeave实施路线与系统架构.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "10c8427b1754f69eeddc17d55c9dad21046013d9454a32f9a272b99817a858e2",
+      "sha256": "c4783b48df9e64df74819c1ecce61bca6755baa4b3517f499e145544d8378c30",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
     {
-      "bytes": 3049,
+      "bytes": 3010,
       "path": "docs/KnowWeave架构设计总览.md",
-      "sha256": "9327bf34864fd13d9e11e2d07a7fab820f04dc35e15bdd163a8230cd71c6d9fb",
+      "sha256": "6c2d344c9b5f954e228c6bbd16b696abec072c3c0d8d9fd813c3336911547d16",
       "source_blob_sha256": null,
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
@@ -3601,10 +3601,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 14000,
+      "bytes": 14002,
       "path": "docs/architecture/06-portability-and-recovery.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "6f2486ff0f3a4317f23b025ec7528f1db563eb6ef1d6f8facf3f947e70d55725",
+      "sha256": "0527ee213315d687e5255f98f8bfd6b4187f1899410da95e00f110d200766759",
       "source_blob_sha256": "9b1b2bb4fb5f09d49ee2704fb04a42ccd3d05a30951e80c3f82a615c131ecd20",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3634,9 +3634,9 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 130185,
+      "bytes": 130187,
       "path": "docs/architecture/KnowWeave架构设计.html",
-      "sha256": "c4e26b032bf69a343a0f84b07a2e9febddcc3d68f9254e7aa0361993d8b9144f",
+      "sha256": "2d99c613e3b4cb76593c722eeaf799695a2b730bfe181d36d4c0adbf9f6ba9b3",
       "source_blob_sha256": "eccd01137e3a61726d41fb7e987d9a35e2ea639551b50635e2a0cce57c707b2a",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
@@ -4186,8 +4186,8 @@
     },
     {
       "path": "docs/p0c4-task8-current-regression.md",
-      "bytes": 27397,
-      "sha256": "56b88f43e0df8214d93aaa2ca739a4b9e36a7ed91d551c0b9a29af716b60e3b8",
+      "bytes": 28368,
+      "sha256": "cd8f1f067c3b6b4425b8be4e552afc622ba8ea958cca4b287f2178a36ec00823",
       "source_bytes_preserved": false,
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION"
     },
@@ -4383,10 +4383,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 98882,
+      "bytes": 99018,
       "path": "docs/项目最新进度.md",
       "scope": "TASK8_ACTUAL_QUALITY_AND_V5_PROGRESS_DOCUMENTATION",
-      "sha256": "beb0f1cc1ebda3c5c57185575631ecf7586ad0959e3ba345494ad7c645deaebd",
+      "sha256": "0de7b408523b101b1f5c736844733569fd009b8c1a596cdd94094682535cefed",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5205,10 +5205,10 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 647,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "d8f3b509c4abca7e364d363c1f2e48d0635f2d04",
+  "previous_public_commit": "3ee87d7e385ed0998ed13c56102ff1d5a7f34827",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-26T03:56:31+08:00",
+  "progress_as_of": "2026-10-26T04:48:51+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
   "scope": "SOURCE_679_WITH_ACTUAL_LINUX_QUALITY_AND_FOCUSED_PROGRESS_DOCS",
@@ -12391,7 +12391,7 @@
       "snapshot_ten_root_sha256": "6c6d359b155323111b3c8fcc4f4f7faa70a04a26ec9a100d28004a6c529d6128",
       "full9_root_sha256": "8a83fa11d153cb34971de9875cbafb4619a0888a9420fee5eb5c29fa2855aeba",
       "negative_physical_audit_files_not_exported": 5,
-      "remaining21_outer_returned_checkpoint": 3
+      "remaining21_outer_returned_checkpoint": 10
     },
     "current_rootfs": {
       "source": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
@@ -12496,7 +12496,7 @@
       "native_outer_peer_review_sha256": "39c709c434d88192fe0d83806b067902bfe48ee8ac4474f6adda0b370557c6e3",
       "v5_retry_condition_actually_exercised": false
     },
-    "current_originals_collection": {
+    "historical_originals_collection_first_attempt": {
       "source": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
       "returned_cases": [
         "snapshot-history-gap",
@@ -12517,7 +12517,30 @@
       "wrapper_and_helper_candidates_remote_executed": false,
       "old_HOLDs_preserved": true,
       "history_gap_partial_peer_review_sha256": "4695e37e97ae2e52f27d83cd10d87fc4cbe0d20d3b9a138fbd790d0e58adc796",
-      "remaining21_body_operations_not_executed": true
+      "remaining21_body_operations_not_executed": true,
+      "scope": "PRESERVED_HISTORICAL_FIRST_READ_ATTEMPT_NOT_CURRENT_COUNTS"
+    },
+    "current_originals_collection": {
+      "source": "a5eb28d0ffc36d6434576fbd083eb20f07566f41",
+      "raw_original_sets_returned": 25,
+      "operation_records_and_protected_originals_returned": true,
+      "inner_semantic_accepted_limited": 25,
+      "remaining21_outer_returned_checkpoint": 10,
+      "remaining21_inner_accepted": 0,
+      "registry679_inner_accepted": 0,
+      "business_replay": false,
+      "old_HOLDs_preserved": true
+    },
+    "whole_change_static_review": {
+      "peer_sha256": "3387ffe6a44b3f1a4d7e4898239b45b6d4f1ca8cbd169392fdb9ecdc8ad91be2",
+      "root_sha256": "8d07b6979aa9afe713e720aeeb3c5ccdfc3707c36ac76566c8b4e203a1753fd4",
+      "new_execution_credit": 0
+    },
+    "attention6_historical_bridge": {
+      "peer_sha256": "90d5192e01bfb211c4935d4187594ccebd2f5fd195028f8d3520f81c5c2d1cec",
+      "root_sha256": "e66f253367d257315ae40afb89f4f4bf92edf1174986138f488b255b9188061a",
+      "historical_cases": 6,
+      "fresh_cases_added": 0
     }
   }
 }

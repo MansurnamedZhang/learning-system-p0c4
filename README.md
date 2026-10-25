@@ -8,7 +8,9 @@ A5完整Linux/PG18十门、四套真实旧版升级、RootFS33与源码七叶差
 
 Full9五个18–22MiB大negative审计原文件本体未独立导出，仅原路径/size/SHA、实际Rust完整对比断言和小proof层级；不声称外部逐字或逐字段证明完整target不变。P6四文件682字节的元数据连接、64表post断言/count/SHA、ELF与issuer等原件层级限制继续保留，不授正常恢复权威。
 
-剩21次业务操作／28正文正以新资源串行执行，已有3案五阶段外层回执返回，inner仍另核。679单案inner、其余原件与Task8最终整组采用仍开放；Task9、独立存储、CompleteBackup、RecoveredInstance、C4整关、生产和main合并仍开放。
+整项源码差异及质量独审已有限定采用；Attention6仅采用Source36未变历史闭合桥接，新执行计数仍为0。
+
+剩21次业务操作／28正文正以新资源串行执行，已有10案五阶段外层回执返回，inner仍另核。679单案inner、其余原件与Task8最终整组采用仍开放；Task9、独立存储、CompleteBackup、RecoveredInstance、C4整关、生产和main合并仍开放。
 
 详见[当前回归与来源](docs/p0c4-task8-current-regression.md)和[实施路线图](KnowWeave实施路线与架构.html)。
 
