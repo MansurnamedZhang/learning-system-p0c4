@@ -1,172 +1,169 @@
-// Canonical roadmap data. Generate HTML, Markdown, SVG and Mermaid together.
-export const meta={
-  "title": "知织 · KnowWeave｜实施路线与系统架构",
-  "date": "2026-10-26",
-  "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4 实施中 · 完整回归与四升级已过 · 专项原件独核中",
-  "progressSummary": "截至2026-10-26：A5完整回归十门与四套真实旧版升级、RootFS33及源码差异保持已有限定采用。25项A5主正文外层回执已返回，fresh专项inner已限定接受25案（恢复／快照效果16＋Full9）。679九行测试修复的Linux格式与严格Clippy已通过，35份原始记录已回读核对；不把A5结果重标为679执行。 新V5隔离案已返回prepare/install/plan/run/verify五阶段外层回执，测试回执1通过／0失败，资源保护满足且五个胶囊精确清理；137,635,671字节阶段原件已重核，inner原件仍待独核。25项A5完整原件已收齐并经独审及Root限定采用：恢复／快照效果16案与Full9九案分别按规定正文、小proof和明确原件层级接受，不授正常恢复权威。75份完整保护观察及精确清理已核，旧HOLD保留。余21业务操作／28正文在新资源串行推进，当前已有16案外层回执返回，尚待各自inner独核；679注册表单案inner与Task8整组采用仍开放。 Task6/7保留各自历史私有范围。",
-  "progressEvidence": "Task7 Root采用：TASK7_SOURCE36_PRIVATE_SINGLE_HOST_SIX_CASE_ORIGINALS_ACCEPTED；SHA-256 1a2f293cbf3c9ee1512e8bec9995ade5d31b404034e37b7d531acd2e72356db4。六案来源为此前3项保留＋本轮新3项，不是六项新跑。三个good-pin场景每案四份阅读文件合计1172字节，package/source capture/destination copy/held target delivery四处逐字一致；同机不同inode不等于独立存储故障域。详见验收清单。",
-  "pendingSummary": "A5完整回归十门与四套真实旧版升级、RootFS33及源码差异保持已有限定采用。25项A5主正文外层回执已返回，fresh专项inner已限定接受25案（恢复／快照效果16＋Full9）。679九行测试修复的Linux格式与严格Clippy已通过，35份原始记录已回读核对；不把A5结果重标为679执行。 新V5隔离案已返回prepare/install/plan/run/verify五阶段外层回执，测试回执1通过／0失败，资源保护满足且五个胶囊精确清理；137,635,671字节阶段原件已重核，inner原件仍待独核。25项A5完整原件已收齐并经独审及Root限定采用：恢复／快照效果16案与Full9九案分别按规定正文、小proof和明确原件层级接受，不授正常恢复权威。75份完整保护观察及精确清理已核，旧HOLD保留。余21业务操作／28正文在新资源串行推进，当前已有16案外层回执返回，尚待各自inner独核；679注册表单案inner与Task8整组采用仍开放。 其余21操作／28正文及原件独核待完成；Task8、Task9仍开放。",
-  "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
-  "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
-  "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。",
-  "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。当前a5的Root FS/OS 33/33另有120原件独审采用；规定PG专项继续补验。",
-  "boundarySummary": "Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · Task8完整回归已过，25案原件限定采用，余21操作串行推进",
-  "taskPlanScope": "编号依据2026-10-04补齐计划。完整十门、四升级及RootFS33已过；25项A5正文及小proof原件已限定采用。679测试窄补质量门已过，余21操作／28正文及其inner、679 inner和Task8整组采用仍开放。",
-  "nextSteps": [
-    [
-      "01 · 串行关闭余21业务操作",
-      "25项A5完整原件已收齐并经独审及Root限定采用：恢复／快照效果16案与Full9九案分别按规定正文、小proof和明确原件层级接受，不授正常恢复权威。75份完整保护观察及精确清理已核，旧HOLD保留。余21业务操作／28正文在新资源串行推进，当前已有16案外层回执返回，尚待各自inner独核；679注册表单案inner与Task8整组采用仍开放。"
-    ],
-    [
-      "02 · 余项原件与来源独核",
-      "等本批21操作实际停妥，再按已审标准17／生命周期8正文／schema3有限读者收取原件；679单案单列来源，避免A5结果改名。最后作Task8整组采用。"
-    ],
-    [
-      "03 · 原件与整组独审",
-      "收取driver/raw-index/libtest/proof及终态原件，逐项关联当前源码与资源清理；独立审查后完成Task8整组采用，正常推送分支并回读。"
-    ],
-    [
-      "04 · 独立目标就绪后完成Task9",
-      "安装并验证独立目标与密钥托管，接入首签/新发布权限；在源端不可访问时用真实CompleteBackup恢复，负例与独立审查通过后再关闭C4。"
-    ]
-  ]
-};
-export const stages=[
+export const c3Tasks = [
   {
-    "id": "P0-A",
-    "phase": "内容基础",
-    "name": "块修订与权限",
+    "id": 1,
+    "title": "包契约与预算",
     "status": "done",
-    "deliver": "稳定块身份、不可变修订、当前授权、幂等请求和并发冲突。",
-    "gate": "真实 PostgreSQL 权限、重复写入、冲突与回滚验证。",
-    "evidence": "29/29；已验收",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0a-verification.md"
+    "detail": "版本化 manifest、精确对象身份与摘要、阅读副本隔离、封闭预算。",
+    "evidence": "代码与独立复审完成；最终纳入 C3 整关验收。"
   },
   {
-    "id": "P0-B1",
-    "phase": "内容基础",
-    "name": "组合与原子发布",
+    "id": 2,
+    "title": "一致快照求闭包",
     "status": "done",
-    "deliver": "固定组合、重复出现的独立 occurrence、精确版本引用及原子发布。",
-    "gate": "两文档复用一个块；只升级指定组合；旧发布仍可复现。",
-    "evidence": "68/68；已验收",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b1-verification.md"
+    "detail": "在单个只读事务中固定 Reading、引用、关系、审查和资产使用，并按当前授权过滤。",
+    "evidence": "全新隔离 PostgreSQL：专项 9/9、相关回归 15/15。"
   },
   {
-    "id": "P0-B2",
-    "phase": "内容基础",
-    "name": "个人层与融合阅读",
+    "id": 3,
+    "title": "目录包与阅读副本",
     "status": "done",
-    "deliver": "间隙插入、个人位置、原文/融合/个人投影及固定阅读修订。",
-    "gate": "位置与正文同步保存；移动不改原文；无法迁移的内容可找回。",
-    "evidence": "105/105；已验收",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b2-verification.md"
+    "detail": "私有 staging、流式核哈希、Linux no-follow 与受控句柄交付；阅读副本去身份化。",
+    "evidence": "独立复审通过；全新隔离 Linux 专项 38/38。"
   },
   {
-    "id": "P0-B3",
-    "phase": "内容基础",
-    "name": "关系与认识审查",
+    "id": 4,
+    "title": "作业、租约与撤权交付",
     "status": "done",
-    "deliver": "支持/反对等关系、猜想版本与证据判断、派生/拆分/合并谱系。",
-    "gate": "隐藏证据不泄露；猜想新版不自动继承旧判断。",
-    "evidence": "222/222；已验收",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b3-verification.md"
+    "detail": "追加 C3 作业类型与迁移；复用租约 fencing，完成和交付时重新核验授权。",
+    "evidence": "独立复审通过；全新隔离 PostgreSQL 专项 18/18、C2 回归 39/39、Worker 11 项及 0013→0014 升级通过；修复已并入主工作树。"
   },
   {
-    "id": "P0-B4",
-    "phase": "内容基础",
-    "name": "读取投影与影响查询",
+    "id": 5,
+    "title": "导入预检",
     "status": "done",
-    "deliver": "固定范围反向引用、关系遍历、解释路径与有界查询。",
-    "gate": "按当前权限过滤；隐藏桥不扩展；截断和失败明确区分。",
-    "evidence": "284 通过 / 3 忽略；已验收",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b4-verification.md"
+    "detail": "校验版本、路径、摘要、身份冲突、引用闭包及目标资产存在性。",
+    "evidence": "夹具修复后独立复审通过；全新隔离项目 Task 5 12/12，相关回归合计 86 项、格式/严格 Clippy 通过。"
   },
   {
-    "id": "P0-C1",
-    "phase": "可靠性与可移植性",
-    "name": "原件、图片与附件",
+    "id": 6,
+    "title": "单事务精确导入",
     "status": "done",
-    "deliver": "不可变原字节、资源版本定位、v3 图片/附件及精确使用授权。",
-    "gate": "独立卷原字节核验；中断/损坏/回滚/撤权；四套旧程序升级。",
-    "evidence": "328 通过 / 3 忽略；已验收",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c1-verification.md"
+    "detail": "同 ID 同字节幂等复用，冲突拒绝；结果原子可见且可追溯。",
+    "evidence": "第三轮新隔离 PostgreSQL 专项 3/3、指定回归与 fmt/严格 Clippy 通过；旧夹具失败和缺冻结清单的 101 均保留证据。"
   },
   {
-    "id": "P0-C2",
-    "phase": "可靠性与可移植性",
-    "name": "持久任务与受限 Worker",
+    "id": 7,
+    "title": "隔离端到端验收",
     "status": "done",
-    "deliver": "同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。",
-    "gate": "专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。",
-    "evidence": "388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c2-verification.md"
-  },
-  {
-    "id": "P0-C3",
-    "phase": "可靠性与可移植性",
-    "name": "融合快照交换",
-    "status": "done",
-    "deliver": "精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。",
-    "gate": "授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。",
-    "evidence": "整关隔离验收与 602 份证据哈希复核通过；未生产部署",
-    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c3-verification.md"
-  },
-  {
-    "id": "P0-C4",
-    "phase": "可靠性与可移植性",
-    "name": "完整备份与干净恢复",
-    "status": "next",
-    "deliver": "受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。",
-    "gate": "固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。",
-    "evidence": "Task5限定收尾；Task6私有16/16；Task7私有6/6；Task8/9与整关OPEN",
-    "link": "docs/p0c4-completion-acceptance.md"
-  },
-  {
-    "id": "P1-A",
-    "phase": "完整可用产品",
-    "name": "登录、API 与内容工作台",
-    "status": "planned",
-    "deliver": "HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。",
-    "gate": "真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。",
-    "evidence": "待建设；首次形成浏览器内容工作台",
-    "link": "docs/设计批准与实施路线.md"
-  },
-  {
-    "id": "P1-B",
-    "phase": "完整可用产品",
-    "name": "学习与实践闭环",
-    "status": "planned",
-    "deliver": "学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。",
-    "gate": "今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。",
-    "evidence": "待建设；通过后形成完整学习系统试用版",
-    "link": "docs/学习系统设计方案.md"
-  },
-  {
-    "id": "P2",
-    "phase": "持续演进",
-    "name": "批量演进与多领域复用",
-    "status": "planned",
-    "deliver": "批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。",
-    "gate": "真实资料更新保留旧事实；第二领域不新增专属核心业务流程。",
-    "evidence": "待建设",
-    "link": "docs/学习系统设计方案.md"
-  },
-  {
-    "id": "P3",
-    "phase": "持续演进",
-    "name": "按需求增强",
-    "status": "optional",
-    "deliver": "AI 辅助、OCR/预览等解析器、语义检索；独立评估 S3 和 Neo4j 可重建投影。",
-    "gate": "来源/版本可追溯、权限不绕过、失败可降级；按测量结果决定引入。",
-    "evidence": "可选增强；不是首版必装组件",
-    "link": "docs/数据库选型实验审阅与首版决策.md"
+    "detail": "完整往返、故障注入、撤权、旧版升级、全工作区与独立复审。",
+    "evidence": "全量 result SHA c939cc71…；602 份证据哈希一致；整关已验收，未生产部署。"
   }
 ];
-export const diagrams=[
+
+export const c4ParentMilestones = [
+  {
+    "id": 1,
+    "title": "全量备份契约与资产清单",
+    "status": "done",
+    "detail": "版本化 manifest、规范摘要与全部 ready 资产目录；规划不冒充完成备份。",
+    "evidence": "独立复审及全新 PG18 专项通过，含普通角色拒绝；C4 整关未验收。"
+  },
+  {
+    "id": 2,
+    "title": "安全封存与目标端校验",
+    "status": "done",
+    "detail": "私有 staging、流式复制核哈希、no-follow 与封存；中断不发布可恢复包。",
+    "evidence": "Linux 专项及 SIGKILL/部分写入故障门通过；同步故障使用测试钩子，非真实掉电证明。"
+  },
+  {
+    "id": 3,
+    "title": "维护窗与一致性数据库备份",
+    "status": "next",
+    "detail": "受控写闸、在途排空、一致 dump 与资产清单；由补齐计划Task1–3继续完成。",
+    "evidence": "源端与单机保留/传输补验已收尾；真实独立目标、完成收据与发布权限仍归Task9，父里程碑保持开放。"
+  },
+  {
+    "id": 4,
+    "title": "干净实例恢复",
+    "status": "next",
+    "detail": "目标准入、出生证明、精确端点绑定与完整导入；由补齐计划Task4–6继续完成。",
+    "evidence": "Task4内容、Task5受控导入及Task6私有16/16分项已有证据；正常公开恢复资格仍待Task8/9，父里程碑保持开放。"
+  },
+  {
+    "id": 5,
+    "title": "完整场景与故障注入验收",
+    "status": "next",
+    "detail": "完整 Attention、当前完整回归、四套旧版升级与整分支审查；由补齐计划Task7–9闭合。",
+    "evidence": "Task7规定私有六案已限定关闭；Task8完整十门/四升级已限定通过，规定专项及整组终审与Task9独立故障域仍未闭合，父里程碑仍开放。"
+  }
+];
+
+export const c4Tasks = [
+  {
+    "id": 1,
+    "title": "持久登记与原件保护",
+    "status": "done",
+    "statusLabel": "限定分项已验收",
+    "detail": "登记资产与本地 pin 根身份；独立发现保留保护，缺失或不完整时拒绝清理候选。",
+    "evidence": "固定 Linux/PG 登记保护门 11/11 与五项文件系统门通过；本任务不签发完整备份，也不关闭 C4。"
+  },
+  {
+    "id": 2,
+    "title": "精确源端绑定与捕获监督",
+    "status": "done",
+    "statusLabel": "代码与单机补验收尾完成",
+    "detail": "历史ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。",
+    "evidence": "同包准入5/5、绑定4+2、新端点5/5和fresh life8/8分别独审采用。历史UNKNOWN和失败仍保留；当前源码全量回归归Task8。"
+  },
+  {
+    "id": 3,
+    "title": "保留校验与完成收据",
+    "status": "done",
+    "statusLabel": "单机补验收尾完成，Task9开放",
+    "detail": "校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。",
+    "evidence": "当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。"
+  },
+  {
+    "id": 4,
+    "title": "全量模式与有界 COPY 数据",
+    "status": "done",
+    "statusLabel": "内容范围3/3通过",
+    "detail": "完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。",
+    "evidence": "只关闭模式/TOC/COPY内容三门，不授予整库恢复资格；最终当前源码回归归Task8。"
+  },
+  {
+    "id": 5,
+    "title": "受控整库导入与原件恢复",
+    "status": "done",
+    "statusLabel": "代码与规定单机补验限定完成",
+    "detail": "受控整库导入、提交前拒绝、取消与未知提交结果、角色/路由/目标/原件检查，按各次固定源码和实际回执分别留证。",
+    "evidence": "2026-10-20 Root限定采用：85c九项native及最终Linux回归；受控11/11为10历史c749＋1当前85c，不能称当前源码新跑11项。旧失败与HOLD保留。"
+  },
+  {
+    "id": 6,
+    "title": "作业归一化与恢复资格校验",
+    "status": "done",
+    "statusLabel": "私有单机16/16限定完成",
+    "detail": "恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。",
+    "evidence": "2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。"
+  },
+  {
+    "id": 7,
+    "title": "完整 Attention 链与负例",
+    "status": "done",
+    "detail": "Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。",
+    "evidence": "2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。",
+    "statusLabel": "私有单机6/6原件限定关闭"
+  },
+  {
+    "id": 8,
+    "title": "当前回归、旧版升级与审查",
+    "status": "next",
+    "detail": "A5当前完整回归十门、四套真实旧版升级已过；679测试窄补质量门已过。规定fresh内层原件已限定采用31/54；原件终审与Task8整组采用继续。",
+    "evidence": "新21操作／28正文已全部返回五阶段外层，105阶段与320份完整保护观察已独审。679单案外层已过，inner另核。原件采集在第7案读取时因旧基线中的外部同步容器结束而HOLD：23帧原件已核，仅该容器消失，旧helper未启动；旧HOLD与created helper保留。新只读控制精确继承闭合六案，余十五案使用新读取UUID，并在准入前离散等待同步任务空闲，不修改原基线、守卫或期限，不重放业务。当前已收齐至11操作；31案限定采用，余项inner及Task8整组审查继续。 Attention6历史桥不计新执行；所有证明层级限制保留。",
+    "statusLabel": "执行队列已闭合 · 31/54原件限定采用"
+  },
+  {
+    "id": 9,
+    "title": "真实独立故障域闭合",
+    "status": "planned",
+    "statusLabel": "待具备独立存储",
+    "detail": "使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。",
+    "evidence": "当前无独立目标。除硬件与密钥外，还需首签/新发布权限的跨操作集成和源码端不可访问恢复；只有Task8及本门通过，才可关闭父里程碑与C4。"
+  }
+];
+
+export const diagrams = [
   {
     "id": "overview",
     "title": "01 · 全系统架构总览",
@@ -1638,7 +1635,44 @@ export const diagrams=[
     ]
   }
 ];
-export const principles=[
+
+export const meta = {
+  "title": "知织 · KnowWeave｜实施路线与系统架构",
+  "date": "2026-10-26",
+  "baseline": "3342c0554c18787749d0f06a772743f867c18720",
+  "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
+  "state": "C4 实施中 · 完整回归与四升级已过 · 专项原件独核中",
+  "progressSummary": "A5完整回归十门、四套真实旧版升级、RootFS33及源码差异已限定采用；679九行测试修复的格式与严格Clippy已过。规定54项fresh正文的内层原件已限定采用31项（原25＋注册表新6）；A5与679来源分别记账。",
+  "progressEvidence": "新21操作／28正文已全部返回五阶段外层，105阶段与320份完整保护观察已独审。679单案外层已过，inner另核。原件采集在第7案读取时因旧基线中的外部同步容器结束而HOLD：23帧原件已核，仅该容器消失，旧helper未启动；旧HOLD与created helper保留。新只读控制精确继承闭合六案，余十五案使用新读取UUID，并在准入前离散等待同步任务空闲，不修改原基线、守卫或期限，不重放业务。当前已收齐至11操作；31案限定采用，余项inner及Task8整组审查继续。",
+  "pendingSummary": "fresh内层已限定采用31/54；Attention6仅为Source36未变历史桥，新执行增量0。余项原件、679单案inner及Task8最终整组采用未闭合；Task9、C4整关与正常恢复仍开放。",
+  "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
+  "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
+  "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码与规定私有单机补验推进至Task7，Task8、Task9和C4整关仍开放。颜色只表示标注范围内的状态，不代表生产部署。",
+  "snapshotSummary": "a5eb28d完整回归十门实际通过；普通Python824通过/82跳过，Root903通过/3跳过，deploy21通过。两身份合并904个不同Linux测试正文通过；两项private历史frame opt-in仍保留Linux跳过，另有当前纯parser的Windows只读2/2观察，不混算。当前a5的Root FS/OS 33/33另有120原件独审采用；规定PG专项继续补验。",
+  "boundarySummary": "Task8／Task9、C4整关、独立存储、CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
+  "roadmapHeadline": "当前进度 · 执行队列已闭合，31/54原件限定采用",
+  "taskPlanScope": "Task8完整回归／四升级已过；54 fresh与6历史桥分开。31案原件已限定采用，继续余项及最终整组审查；Task9独立目标仍缺。",
+  "nextSteps": [
+    [
+      "01 · 完成余项原件独核",
+      "新21操作／28正文已全部返回五阶段外层，105阶段与320份完整保护观察已独审。679单案外层已过，inner另核。原件采集在第7案读取时因旧基线中的外部同步容器结束而HOLD：23帧原件已核，仅该容器消失，旧helper未启动；旧HOLD与created helper保留。新只读控制精确继承闭合六案，余十五案使用新读取UUID，并在准入前离散等待同步任务空闲，不修改原基线、守卫或期限，不重放业务。当前已收齐至11操作；31案限定采用，余项inner及Task8整组审查继续。"
+    ],
+    [
+      "02 · 单独核679修复案",
+      "保持A5完整回归与679九行测试窄补的实际源码／构建来源；取得该案实际原件后独立采用。"
+    ],
+    [
+      "03 · 关闭Task8整组审查",
+      "核对完整回归、四升级、规定专项、原件及精确资源收尾，再更新施工单与限定验收记录，正常推送并回读。"
+    ],
+    [
+      "04 · 独立目标就绪后完成Task9",
+      "另需独立存储、密钥托管与首签／新发布权限集成；正常CompleteBackup及源端不可访问恢复通过后才可关闭C4。"
+    ]
+  ]
+};
+
+export const principles = [
   [
     "权威分层",
     "PostgreSQL 是结构化业务权威；assets 是原字节权威；派生缓存、导出阅读副本和未来 Neo4j 投影均可重建或重新生成。"
@@ -1664,169 +1698,8 @@ export const principles=[
     "历史分关、当前源码前置、规定私有单机验收、公开恢复资格和生产部署分别标注。Task6/7有限范围完成；Task8/9与C4整关开放。P1产品入口尚未实施，GitHub候选分支更新不代表main合并或部署。"
   ]
 ];
-export const c3Tasks=[
-  {
-    "id": 1,
-    "title": "包契约与预算",
-    "status": "done",
-    "detail": "版本化 manifest、精确对象身份与摘要、阅读副本隔离、封闭预算。",
-    "evidence": "代码与独立复审完成；最终纳入 C3 整关验收。"
-  },
-  {
-    "id": 2,
-    "title": "一致快照求闭包",
-    "status": "done",
-    "detail": "在单个只读事务中固定 Reading、引用、关系、审查和资产使用，并按当前授权过滤。",
-    "evidence": "全新隔离 PostgreSQL：专项 9/9、相关回归 15/15。"
-  },
-  {
-    "id": 3,
-    "title": "目录包与阅读副本",
-    "status": "done",
-    "detail": "私有 staging、流式核哈希、Linux no-follow 与受控句柄交付；阅读副本去身份化。",
-    "evidence": "独立复审通过；全新隔离 Linux 专项 38/38。"
-  },
-  {
-    "id": 4,
-    "title": "作业、租约与撤权交付",
-    "status": "done",
-    "detail": "追加 C3 作业类型与迁移；复用租约 fencing，完成和交付时重新核验授权。",
-    "evidence": "独立复审通过；全新隔离 PostgreSQL 专项 18/18、C2 回归 39/39、Worker 11 项及 0013→0014 升级通过；修复已并入主工作树。"
-  },
-  {
-    "id": 5,
-    "title": "导入预检",
-    "status": "done",
-    "detail": "校验版本、路径、摘要、身份冲突、引用闭包及目标资产存在性。",
-    "evidence": "夹具修复后独立复审通过；全新隔离项目 Task 5 12/12，相关回归合计 86 项、格式/严格 Clippy 通过。"
-  },
-  {
-    "id": 6,
-    "title": "单事务精确导入",
-    "status": "done",
-    "detail": "同 ID 同字节幂等复用，冲突拒绝；结果原子可见且可追溯。",
-    "evidence": "第三轮新隔离 PostgreSQL 专项 3/3、指定回归与 fmt/严格 Clippy 通过；旧夹具失败和缺冻结清单的 101 均保留证据。"
-  },
-  {
-    "id": 7,
-    "title": "隔离端到端验收",
-    "status": "done",
-    "detail": "完整往返、故障注入、撤权、旧版升级、全工作区与独立复审。",
-    "evidence": "全量 result SHA c939cc71…；602 份证据哈希一致；整关已验收，未生产部署。"
-  }
-];
-export const c4Tasks=[
-  {
-    "id": 1,
-    "title": "持久登记与原件保护",
-    "status": "done",
-    "statusLabel": "限定分项已验收",
-    "detail": "登记资产与本地 pin 根身份；独立发现保留保护，缺失或不完整时拒绝清理候选。",
-    "evidence": "固定 Linux/PG 登记保护门 11/11 与五项文件系统门通过；本任务不签发完整备份，也不关闭 C4。"
-  },
-  {
-    "id": 2,
-    "title": "精确源端绑定与捕获监督",
-    "status": "done",
-    "statusLabel": "代码与单机补验收尾完成",
-    "detail": "历史ba96561同包准入5/5、绑定4+2、新端点5/5及fresh life8/8已分别独审接受。",
-    "evidence": "同包准入5/5、绑定4+2、新端点5/5和fresh life8/8分别独审采用。历史UNKNOWN和失败仍保留；当前源码全量回归归Task8。"
-  },
-  {
-    "id": 3,
-    "title": "保留校验与完成收据",
-    "status": "done",
-    "statusLabel": "单机补验收尾完成，Task9开放",
-    "detail": "校验封存包和保留集；真实首签与新发布入口默认关闭，跨操作权限、独立目标和密钥托管归Task9。",
-    "evidence": "当前Windows16项与Linux默认20/特性配置6项分别通过；629原件、17执行记录、539源码与8编译角色关联已核对，单机补验收尾。8个相关Git blob同已验版本；历史E8两项Linux目标文件校验/中断传输已核验，属于合成历史分项，未签发真实完成收据。不同源码/平台分别留证，不用可见残留推导CompleteBackup。"
-  },
-  {
-    "id": 4,
-    "title": "全量模式与有界 COPY 数据",
-    "status": "done",
-    "statusLabel": "内容范围3/3通过",
-    "detail": "完整审查模式、固定客户端/TOC 与有界 COPY 字节；函数/ACL 篡改拒绝，数据中的 SQL 外观不变成命令。",
-    "evidence": "只关闭模式/TOC/COPY内容三门，不授予整库恢复资格；最终当前源码回归归Task8。"
-  },
-  {
-    "id": 5,
-    "title": "受控整库导入与原件恢复",
-    "status": "done",
-    "statusLabel": "代码与规定单机补验限定完成",
-    "detail": "受控整库导入、提交前拒绝、取消与未知提交结果、角色/路由/目标/原件检查，按各次固定源码和实际回执分别留证。",
-    "evidence": "2026-10-20 Root限定采用：85c九项native及最终Linux回归；受控11/11为10历史c749＋1当前85c，不能称当前源码新跑11项。旧失败与HOLD保留。"
-  },
-  {
-    "id": 6,
-    "title": "作业归一化与恢复资格校验",
-    "status": "done",
-    "statusLabel": "私有单机16/16限定完成",
-    "detail": "恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。",
-    "evidence": "2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。"
-  },
-  {
-    "id": 7,
-    "title": "完整 Attention 链与负例",
-    "status": "done",
-    "detail": "Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。",
-    "evidence": "2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。",
-    "statusLabel": "私有单机6/6原件限定关闭"
-  },
-  {
-    "id": 8,
-    "title": "当前回归、旧版升级与审查",
-    "status": "next",
-    "detail": "a5eb28d已在全新隔离批次完整回归十门通过：Rust1052/0/169、四套升级、格式/全特性Clippy、普通与Root Python及deploy。源码差异已独审；规定专项原件与最终整组采用继续，Task8未关闭。",
-    "evidence": "A5完整回归十门与四套真实旧版升级、RootFS33及源码差异保持已有限定采用。25项A5主正文外层回执已返回，fresh专项inner已限定接受25案（恢复／快照效果16＋Full9）。679九行测试修复的Linux格式与严格Clippy已通过，35份原始记录已回读核对；不把A5结果重标为679执行。 679此前单案正文回执为1通过／0失败／0忽略，但后置保护因外部同步容器数量不符而HOLD，不能计为单案通过。七份完整观察原件显示最后一帧原有资源均已恢复基线，外部同步容器仍在；旧资源与HOLD保留。V5仅为该已确认形状增加有界再观察，仍须原完整保护谓词满足，不过滤、停止外部项目或刷新基线。 新V5隔离案已返回prepare/install/plan/run/verify五阶段外层回执，测试回执1通过／0失败，资源保护满足且五个胶囊精确清理；137,635,671字节阶段原件已重核，inner原件仍待独核。25项A5完整原件已收齐并经独审及Root限定采用：恢复／快照效果16案与Full9九案分别按规定正文、小proof和明确原件层级接受，不授正常恢复权威。75份完整保护观察及精确清理已核，旧HOLD保留。余21业务操作／28正文在新资源串行推进，当前已有16案外层回执返回，尚待各自inner独核；679注册表单案inner与Task8整组采用仍开放。 其余21操作／28正文及全部原件独核、整组采用仍开放。169 ignored逐行披露；规定54 fresh与6历史桥单列。",
-    "statusLabel": "完整回归已过 · 25案原件限定采用"
-  },
-  {
-    "id": 9,
-    "title": "真实独立故障域闭合",
-    "status": "planned",
-    "statusLabel": "待具备独立存储",
-    "detail": "使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。",
-    "evidence": "当前无独立目标。除硬件与密钥外，还需首签/新发布权限的跨操作集成和源码端不可访问恢复；只有Task8及本门通过，才可关闭父里程碑与C4。"
-  }
-];
-export const c4ParentMilestones=[
-  {
-    "id": 1,
-    "title": "全量备份契约与资产清单",
-    "status": "done",
-    "detail": "版本化 manifest、规范摘要与全部 ready 资产目录；规划不冒充完成备份。",
-    "evidence": "独立复审及全新 PG18 专项通过，含普通角色拒绝；C4 整关未验收。"
-  },
-  {
-    "id": 2,
-    "title": "安全封存与目标端校验",
-    "status": "done",
-    "detail": "私有 staging、流式复制核哈希、no-follow 与封存；中断不发布可恢复包。",
-    "evidence": "Linux 专项及 SIGKILL/部分写入故障门通过；同步故障使用测试钩子，非真实掉电证明。"
-  },
-  {
-    "id": 3,
-    "title": "维护窗与一致性数据库备份",
-    "status": "next",
-    "detail": "受控写闸、在途排空、一致 dump 与资产清单；由补齐计划Task1–3继续完成。",
-    "evidence": "源端与单机保留/传输补验已收尾；真实独立目标、完成收据与发布权限仍归Task9，父里程碑保持开放。"
-  },
-  {
-    "id": 4,
-    "title": "干净实例恢复",
-    "status": "next",
-    "detail": "目标准入、出生证明、精确端点绑定与完整导入；由补齐计划Task4–6继续完成。",
-    "evidence": "Task4内容、Task5受控导入及Task6私有16/16分项已有证据；正常公开恢复资格仍待Task8/9，父里程碑保持开放。"
-  },
-  {
-    "id": 5,
-    "title": "完整场景与故障注入验收",
-    "status": "next",
-    "detail": "完整 Attention、当前完整回归、四套旧版升级与整分支审查；由补齐计划Task7–9闭合。",
-    "evidence": "Task7规定私有六案已限定关闭；Task8完整十门/四升级已限定通过，规定专项及整组终审与Task9独立故障域仍未闭合，父里程碑仍开放。"
-  }
-];
-export const references=[
+
+export const references = [
   [
     "架构设计文档集（设计参考，状态以本图为准）",
     "docs/KnowWeave架构设计总览.md"
@@ -1891,4 +1764,137 @@ export const references=[
     "Neo4j首版决策",
     "docs/数据库选型实验审阅与首版决策.md"
   ]
+];
+
+export const stages = [
+  {
+    "id": "P0-A",
+    "phase": "内容基础",
+    "name": "块修订与权限",
+    "status": "done",
+    "deliver": "稳定块身份、不可变修订、当前授权、幂等请求和并发冲突。",
+    "gate": "真实 PostgreSQL 权限、重复写入、冲突与回滚验证。",
+    "evidence": "29/29；已验收",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0a-verification.md"
+  },
+  {
+    "id": "P0-B1",
+    "phase": "内容基础",
+    "name": "组合与原子发布",
+    "status": "done",
+    "deliver": "固定组合、重复出现的独立 occurrence、精确版本引用及原子发布。",
+    "gate": "两文档复用一个块；只升级指定组合；旧发布仍可复现。",
+    "evidence": "68/68；已验收",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b1-verification.md"
+  },
+  {
+    "id": "P0-B2",
+    "phase": "内容基础",
+    "name": "个人层与融合阅读",
+    "status": "done",
+    "deliver": "间隙插入、个人位置、原文/融合/个人投影及固定阅读修订。",
+    "gate": "位置与正文同步保存；移动不改原文；无法迁移的内容可找回。",
+    "evidence": "105/105；已验收",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b2-verification.md"
+  },
+  {
+    "id": "P0-B3",
+    "phase": "内容基础",
+    "name": "关系与认识审查",
+    "status": "done",
+    "deliver": "支持/反对等关系、猜想版本与证据判断、派生/拆分/合并谱系。",
+    "gate": "隐藏证据不泄露；猜想新版不自动继承旧判断。",
+    "evidence": "222/222；已验收",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b3-verification.md"
+  },
+  {
+    "id": "P0-B4",
+    "phase": "内容基础",
+    "name": "读取投影与影响查询",
+    "status": "done",
+    "deliver": "固定范围反向引用、关系遍历、解释路径与有界查询。",
+    "gate": "按当前权限过滤；隐藏桥不扩展；截断和失败明确区分。",
+    "evidence": "284 通过 / 3 忽略；已验收",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0b4-verification.md"
+  },
+  {
+    "id": "P0-C1",
+    "phase": "可靠性与可移植性",
+    "name": "原件、图片与附件",
+    "status": "done",
+    "deliver": "不可变原字节、资源版本定位、v3 图片/附件及精确使用授权。",
+    "gate": "独立卷原字节核验；中断/损坏/回滚/撤权；四套旧程序升级。",
+    "evidence": "328 通过 / 3 忽略；已验收",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c1-verification.md"
+  },
+  {
+    "id": "P0-C2",
+    "phase": "可靠性与可移植性",
+    "name": "持久任务与受限 Worker",
+    "status": "done",
+    "deliver": "同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。",
+    "gate": "专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。",
+    "evidence": "388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c2-verification.md"
+  },
+  {
+    "id": "P0-C3",
+    "phase": "可靠性与可移植性",
+    "name": "融合快照交换",
+    "status": "done",
+    "deliver": "精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。",
+    "gate": "授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。",
+    "evidence": "整关隔离验收与 602 份证据哈希复核通过；未生产部署",
+    "link": "https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c3-verification.md"
+  },
+  {
+    "id": "P0-C4",
+    "phase": "可靠性与可移植性",
+    "name": "完整备份与干净恢复",
+    "status": "next",
+    "deliver": "受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。",
+    "gate": "固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。",
+    "evidence": "Task5限定收尾；Task6私有16/16；Task7私有6/6；Task8/9与整关OPEN",
+    "link": "docs/p0c4-completion-acceptance.md"
+  },
+  {
+    "id": "P1-A",
+    "phase": "完整可用产品",
+    "name": "登录、API 与内容工作台",
+    "status": "planned",
+    "deliver": "HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。",
+    "gate": "真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。",
+    "evidence": "待建设；首次形成浏览器内容工作台",
+    "link": "docs/设计批准与实施路线.md"
+  },
+  {
+    "id": "P1-B",
+    "phase": "完整可用产品",
+    "name": "学习与实践闭环",
+    "status": "planned",
+    "deliver": "学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。",
+    "gate": "今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。",
+    "evidence": "待建设；通过后形成完整学习系统试用版",
+    "link": "docs/学习系统设计方案.md"
+  },
+  {
+    "id": "P2",
+    "phase": "持续演进",
+    "name": "批量演进与多领域复用",
+    "status": "planned",
+    "deliver": "批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。",
+    "gate": "真实资料更新保留旧事实；第二领域不新增专属核心业务流程。",
+    "evidence": "待建设",
+    "link": "docs/学习系统设计方案.md"
+  },
+  {
+    "id": "P3",
+    "phase": "持续演进",
+    "name": "按需求增强",
+    "status": "optional",
+    "deliver": "AI 辅助、OCR/预览等解析器、语义检索；独立评估 S3 和 Neo4j 可重建投影。",
+    "gate": "来源/版本可追溯、权限不绕过、失败可降级；按测量结果决定引入。",
+    "evidence": "可选增强；不是首版必装组件",
+    "link": "docs/数据库选型实验审阅与首版决策.md"
+  }
 ];
