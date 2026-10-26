@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "R2b基础片已验证，真实权限接线未完成",
-    "detail": "独立目标和托管方案已选；R2b Task1a默认关闭入口、严格输入和预算基础片已实现并完成限定Linux检查。真实S/D actor、wire/fence和发布权限未接线，现场变更与恢复仍待准确批准。",
-    "evidence": "新增19项基础正文在Linux逐名通过；默认450/特性468各106 ignored分别计，格式/严格Clippy/bin构建通过并独核。runner即使pin齐全仍明确拒绝；53完整义务/37历史规格不据此闭合，正式五门OPEN。"
+    "statusLabel": "R2b元数据片已验证，真实权限接线未完成",
+    "detail": "Task1a基础与Task1b固定元数据FD片完成限定Linux检查；真实S/D actor仍有capture布局、认证及Root发证接线缺口。wire/auth/fence与发布待后续实现，安装和恢复仍另批。",
+    "evidence": "本片新增8项，offhost共27项逐名通过；默认450/特性476各106 ignored分别记账，格式/严格Clippy/bin构建通过并独核。Root正向holder/global64FD未验；runner仍拒绝，53义务/37规格与正式五门未闭合。"
   }
 ];
 
@@ -1638,20 +1638,20 @@ export const diagrams = [
 
 export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
-  "date": "2026-10-26",
+  "date": "2026-10-27",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9 R2b基础片已限定验证",
-  "progressSummary": "R2b Task1a九文件基础片已实现：默认关闭入口、严格policy数据及累计预算；Linux新增19正文、格式/严格Clippy/bin构建通过并独核。默认450/特性468各106忽略分别记账，不累计旧准备Rust19/帧20或当作Task9整链。",
+  "state": "C4实施中 · Task8限定完成 · Task9 R2b元数据片已限定验证",
+  "progressSummary": "R2b Task1b固定元数据FD、原累计预算重读与失败状态已实现；新增8正文经Linux与原件独核，offhost累计27。默认450/特性476各106忽略分别记账，非Root完整holder或Task9整链。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "下一步接固定FD/custody loader与真实S/D actor，随后实现wire/auth/监督、fence/全部writer和D一次消费。当前新runner始终拒绝，不做实际签名；key/trust/安装/安全权限、目标整链、源隔离及恢复另批，Task9/C4五门仍OPEN。",
+  "pendingSummary": "下一步接纯wire/schema/phase/transcript和非特权IO；真实S/D actor的生产capture布局、Root peer认证与独立发证方案须先闭合，不暗改旧guard。key/trust/安装/安全权限、目标整链与恢复另批，Task9/C4五门仍OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · R2b Task1a基础片已过Linux检查；真实权限未接线",
-  "taskPlanScope": "本轮新增默认关闭R2b基础代码及19项Linux正文，原公共v2、旧业务路径、规范五门与37条历史规格不改；只有Task1a有限层已验证，未接线数据不是authority。旧失败/HOLD保留，未安装或启用，Windows未运行产品测试。",
+  "roadmapHeadline": "当前进度 · R2b Task1b元数据片已过Linux检查；真实权限未接线",
+  "taskPlanScope": "本轮三文件元数据片和新增8项Linux正文完成独核；Root准入正向完整链和全局FD未验，数据不是authority。原公共v2、旧guard、五门与37条规格不改，失败/HOLD保留；未安装或启用，Windows未运行产品测试。",
   "nextSteps": [
     [
       "01 · 已采纳语义，规范定稿与独审",
@@ -1659,7 +1659,7 @@ export const meta = {
     ],
     [
       "02 · 按已批准准确范围逐任务实现R2b",
-      "Task1a基础片已实现并独核Linux19正文、格式/Clippy/构建；接下来实现FD/custody loader及真实actor，再按既定顺序接协议/fence/副证明/一次消费。53项完整义务不由基础单测替代，现场变更仍另批。"
+      "Task1a基础与Task1b元数据片限定完成，新增8/offhost27逐名通过；先接纯wire/IO，原actor认证与capture/Root发证缺口形成准确补充方案后再接。53义务不由本片替代，现场变更仍另批。"
     ],
     [
       "03 · 准确审批安装与真实整链",
@@ -1801,7 +1801,7 @@ export const references = [
     "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md"
   ],
   [
-    "Task9 R2b基础片、实际Linux检查与未接线范围",
+    "Task9 R2b基础及元数据片、实际Linux检查与接线缺口",
     "docs/task9/r2b-implementation-progress.md"
   ]
 ];

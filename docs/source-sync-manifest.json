@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 62303,
-      "sha256": "d2080d017697aa88a3cccb9b069cf905df38d2a417ca40b5cc393d94d885ed6a",
+      "bytes": 62198,
+      "sha256": "dba9915569c7e1967d2b9e4b12bad729a9f8849e1c0e523d277daa24655a205f",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115333,
+      "bytes": 115228,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "0b54862b94c78df7e09ead4a321d4bf1b8a87423da336df2dcf56bff00b26bc8",
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
+      "sha256": "ffabd82c1437adc6cf3ba305ba63836d5e058f33bb77b4b2a97eccd742aa7066",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 77796,
+      "bytes": 78527,
       "path": "README.md",
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "6a0e62e7ac4ad0f0f073462245c44eb16a8a4d7a4129848734b9abb1ac67d538",
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
+      "sha256": "5bf70e56e170206c57751c6f3f1d0d5faa61c1aaf04cba7b26bf461482e46b44",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -575,10 +575,24 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy.rs",
-      "bytes": 12108,
-      "sha256": "7d6d86fbdc346695b07a412ba42e530ff88303280cf1e67cbbd48bd3845ac80e",
+      "bytes": 12124,
+      "sha256": "f8bf41a4824448a8a29ee7684c26e445a09c43718c067b8a0acc1aa4963f8778",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/policy/installed.rs",
+      "bytes": 11395,
+      "sha256": "24c79080ac3c695fd6966d2b2436b31bf5f6e982f543b04b0f9089ad466fdc7b",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/policy/installed/tests.rs",
+      "bytes": 7039,
+      "sha256": "b15809ea10cb799bd44111665c808cfc904dcc7a913ad04d0ccdd3337e83c90f",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy/tests.rs",
@@ -3568,10 +3582,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47211,
+      "bytes": 47056,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "3850cee604159fbfdeb77e36669661c1f4c8954699f1bf845d29f5c1af20eb4e",
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
+      "sha256": "7cb8b2b55d146c5cf5e99c4c79b8915c6a6562230c3559e731bcba31f5e71706",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4245,10 +4259,10 @@
     },
     {
       "path": "docs/p0c4-task9-readiness.md",
-      "bytes": 23086,
-      "sha256": "44206b99ea22322c2855f375edb0900b7b48d90c511ac4007cc2af7f5affce4e",
+      "bytes": 23857,
+      "sha256": "a529f7947f9f5d49b32fc2eaf81f43edde5952c9d3c16130a1afc3d58f91ead8",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
     },
     {
       "bytes": 163606,
@@ -4432,10 +4446,10 @@
     },
     {
       "path": "docs/task9/execution-readiness.md",
-      "bytes": 20079,
-      "sha256": "2afae6f2333ad6e387220a7d927f2b7a48674529355130414d8d6ad00feee57f",
+      "bytes": 20844,
+      "sha256": "37404a4bc55bb4b6c2dce1504183b9653aa81689be04348db24f06a062544eb6",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
     },
     {
       "path": "docs/task9/local-preparation-closeout.md",
@@ -4453,10 +4467,10 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 4480,
-      "sha256": "e80aed53bc16d77b64701dda39a1db6752a8ac1ab3703b9b3d9e3823dffe0184",
+      "bytes": 7992,
+      "sha256": "42f97b5f767517b8122ceabb6d7272f4d837e29186d6aebc1d7abbe8a3b308d7",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
     },
     {
       "path": "docs/task9/r2b-validation-plan.json",
@@ -4474,10 +4488,10 @@
     },
     {
       "path": "docs/task9/selected-target-preparation.md",
-      "bytes": 12907,
-      "sha256": "7662042dcabdc15a5728e0df279a19827ed7168251a262bfd4fe0bb5d840dbe9",
+      "bytes": 13672,
+      "sha256": "19363d7fd96351e6d4bc8695a9b491653339fb0806767c07bba7dd540c6a9649",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
     },
     {
       "bytes": 4309,
@@ -4536,10 +4550,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 111496,
+      "bytes": 112222,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "4d3936e4d4f90152001b9d1c0c8101264eca0e29ea4ed8700f1708de157b93ef",
+      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
+      "sha256": "b7bce133ac0334a13c92cc02919dc43c22506f1356f99b331d47ab42e081f682",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5391,15 +5405,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 673,
+  "manifest_file_count_excludes_manifest_itself": 675,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "b421359531c88b337e4b0d7bfca7104a46dae54e",
+  "previous_public_commit": "653261369c84a57b85735254e951e532ec9ae560",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-26T23:37:12+08:00",
+  "progress_as_of": "2026-10-27T01:09:54+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS",
+  "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -13288,5 +13302,84 @@
     "formal_five_gates_unchanged": true,
     "old_37_matrix_bytes_unchanged": true,
     "planned_53_obligations_not_closed_by_foundation_tests": true
+  },
+  "task9_r2b_task1b_metadata_fd": {
+    "status": "METADATA_FD_SLICE_LINUX_CHECKED_NOT_AUTHORITY_WIRED_NOT_INSTALLED",
+    "source_base_commit": "653261369c84a57b85735254e951e532ec9ae560",
+    "source_files": [
+      {
+        "path": "crates/learning-backup/src/offhost_b1/policy.rs",
+        "bytes": 12124,
+        "sha256": "f8bf41a4824448a8a29ee7684c26e445a09c43718c067b8a0acc1aa4963f8778"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/policy/installed.rs",
+        "bytes": 11395,
+        "sha256": "24c79080ac3c695fd6966d2b2436b31bf5f6e982f543b04b0f9089ad466fdc7b"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/policy/installed/tests.rs",
+        "bytes": 7039,
+        "sha256": "b15809ea10cb799bd44111665c808cfc904dcc7a913ad04d0ccdd3337e83c90f"
+      }
+    ],
+    "source_refs_sha256": "002e74940a7aae256b60f820df2f92cadb9b938e1751126388493d46b2a83534",
+    "implementation_and_actual_evidence_review_sha256": "ff9ebb0080c274f2f8ab5ce7d7e843675b6e7492063a0ea6fb965bfc0842053f",
+    "linux_case_batch": "483b1354-7c27-426e-85f4-a1003050c79e",
+    "linux_source_archive_sha256": "e398854a7ed91efa62b04b95d99a8c37223efc4f182aeed388a45738583af3d7",
+    "linux_source_manifest_sha256": "8c1493e395cdeffe5eefab8b2e93b3ad82dae024857c3729e14633eda9c3041a",
+    "linux_result_sha256": "e0e36bbea8f3b96d8686c5ff4a12a5171dc6ebffffcbb66b802cd9f5c80903d5",
+    "linux_phase_exits": {
+      "build": 0,
+      "clippy": 0,
+      "default-list": 0,
+      "default-tests": 0,
+      "feature-list": 0,
+      "feature-tests": 0,
+      "format": 0
+    },
+    "default_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 450
+    },
+    "feature_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 476
+    },
+    "offhost_total_actual_bodies": 27,
+    "offhost_new_actual_bodies": 8,
+    "offhost_new_actual_names": [
+      "offhost_b1::policy::installed::tests::actual_hardlink_symlink_and_fifo_refuse_without_blocking",
+      "offhost_b1::policy::installed::tests::actual_named_replacement_has_different_identity_with_equal_bytes",
+      "offhost_b1::policy::installed::tests::declaration_cap_plus_one_and_budget_fail_before_read_or_allocation",
+      "offhost_b1::policy::installed::tests::exact_cap_requires_real_metadata_eof_and_rejects_suffix_or_truncation",
+      "offhost_b1::policy::installed::tests::ordinary_private_file_and_directory_are_not_root_custody",
+      "offhost_b1::policy::installed::tests::private_record_predicate_rejects_wrong_type_owner_mode_links_and_size",
+      "offhost_b1::policy::installed::tests::repeated_reads_and_eof_reservation_share_the_original_budget",
+      "offhost_b1::policy::installed::tests::same_length_metadata_change_is_visible_in_full_stamp"
+    ],
+    "not_added_across_feature_configurations": true,
+    "ignored_not_executed": 106,
+    "root_positive_full_holder_not_executed": true,
+    "global_fd_64_not_dynamically_verified": true,
+    "parent_directory_stamp_not_full_file_stamp": true,
+    "previous_fmt_failure_preserved": true,
+    "runtime_authority_wired": false,
+    "runners_always_refuse_even_fully_pinned": true,
+    "source_unchanged_in_builder": true,
+    "builder_exact_id_cleanup_confirmed": true,
+    "installation_or_keys_or_permissions_changed": false,
+    "postgres_networks_or_volumes_created": false,
+    "source_actor_auth_capture_issuer_gaps_not_approved": true,
+    "Task9_accepted": false,
+    "formal_five_gates_unchanged": true,
+    "old_37_matrix_bytes_unchanged": true,
+    "planned_53_obligations_not_closed_by_unit_tests": true
   }
 }

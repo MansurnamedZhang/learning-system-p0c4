@@ -1,4 +1,31 @@
-# Task9 R2b实施进展：Task1a基础片限定完成
+# Task9 R2b实施进展
+
+## 最新检查点：Task1b固定元数据FD片 · 2026-10-27
+
+状态：**METADATA_FD_SLICE_LINUX_CHECKED / R2B_NOT_FULLY_WIRED / NOT_INSTALLED / TASK9_OPEN**。三文件变化接入私有installed模块，固定policy/launch/anchor路径及Root文件元数据谓词；保留打开的文件/父目录句柄，在原RegistryLease的同一累计ScanBudget中计费stat、读取、EOF和重读，按原FD与同名路径的身份/字节再核。错误后holder保持失败，不以重新开预算恢复。返回的仍是私有非权威数据，runner仍始终拒绝。
+
+本片没有创建Root安装文件、key或fence，也没有接真实SourceAdmission、D上下文、launcher认证、PG、SSH、签名或发布。文件stamp包含dev/ino/uid/gid/mode/nlink/len/mtime/ctime；父目录当前只核dev/ino、私有目录及可信祖先，不宣称完整父目录时间戳重核。静态局部保留5FD、重开峰值7FD，**不是已测全局64FD**。
+
+| 实际Linux门 | 结果 | 边界 |
+|---|---|---|
+| 格式、全target新feature严格Clippy、bin构建 | 三项exit0 | 没有执行安装manager |
+| 默认库列举与正文 | 450 passed / 0 failed / 106 ignored | 独立配置，不能相加 |
+| feature库列举与正文 | 476 passed / 0 failed / 106 ignored | 27项offhost逐名ok：既有19＋本片新增8 |
+| 新增8项 | 实际执行并通过 | 普通UID的实际FS拒绝/身份元数据原语及纯谓词/预算；不冒充Root正向完整holder链 |
+
+Root正向三文件准入、完整holder动态再核及真实authority仍未执行；106 ignored不算通过。新增8不重复计既有19，不关闭53项分层义务或原37规格。默认和feature净差26来自27项offhost及一项仅默认存在的旧测试，不能宣称净增27个所有配置正文。
+
+实际批次`483b1354-7c27-426e-85f4-a1003050c79e`；ZIP SHA-256 `e398854a7ed91efa62b04b95d99a8c37223efc4f182aeed388a45738583af3d7`；源码manifest `8c1493e395cdeffe5eefab8b2e93b3ad82dae024857c3729e14633eda9c3041a`；result `e0e36bbea8f3b96d8686c5ff4a12a5171dc6ebffffcbb66b802cd9f5c80903d5`。固定builder普通UID、无网络、只读rootfs/源码、4CPU/8GiB；源码前后相同，精确builder已清理，编译/原始证据保留。未创建PG、网络或卷，未操作目标机或运行Windows产品测试。日志上限仍是可信测试脚本事后检查，不替代产品连续有界IO。
+
+首轮`4dc91a47-0d1f-4acc-917d-f64c6e712aaa`只在格式门失败，未执行新增正文；保留result `c3a90c6362ad3149d4012408398a56ddd0b39c7d6db4440ffbc3022a260ba151`。仅两新文件按Linux rustfmt差异修正后使用全新批次跑七门；旧失败不重放。格式桥、当前三文件和原始结果已独审，INDEX SHA-256 `ff9ebb0080c274f2f8ab5ce7d7e843675b6e7492063a0ea6fb965bfc0842053f`。
+
+下一片先完成已批准的纯wire/schema/phase/transcript与非特权IO，真实actor仍有三项准确接线缺口：完整effects所需生产capture挂载；Root Unix peer认证与旧admin/runtime原主体检查的兼容；内部UUID对应独立Root发证及child原cut保留。只读方案正在独审，尚未采纳或新增授权；不把路径表/JSON重建为原cut，也不暗改旧guard。需要跨learning-db或新增Root生产入口时先交准确补充编码范围；现场key/trust/PG认证配置/权限/挂载、目标整链与恢复仍另批。
+
+Task9五门、父Task3/4/5与C4保持OPEN；main、生产、公共v2和原37规格不变。下方Task1a为已发布历史检查点。
+
+---
+
+## 历史检查点：Task1a基础片 · 2026-10-26
 
 2026-10-26。状态：**FOUNDATION_IMPLEMENTED_AND_LINUX_CHECKED / R2B_NOT_FULLY_WIRED / NOT_INSTALLED / TASK9_OPEN**。用户已批准的准确范围见[批准记录](r2b-implementation-approval.md)和[实施计划](../superpowers/plans/2026-10-26-task9-r2b-implementation.md)。
 

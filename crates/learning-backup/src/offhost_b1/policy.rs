@@ -12,6 +12,8 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+mod installed;
+
 const SOURCE_POLICY_PATH: &str = "/var/lib/knowweave-c4/b1/source-policy.json";
 const DESTINATION_POLICY_PATH: &str = "/var/lib/knowweave-c4/b1/destination-policy.json";
 const FENCE_ROOT: &str = "/var/lib/knowweave-c4-source-fences";

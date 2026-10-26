@@ -1,5 +1,13 @@
 # Task9 执行准备单：目标事实、最小审批与实施依赖
 
+## 最新实施：Task1b元数据FD片限定完成 · 2026-10-27
+
+固定路径元数据、held FD与原lease累计预算重读已实现；普通UID新批次新增8正文、offhost累计27逐名通过，默认450/特性476各106 ignored分账，格式/严格Clippy/bin构建通过并独核。Root正向完整holder、全部64FD及真实S/D authority未验。runner仍始终拒绝；Task9/C4保持OPEN。
+
+先推进已批准的纯wire/IO；capture生产布局、Root Unix认证与旧guard兼容、内部UUID独立Root发证仍须准确接线审查。新增跨crate/Root生产入口不视为已批准；key/trust/现场配置、目标整链与恢复另批。完整证据与保留RED见[实施进展](r2b-implementation-progress.md)。下方保留旧检查点。
+
+---
+
 ## 最新实施：Task1a基础片已完成限定Linux检查
 
 九文件默认关闭入口、严格policy输入与累计预算基础片已实现；新增19正文逐名通过，默认库450/特性库468各106 ignored，格式、严格Clippy和bin构建通过并独立核对原件。计数分别记账，不能与旧准备Rust19相加，不能作为53完整义务或37集成的通过数。
