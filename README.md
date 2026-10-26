@@ -1,5 +1,15 @@
 # 知织 · KnowWeave
 
+## Task9本地补强：outcome与身份替换拒绝 · 2026-10-26
+
+Windows目的端attempt模块19/19通过（既有14＋本次新增5，0失败/忽略），格式和包级lib-tests严格Clippy通过。新增测试验证最终结果错误、自洽身份错配、成功登记前撤销、异常展开及一个八字段identity替换组；八变体是一个body，不是八个跨机用例。
+
+本轮仅追加cfg(test)，生产前缀与原14测试逐字不变。独立目标暂缺，37条集成规格仍未执行，Task9/C4保持开放；没有新首签/发布权限、SSH探测、凭证/信任安装、源端隔离或正常恢复。不合并main、不部署生产。
+
+详见[准备状态](docs/p0c4-task9-readiness.md)、[B1草案](docs/superpowers/specs/2026-10-26-task9-b1-integration-preparation.md)和[实施路线图](KnowWeave实施路线与架构.html)。
+
+---
+
 ## Task9：无独立目标，继续本地契约与拒绝回归准备 · 2026-10-26
 
 用户确认暂时没有独立目标。B1最小草案已区分源端保护、目的端提交/签名、活操作衔接和新receipt最终消费四个职责；草案未被采纳为新权限合同，没有新增首签/发布API、token、服务或key。原Task8限定采用保留。

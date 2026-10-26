@@ -657,4 +657,175 @@ mod tests {
     fn task9_terminal_write_preaction_failure_retains_final_without_authority() {
         task9_pre_action_failure(Step::TerminalWrite, true);
     }
+
+    enum Task9Outcome {
+        Error,
+        WrongBackup,
+        Revoke,
+        Unwind,
+    }
+
+    struct Task9OutcomeIo {
+        store: Store,
+        context: Arc<Mutex<OperationAuthority>>,
+        mode: Task9Outcome,
+    }
+
+    impl PublicationIo for Task9OutcomeIo {
+        type Output = ();
+
+        fn step(&mut self, step: Step) -> Result<(), BackupError> {
+            self.store.step(step)
+        }
+
+        fn outcome(&mut self) -> Result<((), CommitIdentity), BackupError> {
+            let result = self.store.outcome()?;
+            match self.mode {
+                Task9Outcome::Error => Err(BackupError::Invalid("controlled outcome error")),
+                Task9Outcome::WrongBackup => {
+                    // A self-consistent alternate identity is still not this
+                    // publication's identity. Do not alter the retained bytes.
+                    let mut other = result.1.intent;
+                    other.backup_id = Uuid::new_v4();
+                    let identity =
+                        validate_committed(&canonical(&other)?, &canonical(&other.terminal()?)?)?;
+                    Ok(((), identity))
+                }
+                Task9Outcome::Revoke => {
+                    drop(ErrorFence::new(&self.context));
+                    Ok(result)
+                }
+                Task9Outcome::Unwind => panic!("controlled outcome unwind"),
+            }
+        }
+    }
+
+    fn task9_outcome_rejection(mode: Task9Outcome) {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        let context = Arc::new(Mutex::new(OperationAuthority::default()));
+        let cloned = Arc::clone(&context);
+        let mut prior = Store::new();
+        publish(&context, prior.intent.backup_id, &mut prior).unwrap();
+        let prior_identity = prior.outcome().unwrap().1;
+        let prior_names = prior.names.clone();
+        let prior_terminal = prior.terminal.clone();
+        let prior_bytes = prior.prior.clone();
+        let mut io = Task9OutcomeIo {
+            store: Store::new(),
+            context: Arc::clone(&context),
+            mode,
+        };
+        let id = io.store.intent.backup_id;
+        let unrelated_bytes = io.store.prior.clone();
+        let unwinds = matches!(io.mode, Task9Outcome::Unwind);
+        let result = catch_unwind(AssertUnwindSafe(|| publish(&context, id, &mut io)));
+        if unwinds {
+            assert!(result.is_err());
+        } else {
+            assert!(result.unwrap().is_err());
+        }
+
+        // Every Store step completed, but its readable terminal is not new
+        // signing authority. The earlier successful operation is revoked too.
+        require_committed_names(&io.store.names, id).unwrap();
+        let retained_identity = io.store.outcome().unwrap().1;
+        {
+            let authority = context.try_lock().expect("outcome must release the lock");
+            assert!(authority.failed);
+            assert!(authority.successful.is_empty());
+            assert!(authority.require(&retained_identity).is_err());
+            assert!(authority.require(&prior_identity).is_err());
+        }
+        assert!(cloned.lock().unwrap().require_id(id).is_err());
+        let names = io.store.names.clone();
+        let terminal = io.store.terminal.clone();
+        io.store.intent.attempt_id = Uuid::new_v4();
+        let fresh = Arc::new(Mutex::new(OperationAuthority::default()));
+        assert!(publish(&fresh, id, &mut io.store).is_err());
+        assert!(fresh.lock().unwrap().require_id(id).is_err());
+        assert_eq!(io.store.names, names);
+        assert_eq!(io.store.terminal, terminal);
+        assert_eq!(io.store.prior, unrelated_bytes);
+        assert_eq!(prior.names, prior_names);
+        assert_eq!(prior.terminal, prior_terminal);
+        assert_eq!(prior.prior, prior_bytes);
+    }
+
+    #[test]
+    fn task9_outcome_error_revokes_authority_and_retains_committed_residue() {
+        task9_outcome_rejection(Task9Outcome::Error);
+    }
+
+    #[test]
+    fn task9_outcome_wrong_backup_revokes_authority_without_rewriting_residue() {
+        task9_outcome_rejection(Task9Outcome::WrongBackup);
+    }
+
+    #[test]
+    fn task9_outcome_revocation_wins_before_success_registration() {
+        task9_outcome_rejection(Task9Outcome::Revoke);
+    }
+
+    #[test]
+    fn task9_outcome_unwind_revokes_authority_and_releases_lock() {
+        task9_outcome_rejection(Task9Outcome::Unwind);
+    }
+
+    #[test]
+    fn task9_self_consistent_identity_substitutions_never_run_final_use() {
+        let context = Arc::new(Mutex::new(OperationAuthority::default()));
+        let mut store = Store::new();
+        publish(&context, store.intent.backup_id, &mut store).unwrap();
+        let original = store.outcome().unwrap().1;
+        let names = store.names.clone();
+        let terminal = store.terminal.clone();
+        let prior = store.prior.clone();
+
+        // Each substitute has a valid canonical intent/terminal linkage. An
+        // integrity parser accepting it must not authorize a consuming closure.
+        for field in 0..8 {
+            let mut changed = original.intent.clone();
+            match field {
+                0 => changed.backup_id = Uuid::new_v4(),
+                1 => changed.attempt_id = Uuid::new_v4(),
+                2 => changed.destination_dev += 1,
+                3 => changed.destination_ino += 1,
+                4 => changed.evidence_dev += 1,
+                5 => changed.evidence_ino += 1,
+                6 => changed.manifest_sha256 = "c".repeat(64),
+                7 => changed.proof_sha256 = "d".repeat(64),
+                _ => unreachable!(),
+            }
+            let changed_identity = validate_committed(
+                &canonical(&changed).unwrap(),
+                &canonical(&changed.terminal().unwrap()).unwrap(),
+            )
+            .unwrap();
+            assert_ne!(changed_identity, original);
+            assert!(context.lock().unwrap().require(&changed_identity).is_err());
+            context.lock().unwrap().require(&original).unwrap();
+
+            // Use a separate original context for final-use rejection: failure
+            // correctly closes that whole operation, including its prior ID.
+            let isolated = Arc::new(Mutex::new(OperationAuthority::default()));
+            let mut same = Store::new();
+            same.intent = original.intent.clone();
+            publish(&isolated, same.intent.backup_id, &mut same).unwrap();
+            let mut entered = false;
+            assert!(
+                finalize_use(&isolated, &changed_identity, || {
+                    entered = true;
+                    Ok(())
+                })
+                .is_err()
+            );
+            assert!(!entered, "substituted field {field} reached final use");
+            assert!(isolated.lock().unwrap().require(&original).is_err());
+        }
+        context.lock().unwrap().require(&original).unwrap();
+        assert_eq!(store.names, names);
+        assert_eq!(store.terminal, terminal);
+        assert_eq!(store.prior, prior);
+    }
 }

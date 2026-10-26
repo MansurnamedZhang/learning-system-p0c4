@@ -4,7 +4,7 @@
   "date": "2026-10-26",
   "status": "DRAFT_FOR_DESIGN_REVIEW_NOT_IMPLEMENTATION_OR_ACCEPTANCE",
   "business_source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "public_base_commit": "70c083faa00f888789f6602861b179f527ae7bba",
+  "public_base_commit": "c1f170a5d83351eb8ff1d66568b812b5770684c6",
   "independent_target": {
     "available": false,
     "basis": "USER_STATEMENT",
@@ -13,8 +13,8 @@
   "source_bindings": [
     {
       "path": "crates/learning-backup/src/destination/attempt.rs",
-      "bytes": 24151,
-      "sha256": "19522bf3b0959da7eb2a21bf489213608bdf0d93722d91196665da3e5b5e22a1",
+      "bytes": 31190,
+      "sha256": "299c70aeb207573ae00341306e5c6d5875453b56ef70ebc181e9e29d263d3c67",
       "baseline_source_sha256": "481c1fced61887feb52308bd0873dc32fafe33a3e6dcde3a40cfcc784d2550c9",
       "change_scope": "cfg(test) helper and five negative units appended; existing module prefix and tests unchanged"
     },
@@ -518,7 +518,7 @@
   "task9_accepted": false,
   "product_consumes_this_file": false,
   "permissions_changed": false,
-  "source_overlay": "Source679 runtime baseline plus five cfg(test) negatives and an equivalent non-Linux Err tail-expression style fix",
+  "source_overlay": "Source679 runtime baseline plus ten cfg(test) negatives and one equivalent non-Linux Err tail-expression style fix; original runtime authority unchanged",
   "task9_cross_domain_simulations_executed": 0,
   "new_task9_acceptance_credit": 0,
   "local_negative_units": {
@@ -529,6 +529,55 @@
     "unit_result_sha256": "6c5a1cc1859a0d69114c59d8d725117848ec1e3db1bd1cf5ce75d640aa678915",
     "quality_result_sha256": "bfb1deca3de7a3a62834d47cc0616e5ec09663a69184bd84995a8d08819353e3",
     "Linux_PG_or_real_FS_credit": 0,
-    "Task9_acceptance_credit": 0
+    "Task9_acceptance_credit": 0,
+    "receipt_scope": "HISTORICAL_FIRST_FIVE_WINDOWS_PRE_ACTION_TESTS_CURRENTLY_RERUN_IN_MODULE19"
+  },
+  "local_outcome_and_binding_units": {
+    "status": "WINDOWS_ATTEMPT_MODULE_PASSED_NOT_TASK9_ACCEPTANCE",
+    "platform": "Windows",
+    "fixture": "existing in-memory Store plus test-only outcome adapter; no real filesystem or signer",
+    "result_sha256": "f7f28ca33b80efe780117e6104f632f28721121437bec513dfe2a5d0cfcb7f7d",
+    "source_sha256": "299c70aeb207573ae00341306e5c6d5875453b56ef70ebc181e9e29d263d3c67",
+    "selected_module_unique_passed": 19,
+    "existing_unique_rerun": 14,
+    "new_unique_passed": 5,
+    "total_task9_prefixed_unique_tests": 10,
+    "tests": [
+      {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_outcome_error_revokes_authority_and_retains_committed_residue"
+      },
+      {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_outcome_revocation_wins_before_success_registration"
+      },
+      {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_outcome_unwind_revokes_authority_and_releases_lock"
+      },
+      {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_outcome_wrong_backup_revokes_authority_without_rewriting_residue"
+      },
+      {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_self_consistent_identity_substitutions_never_run_final_use"
+      }
+    ],
+    "identity_variants_in_one_test": [
+      "backup_id",
+      "attempt_id",
+      "destination_dev",
+      "destination_ino",
+      "evidence_dev",
+      "evidence_ino",
+      "manifest_sha256",
+      "proof_sha256"
+    ],
+    "extra_integration_entries_added": 0,
+    "Task9_integration_cases_executed": 0,
+    "Linux_PG_or_real_FS_credit": 0,
+    "Task9_acceptance_credit": 0,
+    "historical_case_coverage_labels": "Case-level EXACT_SIX_SEAM_SOURCE_REFERENCE_NOT_RERUN labels are preserved c1 historical references; the six-position loop and all existing14 bodies were rerun now as part of Windows module19, without Task9 integration credit."
   }
 }
