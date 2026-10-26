@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 61751,
-      "sha256": "dff4b299c783d32f278ff9f9eca560bee4d427c4d69e2cef177f2b20ea237566",
+      "bytes": 61894,
+      "sha256": "cf6e0c2e590a1abb48ae4997a7ecbd019c9ac82539268fd0032689abcbfc8b01",
       "source_bytes_preserved": false,
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 114781,
+      "bytes": 114924,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
-      "sha256": "32c7edbc95971c8a5c6fd0993f8a45706cee8b31d1edc8aeb91ef8f24bdf47c8",
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
+      "sha256": "fbf4700d304291e22c5ca4879d9dabddbedcfa89114deaebf8d40f85cbfc1158",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 74208,
+      "bytes": 75683,
       "path": "README.md",
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
-      "sha256": "ca4b18915e955e7d684936c9e78e6ab7d14a9714668d4df8a1b577df0c0615cd",
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
+      "sha256": "472f8bb85ddb34c9d2269b95c4e275f3cd0874376d430b8b76e72964adab7a30",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3517,10 +3517,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 46782,
+      "bytes": 46924,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
-      "sha256": "9aec00b2f4006f46c7f7594b3c6cf39c2edb47f9f0a119c6f003affd7821b090",
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
+      "sha256": "3c19ac8582cd5da7d3891e0109fde2e22d00932a85f5079499af06ddda730059",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4194,10 +4194,10 @@
     },
     {
       "path": "docs/p0c4-task9-readiness.md",
-      "bytes": 19149,
-      "sha256": "75482896a1fc6c91d57c14201a97500dd3cab6024af80e700e7f39efcc7f4ad6",
+      "bytes": 20649,
+      "sha256": "9ce42d445db06dd5861ed1051d6ac0a4fcaeeac3693e320e82a17b2f2e469292",
       "source_bytes_preserved": false,
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "bytes": 163606,
@@ -4265,13 +4265,13 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 71428,
+      "bytes": 73790,
       "path": "docs/superpowers/plans/2026-10-04-p0c4-completion.md",
-      "sha256": "b62a2058efcb54378f69a3281ce365c02e40d01e4596eefdc263b51ae7fca334",
+      "sha256": "85fc8c72d5a6e58923247ba3fa717572f2013aeb95b0193f6a997c04db2ce741",
       "source_blob_sha256": "e2ab0cf06d3b908917055a94f9dcd7195d074a3c1a48070b4f6db10d9113e006",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "bytes": 26984,
@@ -4322,19 +4322,20 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47567,
+      "bytes": 63781,
       "path": "docs/superpowers/specs/2026-10-04-p0c4-completion-design.md",
-      "sha256": "e75f4af21327b0cf772c966884252e98f7d097fb1180bbb605946bf5fee7b8f0",
+      "sha256": "e209e1e24fe707c2e1fb8fb5547bc6cae66240210edd8a8283318f5eb64ed054",
       "source_blob_sha256": "e75f4af21327b0cf772c966884252e98f7d097fb1180bbb605946bf5fee7b8f0",
-      "source_bytes_preserved": true,
-      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
+      "source_bytes_preserved": false,
+      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "path": "docs/superpowers/specs/2026-10-26-task9-b1-integration-preparation.md",
-      "bytes": 13687,
-      "sha256": "b638f319516afffa71e6366e943cd79dd769b3b8211b79acce993e827d816e70",
+      "bytes": 17102,
+      "sha256": "e8ac5945ce655ebe2f0209fbd5f62a51c771060fbbbb2a1a45598eb0637c7e49",
       "source_bytes_preserved": false,
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "path": "docs/task6-resource-guard-revalidation.md",
@@ -4342,6 +4343,13 @@
       "sha256": "f930ced45601c07543473c57552aaa12446edc9d1e14d70345fc85d34900cbbd",
       "source_bytes_preserved": false,
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
+    },
+    {
+      "path": "docs/task9/b1-final-decision-adoption.md",
+      "bytes": 6592,
+      "sha256": "9c1c86aae8d51ca62d4bdf8eb6d6acfcd96c177a254951286652e3271847067e",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "path": "docs/task9/b1-final-decision-contract-proposal.md",
@@ -4352,10 +4360,10 @@
     },
     {
       "path": "docs/task9/b1-offhost-admission-rfc.md",
-      "bytes": 18948,
-      "sha256": "c2b7c7c2ed4ef72b246b11deec408c40aef60d3fe5c810521a676ebe05b85adc",
+      "bytes": 20490,
+      "sha256": "185720e1a9e6c84323d41874056339d3cc1b09f391ca94b6d824341b6fe66128",
       "source_bytes_preserved": false,
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "path": "docs/task9/b1-preparation-test-matrix.json",
@@ -4366,10 +4374,10 @@
     },
     {
       "path": "docs/task9/execution-readiness.md",
-      "bytes": 16323,
-      "sha256": "a11d07a20faeb7b6964f8776738787f3851dbb6c40b3f9806b18c1e56281ef20",
+      "bytes": 17645,
+      "sha256": "7688b951bbdc3346c74342f16739194b603834ac625ce0f9d41677940b6ce0c3",
       "source_bytes_preserved": false,
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "path": "docs/task9/local-preparation-closeout.md",
@@ -4380,10 +4388,10 @@
     },
     {
       "path": "docs/task9/selected-target-preparation.md",
-      "bytes": 9525,
-      "sha256": "5023b0aec32018d6a46306e4c53888694b1771cfa741a30101a7702c8c0cb2d6",
+      "bytes": 10473,
+      "sha256": "66c1cab1f9d23ed5484add1ef38486e536e21204643567d5e32c77a3f8056cd6",
       "source_bytes_preserved": false,
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
     },
     {
       "bytes": 4309,
@@ -4442,10 +4450,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 107947,
+      "bytes": 109405,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
-      "sha256": "cc980538b9395c7f29a889a090badd05bce3d070350de06d6827a9eb067909ab",
+      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
+      "sha256": "6e0cd5ccb9eab6bded051490bbf8fff1fd13bc698853cecdc10dee6977491cbd",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5297,15 +5305,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 660,
+  "manifest_file_count_excludes_manifest_itself": 661,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "d94e124530666b285ffd6c5b4641d83d675a6d74",
+  "previous_public_commit": "58402d52e81ce54a6b106a04ee302e0bef5d1517",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-26T20:06:36+08:00",
+  "progress_as_of": "2026-10-26T21:10:50+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
+  "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -12984,6 +12992,41 @@
     "new_keys_trust_registry_or_source_auth_installed": false,
     "security_permissions_changed": false,
     "restore_executed": false,
+    "Task9_accepted": false
+  },
+  "task9_final_decision_semantic_adoption": {
+    "status": "USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY_NOT_IMPLEMENTED",
+    "user_answer": "采纳方案，仅定稿规范（推荐）",
+    "decision_date": "2026-10-26",
+    "exact_user_answer_os_timestamp_observed": false,
+    "adoption_record": {
+      "path": "docs/task9/b1-final-decision-adoption.md",
+      "sha256": "9c1c86aae8d51ca62d4bdf8eb6d6acfcd96c177a254951286652e3271847067e"
+    },
+    "unchanged_proposal": {
+      "path": "docs/task9/b1-final-decision-contract-proposal.md",
+      "sha256": "2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59"
+    },
+    "proposal_review_sha256": "7613d34c8ad85a019d60e2f5575ad0c626fbe98ed4856e1b6abdce2d83348aff",
+    "normative_specification_review_sha256": "95d3bf176a3e4419df9489e009d243051ff2e5ee6cbd83aa0183bd0de9e5d7cd",
+    "normative_specification_review_scope": "SPECIFICATION_FINALIZATION_ONLY_WITH_EXPLICIT_POST_REVIEW_STATUS_REFINEMENT",
+    "old_dependency_order_review_not_approved_retained": true,
+    "semantic_contract_adopted": true,
+    "documentation_scope": "GOVERNING_SPECIFICATION_AND_PLAN_ALIGNMENT_WITH_INDEPENDENT_REVIEW",
+    "normative_files": {
+      "docs/superpowers/plans/2026-10-04-p0c4-completion.md": "85fc8c72d5a6e58923247ba3fa717572f2013aeb95b0193f6a997c04db2ce741",
+      "docs/superpowers/specs/2026-10-04-p0c4-completion-design.md": "e209e1e24fe707c2e1fb8fb5547bc6cae66240210edd8a8283318f5eb64ed054",
+      "docs/superpowers/specs/2026-10-26-task9-b1-integration-preparation.md": "e8ac5945ce655ebe2f0209fbd5f62a51c771060fbbbb2a1a45598eb0637c7e49"
+    },
+    "R2b_implementation_approved": false,
+    "authority_implemented_or_enabled": false,
+    "new_keys_trust_registry_source_auth_or_permissions_installed": false,
+    "source_isolated": false,
+    "restore_executed": false,
+    "new_product_tests_executed": 0,
+    "old_37_case_specification_bytes_unchanged": true,
+    "B1_integration_cases_executed": 0,
+    "formal_five_gates_unchanged": true,
     "Task9_accepted": false
   }
 }

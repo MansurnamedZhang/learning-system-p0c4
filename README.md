@@ -1,6 +1,18 @@
 # 知织 · KnowWeave
 
-## Task9最终提交合同候选已具体化 · 2026-10-26
+## Task9时序语义已采纳，仅规范定稿 · 2026-10-26
+
+用户明确选择“采纳方案，仅定稿规范（推荐）”。本轮将已独审提案的时序语义定稿到[完成规范Appendix B1](docs/superpowers/specs/2026-10-04-p0c4-completion-design.md)、[B1集成规范](docs/superpowers/specs/2026-10-26-task9-b1-integration-preparation.md)及Task9实施依赖，准确范围见[采纳记录](docs/task9/b1-final-decision-adoption.md)。原提案和旧独审保持历史原字节。
+
+规范区分原S最终核对与持久保护、D一次消费的许可点和自然完成点、UNKNOWN/HOLD及历史只读结果。源端最终授权后的退出不追溯夺回已消费许可；D本地错误/期限/unwind仍失败。负fence可能跨组长期阻塞相关管理变更，未知不自动解除；以后读到合法完整已签字节不能补证原P自然成功。
+
+**本次仅规范定稿与独立审查，未批准R2b权限实现或现场配置。** manager认证、受限transport身份、全部writer/fence门控、固定wire/预算仍有实现证明义务；key/trust/registry/构建pin、源隔离及恢复另按准确范围审批。没有新增产品测试或Task9信用，五个正式门和37条历史未执行规格不变，不合并main、不部署生产。
+
+后续先准备R2b具体源码/测试审查包，进度见[实施路线图](KnowWeave实施路线与架构.html)和[执行准备单](docs/task9/execution-readiness.md)。
+
+---
+
+## 历史检查点 · Task9最终提交合同候选已具体化 · 2026-10-26
 
 本轮将跨机最后消息后的源端退出窗口、原目标操作一次消费、持久保护与未知结果，整理成[可裁决的具体建议](docs/task9/b1-final-decision-contract-proposal.md)。状态仍是 **NOT_ADOPTED / NOT_AUTHORIZED / NOT_IMPLEMENTED**；需要明确语义采纳后才可定稿规范并独审，未批准权限实现或机器配置。
 

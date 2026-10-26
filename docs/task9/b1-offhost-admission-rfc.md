@@ -1,5 +1,17 @@
 # Task9 B1：异机活操作接入实施候选
 
+## 当前处置：时序方案已采纳，RFC其余实现义务保留
+
+2026-10-26 用户明确选择“采纳方案，仅定稿规范（推荐）”，所指固定[最终决定方案](b1-final-decision-contract-proposal.md) SHA-256 `2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59`。范围见[采纳记录](b1-final-decision-adoption.md)。[完成规范 Appendix B1](../superpowers/specs/2026-10-04-p0c4-completion-design.md)和[B1集成规范](../superpowers/specs/2026-10-26-task9-b1-integration-preparation.md)承接这一窄时序调整。
+
+Q1/Q2/Q3的最终决定方案不再处于待用户选择状态：原S最后核对并持久负fence后，原D在本活尝试一次消费，许可/自然提交分开，迟到S退出不追溯夺回许可，UNKNOWN不自动重放/释放，历史reader接受合法已签完整字节不补原P成功。negative fence仍不授正权限，原D十一阶段自然成功不能被文件替代。
+
+这不是对本RFC全部设计或R2b实现的整体批准。源manager认证、固定receiver、完整绑定/真实IO预算、一次消费和所有writer/fence门控仍须具体设计、实现证明及对应授权；key/trust/registry/受限principal与安全配置、源隔离和恢复未批准或执行。正式Task9五门和37条历史规格不变，无新增产品测试。
+
+> 下文是保留的早期RFC。其“候选／尚未采纳／待裁决”是历史状态；有冲突处以采纳记录和新完成规范的窄时序条款为准。原提案字节和旧独审/HOLD不重写。
+
+---
+
 日期：2026-10-26。基线：`600c6ee4fdf1ec08f4867aa16e429b6a71315256`。
 
 **状态：设计候选，待独立审查及裁决；不是已采纳权限合同，不授权安装、启用或恢复。** 本文不改原 Appendix B/B1、公共 v2 记录、既有权限入口、37 条未执行集成规格或完整恢复引擎。文中的类型、模块、帧和阶段都是拟议名称，不是已经存在的 API。

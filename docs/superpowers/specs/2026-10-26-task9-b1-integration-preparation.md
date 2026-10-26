@@ -1,8 +1,10 @@
-# Task9 B1：最小集成与失败测试准备草案
+# Task9 B1：已采纳异机时序与历史准备记录
 
-2026-10-26。**仅供设计审阅：未采纳为新权限合同、未实现或启用新首签／发布权限入口，Task9/C4 仍开放。**
+2026-10-26。**SEMANTICS_ADOPTED_SPEC_FINALIZATION；规范定稿，独审结果见采纳记录。用户已采纳封存提案的时序语义，仅准定稿和独审；NOT_IMPLEMENTED，R2b/安装/配置/启用/源隔离/恢复仍未批准，Task9/C4 仍开放。**
 
-本稿产生于用户尚未选定独立目标的历史准备阶段；当前已选目标及限定平台预检见[新目标记录](../../task9/selected-target-preparation.md)，具体异机候选和待裁决点见[后续RFC](../../task9/b1-offhost-admission-rfc.md)。依据仍为[原完成规范 Appendix B/B1](2026-10-04-p0c4-completion-design.md)及[原施工单 Task9](../plans/2026-10-04-p0c4-completion.md)。本稿保留原实施义务和37条未执行规格，不替换原规范、生成密钥或制造单机独立验收。
+本稿产生于尚未选定独立目标的历史准备阶段；当前目标见[已选目标记录](../../task9/selected-target-preparation.md)。用户答复“采纳方案，仅定稿规范（推荐）”及提案/独审摘要见[采纳记录](../../task9/b1-final-decision-adoption.md)。现行语义以[完成规范 Appendix B/B1.1–B1.6](2026-10-04-p0c4-completion-design.md)的Task9窄异机例外为准；[RFC](../../task9/b1-offhost-admission-rfc.md)与[原提案](../../task9/b1-final-decision-contract-proposal.md)保留各自冻结时点，不回写成已实现或已授权。本文同步现行规则并保留原草案/历史执行层级，不更改37条规格或其未执行状态。
+
+以下产品来源及本地检查段落是历史准备记录，“权限合同保持原样”等措辞指当时检查点，不能覆盖本次仅语义采纳；运行时权限和代码当前仍未改变。
 
 产品 Rust 来源为 `679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`；原Rust19检查点的准备发布基线为 `c1f170a5d83351eb8ff1d66568b812b5770684c6`；本轮离线工具的发布准备基线为 `2c507ea4b0e6134b66a9e06a9970e939f50a7422`。Linux 业务实现、权限合同、迁移、v2 包／statement／witness／receipt 与 Task8 结论保持原样。本地候选累计追加十项 cfg(test) 拒绝回归及测试专用helper/适配器，并对一个非Linux“不支持”分支作同一 Err 的尾表达式修正；不能说这两个源码文件与旧ZIP逐字相同。[前置状态](../../p0c4-task9-readiness.md)和[机器可读测试规格清单](../../task9/b1-preparation-test-matrix.json)均不产生产品可消费的授权。
 
@@ -12,10 +14,10 @@
 
 | 职责 | 沿用现有位置与拥有者 | 新集成必须履行的义务 |
 |---|---|---|
-| S：源端保护原操作 | `ProtectionSnapshot::require_same_operation`、原 held registry lease、锁、scan budget 和 enrolled source roots | 保留原操作和当前源保护；开始捕获及最终发布前重核。另开 lease、复制 hash/快照或换成同 ID 不等于原操作。 |
+| S：源端保护原操作 | `ProtectionSnapshot::require_same_operation`、原 held registry lease、锁、scan budget 和 enrolled source roots | 原本地要求保持；Task9异机仅在原S最终选择前持原上下文完成精确重核与持久负fence，再派生一次固定最终消息。负fence保持保护连续性，不证明S持续活性；fresh lease/复制字段不等于原操作。 |
 | D：目的端提交与签名原操作 | `destination::attempt::publish` 的原 `OperationAuthority`、证据根、完整字节重读、`VerifiedDestination::sign_statement` | 十一个证据步骤和 outcome 全部成功后才登记原内存成功状态；私钥留在目的端；签名与撤销保持可证明的串行裁决。 |
-| C：经审的跨边界衔接 | 当前尚无被采纳的异机准入适配层 | 将仍活着的 S 与原已成功且未撤销的 D 绑定到同一次请求、backup/attempt/proof/manifest、source/build 和各自根身份。认证通道是必要条件，不能替代成功权限；异机不能共享原 Arc。 |
-| P：新收据最终消费 | `publish_complete_backup` 与 `check_publication_proof` 的原验证链 | 明确新发布授权的真正来源、拥有者、撤销及唯一最终消费点；当前 publisher 自取新 lease 的路径继续默认拒绝，不把签名消息当成发布许可。 |
+| C：经审的跨边界衔接 | 时序语义已采纳，适配层尚未实现或获R2b施工批准 | 认证确切原manager/构建/活操作及同一会话新挑战，绑定backup/attempt/proof/manifest/source-control、registry代际和各自根；不是SSH身份、自报build或通用signer。异机不共享原Arc，不从旧决定重建权限。 |
+| P：新收据最终消费 | 原验证链保持，新路径待另审实现 | 原D十一阶段及outcome自然成功后，同一本地裁决Pending→Consuming（许可点）→Committed（全部自然完成）或Failed，不可回退/重用。旧finalize_use不是one-shot；fresh-lease publisher继续拒绝。 |
 
 现有 `require_same_operation`、新 lease 的空成功表以及最终原操作检查保留。不能通过去掉 `Arc::ptr_eq`、公开 capability 构造／反序列化、增加 `allow_local/force/authorized=true`、给 CLI 接受任意 token，或从磁盘 terminal 补建成功表来接通流程。
 
@@ -54,12 +56,22 @@
 
 ## 故障与最终消费的裁决
 
-- **最终提交前的拒绝、错误、取消、断线、超时或对端退出：** 不再授予新首签／新发布，撤销仍可撤销的原操作权限并保留原件。不能因断线断言远端必未提交、数据库必已回滚或重试安全。
+- **许可前的本地串行胜负：** 旧本地约束保持。Task9异机仅在原D的Pending→Consuming之前，已观察并获该裁决的拒绝/取消/EOF/错误/超时使Failed并禁止消费；不能靠两端时钟或所谓共享mutex判定先后。S最后消息后死亡而D未观察的窗口，按已采纳窄例外处理，不再声称S活到每次最终物理写入。
 - **本端看不清对端结果：** 保持 UNKNOWN/HOLD；不自动重连后补签、重建 authority、重发同 ID 或刷新基线。只读核对不能变成新写入资格。
-- **最终消费竞争：** 当前同进程 `finalize_use` 与撤销共用 mutex。跨进程不能假装仍有同一 mutex；方案必须给出可审的排序和成功见证，不能仅写“双方验证后原子发布”。
-- **已真正提交之后的迟到断线／撤销：** 不追溯否定此前真实已完成的 CompleteBackup；只关闭未来新操作。原始证据与目的端 only 重开规则保留。
-- **已签名但新 receipt 写入结果不明：** 不凭 unsigned terminal、单张 witness 或可见文件推断正常发布成功。新发布资格与既有历史 receipt 的只读重开要分别裁决；具体通信／持久化故障窗口仍须在实现方案中证明。
+- **一次消费与物理完成分开：** 原D在成功authority、本次可信原S完整决定/新挑战、保护连续性及预算期限均成立时进入Consuming；撤销/消费同锁或等价单actor排序。迟到远端退出/取消不回夺已获许可；本地错误/期限/unwind仍Failed并关闭新签名/发布，禁止回退或重试。旧finalize_use仅require+串行使用、不删除成功项，新一次消费状态尚待实现与独审。
+- **Committed和回复：** 只有内部签名、receipt排他写入/同步/no-replace/父同步及完整验证全部自然成功才Committed并可输出witness/成功对象；签名不能先于最终许可。Committed后的回复丢失仍使S保持HOLD，不追溯否定D已完成结果，不授未来新操作。D原进程丢失不由新进程续做。
+- **三账及六窗口：** 原调用自然成功、后来目的端历史只读接受、新首签/新发布资格分别记录。保留现v2 reader可能接受合法完整已签残留的行为；后来open及其sync不能追补原P的sync/verify/reply成功，也不计失败调用的正常首发正例。许可前、签名前、rename前、parent-sync前、最终验证前、回复前六窗口按Appendix B1.5分别举证。
 - **历史恢复：** 已签完整包不依赖在线 source registry/DB/asset/pin；不比较 captured 历史 source inode 与目的端副本 inode。旧 bare-v2 的低层读取不被扩大为新的 full-recovery 资格。
+
+## 已采纳语义的保护与部署边界（未实现）
+
+原S在原锁、原累计预算和对象下先独占发布/同步/持有FD回读负fence并精确重核，再选择SOURCE_FINAL_DECISION。fence只能阻止破坏snapshot records/counts/generation/root身份的后继管理变更，不能授首签/新发布或重建原操作。所有writer、旧构建、重新登记/升级/恢复入口都须受门控；全局registry generation可能导致跨group长期阻塞，仅挡GC不足。新增namespace/记录/读取/保留须有固定上限并累计计费，UNKNOWN不按TTL自动解除或重试；管理员及所有相关写入方可信是假设，不声称抵抗任意root改写。
+
+仅仍活原S在原lease及持有fence对象下收到本次完整可信D成功结果、且所需结果/关闭证据已独核时，才可能追加独占同步回读的关闭记录；保留历史，不删除fence。该窄资格仅限仍有效、从未先行失效或进入失败/UNKNOWN/HOLD的原S正常核验本次成功，不能靠迟到ACK、历史读取或后来receipt读回恢复；普通期限内等待原回复不等于复活资格。该条件和实际协议仍待实现证明。关闭失败/未知继续保留约束；新进程不能从磁盘或历史receipt重建关闭资格，异常解除留给未来另审管理流程。
+
+管理身份与自动transport身份分离；系统Docker socket管理权不等于受限传输权。原manager的root管理固定启动/二进制/实例/key使用约束须独审，root0600或自报build不足。新的源认证key不同于D备份签名key；受限非交互principal、固定命令、用户/公钥/forced-command/sudoers及key/trust/registry/fence安装均需具体审批，不由语义采纳批准。
+
+下列测试、工具和收尾段落保持历史原件层级，既有“本轮”等时点用语不改写成当前执行；37条规格保持原内容与未执行状态。
 
 ## 已准备的测试规格
 
@@ -89,15 +101,15 @@ JSON 清单包括十一 seam、六种原操作边界、八种绑定替换、八�
 
 新[本地准备收尾表](../../task9/local-preparation-closeout.md)只关闭所列准备项。实际从27fc规范Git对象导出655文件、核654MF，原有38工具body重跑及两cwd／拒参数CLI通过，前后完整文件集合和字节不变；不新增用例，不授Task9资格。后续仅文档同步保持十个工具相关输入字节，不能把此次执行重标为未来提交。Rust、工具、37集成case与原权限／v2均未修改；四项实施输入仍待真实目标事实。
 
-## 实施前仍须明确的四项决定
+## 语义采纳后仍须具体化的四项实施输入
 
 1. **目标与字节访问方式：** 独立运行方和故障域、目标根命名、源／目的端如何读取数据、现有 `BackupDir` 所需目录／同步／no-replace／身份语义。NAS 或对象存储不能未经核实直接当作等价 POSIX 根。
 2. **托管与管理通道：** 谁持有独立私钥、现有安装 trust/registry、构建公钥 pin、双方实际调用身份及允许的窄操作。此稿不选定新认证机制，也不配置持久凭证或服务。
-3. **活操作准入与撤销排序：** 认证请求如何证明仍对应原成功 D 和仍有效 S；P 的新发布 authority 从何而来、何时消费；取消、崩溃和消息重复如何收敛。
-4. **结果已提交与结果未知的证据边界：** 发布成功点、观察丢失和历史只读重开的裁决如何证明；不能靠后来的 resync/readback 补造过去的成功操作。
+3. **原身份与准入实现：** 已采纳最终决定时序，但原manager可信独占身份、D原成功与新消费状态、全writer负fence和六窗口的真实实现/来源证明仍待具体化，不能用旧Arc跨机传递或已解析帧替代。
+4. **结果原件与历史读取：** 按已采纳三账和六窗口设计实际观测；现v2合法完整已签残留可历史读取，不要求全部失败残留永拒，也不能靠later resync/readback补造原调用自然成功。
 
-这四项是进入权限接口实现审查的输入，不是以缺少硬件为由预先开放入口。先完成具体方案独审，再实现对应 Task3 最小差异及测试；之后任何凭证／信任／权限安装、源端断联或目标恢复写入仍需精确执行审批。
+这四项是后续具体设计和实现审批的输入。用户此次仅准语义的规范定稿和独审，不批准R2b施工；规范新稿独审也不自动授权实现。R2b需另行具体批准，key/trust/registry/fence/source-auth/权限安装及源隔离/恢复各需对应B/C/D执行审批。
 
 ## 当前交付与未完成项
 
-本地交付是本草案、带源码摘要的37条未执行规格、结构检查记录与分层Windows纯单测原件。没有新增 authority、signer、服务、key、token 格式、公共构造器或可运行的单机跨机替身；没有改变原 Rust 权限或重跑 Task8；两个源码叶的有限测试／风格差异及 Windows 检查单列，不冒充旧 Source679 ZIP 已包含新测试。Task9 五个正式验收框、C4、正常 CompleteBackup/RecoveredInstance 和生产保持开放。
+当前交付新增用户语义采纳记录和Appendix B/B1窄异机规则的规范定稿，尚待独审；原草案/历史源码摘要、37条未执行规格、结构检查及分层Windows纯单测记录保留。没有新增运行时authority、signer、服务、key、公共构造器或单机跨机替身，没有改变Rust权限或重跑Task8；历史两个源码叶的测试/风格差异不冒充旧Source679字节。此次无新测试，不改37条case，Task9五门、C4、正常CompleteBackup/RecoveredInstance和生产保持开放。
