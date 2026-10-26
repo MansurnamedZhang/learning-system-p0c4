@@ -17,6 +17,11 @@ mod policy;
     reason = "Task1a profile is not a wired runtime IO budget yet"
 )]
 mod profile;
+#[allow(
+    dead_code,
+    reason = "Task2a untrusted codec has no runtime authority or IO consumer"
+)]
+mod wire;
 
 use crate::{BackupError, valid_digest, valid_hex};
 use serde::{Deserialize, Serialize};

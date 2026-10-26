@@ -1,5 +1,13 @@
 # Task9 已选目标与平台预检
 
+## 最新实施：Task2a纯协议编码片限定完成 · 2026-10-27
+
+五叶提供严格字段、帧/阶段、双向计费与候选摘要；新增27正文实际通过，offhost累计54。默认450/特性503各106 ignored分别记账，格式/严格Clippy/bin构建通过并独核。净差53并非计划53项分层义务；所有输出仍Untrusted/Candidate，无真实IO/认证或发布权限，runner始终拒绝。
+
+SourceActor生产capture、Root发证、peer认证与跨crate计费仍需准确合同和新增范围批准，不暗改旧guard。现场key/trust/配置权限、目标整链与恢复另批，Task9/C4 OPEN。完整原件来源、保留BLOCKED/RED与未验层见[实施进展](r2b-implementation-progress.md)。下方为历史检查点。
+
+---
+
 ## 最新实施：Task1b元数据FD片限定完成 · 2026-10-27
 
 固定路径元数据、held FD与原lease累计预算重读已实现；普通UID新批次新增8正文、offhost累计27逐名通过，默认450/特性476各106 ignored分账，格式/严格Clippy/bin构建通过并独核。Root正向完整holder、全部64FD及真实S/D authority未验。runner仍始终拒绝；Task9/C4保持OPEN。

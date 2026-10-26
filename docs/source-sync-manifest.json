@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 62198,
-      "sha256": "dba9915569c7e1967d2b9e4b12bad729a9f8849e1c0e523d277daa24655a205f",
+      "bytes": 62176,
+      "sha256": "d7bf9963cf1f20e354ebc2440e8d01e490d9db0786bdce580e90d48c4121930d",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115228,
+      "bytes": 115206,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
-      "sha256": "ffabd82c1437adc6cf3ba305ba63836d5e058f33bb77b4b2a97eccd742aa7066",
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "c756f870ca9f438200e8abee9e726c0d23fd3edd332100cac627901b040a8ce0",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 78527,
+      "bytes": 79227,
       "path": "README.md",
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
-      "sha256": "5bf70e56e170206c57751c6f3f1d0d5faa61c1aaf04cba7b26bf461482e46b44",
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "77323c67be4a8a2b9e99a2fefc5d10b9ffbbc5ae7348d55efc92e0a84be5234c",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -568,10 +568,10 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/mod.rs",
-      "bytes": 4516,
-      "sha256": "a59ee9c5fa9387f1c71a0504b57685747d2e8bf5436a5e01a0f7b6b1081dbf06",
+      "bytes": 4631,
+      "sha256": "7cce0527a1858c5b6fd4643cf84c34cc9ad346ae3a97e0a2ff390256ec566ff1",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy.rs",
@@ -614,6 +614,34 @@
       "sha256": "35bc7c633fc90dca70547263074473bb4d2c3d4c8a1f217dda5cd70346f7b36c",
       "source_bytes_preserved": true,
       "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire.rs",
+      "bytes": 26372,
+      "sha256": "49f8bcf9de40987bb698684d21537497c78b53eaacfed107666797b2ed06a02b",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/schema.rs",
+      "bytes": 16505,
+      "sha256": "da4e39a57f4af3294387cc54996d50fea9bc0e62f3cf679d473fddf9a1bd73b6",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/tests.rs",
+      "bytes": 35555,
+      "sha256": "36256d1b5e480cc46a3a979dbf2975873044c165a8b447fb897689bd79e917f9",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/transcript.rs",
+      "bytes": 4672,
+      "sha256": "507de6dba66f686c0ac04ff96e2c1a408f36568fd8368a64d4bfd9510234466b",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "bytes": 60142,
@@ -3582,10 +3610,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47056,
+      "bytes": 47018,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
-      "sha256": "7cb8b2b55d146c5cf5e99c4c79b8915c6a6562230c3559e731bcba31f5e71706",
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "e2259ed040211e02adf6db9b5f8b7e921788901d412f1a7ad64c6a7990774c36",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4259,10 +4287,10 @@
     },
     {
       "path": "docs/p0c4-task9-readiness.md",
-      "bytes": 23857,
-      "sha256": "a529f7947f9f5d49b32fc2eaf81f43edde5952c9d3c16130a1afc3d58f91ead8",
+      "bytes": 24623,
+      "sha256": "ff2cc5b95a2907cd8a735f3464444df0175f21b8d53fa70bd12670be104a9897",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "bytes": 163606,
@@ -4446,10 +4474,10 @@
     },
     {
       "path": "docs/task9/execution-readiness.md",
-      "bytes": 20844,
-      "sha256": "37404a4bc55bb4b6c2dce1504183b9653aa81689be04348db24f06a062544eb6",
+      "bytes": 21604,
+      "sha256": "8f6d98a45dbee2bdf8081ccdc1da225ab31ab0fe13e90259b34babe233e7b176",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "docs/task9/local-preparation-closeout.md",
@@ -4467,10 +4495,10 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 7992,
-      "sha256": "42f97b5f767517b8122ceabb6d7272f4d837e29186d6aebc1d7abbe8a3b308d7",
+      "bytes": 11985,
+      "sha256": "ce9cc64cabb964135eb8e61b07acc23da62d25c06d78469e6384bb19a6e1f198",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "docs/task9/r2b-validation-plan.json",
@@ -4488,10 +4516,10 @@
     },
     {
       "path": "docs/task9/selected-target-preparation.md",
-      "bytes": 13672,
-      "sha256": "19363d7fd96351e6d4bc8695a9b491653339fb0806767c07bba7dd540c6a9649",
+      "bytes": 14432,
+      "sha256": "2786670436bf1a371916d27df664ed3155b047fe7042a0f7d2702ba3b1aa5451",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "bytes": 4309,
@@ -4550,10 +4578,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 112222,
+      "bytes": 112917,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
-      "sha256": "b7bce133ac0334a13c92cc02919dc43c22506f1356f99b331d47ab42e081f682",
+      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "0823f0a583b8aa26742aa678f2a3cf3866113eb07dad09f064dcde18ef6197e3",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5405,15 +5433,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 675,
+  "manifest_file_count_excludes_manifest_itself": 679,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "653261369c84a57b85735254e951e532ec9ae560",
+  "previous_public_commit": "ccf71a5bf170bb08ce5c9b4668bef90ca47acf3d",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-27T01:09:54+08:00",
+  "progress_as_of": "2026-10-27T02:06:10+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS",
+  "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -13377,6 +13405,114 @@
     "installation_or_keys_or_permissions_changed": false,
     "postgres_networks_or_volumes_created": false,
     "source_actor_auth_capture_issuer_gaps_not_approved": true,
+    "Task9_accepted": false,
+    "formal_five_gates_unchanged": true,
+    "old_37_matrix_bytes_unchanged": true,
+    "planned_53_obligations_not_closed_by_unit_tests": true
+  },
+  "task9_r2b_task2a_wire_codec": {
+    "status": "UNTRUSTED_WIRE_CODEC_LINUX_CHECKED_NO_AUTH_OR_IO_NOT_INSTALLED",
+    "source_base_commit": "ccf71a5bf170bb08ce5c9b4668bef90ca47acf3d",
+    "source_files": [
+      {
+        "path": "crates/learning-backup/src/offhost_b1/mod.rs",
+        "bytes": 4631,
+        "sha256": "7cce0527a1858c5b6fd4643cf84c34cc9ad346ae3a97e0a2ff390256ec566ff1"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire.rs",
+        "bytes": 26372,
+        "sha256": "49f8bcf9de40987bb698684d21537497c78b53eaacfed107666797b2ed06a02b"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/schema.rs",
+        "bytes": 16505,
+        "sha256": "da4e39a57f4af3294387cc54996d50fea9bc0e62f3cf679d473fddf9a1bd73b6"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/transcript.rs",
+        "bytes": 4672,
+        "sha256": "507de6dba66f686c0ac04ff96e2c1a408f36568fd8368a64d4bfd9510234466b"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/tests.rs",
+        "bytes": 35555,
+        "sha256": "36256d1b5e480cc46a3a979dbf2975873044c165a8b447fb897689bd79e917f9"
+      }
+    ],
+    "source_refs_sha256": "27f51c87cb3c3216a062ad564c54af0871c6dd03823e1cb7ece5ee3a5703caff",
+    "implementation_and_actual_evidence_review_sha256": "3698ee2e61bcb02271598fd8dcd639ce7f8c949784313cde5165fdd8f5638027",
+    "linux_case_batch": "a05d75b5-67c9-4823-b9dc-99604eb11897",
+    "linux_source_archive_sha256": "629d8d7c42d1289a220e948a27393eda8272fc6dac03bc5fd94844d0fb650ec8",
+    "linux_source_manifest_sha256": "6f9faa0901e8d2e55396f76626e408d6e63d8985aab1dfa170005c2472aed202",
+    "linux_result_sha256": "0f2231fca8f5555be8ed49ef2435978ff1bb7f5bf7f0fbbd6d62a706420d5564",
+    "linux_phase_exits": {
+      "build": 0,
+      "clippy": 0,
+      "default-list": 0,
+      "default-tests": 0,
+      "feature-list": 0,
+      "feature-tests": 0,
+      "format": 0
+    },
+    "default_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 450
+    },
+    "feature_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 503
+    },
+    "offhost_total_actual_bodies": 54,
+    "offhost_new_actual_bodies": 27,
+    "offhost_new_actual_names": [
+      "offhost_b1::wire::tests::abort_is_only_the_empty_supported_subset",
+      "offhost_b1::wire::tests::actor_binding_uses_exact_domain_and_all_four_data_fields",
+      "offhost_b1::wire::tests::both_directions_share_exact_wire_budget_without_large_payload_fixture",
+      "offhost_b1::wire::tests::canonical_json_rejects_bom_whitespace_float_bool_and_overflow",
+      "offhost_b1::wire::tests::chunk_body_bounds_and_forbidden_control_bodies",
+      "offhost_b1::wire::tests::complete_syntax_is_only_data_and_requires_ack_then_two_ends",
+      "offhost_b1::wire::tests::controls_keep_exact_tag_direction_sequence_and_nested_fields",
+      "offhost_b1::wire::tests::each_direction_has_one_hello_and_no_early_end",
+      "offhost_b1::wire::tests::empty_file_needs_no_chunk_and_duplicate_roster_is_rejected",
+      "offhost_b1::wire::tests::envelope_lengths_tags_and_suffixes_are_exact",
+      "offhost_b1::wire::tests::file_reservations_use_original_shared_budget_without_reset_or_big_allocation",
+      "offhost_b1::wire::tests::file_stream_checks_single_open_number_offset_and_actual_hash",
+      "offhost_b1::wire::tests::final_and_result_bind_this_ready_attempt_and_negative_fence_data",
+      "offhost_b1::wire::tests::fixed_header_fields_and_preallocation_bounds",
+      "offhost_b1::wire::tests::fixed_transcript_vectors_and_full_frame_hash_use_original_raw_bytes",
+      "offhost_b1::wire::tests::frame_count_budget_is_shared_and_includes_metadata_headers",
+      "offhost_b1::wire::tests::nonce_binding_prefix_and_hello_substitution_fail_closed",
+      "offhost_b1::wire::tests::ready_records_use_sixteen_kib_each_not_signed_witness_eight_kib",
+      "offhost_b1::wire::tests::receipt_body_is_borrowed_exact_bytes_with_eight_kib_cap",
+      "offhost_b1::wire::tests::result_ack_and_end_direction_cannot_be_reordered",
+      "offhost_b1::wire::tests::roots_have_exact_roles_uuid_and_path_bounds",
+      "offhost_b1::wire::tests::source_data_end_matches_actual_counts_and_declared_class_totals",
+      "offhost_b1::wire::tests::source_end_closes_source_direction_including_abort",
+      "offhost_b1::wire::tests::truncation_suffix_and_sequence_errors_are_terminal",
+      "offhost_b1::wire::tests::typed_records_reject_duplicate_unknown_and_missing_keys",
+      "offhost_b1::wire::tests::unsigned_preimages_have_fixed_domains_and_no_signature_self_cycle",
+      "offhost_b1::wire::tests::wrong_phase_does_not_authenticate_or_commit_anything"
+    ],
+    "not_added_across_feature_configurations": true,
+    "feature_default_net53_not_planned53_obligations": true,
+    "ignored_not_executed": 106,
+    "real_IO_EOF_authentication_or_authority_not_executed": true,
+    "old_code_blocked_and_unexecuted_package_preserved": true,
+    "previous_fmt_failure_preserved": true,
+    "runtime_authority_wired": false,
+    "runners_always_refuse_even_fully_pinned": true,
+    "source_unchanged_in_builder": true,
+    "builder_exact_id_cleanup_confirmed": true,
+    "installation_or_keys_or_permissions_changed": false,
+    "postgres_networks_or_volumes_created": false,
+    "source_actor_auth_capture_issuer_extension_not_approved": true,
     "Task9_accepted": false,
     "formal_five_gates_unchanged": true,
     "old_37_matrix_bytes_unchanged": true,

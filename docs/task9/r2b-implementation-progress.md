@@ -1,5 +1,30 @@
 # Task9 R2b实施进展
 
+## 最新检查点：Task2a纯协议编码片 · 2026-10-27
+
+状态：**UNTRUSTED_WIRE_CODEC_LINUX_CHECKED / NO_AUTH_OR_IO / R2B_NOT_FULLY_WIRED / NOT_INSTALLED / TASK9_OPEN**。五叶提供20B帧头、2种Hello、10种typed控制、精确字段/重复键/canonical检查、双向同一SessionBudget、单文件流语法及候选摘要链。Ready unsigned CopyWitness/Intent各≤16KiB并借用原字节；receipt≤8KiB；不重排旧v2 body或替代原业务验证。空Abort受支持，非空固定Unsupported拒绝，未擅自新增reason编码。
+
+所有输出/phase/hash仍是Untrusted或Candidate数据。没有IO、SSH、PG、key、签名、真实SourceAdmission或D原上下文。两个runner仍始终integration incomplete。SourceAuth/Final的语法与候选preimage不证明验签、原actor身份或最终许可；finish_syntax的Ok只表示语法终态，可包含Abort，不是正常完成、真实EOF、自然退出或Committed。
+
+| 实际Linux门 | 结果 | 边界 |
+|---|---|---|
+| 格式、全target新feature严格Clippy、全部bin构建 | 三项exit0 | 不等完整workspace或实际manager执行 |
+| 默认库列举与正文 | 450 passed / 0 failed / 106 ignored | 独立配置，不相加 |
+| feature库列举与正文 | 503 passed / 0 failed / 106 ignored | offhost54逐名ok：基础19＋元数据8＋本片27 |
+| 本片新增27 | 实际执行并通过 | 纯字段/阶段/长度/单流/共享计费/候选摘要；无真实管道、认证、FS或进程退出信用 |
+
+两配置净差53来自offhost54与一项仅默认存在的旧测试；**此53与计划JSON的53项分层义务不是同一集合**。不累加450与503，106 ignored未执行；也不把旧准备Rust19、帧20或原37规格重新记为本片运行。R2B-WIRE条目的UNIT部分有本片来源，真实IO/deadline、受信安装/认证、跨机重放、原D消费与正常结束尚未验证，不能逐条宣布全部义务关闭。
+
+实际批次`a05d75b5-67c9-4823-b9dc-99604eb11897`；ZIP `629d8d7c42d1289a220e948a27393eda8272fc6dac03bc5fd94844d0fb650ec8`；result `0f2231fca8f5555be8ed49ef2435978ff1bb7f5bf7f0fbbd6d62a706420d5564`。固定builder、普通UID、网络none、只读rootfs/源码、4CPU/8GiB，源码前后相同，精确builder已清理。保留编译和原始证据；未创建PG、网络或卷，未操作目标机或在Windows运行产品测试。原始日志/完整listing与正文、包与执行源码由独立代理限定回读，INDEX SHA-256 `3698ee2e61bcb02271598fd8dcd639ce7f8c949784313cde5165fdd8f5638027`。测试脚本日志大小仍为事后读取上限，不替代产品连续有界IO；没有新的完整ELF独立散列或独立OS时钟证明。
+
+保留旧候选：首份纯Linuxshadow格式准备`9c5f452e…`仅fmt0、零正文；独审`20cad0ea…`发现S End后同方向Abort仍被接受，旧候选因此BLOCKED。旧29c2971c包从未启动，不记为实际失败或通过。修复先统一拒绝已关闭方向，再补27项中的具名反例；正常S End→D End不变。84dab8ec实际轮只fmt1（新增assert排版），零编译/正文，原result `5198c4bd2306e81e4695c6fcad10d235a93633007eccf26e7636e1a68d59b181`保留。按612B原差异修正后用本次新UUID重跑七门；没有复用失败资源或放宽判据。
+
+纯语法Abort/poison也不能被未来D actor用来回退已经Consuming的P；已采纳的迟到cancel/EOF例外仍由原D状态分账。真实Root holder/全局64FD/管道EOF、认证链、原S/D权限、fence、十一证据与副证明、一次消费writer及安装整链均非本片完成项。
+
+下一步为已批准的有界IO/监督与认证准备；SourceActor的生产capture布局、独立Root发证、peer认证及跨crate累计计费合同仍在具体化和独审，尚未获新增编码或现场变更批准。旧guard不暗改。key/trust/权限/PG配置、目标整链、源隔离及恢复仍另批；Task9五门、父Task3/4/5及C4保持OPEN，main与生产不变。下方保留已发布历史检查点。
+
+---
+
 ## 最新检查点：Task1b固定元数据FD片 · 2026-10-27
 
 状态：**METADATA_FD_SLICE_LINUX_CHECKED / R2B_NOT_FULLY_WIRED / NOT_INSTALLED / TASK9_OPEN**。三文件变化接入私有installed模块，固定policy/launch/anchor路径及Root文件元数据谓词；保留打开的文件/父目录句柄，在原RegistryLease的同一累计ScanBudget中计费stat、读取、EOF和重读，按原FD与同名路径的身份/字节再核。错误后holder保持失败，不以重新开预算恢复。返回的仍是私有非权威数据，runner仍始终拒绝。

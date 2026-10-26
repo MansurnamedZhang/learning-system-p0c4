@@ -1,5 +1,13 @@
 # 知织 · KnowWeave
 
+## Task9 R2b纯协议编码片完成限定Linux检查 · 2026-10-27
+
+Task2a五叶编码片新增27项实际通过，offhost累计54；默认450/特性503各106 ignored分账，格式/严格Clippy/bin构建通过并独核。净差53不是计划53项分层义务，所有输出仍Untrusted/Candidate，实际IO/认证与发布权限尚未接线。详见[实施进展](docs/task9/r2b-implementation-progress.md)。
+
+旧代码BLOCKED、未启动包和fmt RED保留，修复关闭方向边界后新UUID七门通过。下一步有界IO/监督及认证准备；SourceActor准确扩码合同继续独审，现场key/trust/权限、目标整链和恢复另批。Task9/C4仍OPEN，main与生产不变。
+
+---
+
 ## Task9 R2b元数据FD片完成限定Linux检查 · 2026-10-27
 
 Task1b固定元数据FD与原预算重读已实现并独核：新增8项，offhost共27项逐名通过，默认450/特性476各106 ignored分别记账，格式/严格Clippy/bin构建通过。详细证据、Root正向完整holder与全局FD的未验范围见[实施进展](docs/task9/r2b-implementation-progress.md)。
