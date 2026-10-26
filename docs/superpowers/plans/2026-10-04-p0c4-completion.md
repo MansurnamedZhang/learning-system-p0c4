@@ -209,15 +209,15 @@ Task8 的规定范围完成：当前完整回归、四套真正旧程序升级�
 
 ### Task 9: Genuine independent-domain closure when available
 
-当前执行准备：已备[目标事实、A/B/C/D1/D2最小审批和八步依赖单](../../task9/execution-readiness.md)，均未实例化／未授权／未执行；没有新测试或目标／安装观察。目标仍暂缺、历史安装UNKNOWN，停止在事实准备；本段不采纳新权限合同或勾选下面五个正式门。
+当前执行准备：用户已指定与源端分开的云目标并确认管理/托管方案，已完成既有SSH元数据及普通账户新隔离目录六项平台预检；实际key/trust/registry与管理身份未安装，不能由此关闭下面五个正式门。见[已选目标事实](../../task9/selected-target-preparation.md)和[更新的A/B/C/D1/D2执行准备单](../../task9/execution-readiness.md)。[具体B1候选](../../task9/b1-offhost-admission-rfc.md)独审仅允许继续设计及无权限framing/parser准备，尚不批准authority实现/启用；当前阻断为可信原manager、源死亡/最终决策、P一次消费及UNKNOWN裁决。
 
-当前本地准备检查收尾：27fc规范字节导出655文件／654MF，既有38工具body重跑通过，两cwd结构报告一致，未知参数实际exit1；前后完整文件集合／字节不变。详见[本地收尾表](../../task9/local-preparation-closeout.md)。本次仅文档／路线图整理，十份工具相关文件与执行来源字节桥核对；37条集成case与下面五个正式门继续未完成，不授Task9／C4资格。
+历史本地准备检查收尾：27fc规范字节导出655文件／654MF，既有38工具body重跑通过，两cwd结构报告一致，未知参数实际exit1；前后完整文件集合／字节不变。详见[本地收尾表](../../task9/local-preparation-closeout.md)。原十份工具字节桥继续保留其当时执行来源；新增独立framing文件不导入产品crate，也不改变37条集成case或下面五个正式门，不授Task9／C4资格。
 
 历史工具交付检查点（27fc）：新增可复用离线检查器及38项Windows纯Python工具回归，检查37条未执行规格／七份源码与声明范围；输出固定不授Task9信用。此前Rust19保留历史且本轮不重跑，未改变权限或37条集成case。五个正式验收框继续开放，运行方法／证明限制见准备文档。
 
 历史模块检查点（2c）：现有目的端attempt模块Windows19/19（既有14＋新增5），新增outcome错误／身份错配／撤销／异常与一个八字段自洽identity替换组；格式和包级严格Clippy通过。仅追加cfg(test)，原生产权限和旧14测试字节不变；37条集成规格及以下五个正式验收框不变，不增加Task9信用。
 
-本地准备补充：用户已确认暂时没有独立目标；已形成[B1最小契约草案](../specs/2026-10-26-task9-b1-integration-preparation.md)与[37条未执行规格](../../task9/b1-preparation-test-matrix.json)，37条集成规格只检查结构和源码连接；另补五个Windows Store纯拒绝回归（5/5），格式/包级lib-tests严格Clippy通过，仅有cfg(test)追加与非Linux同Err尾表达式修正。未采纳新权限方案／未改变Rust权限入口。下面五项正式门仍未完成。
+历史本地准备补充（尚未选目标时）：用户当时确认暂时没有独立目标；已形成[B1最小契约草案](../specs/2026-10-26-task9-b1-integration-preparation.md)与[37条未执行规格](../../task9/b1-preparation-test-matrix.json)，37条集成规格只检查结构和源码连接；另补五个Windows Store纯拒绝回归（5/5），格式/包级lib-tests严格Clippy通过，仅有cfg(test)追加与非Linux同Err尾表达式修正。未采纳新权限方案／未改变Rust权限入口。下面五项正式门仍未完成。
 
 2026-10-26 准备检查点：已完成 B1 三接口静态审查、固定元数据探针与六项本地纯安全测试；现有普通身份无法核实 root 私有安装内容。目标／托管／构建 pin 继续未核实，跨操作首签／新发布尚未集成，下面五项均未完成。详见 [Task9准备与前置阻碍](../../p0c4-task9-readiness.md)。
 

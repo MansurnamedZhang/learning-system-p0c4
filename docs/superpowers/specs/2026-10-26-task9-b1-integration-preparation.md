@@ -2,7 +2,7 @@
 
 2026-10-26。**仅供设计审阅：未采纳为新权限合同、未实现或启用新首签／发布权限入口，Task9/C4 仍开放。**
 
-用户确认暂时没有独立目标，继续本地准备。依据仍为[原完成规范 Appendix B/B1](2026-10-04-p0c4-completion-design.md)及[原施工单 Task9](../plans/2026-10-04-p0c4-completion.md)。本稿细化实施义务和测试规格，不替换原规范，不选择认证设施、生成密钥或制造单机独立验收。
+本稿产生于用户尚未选定独立目标的历史准备阶段；当前已选目标及限定平台预检见[新目标记录](../../task9/selected-target-preparation.md)，具体异机候选和待裁决点见[后续RFC](../../task9/b1-offhost-admission-rfc.md)。依据仍为[原完成规范 Appendix B/B1](2026-10-04-p0c4-completion-design.md)及[原施工单 Task9](../plans/2026-10-04-p0c4-completion.md)。本稿保留原实施义务和37条未执行规格，不替换原规范、生成密钥或制造单机独立验收。
 
 产品 Rust 来源为 `679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`；原Rust19检查点的准备发布基线为 `c1f170a5d83351eb8ff1d66568b812b5770684c6`；本轮离线工具的发布准备基线为 `2c507ea4b0e6134b66a9e06a9970e939f50a7422`。Linux 业务实现、权限合同、迁移、v2 包／statement／witness／receipt 与 Task8 结论保持原样。本地候选累计追加十项 cfg(test) 拒绝回归及测试专用helper/适配器，并对一个非Linux“不支持”分支作同一 Err 的尾表达式修正；不能说这两个源码文件与旧ZIP逐字相同。[前置状态](../../p0c4-task9-readiness.md)和[机器可读测试规格清单](../../task9/b1-preparation-test-matrix.json)均不产生产品可消费的授权。
 

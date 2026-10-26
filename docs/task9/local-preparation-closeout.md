@@ -67,4 +67,4 @@ python -B -m unittest discover -s scripts -p test_p0c4_task9_preparation_check.p
 
 ## 后续执行准备入口
 
-目标出现后的[事实表、分阶段最小审批与八步执行依赖单](execution-readiness.md)已另行整理。它是未实例化、未授权、未执行的文档模板，不改变本页原27fc执行／25b收尾记录，不产生新的测试、首签／发布或恢复资格。
+目标出现后的[事实表、分阶段最小审批与八步执行依赖单](execution-readiness.md)已另行整理；“未实例化/未授权/未执行”是600c模板时点，当前A已有选定目标、既有SSH及限定平台预检，B/C/D仍未执行。新事实和后续无权限帧检查见[已选目标记录](selected-target-preparation.md)，不改变本页原27fc执行／25b收尾记录，不回填首签／发布或恢复资格。
