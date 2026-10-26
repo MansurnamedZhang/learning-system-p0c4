@@ -1,0 +1,725 @@
+{
+  "artifact_kind": "TASK9_R2B_PLANNED_VALIDATION_NOT_PRODUCT_INPUT",
+  "schema_version": 1,
+  "date": "2026-10-26",
+  "public_base_commit": "e94e00dec7cb6768f0c5db0db238c1a5f9f407ff",
+  "status": "IMPLEMENTATION_AND_LIMITED_LINUX_SCOPE_AUTHORIZED_NOT_EXECUTED",
+  "product_consumes_this_file": false,
+  "original_37_matrix_sha256": "4eea0c2b2d4fd6a101db1b117a7553fb05f61f3b00af66f555606f4c168e4bcd",
+  "original_case_ids": [
+    "B1-SEAM-01",
+    "B1-SEAM-02",
+    "B1-SEAM-03",
+    "B1-SEAM-04",
+    "B1-SEAM-05",
+    "B1-SEAM-06",
+    "B1-SEAM-07",
+    "B1-SEAM-08",
+    "B1-SEAM-09",
+    "B1-SEAM-10",
+    "B1-SEAM-11",
+    "B1-BOUNDARY-01",
+    "B1-BOUNDARY-02",
+    "B1-BOUNDARY-03",
+    "B1-BOUNDARY-04",
+    "B1-BOUNDARY-05",
+    "B1-BOUNDARY-06",
+    "B1-BIND-01",
+    "B1-BIND-02",
+    "B1-BIND-03",
+    "B1-BIND-04",
+    "B1-BIND-05",
+    "B1-BIND-06",
+    "B1-BIND-07",
+    "B1-BIND-08",
+    "B1-OUTCOME-01",
+    "B1-OUTCOME-02",
+    "B1-OUTCOME-03",
+    "B1-OUTCOME-04",
+    "B1-OUTCOME-05",
+    "B1-OUTCOME-06",
+    "B1-OUTCOME-07",
+    "B1-OUTCOME-08",
+    "B1-LIVE-01",
+    "B1-LIVE-02",
+    "B1-LIVE-03",
+    "B1-LIVE-04"
+  ],
+  "original_groups_mapping": {
+    "B1-SEAM": "R2B-D_COMMIT-01..11; actual IO remains separately required",
+    "B1-BOUNDARY": "R2B-ACTOR and FENCE; preserve original-operation identity",
+    "B1-BIND": "R2B-WIRE; exact installed binding and transcript",
+    "B1-OUTCOME": "R2B-D_COMMIT/WINDOW; explicitly distinguish Pending vs Consuming and history reads",
+    "B1-LIVE": "R2B-ACCEPTANCE; actual independent source/destination and recovery only"
+  },
+  "proposed_case_count": 53,
+  "cases": [
+    {
+      "id": "R2B-ACTOR-01",
+      "name": "FIRST_PUBLICATION_ADMISSION",
+      "obligation": "Capture ended; new first S publication admission before any D starts",
+      "required_layer": "LINUX_PG_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACTOR-02",
+      "name": "NO_CAPTURE_PIN_AUTHORITY",
+      "obligation": "Pin/released bytes without current S admission cannot start",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACTOR-03",
+      "name": "S_LEASE_REPLACEMENT",
+      "obligation": "S lease/budget/roots replaced after D start rejects",
+      "required_layer": "UNIT_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACTOR-04",
+      "name": "D_FRESH_LEASE",
+      "obligation": "D 11-step success cannot move to another lease/process",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACTOR-05",
+      "name": "D_ONLY_ROOTS",
+      "obligation": "D only has local D group/two roots; never opens S roots or PG",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WIRE-01",
+      "name": "HEADERS_AND_ALLOCATION",
+      "obligation": "Header/length/count overflow before payload allocation",
+      "required_layer": "UNIT_AND_NATIVE_IO",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT",
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": false
+    },
+    {
+      "id": "R2B-WIRE-02",
+      "name": "SHORT_IO",
+      "obligation": "Short read/write/Interrupted/truncation and real EOF",
+      "required_layer": "NATIVE_IO",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": false
+    },
+    {
+      "id": "R2B-WIRE-03",
+      "name": "SCHEMA_AND_PHASE",
+      "obligation": "Duplicate/unknown keys, bad integer/role/path, illegal phase/tag/direction",
+      "required_layer": "UNIT_AND_NATIVE_IO",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT",
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": false
+    },
+    {
+      "id": "R2B-WIRE-04",
+      "name": "DUAL_BUDGET",
+      "obligation": "Both directions, control/errors/headers count once in shared total",
+      "required_layer": "UNIT_AND_NATIVE_IO",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT",
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": false
+    },
+    {
+      "id": "R2B-WIRE-05",
+      "name": "CHALLENGE_REPLAY",
+      "obligation": "Wrong key/build/nonce/prefix/sequence/transcript and replay fail",
+      "required_layer": "UNIT_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WIRE-06",
+      "name": "NO_GENERIC_SIGNING",
+      "obligation": "S fixed auth function cannot sign arbitrary bytes; D key only v2",
+      "required_layer": "CODE_REVIEW_AND_INSTALLED_LAUNCH",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WIRE-07",
+      "name": "EOF_AFTER_COMMIT",
+      "obligation": "S stdin stays open until D result; postcommit Ack/End/real EOF/exit",
+      "required_layer": "NATIVE_IO_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WIRE-08",
+      "name": "TIMEOUT_SETTLEMENT",
+      "obligation": "Total/idle/deadline/cancel; blocked FS keeps owner, no fake settlement",
+      "required_layer": "NATIVE_IO_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-01",
+      "name": "NAMESPACE",
+      "obligation": "Missing/replaced anchor/root, symlink/hardlink/mode/extra/staging refuse",
+      "required_layer": "LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-02",
+      "name": "PERSISTENCE",
+      "obligation": "Each write/rename/file/parent-sync/readback failure retains blocking residue",
+      "required_layer": "LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-03",
+      "name": "CAPS",
+      "obligation": "256/cap+1 and old cumulative budget/entry caps with re-read accounting",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-04",
+      "name": "GLOBAL_MUTATION",
+      "obligation": "All identified protected mutation/global-generation gates refuse unchanged",
+      "required_layer": "CODE_REVIEW_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-05",
+      "name": "OWN_HELD_ONLY",
+      "obligation": "Original held owner may bounded recheck; caller ignore-id/fresh lease refuses",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-06",
+      "name": "NO_CLOSE",
+      "obligation": "No successful or failed close record releases; normal success still retains",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-07",
+      "name": "LEGACY_LAUNCH",
+      "obligation": "Old same-pin binary/alternate launcher/inflight writers excluded before enable",
+      "required_layer": "INSTALLED_LAUNCH_ONLY",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-FENCE-08",
+      "name": "NO_S_READ_ON_D",
+      "obligation": "D-only history/RA/RB never depends on S fence or S live roots",
+      "required_layer": "CROSS_HOST_AND_RECOVERY",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-01",
+      "name": "SEAM_01",
+      "obligation": "Admit",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-02",
+      "name": "SEAM_02",
+      "obligation": "Prepare",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-03",
+      "name": "SEAM_03",
+      "obligation": "Stage",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-04",
+      "name": "SEAM_04",
+      "obligation": "BeforeRename",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-05",
+      "name": "SEAM_05",
+      "obligation": "Rename",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-06",
+      "name": "SEAM_06",
+      "obligation": "ParentSync",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-07",
+      "name": "SEAM_07",
+      "obligation": "FinalReadback",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-08",
+      "name": "SEAM_08",
+      "obligation": "TerminalWrite",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-09",
+      "name": "SEAM_09",
+      "obligation": "TerminalSync",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-10",
+      "name": "SEAM_10",
+      "obligation": "TerminalReadback",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-11",
+      "name": "SEAM_11",
+      "obligation": "FinalRecheck",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-12",
+      "name": "OUTCOME",
+      "obligation": "Error/wrong backup/revoke/unwind never registers natural success",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-13",
+      "name": "SNAPSHOT_EFFECTS",
+      "obligation": "Real companion proof before Ready; missing/corrupt/copy error invalidates",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-D_COMMIT-14",
+      "name": "CONSUME_RACES",
+      "obligation": "Barrier-controlled early cancel/late remote loss, no second consume/clone",
+      "required_layer": "UNIT_AND_NATIVE_IO",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT",
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": false
+    },
+    {
+      "id": "R2B-D_COMMIT-15",
+      "name": "LOCKS_AND_UNWIND",
+      "obligation": "No recursive lock, poison/drop fails, deadline before exposure checked",
+      "required_layer": "UNIT_AND_NATIVE_IO",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT",
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": false
+    },
+    {
+      "id": "R2B-WINDOW-01",
+      "name": "BEFORE_PERMISSION",
+      "obligation": "No new signature",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WINDOW-02",
+      "name": "BEFORE_SIGNATURE",
+      "obligation": "Consumed only original D; local failure terminal",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WINDOW-03",
+      "name": "BEFORE_RENAME",
+      "obligation": "No final receipt; no witness exposure",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WINDOW-04",
+      "name": "BEFORE_PARENT_SYNC",
+      "obligation": "Visible signed residue may later read; original return not repaired",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WINDOW-05",
+      "name": "BEFORE_VERIFY",
+      "obligation": "Later valid read not original natural success",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WINDOW-06",
+      "name": "BEFORE_REPLY",
+      "obligation": "D committed and S unknown separate; no replay",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACCEPTANCE-01",
+      "name": "REAL_FIRST_PUBLICATION",
+      "obligation": "Actual two-host custodied key/verified launch full source capture and normal P return",
+      "required_layer": "CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACCEPTANCE-02",
+      "name": "RA_FULL_RECOVERY",
+      "obligation": "Fresh RA original engine: all rows/assets/jobs/effects validate",
+      "required_layer": "RECOVERY_ON_D",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACCEPTANCE-03",
+      "name": "RB_SOURCE_UNAVAILABLE",
+      "obligation": "Source DB/registry/assets/pins inaccessible with originals retained; fresh RB source reads zero",
+      "required_layer": "RECOVERY_ON_D",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACCEPTANCE-04",
+      "name": "PRIOR_COMPLETE",
+      "obligation": "Interrupted later transfer preserves prior complete package/proof/receipt bytes",
+      "required_layer": "CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "setup_preconditions": [
+        "FRESH_S2_NAMESPACE_REGISTRY_ROOTS_FIXED_PROFILE_APPROVED_BEFORE_D2",
+        "D_EXACT_S2_IDENTITY_ADMISSION_REVIEWED_NOT_CALLER_OVERRIDE",
+        "PRESERVE_D1_ORIGINAL_TRUST_AND_READER_CONTEXT_WITH_SEPARATELY_ADMITTED_ISOLATED_VIEW_OR_REVIEWED_EQUIVALENT_NOT_TRUST_OVERWRITE",
+        "S1_FENCE_AND_D1_PACKAGE_PROOF_RECEIPT_RETAINED",
+        "INDEPENDENT_BEFORE_AFTER_BYTE_VERIFICATION",
+        "NO_FENCE_RELEASE_D1_RESET_OR_LATE_S_LEASE_REPLACEMENT"
+      ],
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-ACCEPTANCE-05",
+      "name": "FINAL_REVIEW",
+      "obligation": "Applicable final regressions/source/build/binary/raw evidence/independent review",
+      "required_layer": "FINAL_AUDIT",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-SESSION-01",
+      "name": "SESSION_CAPS",
+      "obligation": "256 directories/1536 entries/32MiB and every per-file cap+1 before allocation/new write",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-SESSION-02",
+      "name": "SESSION_ACCOUNTING",
+      "obligation": "Listing/stat/contents/re-reads charge original D ScanBudget without reset or remote credit",
+      "required_layer": "UNIT_AND_LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-SESSION-03",
+      "name": "SESSION_PARTIAL",
+      "obligation": "Empty/partial/unknown/hardlink/symlink/sync-ambiguous retained; new same-ID refuses",
+      "required_layer": "LINUX_FS",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-SESSION-04",
+      "name": "SESSION_HISTORY",
+      "obligation": "Retained/exhausted session metadata never becomes positive permission or S/history dependency",
+      "required_layer": "LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    },
+    {
+      "id": "R2B-WIRE-09",
+      "name": "EXACT_DIGEST_OBJECTS",
+      "obligation": "Actor/root/receipt/rosters/input/output hash exact objects with no self-reference or domain confusion",
+      "required_layer": "UNIT_AND_NATIVE_IO",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT",
+        "NATIVE_IO"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": false
+    },
+    {
+      "id": "R2B-D_COMMIT-16",
+      "name": "READY_EFFECTS_OUTPUT",
+      "obligation": "Ready raw canonical witness/intent, D fresh UUID linkage and original natural copy before Ready; S cannot counterfeit independent recomputation",
+      "required_layer": "UNIT_AND_LINUX_FS_AND_CROSS_HOST",
+      "execution_status": "NOT_EXECUTED",
+      "planned_test_name_is_not_existing_body": true,
+      "authorization": "LAYERED_R2B_NONPRIVILEGED_ONLY; ROOT_INSTALLED_AND_INTEGRATION_LAYERS_B_C_D_SEPARATE",
+      "nonprivileged_r2b_scope_can_only_cover": [
+        "UNIT"
+      ],
+      "root_or_installed_or_cross_host_layers_require_B_C_D_approval": true
+    }
+  ],
+  "actual_cases_executed": 0,
+  "actual_cases_passed": 0,
+  "Task9_accepted": false,
+  "permissions_changed": false,
+  "compound_obligation_is_not_test_body_count": true,
+  "scope_design_review_sha256": "de2d7208b9db06ad586f093e1912f6f5e0e9941a83c60200fa2afd46d926439b",
+  "implementation_authorization_record": "docs/task9/r2b-implementation-approval.md",
+  "operational_keys_or_installation_authorized": false
+}

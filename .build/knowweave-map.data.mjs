@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "时序语义已采纳，仅规范定稿与独审",
-    "detail": "独立目标和root托管方案已选；B1最终决定语义获明确采纳。权限实现/现场安装未批准，真实首发和恢复尚未验收。",
-    "evidence": "规范区分许可/自然完成、UNKNOWN/历史只读和管理/transport身份；持久保护可能跨组长期阻塞。无新产品测试，37历史规格和五个正式门仍未完成。"
+    "statusLabel": "准确编码范围已批准，待实现与限定检查",
+    "detail": "独立目标和托管方案已选；语义已采纳，R2b代码、协议、预算与分层验证范围已独审。用户已批准代码及普通Linux限定检查；现场变更未批准，真实首发和恢复尚未验收。",
+    "evidence": "已修订D session容量与Ready摘要合同，列53项未执行验证义务；首版成功后仍保留源fence，可能阻止新备份。无新产品测试，37历史规格不改、五个正式门仍OPEN。"
   }
 ];
 
@@ -1641,25 +1641,25 @@ export const meta = {
   "date": "2026-10-26",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9时序语义已采纳，仅规范定稿",
-  "progressSummary": "用户已明确采纳B1最终决定方案，授权仅规范定稿与独审。本轮对齐源端最终检查/持久保护、目标许可与自然完成两点、一次消费及未知结果，保留v2历史读取分账。尚未实现权限或安装配置；既有FS六项、Linux帧20正文不新增或累计。",
+  "state": "C4实施中 · Task8限定完成 · Task9 R2b实现范围已批准",
+  "progressSummary": "已完成R2b准确源码范围、固定wire与预算、D session持久空间及精确摘要合同的独审准备；53项为未执行分层义务，不是测试通过。用户已批准R2b编码与普通Linux限定检查，当前源码及真实安装未变；既有FS六项、Linux帧20正文保留原信用。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "时序语义已采纳，规范独审已限定通过；后续仅准备R2b准确合同、影响范围、固定预算与验证方案，编码仍须另批。manager身份、D一次消费和所有writer/fence门控待实现证明；key/trust/registry、源隔离及恢复未批准或执行，Task9/C4五门仍OPEN。",
+  "pendingSummary": "下一步逐任务实现已批准的默认关闭R2b纵切片，并做普通Linux限定检查；首版正常成功后仍保留源fence，可能长期阻止新备份及管理变更。manager认证、D一次消费和所有writer门控待实现；安装、安全权限、源隔离及恢复另批，Task9/C4五门仍OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · B1时序语义已采纳，规范定稿；权限实现未批准",
-  "taskPlanScope": "用户仅采纳规范语义；本轮不编写权限实现、不改公共v2/37条历史规格或产品，不运行新产品测试。已采纳不等于已实现或部署；原提案和旧失败/HOLD按历史原字节保留。Windows只维护控制与文档。",
+  "roadmapHeadline": "当前进度 · R2b编码及限定Linux检查已批准；待实现",
+  "taskPlanScope": "本轮完成准确范围独审并获得用户对R2b编码及限定Linux检查的明确批准；当前只同步批准记录，产品、公共v2和37条历史规格不变，未运行新产品测试。编码批准不等于已有实现、测试通过或部署，所有旧失败/HOLD保留；Windows只维护控制与文档。",
   "nextSteps": [
     [
       "01 · 已采纳语义，规范定稿与独审",
       "已明确原S最终核对与持久保护、D一次消费、许可/自然完成两点及历史读取分账；Task9五门和旧失败不改，规范定稿不授实现权限。"
     ],
     [
-      "02 · 准备R2b精确实现审查包",
-      "列清固定wire/预算、全部writer/fence门控、manager身份与D原操作消费的实际源码/测试范围，完成具体审查；本轮不批准或编写权限实现。"
+      "02 · 按已批准准确范围逐任务实现R2b",
+      "准确范围已独审：固定协议与预算、原S/D、全部writer门控、真实副证明及一次消费；53项义务分层，成功后源fence长期保留代价明示。用户已批准代码及普通Linux检查；逐任务实现和独审，现场变更仍另批。"
     ],
     [
       "03 · 准确审批安装与真实整链",
@@ -1785,7 +1785,7 @@ export const references = [
     "docs/task9/selected-target-preparation.md"
   ],
   [
-    "Task9异机活操作RFC与待裁决权限",
+    "Task9异机活操作RFC（历史候选）",
     "docs/task9/b1-offhost-admission-rfc.md"
   ],
   [
@@ -1795,6 +1795,10 @@ export const references = [
   [
     "Task9最终决定语义采纳记录与实施边界",
     "docs/task9/b1-final-decision-adoption.md"
+  ],
+  [
+    "Task9 R2b准确编码范围、预算与分层验证计划",
+    "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md"
   ]
 ];
 

@@ -1,5 +1,17 @@
 # Task9 执行准备单：目标事实、最小审批与实施依赖
 
+## 当前检查点：R2b准确编码范围已批准，开始逐任务实现
+
+已把源码影响、原S/D操作、固定协议与预算、D session持久空间、精确摘要对象、snapshot-effects副证明和全部writer/fence门控列入[准确实施计划](../superpowers/plans/2026-10-26-task9-r2b-implementation.md)。[wire profile](../task9/r2b-wire-profile.json)与[53项分层验证义务](../task9/r2b-validation-plan.json)均为未执行候选，不是程序配置、测试正文数量或53项通过；原37条历史规格保持原字节。
+
+首轮独审提出的D session累计容量与Ready摘要原像缺口已修订；S只重算自己的输入，并核对原D返回的有界副证明字节，不声称独立重算D物理结果。保留先前备份的负例还须在未来C/D设置中预先准入S2，保留S1 fence、D1原trust/reader及完整备份字节。
+
+**首版即使正常成功也不自动解除源fence**，可能长期阻止该源registry的新备份及相关管理变更，甚至影响其他组；异常解除另审。用户已明确批准默认关闭的R2b代码和既有Linux普通用户隔离builder限定检查，准确边界见[批准记录](r2b-implementation-approval.md)。真实密钥/信任/registry/launcher/权限安装、目标执行、源隔离和恢复仍分别暂停待准确批准。
+
+此次无新产品代码或测试，不重新盘点S/D安装，不把旧平台元数据升级成当前事实。Task8规定范围保持已完成；Task9五门及C4仍OPEN，main与生产保持原样。此前“待列清合同”的文字保留为历史检查点，现行准确范围见上方计划。
+
+---
+
 ## 当前依赖：已采纳最终决定语义，后续实现/执行分开
 
 2026-10-26 用户明确采纳[最终决定方案](b1-final-decision-contract-proposal.md)，授权范围仅规范定稿与独审，见[采纳记录](b1-final-decision-adoption.md)。原S最后核对并持久保护后，由原D一次消费最终决定；许可与物理提交分开，UNKNOWN/HOLD不重放，历史只读不追补原调用成功。fence可能影响全局generation及其他组，长期保留和异常解除成本必须披露。

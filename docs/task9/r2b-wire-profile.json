@@ -1,0 +1,814 @@
+{
+  "artifact_kind": "TASK9_R2B_WIRE_PROFILE_PROPOSAL_NOT_PRODUCT_INPUT",
+  "schema_version": 1,
+  "public_base_commit": "e94e00dec7cb6768f0c5db0db238c1a5f9f407ff",
+  "status": "IMPLEMENTATION_SCOPE_AUTHORIZED_NOT_IMPLEMENTED_NOT_INSTALLED",
+  "product_consumes_this_file": false,
+  "profile": "task9-b1-limited-v1",
+  "product_tests_executed": 0,
+  "task9_accepted": false,
+  "header": {
+    "bytes": 20,
+    "magic": "KWB1",
+    "version": 1,
+    "fields": [
+      "kind:u8",
+      "direction:u8",
+      "reserved:u8=0",
+      "sequence:u64be",
+      "payload_len:u32be"
+    ],
+    "kinds": {
+      "Metadata": 1,
+      "Data": 2,
+      "End": 3,
+      "Abort": 4
+    },
+    "directions": {
+      "S>D": 1,
+      "D>S": 2
+    },
+    "sequence": "PER_DIRECTION_START_ZERO_CONTIGUOUS_NO_RESET"
+  },
+  "limits": {
+    "package_bytes": 268435456,
+    "source_evidence_and_snapshot_effects_bytes": 100663296,
+    "total_bidirectional_wire_bytes_including_headers": 536870912,
+    "total_bidirectional_frames": 8192,
+    "control_json_bytes": 16384,
+    "data_payload_bytes": 65536,
+    "chunk_control_bytes": 1024,
+    "chunk_body_bytes": 61440,
+    "result_body_bytes": 8192,
+    "abort_bytes": 256,
+    "files": 512,
+    "concurrent_file_streams": 1,
+    "product_owned_fd_limit": 64,
+    "fence_operation_directories": 256,
+    "fence_anchor_bytes": 4096,
+    "fence_open_record_bytes": 16384,
+    "handshake_seconds": 60,
+    "io_idle_seconds": 30,
+    "operation_seconds": 1800,
+    "settlement_observation_seconds": 30,
+    "stderr_bytes_each": 1048576,
+    "diagnostic_bytes_each": 1048576,
+    "session_operation_directories": 256,
+    "session_namespace_entries": 1536,
+    "session_anchor_bytes": 4096,
+    "session_admission_bytes": 4096,
+    "session_binding_bytes": 16384,
+    "session_transport_index_bytes": 16777216,
+    "session_total_retained_metadata_bytes": 33554432,
+    "ready_witness_bytes": 16384,
+    "ready_intent_bytes": 16384
+  },
+  "data_envelope": "tag:u8 | control_len:u32be | canonical_control_json | body_len:u32be | raw_body",
+  "canonical_rules": [
+    "UTF8_NO_BOM_NO_TRAILING_LF",
+    "EXACT_TYPED_KEYS_AT_EVERY_DEPTH",
+    "NO_DUPLICATE_KEYS_OR_ROLES",
+    "NO_FLOAT_BOOL_AS_INTEGER_NONFINITE_OR_OVERFLOW",
+    "RECURSIVE_LEXICOGRAPHIC_OBJECT_KEYS",
+    "LOWER_HEX_UUID_AND_DIGEST",
+    "CANONICAL_REENCODING_EQUAL_TO_RECEIVED_BYTES"
+  ],
+  "root_record": {
+    "exact_fields": [
+      "role",
+      "enrollment_id",
+      "path",
+      "dev",
+      "ino",
+      "uid",
+      "mode",
+      "record_sha256"
+    ],
+    "source_roles": [
+      "assets",
+      "control",
+      "local_pins",
+      "staging"
+    ],
+    "destination_roles": [
+      "destination",
+      "evidence"
+    ],
+    "identity": "HELD_LOCAL_FD_NOT_CALLER_VALUES",
+    "source_on_D": "HISTORICAL_ONLY_NO_DEREFERENCE",
+    "constraints": {
+      "uid": 0,
+      "mode": 448,
+      "path": "ABSOLUTE_CANONICAL_POSIX_MAX_1024_UTF8_BYTES",
+      "dev": "u64",
+      "ino": "u64"
+    }
+  },
+  "bindings": {
+    "source": {
+      "deployment_id": "uuid_v4",
+      "source_group_id": "uuid_v4",
+      "backup_id": "internally_generated_uuid_v4",
+      "registry_authority_sha256": "sha256",
+      "registry_generation": "positive_u64",
+      "generation_sha256": "sha256",
+      "source_binding_sha256": "sha256",
+      "application_commit": "lower_hex40",
+      "application_build_sha256": "sha256",
+      "manager_release_sha256": "sha256_VALIDATED_BY_SEPARATE_TRUSTED_LAUNCHER_NOT_SELF_ATTESTATION",
+      "roots": "FOUR_ROOT_RECORDS_ORDERED_BY_ROLE",
+      "manifest_sha256": "sha256",
+      "source_control_sha256": "sha256",
+      "captured_roster_sha256": "sha256",
+      "snapshot_effects_roster_sha256": "sha256",
+      "package_bytes": "u64_LE_268435456",
+      "evidence_bytes": "u64_LE_100663296",
+      "file_count": "u32_LE_512",
+      "package_roster_sha256": "sha256_OF_CANONICAL_SORTED_COMPLETE_PACKAGE_FILEREFS_INCLUDING_MANIFEST",
+      "source_operation_id": "INTERNALLY_GENERATED_UUID_V4_BEFORE_D_START",
+      "snapshot_effects_transport_index_sha256": "sha256",
+      "snapshot_effects_input_sha256": "sha256"
+    },
+    "destination": {
+      "deployment_id": "uuid_v4",
+      "destination_group_id": "uuid_v4",
+      "attempt_id": "D_GENERATED_UUID_V4_NOT_YET_DURABLE_ADMISSION",
+      "registry_authority_sha256": "sha256",
+      "registry_generation": "positive_u64",
+      "generation_sha256": "sha256",
+      "receiver_release_sha256": "sha256_VALIDATED_BY_TRUSTED_LAUNCHER",
+      "roots": "TWO_ROOT_RECORDS_ORDERED_BY_ROLE"
+    },
+    "binding_sha256": "SHA256(CANONICAL_OBJECT_WITH_EXACT_KEYS_source_destination)"
+  },
+  "metadata": [
+    {
+      "name": "HelloS",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "source"
+      ]
+    },
+    {
+      "name": "HelloD",
+      "direction": "D>S",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "destination"
+      ]
+    }
+  ],
+  "common_control_fields": [
+    "schema_version",
+    "profile",
+    "kind",
+    "direction",
+    "sequence",
+    "s_nonce",
+    "d_nonce",
+    "prev_s",
+    "prev_d",
+    "binding_sha256"
+  ],
+  "controls": [
+    {
+      "tag": 1,
+      "name": "SourceAuth",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "source",
+        "destination",
+        "source_auth_key_sha256",
+        "signature"
+      ],
+      "body": "0",
+      "phase": "AUTH_PENDING",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "SourceAuth",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 2,
+      "name": "AuthAccepted",
+      "direction": "D>S",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "source_auth_frame_sha256"
+      ],
+      "body": "0",
+      "phase": "SOURCE_AUTHENTICATED",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "AuthAccepted",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 3,
+      "name": "FileBegin",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "file_no",
+        "role",
+        "roster_index",
+        "size",
+        "sha256"
+      ],
+      "body": "0",
+      "phase": "RECEIVING_NEXT_FILE",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "FileBegin",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 4,
+      "name": "FileChunk",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "file_no",
+        "offset"
+      ],
+      "body": "1..61440",
+      "phase": "ONE_FILE_OPEN",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "FileChunk",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 5,
+      "name": "FileEnd",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "file_no",
+        "size",
+        "sha256"
+      ],
+      "body": "0",
+      "phase": "ONE_FILE_OPEN",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "FileEnd",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 6,
+      "name": "SourceDataEnd",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "package_roster_sha256",
+        "captured_roster_sha256",
+        "snapshot_effects_roster_sha256",
+        "files",
+        "bytes"
+      ],
+      "body": "0",
+      "phase": "ALL_FILES_COMPLETE",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "SourceDataEnd",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 7,
+      "name": "DestinationReady",
+      "direction": "D>S",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "attempt_id",
+        "proof_sha256",
+        "snapshot_effects_proof_sha256",
+        "manifest_sha256",
+        "snapshot_effects_input_sha256",
+        "snapshot_effects_intent_sha256"
+      ],
+      "body": "u32be(witness_len)||EXACT_EXISTING_CANONICAL_COPY_WITNESS||u32be(intent_len)||EXACT_EXISTING_CANONICAL_COPY_INTENT; EACH<=min(16384,EXISTING_SCHEMA_CAP); NO_SIGNED_DESTINATION_WITNESS",
+      "phase": "D_EVIDENCE_NATURALLY_COMPLETE",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "DestinationReady",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 8,
+      "name": "SourceFinalDecision",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "attempt_id",
+        "proof_sha256",
+        "snapshot_effects_proof_sha256",
+        "fence",
+        "source_auth_key_sha256",
+        "signature",
+        "snapshot_effects_input_sha256",
+        "snapshot_effects_intent_sha256"
+      ],
+      "body": "0",
+      "phase": "D_PENDING_FINAL_PERMISSION",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "SourceFinalDecision",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 9,
+      "name": "CommittedResult",
+      "direction": "D>S",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "attempt_id",
+        "proof_sha256",
+        "receipt_sha256",
+        "receipt_size"
+      ],
+      "body": "1..8192_CANONICAL_RECEIPT",
+      "phase": "D_COMMITTED",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "CommittedResult",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    },
+    {
+      "tag": 10,
+      "name": "SourceResultAck",
+      "direction": "S>D",
+      "exact_fields": [
+        "schema_version",
+        "profile",
+        "kind",
+        "direction",
+        "sequence",
+        "s_nonce",
+        "d_nonce",
+        "prev_s",
+        "prev_d",
+        "binding_sha256",
+        "attempt_id",
+        "receipt_sha256"
+      ],
+      "body": "0",
+      "phase": "S_RESULT_VALIDATED_NOT_YET_RETURNED",
+      "common_constraints": {
+        "schema_version": 1,
+        "profile": "task9-b1-limited-v1",
+        "kind": "SourceResultAck",
+        "nonces": "LOWER_HEX64_GENERATED_BY_ORIGINAL_ACTORS",
+        "prefixes": "SHA256_BEFORE_CURRENT_FRAME",
+        "direction": "EXACT_OUTER_HEADER_DIRECTION",
+        "sequence": "U64_EXACT_OUTER_SEQUENCE"
+      }
+    }
+  ],
+  "field_constraints": {
+    "file_no": "U32_CONTIGUOUS_START_ZERO",
+    "roster_index": "U32_INDEX_IN_VALIDATED_ROLE_ROSTER",
+    "offset": "U64_EXACT_NEXT_OFFSET",
+    "size": "U64_DECLARED_AND_ACTUAL_EQUAL_WITH_OLD_SINGLE_FILE_CAPS",
+    "sha256": "LOWER_HEX64",
+    "files": "U32_EXACT_RECEIVED_COUNT",
+    "bytes": "U64_EXACT_RECEIVED_BODY_TOTAL",
+    "role": [
+      "PackageManifest",
+      "PackageMember",
+      "SourceEvidenceMember",
+      "SnapshotEffectsTransportIndex",
+      "SnapshotEffectsMember"
+    ],
+    "receipt_size": "POSITIVE_U32_LE_8192_AND_EQUAL_TO_BODY",
+    "source_auth_key_sha256": "EXACT_INSTALLED_PIN_NOT_PEER_SELECTED_KEY",
+    "signature": "LOWER_HEX128_ED25519_OF_FIXED_UNSIGNED_BODY",
+    "fence": {
+      "exact_fields": [
+        "operation_id",
+        "anchor_sha256",
+        "open_record_sha256",
+        "protection_snapshot_sha256",
+        "source_actor_binding_sha256"
+      ],
+      "authority": "NEGATIVE_BINDING_ONLY_PROVENANCE_ENFORCED_BY_ORIGINAL_S"
+    }
+  },
+  "transcript": {
+    "initial": "SHA256(domain_utf8_bytes||0x00||direction_u8)",
+    "update": "SHA256(previous_chain||u32be(20)||exact_header||u32be(payload_len)||exact_payload)",
+    "per_direction": true,
+    "global_wall_clock_order_claimed": false,
+    "signature_preimage": "EXACT_KIND_SELECTED_DOMAIN_UTF8_BYTES||0x00||CANONICAL_EXACT_UNSIGNED_CONTROL_WITH_SIGNATURE_FIELD_REMOVED",
+    "signed_prefixes": "BEFORE_CURRENT_FRAME; PEER_PREFIX_AT_REQUIRED_PHASE_BARRIER",
+    "full_signed_frame_is_added_after_sign_or_verify": true,
+    "debug_text_or_caller_digest_is_not_transcript": true,
+    "domain_utf8": "KnowWeave/Task9/B1/wire/v1",
+    "domain_suffix_octets": [
+      0
+    ],
+    "source_auth_domain_utf8": "KnowWeave/Task9/B1/source-auth/v1",
+    "source_final_domain_utf8": "KnowWeave/Task9/B1/source-final/v1",
+    "current_header_binding": "CONTROL_DIRECTION_SEQUENCE_EQUAL_HEADER_AND_COVERED_BY_SOURCE_SIGNATURE"
+  },
+  "file_rules": [
+    "MANIFEST_FIRST_AND_VALIDATED_BEFORE_PACKAGE_MEMBER_NAMES",
+    "SOURCE_EVIDENCE_ROSTER_EXACT_OLD_12_AND_SHA_MATCH_SIGNED_SOURCE_BINDING",
+    "SNAPSHOT_EFFECTS_TRANSPORT_INDEX_IS_NOT_AUTHORITY_OR_FINAL_V2_MEMBER",
+    "SNAPSHOT_EFFECTS_EXISTING_CANONICAL_SCHEMA_AND_LOGICAL_ROSTER_REVALIDATED",
+    "FINAL_FILESYSTEM_NAMES_DERIVED_ONLY_FROM_VALIDATED_EXISTING_ROSTERS",
+    "NO_PEER_ABSOLUTE_PATH_COMMAND_SQL_KEY_PATH_OR_ROOT_REGISTRATION",
+    "ALL_PARTIAL_OR_EXTRA_RESIDUE_RETAINED_AND_SAME_ID_REPLAY_REJECTED"
+  ],
+  "ordering": [
+    "HelloS",
+    "HelloD",
+    "SourceAuth",
+    "AuthAccepted",
+    "FileBegin/FileChunk*/FileEnd*",
+    "SourceDataEnd",
+    "D_ELEVEN_STEPS_OUTCOME_AND_SNAPSHOT_EFFECTS_COMPLETE",
+    "DestinationReady",
+    "S_CURRENT_RECHECK_DURABLE_FENCE_AND_FINAL_RECHECK",
+    "SourceFinalDecision",
+    "D_PENDING_TO_CONSUMING",
+    "D_INTERNAL_SIGN_RECEIPT_AND_FINAL_VERIFY_NATURALLY_COMPLETE",
+    "D_COMMITTED",
+    "CommittedResult",
+    "S_RESULT_VALIDATES",
+    "SourceResultAck",
+    "S_End",
+    "S_STDIN_REAL_EOF",
+    "D_End",
+    "D_NATURAL_EXIT_ZERO",
+    "S_REAL_STDOUT_EOF_AND_CHILD_EXIT_ZERO",
+    "S_REPORT_SUCCESS_FENCE_RETAINED"
+  ],
+  "postcommit_errors": "D_COMMITTED_NOT_ROLLED_BACK; S_UNKNOWN_HOLD_NO_REPLAY_NO_FENCE_RELEASE",
+  "source_fence_auto_close": false,
+  "body_or_eof_checks_grant_authority": false,
+  "raw_syscall_timeout_claim": "NO_STRICT_BOUND_ON_KERNEL_FS_SETTLEMENT; OWNER_REMAINS_UNTIL_SETTLED_OR_UNCONFIRMED",
+  "installed_record_shapes": {
+    "description": "PROPOSED_FIXED_ROOT_RECORDS_ISSUED_AND_PINNED_ONLY_BY_SEPARATELY_APPROVED_B_C_INSTALLER_NOT_PEER_INPUT",
+    "common_rules": [
+      "ROOT_OWNED_PRIVATE_NOFOLLOW_SINGLE_LINK",
+      "EXACT_FIELDS_CANONICAL_JSON",
+      "NO_CALLER_PATH_OR_PIN_OVERRIDE",
+      "UNKNOWN_OR_MISSING_EXPECTED_RECORD_FAILS_CLOSED"
+    ],
+    "SourcePolicy": {
+      "format_version": 1,
+      "capability": "task9_b1_source_policy_v1",
+      "profile": "task9-b1-limited-v1",
+      "role": "source",
+      "deployment_id": "uuid_v4",
+      "source_group_id": "uuid_v4",
+      "registry_anchor": "RegistryAnchor",
+      "source_control_binding_sha256": "sha256",
+      "source_auth_public_key_sha256": "sha256",
+      "source_auth_key_path": "FIXED:/var/lib/knowweave-c4/b1/source-auth.pk8",
+      "source_fence_anchor_sha256": "sha256",
+      "manager_release_sha256": "sha256",
+      "manager_build_input_sha256": "sha256",
+      "destination_verifier_public_key_sha256": "sha256",
+      "source_connection": {
+        "method": "private_unix_socket_no_password",
+        "socket_dir": "FIXED:/run/knowweave-c4-source-pg",
+        "database": "EXACT_INSTALLED_SOURCE_GROUP_DATABASE",
+        "role": "EXACT_ROOT_INSTALLED_OWNER_ROLE"
+      },
+      "transport": "TransportPolicy",
+      "launch_id": "UUID_V4_LABEL_NOT_AUTHORITY"
+    },
+    "DestinationPolicy": {
+      "format_version": 1,
+      "capability": "task9_b1_destination_policy_v1",
+      "profile": "task9-b1-limited-v1",
+      "role": "destination",
+      "deployment_id": "uuid_v4",
+      "destination_group_id": "uuid_v4",
+      "registry_anchor": "RegistryAnchor",
+      "source_deployment_id": "uuid_v4",
+      "source_group_id": "uuid_v4",
+      "source_auth_public_key_hex": "LOWER_HEX64",
+      "source_manager_release_sha256": "sha256",
+      "source_application_build_sha256": "sha256",
+      "receiver_release_sha256": "sha256",
+      "session_anchor_sha256": "sha256",
+      "verifier_public_key_sha256": "sha256",
+      "launch_id": "UUID_V4_LABEL_NOT_AUTHORITY"
+    },
+    "RegistryAnchor": {
+      "path": "FIXED:/var/lib/knowweave-c4/registry",
+      "dev": "u64",
+      "ino": "u64",
+      "authority_sha256": "sha256",
+      "lock_dev": "u64",
+      "lock_ino": "u64"
+    },
+    "TransportPolicy": {
+      "ssh_path": "FIXED:/usr/bin/ssh",
+      "host": "EXACT_B_C_APPROVED_HOST",
+      "port": "U16_1_65535",
+      "user": "EXACT_RESTRICTED_PRINCIPAL",
+      "known_hosts_path": "FIXED:/var/lib/knowweave-c4/b1/known-hosts",
+      "transport_key_path": "FIXED:/var/lib/knowweave-c4/b1/transport-key",
+      "remote_command": "FIXED:/usr/local/libexec/knowweave-c4-b1-receiver",
+      "destination_deployment_id": "uuid_v4",
+      "destination_policy_sha256": "sha256"
+    },
+    "FenceAnchor": {
+      "format_version": 1,
+      "capability": "task9_b1_source_fence_anchor_v1",
+      "profile": "task9-b1-limited-v1",
+      "deployment_id": "uuid_v4",
+      "registry_anchor": "RegistryAnchor",
+      "fence_root": {
+        "path": "FIXED:/var/lib/knowweave-c4-source-fences",
+        "dev": "u64",
+        "ino": "u64",
+        "uid": 0,
+        "mode": 448
+      },
+      "launch_id": "UUID_V4_LABEL_NOT_AUTHORITY"
+    },
+    "OpenFence": {
+      "format_version": 1,
+      "capability": "task9_b1_negative_fence_v1",
+      "profile": "task9-b1-limited-v1",
+      "operation_id": "INTERNAL_UUID_V4",
+      "backup_id": "uuid_v4",
+      "source_group_id": "uuid_v4",
+      "registry_generation_sha256": "sha256",
+      "protection_snapshot_sha256": "sha256",
+      "source_actor_binding_sha256": "sha256",
+      "destination_attempt_id": "uuid_v4",
+      "s_nonce": "hex64",
+      "d_nonce": "hex64",
+      "manifest_sha256": "sha256",
+      "captured_roster_sha256": "sha256",
+      "snapshot_effects_roster_sha256": "sha256"
+    },
+    "SessionAnchor": {
+      "format_version": 1,
+      "capability": "task9_b1_session_anchor_v1",
+      "profile": "task9-b1-limited-v1",
+      "deployment_id": "uuid_v4",
+      "registry_anchor": "RegistryAnchor",
+      "session_root": {
+        "path": "FIXED:/var/lib/knowweave-c4-b1-sessions",
+        "dev": "u64",
+        "ino": "u64",
+        "uid": 0,
+        "mode": 448
+      },
+      "launch_id": "UUID_V4_LABEL_NOT_AUTHORITY"
+    },
+    "SessionAdmission": {
+      "format_version": 1,
+      "capability": "task9_b1_session_admission_v1",
+      "profile": "task9-b1-limited-v1",
+      "backup_id": "uuid_v4",
+      "operation_id": "uuid_v4",
+      "destination_attempt_id": "uuid_v4",
+      "binding_sha256": "sha256",
+      "source_auth_frame_sha256": "sha256",
+      "s_nonce": "hex64",
+      "d_nonce": "hex64"
+    },
+    "SessionAdmissionRule": "DURABLE_EXCLUSIVE_AFTER_SOURCE_AUTH_BEFORE_FIRST_WRITE; ANY_RESIDUE_DENIES_FRESH_SESSION; NOT_D_ELEVEN_STEP_SUCCESS_OR_DESERIALIZABLE_PERMISSION",
+    "NoPasswordRule": "NO_LOGIN_PASSWORD_OR_NEW_PERSISTENT_PASSWORD_STORAGE; SOURCE_PRIVATE_SOCKET_AUTH_AND_PERMISSIONS_REQUIRE_SEPARATE_C_APPROVAL",
+    "LegacyRule": "COMPILED_SOURCE_ROLE_EXPECTING_FENCE_POLICY_CANNOT_FALL_BACK_WHEN_POLICY_MISSING; OLD_BINARIES_STILL_REQUIRE_LAUNCH_AND_WRITE_SURFACE_EXCLUSION",
+    "LaunchManifest": {
+      "format_version": 1,
+      "capability": "task9_b1_launch_manifest_v1",
+      "profile": "task9-b1-limited-v1",
+      "launch_id": "uuid_v4",
+      "role": "SOURCE_OR_DESTINATION_FIXED_AT_BUILD",
+      "code_commit": "lower_hex40",
+      "build_input_sha256": "sha256",
+      "binary_sha256": "sha256",
+      "launcher_sha256": "sha256",
+      "policy_sha256": "sha256",
+      "anchor_sha256": "sha256",
+      "source_auth_public_key_sha256": "sha256",
+      "destination_verifier_public_key_sha256": "sha256",
+      "transport_public_key_sha256": "sha256"
+    },
+    "AcyclicBuildInstallOrder": [
+      "B_C_EXPLICIT_APPROVAL_BEFORE_ANY_REAL_KEY_OR_PERMISSION_CHANGE",
+      "GENERATE_CUSTODIED_KEYS_AND_OBSERVE_PUBLIC_FINGERPRINTS",
+      "BUILD_WITH_FIXED_ROLE_PROFILE_VERSION_PUBLIC_KEY_PINS_AND_EXISTING_SOURCE_BINDING_INPUTS_ONLY",
+      "HASH_BUILT_S_D_BINARIES_AND_TRUSTED_LAUNCHER",
+      "ISSUE_ROOT_ANCHORS_WITH_LAUNCH_ID_AND_REAL_ROOT_IDENTITIES",
+      "ISSUE_DESTINATION_POLICY_WITH_COMPUTED_BINARY_AND_ANCHOR_IDENTITIES",
+      "ISSUE_SOURCE_POLICY_WITH_DESTINATION_POLICY_HASH_NO_REVERSE_POLICY_HASH_EDGE",
+      "ISSUE_LAUNCH_MANIFEST_LAST_WITH_BINARY_POLICY_ANCHOR_HASHES",
+      "INDEPENDENT_B_C_READBACK_OF_ACTUAL_INSTALL_AND_KEY_USE_CHAIN_BEFORE_ENABLE"
+    ],
+    "NoSelfHashCycle": "NO_BINARY_EMBEDS_HASH_OF_POLICY_CONTAINING_ITS_OWN_FINAL_ELF_HASH; NO_POLICY_OR_ANCHOR_EMBEDS_LAUNCH_MANIFEST_HASH; TRUSTED_ROOT_INSTALLED_MANIFEST_IS_NOT_SELF_REPORTED_ATTESTATION"
+  },
+  "snapshot_effects_rule": "EXISTING_CAPTURED_SNAPSHOT_EFFECTS_V2_REQUIRED_BEFORE_READY; TRANSPORT_INDEX_ONLY_DECLARATION_REVALIDATED_WITH_EXISTING_SCHEMAS; NEVER_INSTANTIATE_FAKE_LOCAL_SOURCE_DIRECTORY",
+  "digest_objects": {
+    "package_roster_sha256": "SHA256(CANONICAL_SORTED_FILEREF_ARRAY_OF_ALL_ACTUAL_PACKAGE_FILES_INCLUDING_MANIFEST)",
+    "captured_roster_sha256": "SHA256(CANONICAL_SORTED_FILEREF_ARRAY_OF_ORIGINAL_12_SOURCE_EVIDENCE_FILES)",
+    "snapshot_effects_roster_sha256": "SHA256(CANONICAL_SORTED_FILEREF_ARRAY_OF_ORIGINAL_SOURCE_EFFECTS_BUNDLE_ONLY_EXCLUDING_TRANSPORT_INDEX_AND_ALL_D_OUTPUT)",
+    "snapshot_effects_transport_index_sha256": "SHA256(EXACT_CANONICAL_TRANSPORT_INDEX_BYTES_WITHOUT_SELF_REFERENCE)",
+    "snapshot_effects_input_sha256": "SHA256(UTF8(KnowWeave/Task9/B1/effects-input/v1)||0x00||CANONICAL_EXACT_OBJECT{backup_id,source_group_id,manifest_sha256,capture_sha256,roster_sha256,transport_index_sha256})",
+    "binding_sha256": "SHA256(CANONICAL_EXACT_OBJECT{source:SourceBinding,destination:DestinationBinding})",
+    "source_actor_binding_sha256": "SHA256(UTF8(KnowWeave/Task9/B1/source-actor/v1)||0x00||CANONICAL_EXACT_OBJECT{source_operation_id,binding_sha256,s_nonce,d_nonce}); CREATED_AFTER_HELLOS_BEFORE_SOURCE_AUTH_OR_FENCE",
+    "root_record_sha256": "SHA256(EXACT_CANONICAL_ORIGINAL_INSTALLED_REGISTRY_ROOT_RECORD_BYTES); NOT_HASH_OF_WIRE_ROOT_SUMMARY_CONTAINING_RECORD_SHA256",
+    "proof_sha256": "SHA256(EXACT_CANONICAL_EXISTING_CAPTURED_SOURCE_PROOF_RECORD_BYTES); NOT_HASH_OF_ATTEMPT_AUTHORITY_OR_SERIALIZED_SUCCESS",
+    "snapshot_effects_proof_sha256": "SHA256(EXACT_EXISTING_CANONICAL_D_COPY_WITNESS_BYTES_RETURNED_IN_READY_BODY); INCLUDES_D_GENERATED_EFFECT_ATTEMPT_ID",
+    "snapshot_effects_intent_sha256": "SHA256(EXACT_EXISTING_CANONICAL_D_COPY_INTENT_BYTES_RETURNED_IN_READY_BODY); INCLUDES_D_GENERATED_OPERATION_NONCE_UUID",
+    "receipt_sha256": "SHA256(EXACT_COMPLETE_CANONICAL_EXISTING_V2_RECEIPT_BYTES_RETURNED_IN_COMMITTED_RESULT_BODY); NO_RECEIPT_SELF_HASH_FIELD",
+    "open_record_sha256": "SHA256(EXACT_CANONICAL_OPEN_FENCE_BYTES); OPEN_RECORD_DOES_NOT_CONTAIN_OPEN_RECORD_SHA256",
+    "anchor_sha256": "SHA256(EXACT_CANONICAL_INSTALLED_FENCE_ANCHOR_BYTES); ANCHOR_HAS_LAUNCH_ID_NOT_MANIFEST_HASH",
+    "source_auth_frame_sha256": "SHA256(EXACT_20_BYTE_SOURCE_AUTH_HEADER||EXACT_PAYLOAD)",
+    "signature_rule": "ONLY_FIXED_UNSIGNED_CONTROL_BODY_WITH_SIGNATURE_FIELD_REMOVED; DOMAIN_SUFFIX_ONE_ZERO_OCTET; FINAL_SIGNED_FRAME_ENTERS_TRANSCRIPT_AFTERWARDS"
+  },
+  "snapshot_effects_transport_index_shape": {
+    "schema_version": 1,
+    "profile": "task9-b1-limited-v1",
+    "backup_id": "uuid_v4",
+    "source_capture_sha256": "sha256",
+    "files": "CANONICAL_SORTED_SOURCE_BUNDLE_FILEREFS_ONLY_NO_SELF_REFERENCE"
+  },
+  "ready_verification": [
+    "D_ONLY_EMITS_READY_AFTER_ORIGINAL_11_STEPS_OUTCOME_AND_REAL_EFFECTS_COPY_NATURALLY_SUCCEED",
+    "S_RECOMPUTES_SOURCE_INPUT_DESCRIPTOR_AND_MAIN_CAPTURED_SOURCE_PROOF_FROM_HELD_SOURCE_MATERIAL",
+    "S_HASHES_RETURNED_RAW_D_COPY_WITNESS_AND_INTENT_AND_STRICTLY_PARSES_EXISTING_V2_SCHEMAS",
+    "S_CHECKS_CAPTURE_PAYLOAD_BINDING_EPOCH_JOURNAL_CUT_AND_BASE_ATTEMPT_LINKS_AGAINST_HELD_INPUT_AND_THIS_D_SESSION",
+    "S_CHECKS_D_EFFECT_ATTEMPT_AND_OPERATION_NONCE_UUID_SHAPE_AND_CROSS_RECORD_LINKS_NOT_GENERATE_THEM_ITSELF",
+    "D_GENERATED_FIELDS_AND_D_ROOT_FACTS_REMAIN_AUTHENTICATED_ORIGINAL_D_ATTESTATIONS_NOT_S_PHYSICAL_OR_INDEPENDENT_RECOMPUTATION",
+    "FINAL_SOURCE_DECISION_BINDS_INPUT_AND_BOTH_EXACT_D_OUTPUT_HASHES; D_RECHECKS_ITS_ORIGINAL_HELD_COPY_BEFORE_CONSUMPTION",
+    "READY_BODY_CONTAINS_UNSIGNED_SNAPSHOT_EFFECT_RECORDS_NOT_THE_BACKUP_SIGNED_DESTINATION_WITNESS"
+  ],
+  "session_namespace_contract": {
+    "root": "FIXED:/var/lib/knowweave-c4-b1-sessions",
+    "top_level_exact": [
+      "anchor.json",
+      "lock",
+      "operations",
+      "staging"
+    ],
+    "operation_directory": "BACKUP_UUID_V4_EXCLUSIVE; INTERNAL_OPERATION_ID_IS_BOUND_IN_ADMISSION",
+    "operation_exact_files": [
+      "admission.json",
+      "binding.json",
+      "snapshot-effects-transport-index.json"
+    ],
+    "inbound_package_and_large_payload_location": "SEPARATE_ORIGINAL_DESTINATION_AND_EVIDENCE_STAGE_ROOTS_WITH_EXISTING_BOUNDED_ROSTERS; NOT_IN_SESSION_METADATA_ROOT",
+    "raw_logs_location": "SEPARATELY_APPROVED_OPERATOR_EVIDENCE_ROOT_NOT_IN_SCANNED_SESSION_ROOT",
+    "admission_before": "AFTER_SOURCE_AUTH_BEFORE_ANY_PACKAGE_OR_EVIDENCE_WRITE",
+    "retained_caps": "256_DIRECTORIES_1536_ENTRIES_32MiB_ALL_METADATA_INCLUDING_STAGING; PER_FILE_LIMITS_IN_LIMITS; CAP_PLUS_ONE_REJECTS_BEFORE_ALLOCATION_OR_NEW_ADMISSION",
+    "accounting": "EVERY_LIST_STAT_OPEN_CONTENT_READ_HASH_AND_RE_READ_CHARGED_TO_SAME_ORIGINAL_D_SCAN_BUDGET; NO_NEW_SIDE_BUDGET_RESET_REFUND_OR_PEER_SCAN_COUNTER_CREDIT",
+    "partial": "EMPTY_PARTIAL_EXTRA_SYMLINK_HARDLINK_BAD_MODE_UNKNOWN_VERSION_OR_UNCERTAIN_SYNC_RETAINED_AND_FAIL_NEW_ADMISSION_CLOSED; ORIGINAL_HELD_STAGING_EXCEPTION_ONLY_IN_SAME_OPERATION",
+    "same_backup_id": "ANY_EXISTING_ADMISSION_OR_RESIDUE_REJECTS_NEW_SESSION_EVEN_WITH_FRESH_NONCE_ATTEMPT_OR_PROCESS",
+    "ownership": "DISK_RECORD_NEVER_RECONSTRUCTS_ORIGINAL_D_SUCCESS_OR_POSITIVE_AUTHORITY",
+    "retention": "NO_AUTOMATIC_CLEANUP_OR_REPLAY; EXHAUSTION_REFUSES_NEW_WRITES_AND_PRESERVES_PRIOR_COMPLETE",
+    "history": "EXISTING_V2_HISTORY_READ_AND_RECOVERY_DO_NOT_SCAN_SESSION_ROOT_OR_S_FENCE"
+  },
+  "scope_design_review_sha256": "de2d7208b9db06ad586f093e1912f6f5e0e9941a83c60200fa2afd46d926439b",
+  "implementation_authorization_record": "docs/task9/r2b-implementation-approval.md",
+  "operational_keys_or_installation_authorized": false
+}

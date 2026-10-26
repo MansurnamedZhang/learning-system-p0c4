@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 61894,
-      "sha256": "cf6e0c2e590a1abb48ae4997a7ecbd019c9ac82539268fd0032689abcbfc8b01",
+      "bytes": 62284,
+      "sha256": "fd360157650d6ef74ff54c4118fffed79fc9642c1ea0a04b9a92157bc29ae4c9",
       "source_bytes_preserved": false,
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 114924,
+      "bytes": 115314,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
-      "sha256": "fbf4700d304291e22c5ca4879d9dabddbedcfa89114deaebf8d40f85cbfc1158",
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY",
+      "sha256": "f75b60e13455b51593378c8ff60babcc75f1e66c6678a695f2ae6a7b79c90f3e",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 75683,
+      "bytes": 76957,
       "path": "README.md",
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
-      "sha256": "472f8bb85ddb34c9d2269b95c4e275f3cd0874376d430b8b76e72964adab7a30",
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY",
+      "sha256": "8509c0117c7aa1eff7768caaad282c5dfe3e6d07c0a628958f0bd66961704ca6",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3517,10 +3517,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 46924,
+      "bytes": 47261,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
-      "sha256": "3c19ac8582cd5da7d3891e0109fde2e22d00932a85f5079499af06ddda730059",
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY",
+      "sha256": "a0af5dc6ecc8067435c2b7b0a3699c7fe8efca0a2093ad545c26d226e98c6521",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4194,10 +4194,10 @@
     },
     {
       "path": "docs/p0c4-task9-readiness.md",
-      "bytes": 20649,
-      "sha256": "9ce42d445db06dd5861ed1051d6ac0a4fcaeeac3693e320e82a17b2f2e469292",
+      "bytes": 22281,
+      "sha256": "906d007e51c6dca6fd9ab82a2867a6488812d2ddb0a213c52277fec80f9e7310",
       "source_bytes_preserved": false,
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
     },
     {
       "bytes": 163606,
@@ -4290,6 +4290,13 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
+      "path": "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md",
+      "bytes": 27602,
+      "sha256": "a470e6a3600bcfdb7a1380855f946209f7d4742baa480f744baed781b99d4def",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
+    },
+    {
       "bytes": 11777,
       "path": "docs/superpowers/specs/2026-09-24-p0c3-snapshot-exchange-design.md",
       "sha256": "04def7549461f60f1348f03440b50a01ef737aeeac0f5bd1aac78541b105830e",
@@ -4374,10 +4381,10 @@
     },
     {
       "path": "docs/task9/execution-readiness.md",
-      "bytes": 17645,
-      "sha256": "7688b951bbdc3346c74342f16739194b603834ac625ce0f9d41677940b6ce0c3",
+      "bytes": 19280,
+      "sha256": "aa6d688fee72b09d92e9b10dafd06c7891a40369c3d8eb10fd048983ac9b0e40",
       "source_bytes_preserved": false,
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
     },
     {
       "path": "docs/task9/local-preparation-closeout.md",
@@ -4387,11 +4394,32 @@
       "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
     },
     {
-      "path": "docs/task9/selected-target-preparation.md",
-      "bytes": 10473,
-      "sha256": "66c1cab1f9d23ed5484add1ef38486e536e21204643567d5e32c77a3f8056cd6",
+      "path": "docs/task9/r2b-implementation-approval.md",
+      "bytes": 3075,
+      "sha256": "b46d210cb892206bd64934c6168a6682a03607110fcdc6fef5d3d1a8e806b68a",
       "source_bytes_preserved": false,
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY"
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
+    },
+    {
+      "path": "docs/task9/r2b-validation-plan.json",
+      "bytes": 31819,
+      "sha256": "b934d2ef262a8c5e1c8762af515e944fc5c244a2c0c5600a8428ea0cc88111b6",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
+    },
+    {
+      "path": "docs/task9/r2b-wire-profile.json",
+      "bytes": 29775,
+      "sha256": "732e84a1c89ac042b437d1adf8f7da8a4e9473e01443611802c58aaf1b8eaf8a",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
+    },
+    {
+      "path": "docs/task9/selected-target-preparation.md",
+      "bytes": 12108,
+      "sha256": "70b3a3e58b0a146715c981408aba392bb55c48c891ba2c156d64d2455e08b4f0",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
     },
     {
       "bytes": 4309,
@@ -4450,10 +4478,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 109405,
+      "bytes": 110662,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
-      "sha256": "6e0cd5ccb9eab6bded051490bbf8fff1fd13bc698853cecdc10dee6977491cbd",
+      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY",
+      "sha256": "a5280c0875cc31795542dfce6bf51617d5b431ea594009b759c8964e49f4fe8a",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5305,15 +5333,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 661,
+  "manifest_file_count_excludes_manifest_itself": 665,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "58402d52e81ce54a6b106a04ee302e0bef5d1517",
+  "previous_public_commit": "e94e00dec7cb6768f0c5db0db238c1a5f9f407ff",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-26T21:10:50+08:00",
+  "progress_as_of": "2026-10-26T22:50:16+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_USER_ADOPTED_SEMANTICS_SPEC_FINALIZATION_ONLY",
+  "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -13027,6 +13055,64 @@
     "old_37_case_specification_bytes_unchanged": true,
     "B1_integration_cases_executed": 0,
     "formal_five_gates_unchanged": true,
+    "Task9_accepted": false
+  },
+  "task9_reviewed_r2b_implementation_scope": {
+    "status": "SCOPE_DESIGN_REVIEW_PASSED_NOT_CODING_AUTHORIZED_NOT_IMPLEMENTED",
+    "scope_review_sha256": "de2d7208b9db06ad586f093e1912f6f5e0e9941a83c60200fa2afd46d926439b",
+    "reviewed_submission_sha256": {
+      "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md": "d51e00a96c04d975960409b1ad51d83bf5b7127687d464098c07b5254d9b0f53",
+      "docs/task9/r2b-wire-profile.json": "c68432efbcf327652e5f8e23942310cd70cb09c9bf6e2ba6168a6fa756e4d7c7",
+      "docs/task9/r2b-validation-plan.json": "f4b2dac9cbc12f084273ea1db44c0f0e8ac5ea62ef0c0112b5a4a7d2e3638c0e"
+    },
+    "published_status_refinement_sha256": {
+      "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md": "930617211b4602c4bec38accd833e8d07d4b3abaf7b8a6f9eb06b67a043de823",
+      "docs/task9/r2b-wire-profile.json": "e851e4c99e86e940477bfc69d9aa7c0ac805e6b11c8683925be846a8bdbc6b84",
+      "docs/task9/r2b-validation-plan.json": "d7262a8127c89abe14e88539d6b5809582223137957413442c3f6e6d75d1f354"
+    },
+    "source_surface_index_sha256": "23dad8a42405149a71372950a8accfe863258f068f1a531c9b0090869104cfaa",
+    "destination_surface_index_sha256": "c1c1c92742c32e9446cb318fe7449fa1bac27b4378233e1443fe24c6484df271",
+    "prior_scope_review_not_approved_sha256": "ea086be6e1f4f924c7bd579ec96935060d2536e570318b3a233d908ed80447e6",
+    "candidate_profile": "task9-b1-limited-v1",
+    "planned_obligations": 53,
+    "planned_obligations_are_not_test_body_count": true,
+    "all_obligations_not_executed": true,
+    "new_product_tests_executed": 0,
+    "original_37_bytes_unchanged": true,
+    "formal_five_gates_unchanged": true,
+    "success_also_retains_source_fence": true,
+    "automatic_close_or_gc_planned": false,
+    "R2b_implementation_approved": false,
+    "authority_implemented_or_enabled": false,
+    "new_remote_observations": false,
+    "keys_trust_registry_or_permissions_installed": false,
+    "source_isolated": false,
+    "restore_executed": false,
+    "Task9_accepted": false
+  },
+  "task9_r2b_implementation_authorization": {
+    "status": "USER_AUTHORIZED_EXACT_R2B_CODING_AND_LIMITED_LINUX_NOT_IMPLEMENTED_NOT_INSTALLED",
+    "user_answer": "批准 R2b 编码及限定 Linux 检查，接受 fence 保留代价",
+    "exact_user_answer_os_timestamp_observed": false,
+    "decision_date": "2026-10-26",
+    "approval_record": {
+      "path": "docs/task9/r2b-implementation-approval.md",
+      "sha256": "b46d210cb892206bd64934c6168a6682a03607110fcdc6fef5d3d1a8e806b68a"
+    },
+    "scope_review_sha256": "de2d7208b9db06ad586f093e1912f6f5e0e9941a83c60200fa2afd46d926439b",
+    "approved_question_displayed_plan_sha256": "930617211b4602c4bec38accd833e8d07d4b3abaf7b8a6f9eb06b67a043de823",
+    "approved_question_displayed_wire_sha256": "e851e4c99e86e940477bfc69d9aa7c0ac805e6b11c8683925be846a8bdbc6b84",
+    "approved_question_displayed_validation_sha256": "d7262a8127c89abe14e88539d6b5809582223137957413442c3f6e6d75d1f354",
+    "authorized_plan_current_sha256": "a470e6a3600bcfdb7a1380855f946209f7d4742baa480f744baed781b99d4def",
+    "R2b_implementation_approved": true,
+    "limited_nonprivileged_linux_validation_approved": true,
+    "success_fence_retention_cost_explicitly_accepted": true,
+    "subtask_implementation_and_independent_review_required": true,
+    "B_C_D_installation_or_execution_approved": false,
+    "operational_keys_or_security_permissions_approved": false,
+    "authority_implemented_or_enabled": false,
+    "new_product_tests_executed": 0,
+    "new_remote_operations": false,
     "Task9_accepted": false
   }
 }
