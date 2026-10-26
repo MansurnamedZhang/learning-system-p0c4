@@ -2,7 +2,7 @@
 
 更新：2026-10-26。状态：**准备工作已启动，Task9 未验收，C4 整关开放**。
 
-用户已确认：**暂时没有独立目标，继续本地准备**。已准备接口契约草案与37条测试规格；37条独立域集成规格继续未执行或模拟跨机链。最新补齐outcome失败／撤销和自洽身份替换纯单测，Windows目的端attempt模块19/19通过，其中本次新增5项、既有14项重跑。不重复远端探测，草案尚未被采纳为新权限合同。
+用户已确认：**暂时没有独立目标，继续本地准备**。已准备接口契约草案与37条未执行集成规格。最新新增仓库内可复用离线校验工具及38项本地Python回归；此前Windows目的端attempt模块19/19保留为历史结果，本轮未重跑Rust或集成用例。不重复远端探测，草案尚未被采纳为新权限合同。
 
 Task8 已按规定私有单机范围完成，发布基线为 `07fa721d9469da7755d2cd2b647aace309fc26f9`；实际产品代码来源仍为 `679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`。本轮不重跑或改写 Task8，也不把单机夹具变成独立存储证据。
 
@@ -57,13 +57,30 @@ Task8 已按规定私有单机范围完成，发布基线为 `07fa721d9469da7755
 - 上一检查点新增五个 cfg(test) Store 拒绝测试全部通过（Windows offline/locked，0失败/忽略），另有 rustfmt 和包级 lib/tests 严格 Clippy 通过；只覆盖内存夹具的 pre-action 故障，不是真实FS/跨机验证。为关闭已有 Windows lint，仅将非Linux不支持分支改成同一 Err 尾表达式；权限入口和Linux业务实现不变，旧失败原件保留。
 - 既有只读探针及六项本地 Python 纯安全测试沿用上轮原件，不重跑Task8、SSH探针或真实域用例；不把不同阶段的测试数累计成Task9验收数。
 
-## 最新本地补强：最终结果与身份替换（2026-10-26）
+## 上一检查点：最终结果与身份替换（2026-10-26）
 
 - 在同一 `destination/attempt.rs` 的 `cfg(test)` 内追加五个测试：outcome返回错误、自洽但backup身份错误、成功登记前撤销、outcome异常展开，以及八个identity字段替换后的最终消费拒绝。
 - 前四项复用原Store并加测试专用outcome适配器。所有Store步骤完成、terminal可解析时，错误仍会关闭原操作及其clone上的先前成功授权；残留和无关历史字节保留，换attempt_id的同backup_id重试继续拒绝。适配器不做真实IO、签名、租约重开或网络通信。
 - 八个变体位于同一个单测内：backup/attempt、目的端与证据dev/ino、manifest/proof摘要。每个变体先通过canonical完整性解析，再证明不能进入最终消费closure；这不是八条跨机集成用例，也不覆盖尚缺的source/build、registry代际和异机认证衔接。
 - 实际Windows Rust1.97 offline/locked：模块19 passed／0 failed／0 ignored＝既有14＋本次5；本轮任务前缀共10个unique body，不把以前的5再累计。格式和包级lib/tests严格Clippy通过，测试源码及执行binary已封存。
 - 生产前缀和原14个测试逐字不变；没有新运行时API、wire格式、权限或安装变化。37条Task9集成规格与五个正式验收框原样保持未完成；本次没有Linux/PG、物理FS、独立域或正常恢复验收。
+
+## 最新本地交付：可复用离线准备检查器
+
+仓库新增[离线检查器](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/scripts/p0c4_task9_preparation_check.py)及[38项纯Python回归](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/scripts/test_p0c4_task9_preparation_check.py)。检查器本身只使用标准库；固定读取本Git检出中的matrix和七个公开源码文件，不调用网络、子进程、环境配置、sudo、key/trust、数据库或恢复，也不写文件。产品不引用该工具或其报告。
+
+在具有规范源码字节的Git仓库根目录执行：
+
+```sh
+python -B scripts/p0c4_task9_preparation_check.py
+python -B -m unittest discover -s scripts -p test_p0c4_task9_preparation_check.py -v
+```
+
+工具没有路径／权限覆盖参数。有效输入上限每件128KiB、固定八件有效内容合计最多1MiB；每次读取最多额外一字节用于溢出探测，并拒绝已观察到的链接／reparse、非普通文件、字节漂移、重复JSON键、非整数／非finite数字、超过20位的整数、未知嵌套字段或伪通过标签。校验当前schema的37个ID、分组、真实目标要求、11步骤文本映射、七份源码摘要、历史／本轮声明计数及八变体仅一个body。源码或清单版本改变应按对应实施单复审并更新，不能自动刷新摘要或从错误退化为通过。七个已pin源码的CRLF等字节漂移会因摘要不符而拒绝；matrix自身没有外部已审SHA基线，只报告其实际matrix_sha256，合法JSON空白／换行改变仍可能结构通过，不能据此证明等于已审原件。工具不自动改写或规范化文件。
+
+38项工具回归会在自动清理的系统私有TemporaryDirectory中创建合成文件，不修改产品数据；只读限制指检查器本身。实际Windows检查器单测38 passed／0 failed／0 skipped；CLI退出0，报告仅为 `TASK9_PREPARATION_STRUCTURE_CHECKED_NOT_ACCEPTANCE`。38是工具回归数量，不与历史Rust19相加，更不是38个Task9场景。独审发现的指数溢出、嵌套伪权限字段和超长整数缺口已补反例；旧初版与本地封存器失败原件保留。
+
+**证明限制：** 这是同一检出内的文本／摘要一致性帮助器，不是独立可信基线、Rust语义证明、Git commit／binary／私有执行原件复核器或恶意命名空间的完整TOCTOU防护。报告中的19与5均标记为历史声明，`test_execution_evidence_verified=false`、`tests_executed=false`、`Task9_integration_cases_executed=0`、`Task9_accepted=false`固定保留；不读取禁止会话路径或实际安装内容。检查成功不能授予首签、新发布、源端断联或恢复资格。
 
 ## 真实目标就绪后的测试矩阵（全部待执行）
 
@@ -79,7 +96,7 @@ Task8 已按规定私有单机范围完成，发布基线为 `07fa721d9469da7755
 | 源端不可访问 | 取得单独审批后，仅隔离本批源 DB/registry/asset/pin；第二个全新目标仅凭目的端／trust／captured evidence 完成恢复，源读取计数为零。 |
 | 适用回归与独审 | 仅针对真实改动和新部署运行相应回归，保留实际源码、binary、原件及精确资源收尾；不重复授予 Task8 信用。 |
 
-既有源不可访问结构测试及未纳入本轮module19的其它B1覆盖只作历史索引；本轮已执行的B1纯单测以19项Windows原件为准，不登记为Task9集成执行，更不能作为真实异机正例。每个实际用例以后另分配全新 UUID／卷／路径并核资源，旧失败／HOLD 不复用、不转绿。
+既有源不可访问结构测试与其它B1覆盖保留历史索引；此前module19检查点的19项是历史Windows原件，本轮仅执行38项工具回归，未重跑Rust。二者都不登记为Task9集成执行，更不能作为真实异机正例。每个实际用例以后另分配全新 UUID／卷／路径并核资源，旧失败／HOLD 不复用、不转绿。
 
 ## 动作边界与最小审批包
 

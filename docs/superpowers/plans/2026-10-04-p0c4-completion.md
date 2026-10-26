@@ -209,6 +209,8 @@ Task8 的规定范围完成：当前完整回归、四套真正旧程序升级�
 
 ### Task 9: Genuine independent-domain closure when available
 
+最新本地准备：新增可复用离线检查器及38项Windows纯Python工具回归，检查37条未执行规格／七份源码与声明范围；输出固定不授Task9信用。此前Rust19保留历史且本轮不重跑，未改变权限或37条集成case。五个正式验收框继续开放，运行方法／证明限制见准备文档。
+
 最新本地检查点：现有目的端attempt模块Windows19/19（既有14＋新增5），新增outcome错误／身份错配／撤销／异常与一个八字段自洽identity替换组；格式和包级严格Clippy通过。仅追加cfg(test)，原生产权限和旧14测试字节不变；37条集成规格及以下五个正式验收框不变，不增加Task9信用。
 
 本地准备补充：用户已确认暂时没有独立目标；已形成[B1最小契约草案](../specs/2026-10-26-task9-b1-integration-preparation.md)与[37条未执行规格](../../task9/b1-preparation-test-matrix.json)，37条集成规格只检查结构和源码连接；另补五个Windows Store纯拒绝回归（5/5），格式/包级lib-tests严格Clippy通过，仅有cfg(test)追加与非Linux同Err尾表达式修正。未采纳新权限方案／未改变Rust权限入口。下面五项正式门仍未完成。

@@ -16,7 +16,7 @@
       "bytes": 31190,
       "sha256": "299c70aeb207573ae00341306e5c6d5875453b56ef70ebc181e9e29d263d3c67",
       "baseline_source_sha256": "481c1fced61887feb52308bd0873dc32fafe33a3e6dcde3a40cfcc784d2550c9",
-      "change_scope": "cfg(test) helper and five negative units appended; existing module prefix and tests unchanged"
+      "change_scope": "cfg(test) helpers/adapters and ten negative units appended across two preparation checkpoints; Source679 runtime prefix unchanged"
     },
     {
       "path": "crates/learning-backup/src/destination.rs",

@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "本地补强通过，独立目标暂缺",
-    "detail": "B1草案与37条未执行集成规格保留；新增outcome错误/身份错配/撤销/异常和八字段自洽替换拒绝测试。",
-    "evidence": "Windows模块19/19＝既有14＋本次5，八字段变体属于一个body；格式/包级lib-tests严格Clippy通过。仅cfg(test)追加，原生产前缀和既有测试逐字不变。37集成规格未执行，Task9五门及C4开放。"
+    "statusLabel": "离线准备工具就绪，独立目标暂缺",
+    "detail": "仓库内离线检查器固定读取matrix及七份公开源码，严格拒绝漂移、未知字段、伪权限、伪执行标签与计数混用。",
+    "evidence": "38项Windows纯Python工具回归通过；结构CLI退出0但固定Task9_accepted=false。历史Rust19未重跑、37条集成规格未执行，Task9五门与C4继续开放。"
   }
 ];
 
@@ -1641,8 +1641,8 @@ export const meta = {
   "date": "2026-10-26",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9本地结果边界回归准备",
-  "progressSummary": "独立目标暂缺。B1草案与37条集成规格继续未执行；本轮补五项outcome/自洽身份替换纯测试，Windows目的端attempt模块19/19（既有14＋新5）通过，格式和包级严格Clippy通过。生产权限入口不变，Task8保持限定完成。",
+  "state": "C4实施中 · Task8限定完成 · Task9离线准备工具就绪",
+  "progressSummary": "独立目标暂缺。已将准备校验整理为仓库内可复用离线工具，38项Windows纯Python工具回归通过；检查七份源码与37条未执行集成规格，不验证历史执行或授予Task9资格。历史Rust19保留且本轮未重跑；权限与安装不变。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
   "pendingSummary": "独立目标暂不可用（用户确认）；托管/安装/构建pin仍未核实，五项私有状态保持UNKNOWN且不提权。B1真实跨边界方案未采纳或实现，Task9及C4整关保持开放。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
@@ -1650,8 +1650,8 @@ export const meta = {
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · Task9本地结果边界补强已通过",
-  "taskPlanScope": "Task9仅本地准备：19项Windows Store模块单测，不是Linux/物理FS/异机验收；37条集成规格与五个正式验收框继续开放。无新首签/发布权限、信任安装或恢复。",
+  "roadmapHeadline": "当前进度 · Task9可复用离线准备工具已完成",
+  "taskPlanScope": "Task9新增本地离线结构校验工具与38项工具测试。历史Rust19不累计，37条真实集成规格未执行，五个正式验收框仍开放；未增加首签/发布权限或执行断联/恢复。",
   "nextSteps": [
     [
       "01 · 完成本地契约与失败规格审阅",
