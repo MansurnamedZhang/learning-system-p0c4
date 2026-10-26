@@ -156,10 +156,10 @@ export const c4Tasks = [
   {
     "id": 9,
     "title": "真实独立故障域闭合",
-    "status": "planned",
-    "statusLabel": "待具备独立存储",
-    "detail": "使用独立主机、NAS 或对象存储并单独保管密钥，完成真实完成收据与干净恢复演练。",
-    "evidence": "当前无独立目标。除硬件与密钥外，还需首签/新发布权限的跨操作集成和源码端不可访问恢复；只有Task8及本门通过，才可关闭父里程碑与C4。"
+    "status": "next",
+    "statusLabel": "准备中，未授运行资格",
+    "detail": "已确认B1三处接口断点并实现只读元数据探针；目标、密钥托管与安装有效性待核实。",
+    "evidence": "六项本地纯测试通过；既有Linux普通身份元数据观察退出0，五项私有安装状态为UNKNOWN_PERMISSION_DENIED。无真实域、首签、新发布、CompleteBackup或源不可访问恢复信用。"
   }
 ];
 
@@ -1641,29 +1641,29 @@ export const meta = {
   "date": "2026-10-26",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8私有单机限定验收完成 · Task9开放",
-  "progressSummary": "Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。",
+  "state": "C4实施中 · Task8限定完成 · Task9准备与外部准入核实",
+  "progressSummary": "Task8规定私有单机范围已完成并发布07fa721。Task9已重读原规范、独审B1三处跨操作/异机授权断点，完成固定元数据探针与六项本地纯安全测试；尚无真实独立目标或正常恢复验收。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "Task9待真实独立目标、密钥托管及首签/新发布权限集成；正常CompleteBackup和源端不可访问恢复尚未验收。C4整关、公开恢复与生产保持开放。",
+  "pendingSummary": "真实独立目标、托管、安装内容有效性及构建公钥pin尚未核实；普通UID1000对五个私有安装路径权限不足，保持UNKNOWN且不提权。B1首签/新发布集成及源端不可访问整链仍待满足具体前置条件。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · Task8私有单机回归限定完成",
-  "taskPlanScope": "Task8规定回归/四升级/54 fresh及6历史桥/33RootFS/5辅助与整组独审已限定收尾；Task9独立域和正常恢复资格仍开放。",
+  "roadmapHeadline": "当前进度 · Task9准备与前置阻碍已核清",
+  "taskPlanScope": "Task8保持限定完成。Task9仅本地准备与既有身份只读元数据观察；五个正式验收框均未完成，不启用signer、不安装信任、不执行恢复。",
   "nextSteps": [
     [
-      "01 · 准备Task9实际条件",
-      "真实独立目标、密钥托管与installed trust/registry；不能以同主机UUID/设备不同冒充独立故障域。"
+      "01 · 核实真实独立目标与托管事实",
+      "提供目标运行方、故障域及非敏感连接/安装事实。当前私有路径权限拒绝保持UNKNOWN，不另走提权通道。"
     ],
     [
-      "02 · 完成首签/新发布权限和正常整链",
-      "除硬件外还需跨操作/跨主机权限集成；以正常CompleteBackup、完整恢复及源端不可访问复原验证。"
+      "02 · 审查B1最小集成方案",
+      "结合真实目标与管理通道，连接源证据持久化、原操作授权、独立首签和新发布；保持v2格式与默认拒绝，不从terminal重建权限。"
     ],
     [
-      "03 · 关闭父里程碑与C4",
-      "Task9全部证据与回归独审通过后，才可关闭父Task3/4/5和C4；不包含生产部署或main合并。"
+      "03 · 单独批准后做真实整链",
+      "先明确密钥/信任/权限安装及本批断联/恢复的精确目标与影响，再执行真实CompleteBackup和源不可访问恢复。Task9与C4仍开放。"
     ]
   ]
 };
@@ -1759,6 +1759,10 @@ export const references = [
   [
     "Neo4j首版决策",
     "docs/数据库选型实验审阅与首版决策.md"
+  ],
+  [
+    "Task9准备、授权缺口与最小审批边界",
+    "docs/p0c4-task9-readiness.md"
   ]
 ];
 

@@ -209,6 +209,8 @@ Task8 的规定范围完成：当前完整回归、四套真正旧程序升级�
 
 ### Task 9: Genuine independent-domain closure when available
 
+2026-10-26 准备检查点：已完成 B1 三接口静态审查、固定元数据探针与六项本地纯安全测试；现有普通身份无法核实 root 私有安装内容。目标／托管／构建 pin 继续未核实，跨操作首签／新发布尚未集成，下面五项均未完成。详见 [Task9准备与前置阻碍](../../p0c4-task9-readiness.md)。
+
 **Files:** Existing Task3 destination tooling and Task5–7 normal path; update acceptance/runbook/parent plan/route only after actual evidence. Implementation fixes, if any, remain independently reviewed and regression-tested as their corresponding task unit.
 
 - [ ] Establish actual independently operated destination host/storage, private key custody and installed trust/registry. Root records reviewed domain facts without secrets. Provision public key into the reviewed build using existing deployment mechanism; never use UUID/device difference alone as evidence. This external prerequisite is currently unsatisfied and blocks this task only.
