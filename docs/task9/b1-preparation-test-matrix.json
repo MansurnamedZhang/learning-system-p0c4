@@ -1,0 +1,534 @@
+{
+  "artifact_kind": "task9_preparation_test_specification_not_authority",
+  "schema": 1,
+  "date": "2026-10-26",
+  "status": "DRAFT_FOR_DESIGN_REVIEW_NOT_IMPLEMENTATION_OR_ACCEPTANCE",
+  "business_source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
+  "public_base_commit": "70c083faa00f888789f6602861b179f527ae7bba",
+  "independent_target": {
+    "available": false,
+    "basis": "USER_STATEMENT",
+    "statement": "暂时没有独立目标，继续本地准备"
+  },
+  "source_bindings": [
+    {
+      "path": "crates/learning-backup/src/destination/attempt.rs",
+      "bytes": 24151,
+      "sha256": "19522bf3b0959da7eb2a21bf489213608bdf0d93722d91196665da3e5b5e22a1",
+      "baseline_source_sha256": "481c1fced61887feb52308bd0873dc32fafe33a3e6dcde3a40cfcc784d2550c9",
+      "change_scope": "cfg(test) helper and five negative units appended; existing module prefix and tests unchanged"
+    },
+    {
+      "path": "crates/learning-backup/src/destination.rs",
+      "bytes": 95168,
+      "sha256": "507212af06baeba07103d89b01e14f99daf5bed042e47b76ebc67ac9813c3b8a"
+    },
+    {
+      "path": "crates/learning-backup/src/protection.rs",
+      "bytes": 60142,
+      "sha256": "3a6bbbb7faefdce876a6a68c9f4d3c461ead84a4784c0854851a666b704aa5d5"
+    },
+    {
+      "path": "crates/learning-backup/src/registry.rs",
+      "bytes": 47069,
+      "sha256": "ae50d7942b922bc1879f6aab613e8f70eab39537afa590f15a415e92429c4abb"
+    },
+    {
+      "path": "crates/learning-backup/src/complete.rs",
+      "bytes": 22240,
+      "sha256": "405e1f7e4bacb9fcb0cd395f16171ee8bdac2e1a21fe3e7fddabc923effa5019"
+    },
+    {
+      "path": "crates/learning-backup/src/bin/knowweave-c4-destination.rs",
+      "bytes": 1192,
+      "sha256": "b5949c38fccb81906882dbceb6153190aa0364b72404e910721ed1a3aab51381"
+    },
+    {
+      "path": "crates/learning-backup/src/full_restore/data/rows.rs",
+      "bytes": 27837,
+      "sha256": "30a4ea7f146477cb97fa3e72cdcbbbdbdf3628066adccc7ec1138c9442748212",
+      "baseline_source_sha256": "9a064f06b3072891b61b9d4599e98a569cbaddad76d755ec50dbed4aa7eea461",
+      "change_scope": "only same Err tail expression in non-Linux unsupported branch; Linux branch unchanged"
+    }
+  ],
+  "existing_destination_steps": [
+    "Admit",
+    "Prepare",
+    "Stage",
+    "BeforeRename",
+    "Rename",
+    "ParentSync",
+    "FinalReadback",
+    "TerminalWrite",
+    "TerminalSync",
+    "TerminalReadback",
+    "FinalRecheck"
+  ],
+  "cases": [
+    {
+      "id": "B1-SEAM-01",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing Admit boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_admit_prewrite_failure_keeps_disk_identity_unconsumed",
+        "scope": "NEW_LOCAL_WINDOWS_STORE_NEGATIVE_UNIT_NOT_TASK9_EXECUTION",
+        "source": "current candidate cfg(test) overlay, not Source679 ZIP",
+        "fault_layer": "Store::step pre-action failure; not real filesystem",
+        "unit_observation": "PASSED_WINDOWS_LOCAL_UNIT"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "Admit"
+    },
+    {
+      "id": "B1-SEAM-02",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing Prepare boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_prepare_failure_preserves_admission_and_rejects_fresh_attempt",
+        "scope": "NEW_LOCAL_WINDOWS_STORE_NEGATIVE_UNIT_NOT_TASK9_EXECUTION",
+        "source": "current candidate cfg(test) overlay, not Source679 ZIP",
+        "fault_layer": "Store::step pre-action failure; not real filesystem",
+        "unit_observation": "PASSED_WINDOWS_LOCAL_UNIT"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "Prepare"
+    },
+    {
+      "id": "B1-SEAM-03",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing Stage boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_stage_failure_preserves_admission_and_rejects_fresh_attempt",
+        "scope": "NEW_LOCAL_WINDOWS_STORE_NEGATIVE_UNIT_NOT_TASK9_EXECUTION",
+        "source": "current candidate cfg(test) overlay, not Source679 ZIP",
+        "fault_layer": "Store::step pre-action failure; not real filesystem",
+        "unit_observation": "PASSED_WINDOWS_LOCAL_UNIT"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "Stage"
+    },
+    {
+      "id": "B1-SEAM-04",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing BeforeRename boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "every_seam_retains_residue_blocks_same_id_and_never_reconstructs_live_authority",
+        "scope": "EXACT_SIX_SEAM_SOURCE_REFERENCE_NOT_RERUN"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "BeforeRename"
+    },
+    {
+      "id": "B1-SEAM-05",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing Rename boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_rename_failure_retains_stage_and_rejects_fresh_attempt",
+        "scope": "NEW_LOCAL_WINDOWS_STORE_NEGATIVE_UNIT_NOT_TASK9_EXECUTION",
+        "source": "current candidate cfg(test) overlay, not Source679 ZIP",
+        "fault_layer": "Store::step pre-action failure; not real filesystem",
+        "unit_observation": "PASSED_WINDOWS_LOCAL_UNIT"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "Rename"
+    },
+    {
+      "id": "B1-SEAM-06",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing ParentSync boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "every_seam_retains_residue_blocks_same_id_and_never_reconstructs_live_authority",
+        "scope": "EXACT_SIX_SEAM_SOURCE_REFERENCE_NOT_RERUN"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "ParentSync"
+    },
+    {
+      "id": "B1-SEAM-07",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing FinalReadback boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "every_seam_retains_residue_blocks_same_id_and_never_reconstructs_live_authority",
+        "scope": "EXACT_SIX_SEAM_SOURCE_REFERENCE_NOT_RERUN"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "FinalReadback"
+    },
+    {
+      "id": "B1-SEAM-08",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing TerminalWrite boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "task9_terminal_write_preaction_failure_retains_final_without_authority",
+        "scope": "NEW_LOCAL_WINDOWS_STORE_NEGATIVE_UNIT_NOT_TASK9_EXECUTION",
+        "source": "current candidate cfg(test) overlay, not Source679 ZIP",
+        "fault_layer": "Store::step pre-action failure; not real filesystem",
+        "unit_observation": "PASSED_WINDOWS_LOCAL_UNIT"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "TerminalWrite"
+    },
+    {
+      "id": "B1-SEAM-09",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing TerminalSync boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "every_seam_retains_residue_blocks_same_id_and_never_reconstructs_live_authority",
+        "scope": "EXACT_SIX_SEAM_SOURCE_REFERENCE_NOT_RERUN"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "TerminalSync"
+    },
+    {
+      "id": "B1-SEAM-10",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing TerminalReadback boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "every_seam_retains_residue_blocks_same_id_and_never_reconstructs_live_authority",
+        "scope": "EXACT_SIX_SEAM_SOURCE_REFERENCE_NOT_RERUN"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "TerminalReadback"
+    },
+    {
+      "id": "B1-SEAM-11",
+      "group": "existing_evidence_seams",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::publish",
+      "stimulus": "Failure at existing FinalRecheck boundary",
+      "expected_obligation": "No new authority. Retain only residue actually created, never invent an attempt. The failed invocation does not automatically retry; persisted admission/residue rejects the same backup_id even with a new attempt_id. Unrelated prior bytes remain unchanged.",
+      "existing_coverage_reference": {
+        "path": "crates/learning-backup/src/destination/attempt.rs",
+        "function": "every_seam_retains_residue_blocks_same_id_and_never_reconstructs_live_authority",
+        "scope": "EXACT_SIX_SEAM_SOURCE_REFERENCE_NOT_RERUN"
+      },
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "existing_seam": "FinalRecheck"
+    },
+    {
+      "id": "B1-BOUNDARY-01",
+      "group": "operation_boundaries",
+      "entry_hook": "crates/learning-backup/src/destination.rs::verify_enrolled_destination",
+      "stimulus": "new-lease-first-sign: Reopen lease in standalone process before first signing",
+      "expected_obligation": "Fresh empty authority refuses; installing key/all-features cannot substitute.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-BOUNDARY-02",
+      "group": "operation_boundaries",
+      "entry_hook": "crates/learning-backup/src/complete.rs::publish_complete_backup",
+      "stimulus": "new-lease-publication: Call existing publisher while original lease held or after it is lost",
+      "expected_obligation": "Busy or absent original-operation authority; no new receipt authority inferred.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-BOUNDARY-03",
+      "group": "operation_boundaries",
+      "entry_hook": "crates/learning-backup/src/destination/attempt.rs::OperationAuthority::require_id",
+      "stimulus": "visible-terminal: Valid-looking terminal survives a failed/unknown operation",
+      "expected_obligation": "Terminal/readback/resync cannot reconstruct original successful state.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-BOUNDARY-04",
+      "group": "operation_boundaries",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "authenticated-message-only: Authenticated peer supplies message but original destination success not established",
+      "expected_obligation": "Authentication alone cannot admit signing/publication.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-BOUNDARY-05",
+      "group": "operation_boundaries",
+      "entry_hook": "crates/learning-backup/src/complete.rs::publish_complete_backup -> crates/learning-backup/src/destination.rs::check_publication_proof",
+      "stimulus": "witness-only: Supply valid witness but no admitted current original publication operation",
+      "expected_obligation": "Witness is not new publication authority.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-BOUNDARY-06",
+      "group": "operation_boundaries",
+      "entry_hook": "crates/learning-backup/src/registry.rs::RegistryLease::clone_held",
+      "stimulus": "same-original-clone: Compare legitimate same-operation clone with independently opened/off-host context",
+      "expected_obligation": "Keep original clone semantics; no claim that different process shares its Arc.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-BIND-01",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute backup_id from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "backup_id"
+    },
+    {
+      "id": "B1-BIND-02",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute attempt_id from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "attempt_id"
+    },
+    {
+      "id": "B1-BIND-03",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute manifest_sha256 from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "manifest_sha256"
+    },
+    {
+      "id": "B1-BIND-04",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute proof_sha256 from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "proof_sha256"
+    },
+    {
+      "id": "B1-BIND-05",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute source_control_sha256 from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "source_control_sha256"
+    },
+    {
+      "id": "B1-BIND-06",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute source_and_build_identity from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "source_and_build_identity"
+    },
+    {
+      "id": "B1-BIND-07",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute registry_generation_and_enrolled_root_identity from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "registry_generation_and_enrolled_root_identity"
+    },
+    {
+      "id": "B1-BIND-08",
+      "group": "cross_boundary_binding_specifications",
+      "entry_hook": "proposed_cross_boundary_admission_not_implemented",
+      "stimulus": "Substitute original_operation_ownership from another operation or repeat a stale request",
+      "expected_obligation": "Reject before new signing/receipt writing; no caller boolean, generic token or same-ID reconstruction.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE",
+      "binding_field": "original_operation_ownership"
+    },
+    {
+      "id": "B1-OUTCOME-01",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "disconnect-before-final: Disconnect before original evidence final success",
+      "expected_obligation": "Do not grant new authority; remote outcome may be unknown, not proven rollback.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-OUTCOME-02",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "disconnect-after-sign: Lose communication after witness signing but before verified receipt result",
+      "expected_obligation": "Preserve UNKNOWN/HOLD, no automatic same-ID re-sign/publication.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-OUTCOME-03",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "cancel-before-consume: Cancellation wins before final authority consumption",
+      "expected_obligation": "Revoke still-revocable new permission; no later write after cancellation.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-OUTCOME-04",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "late-revocation: Real successful commit wins before late disconnect/revocation",
+      "expected_obligation": "Preserve actual historical committed result; revoke future uses only, not erase history.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-OUTCOME-05",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "publication-result-unknown: Receipt may be visible but final result cannot be established",
+      "expected_obligation": "No success inference or automatic repair; distinguish old verified receipt read contract.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-OUTCOME-06",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "Repeat the same backup_id with a new attempt_id while persisted admission/stage/final residue exists",
+      "expected_obligation": "Reject by backup_id; a fresh attempt_id cannot evade existing residue. Before durable admission, do not fabricate on-disk ID consumption; no automatic retry within failed invocation.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": false,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-OUTCOME-07",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "unrelated-prior-complete: New transfer/publication fails beside a prior genuinely complete backup",
+      "expected_obligation": "Preserve prior CompleteBackup bytes and historical authority, not merely prior sealed fixture.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": true,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-OUTCOME-08",
+      "group": "cancellation_and_results",
+      "entry_hook": "proposed_cross_boundary_final_consume_not_implemented",
+      "stimulus": "historical-reopen: Open a previously genuinely verified signed complete receipt with exact proof",
+      "expected_obligation": "Destination/trust only; do not require live source or grant new same-ID publication.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": true,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-LIVE-01",
+      "group": "real_independent_positive_chains",
+      "entry_hook": "existing_Task3_and_Task5_to_7_normal_path_after_reviewed_integration",
+      "stimulus": "real-first-sign",
+      "expected_obligation": "Real independently operated destination, custody and reviewed build; original successful destination operation signs via genuine admitted binding.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": true,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-LIVE-02",
+      "group": "real_independent_positive_chains",
+      "entry_hook": "existing_Task3_and_Task5_to_7_normal_path_after_reviewed_integration",
+      "stimulus": "real-new-publication",
+      "expected_obligation": "Original source protection and genuine admitted destination evidence/signature produce a new normally verified CompleteBackup.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": true,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-LIVE-03",
+      "group": "real_independent_positive_chains",
+      "entry_hook": "existing_Task3_and_Task5_to_7_normal_path_after_reviewed_integration",
+      "stimulus": "real-normal-full-recovery",
+      "expected_obligation": "Normal CompleteBackup through existing full engine, complete rows/assets/authorization and job/effect checks.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": true,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    },
+    {
+      "id": "B1-LIVE-04",
+      "group": "real_independent_positive_chains",
+      "entry_hook": "existing_Task3_and_Task5_to_7_normal_path_after_reviewed_integration",
+      "stimulus": "real-source-unavailable",
+      "expected_obligation": "After separate exact isolation approval, second new target recovers from destination/trust/captured proof only, source calls zero.",
+      "existing_coverage_reference": null,
+      "requires_real_independent_target": true,
+      "execution_status": "NOT_EXECUTED_AS_TASK9_INTEGRATION_CASE"
+    }
+  ],
+  "operational_cases_executed": 0,
+  "task9_accepted": false,
+  "product_consumes_this_file": false,
+  "permissions_changed": false,
+  "source_overlay": "Source679 runtime baseline plus five cfg(test) negatives and an equivalent non-Linux Err tail-expression style fix",
+  "task9_cross_domain_simulations_executed": 0,
+  "new_task9_acceptance_credit": 0,
+  "local_negative_units": {
+    "status": "FIVE_LOCAL_WINDOWS_NEGATIVE_UNITS_PASSED_NOT_TASK9_ACCEPTANCE",
+    "unique_passed": 5,
+    "platform": "Windows",
+    "fixture": "existing internal in-memory Store; pre-action failures only",
+    "unit_result_sha256": "6c5a1cc1859a0d69114c59d8d725117848ec1e3db1bd1cf5ce75d640aa678915",
+    "quality_result_sha256": "bfb1deca3de7a3a62834d47cc0616e5ec09663a69184bd84995a8d08819353e3",
+    "Linux_PG_or_real_FS_credit": 0,
+    "Task9_acceptance_credit": 0
+  }
+}

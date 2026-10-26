@@ -591,4 +591,70 @@ mod tests {
                 .is_err()
         );
     }
+
+    fn task9_pre_action_failure(step: Step, admission_persisted: bool) {
+        let context = Arc::new(Mutex::new(OperationAuthority::default()));
+        let mut store = Store::new();
+        let id = store.intent.backup_id;
+        let names_before = store.names.clone();
+        let prior_before = store.prior.clone();
+        store.fail = Some(step);
+
+        assert!(publish(&context, id, &mut store).is_err());
+        let original = context.lock().unwrap();
+        assert!(original.failed);
+        assert!(original.successful.is_empty());
+        assert!(original.require_id(id).is_err());
+        drop(original);
+        assert_eq!(store.prior, prior_before);
+
+        if !admission_persisted {
+            // Failure precedes the Store's Admit action. The failed operation
+            // is closed, but it must not invent a durable same-ID residue.
+            assert_eq!(store.names, names_before);
+            assert!(store.terminal.is_none());
+            assert!(require_fresh(&store.names, id).is_ok());
+            return;
+        }
+
+        assert!(require_fresh(&store.names, id).is_err());
+        let retained_names = store.names.clone();
+        let retained_terminal = store.terminal.clone();
+        let previous_attempt = store.intent.attempt_id;
+        store.intent.attempt_id = Uuid::new_v4();
+        assert_ne!(store.intent.attempt_id, previous_attempt);
+        store.fail = None;
+        let reopened = Arc::new(Mutex::new(OperationAuthority::default()));
+        // A fresh attempt_id cannot evade persisted admission for backup_id.
+        assert!(publish(&reopened, id, &mut store).is_err());
+        assert!(reopened.lock().unwrap().require_id(id).is_err());
+        assert_eq!(store.names, retained_names);
+        assert_eq!(store.terminal, retained_terminal);
+        assert_eq!(store.prior, prior_before);
+    }
+
+    #[test]
+    fn task9_admit_prewrite_failure_keeps_disk_identity_unconsumed() {
+        task9_pre_action_failure(Step::Admit, false);
+    }
+
+    #[test]
+    fn task9_prepare_failure_preserves_admission_and_rejects_fresh_attempt() {
+        task9_pre_action_failure(Step::Prepare, true);
+    }
+
+    #[test]
+    fn task9_stage_failure_preserves_admission_and_rejects_fresh_attempt() {
+        task9_pre_action_failure(Step::Stage, true);
+    }
+
+    #[test]
+    fn task9_rename_failure_retains_stage_and_rejects_fresh_attempt() {
+        task9_pre_action_failure(Step::Rename, true);
+    }
+
+    #[test]
+    fn task9_terminal_write_preaction_failure_retains_final_without_authority() {
+        task9_pre_action_failure(Step::TerminalWrite, true);
+    }
 }

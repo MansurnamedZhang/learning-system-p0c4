@@ -147,7 +147,7 @@ fn reopen_scratch(root: &BackupDir, name: &str, written: &File) -> Result<File, 
     #[cfg(not(target_os = "linux"))]
     {
         let _ = (before, after);
-        return Err(BackupError::Invalid("recovery scratch requires Linux"));
+        Err(BackupError::Invalid("recovery scratch requires Linux"))
     }
     #[cfg(target_os = "linux")]
     Ok(reader)
