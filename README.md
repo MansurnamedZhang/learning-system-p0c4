@@ -1,5 +1,13 @@
 # 知织 · KnowWeave
 
+## Task9 R2b有界管道IO完成限定Linux检查 · 2026-10-27
+
+Task2b新增21项实际通过，offhost累计75；默认450/特性524各106 ignored分账，格式/严格Clippy/bin构建通过并独核。新增4单元、16原生管道和1EINTR分类，尚无Child/SSH、认证或真实Source/D权限。详见[实施进展](docs/task9/r2b-implementation-progress.md)。
+
+旧失败/HOLD保留，EOF探针纳入原wire预算。下一步受控Child监督与认证准备；SourceActor扩码合同继续独审，现场key/trust/权限、目标整链与恢复另批。Task9/C4 OPEN，main与生产不变。
+
+---
+
 ## Task9 R2b纯协议编码片完成限定Linux检查 · 2026-10-27
 
 Task2a五叶编码片新增27项实际通过，offhost累计54；默认450/特性503各106 ignored分账，格式/严格Clippy/bin构建通过并独核。净差53不是计划53项分层义务，所有输出仍Untrusted/Candidate，实际IO/认证与发布权限尚未接线。详见[实施进展](docs/task9/r2b-implementation-progress.md)。

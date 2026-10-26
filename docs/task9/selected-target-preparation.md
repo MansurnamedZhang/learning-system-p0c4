@@ -1,5 +1,13 @@
 # Task9 已选目标与平台预检
 
+## 最新实施：Task2b有界管道IO限定完成 · 2026-10-27
+
+五叶完成原预算预付、实际管道IO、绝对deadline与EOF分账；新增21正文通过，offhost75逐名核对。默认450/特性524各106 ignored分账，格式/严格Clippy/bin构建通过并独核。新增由4单元、16原生管道及1EINTR分类组成，不是真实信号或Child/SSH/auth证明；runner仍拒绝。
+
+SourceActor生产capture、Root发证、固定peer会话与跨crate预算扩码合同仍需独审与范围批准，现场key/trust/权限、目标整链和恢复另批。Task9/C4 OPEN，完整证据与边界见[实施进展](r2b-implementation-progress.md)。下方为历史检查点。
+
+---
+
 ## 最新实施：Task2a纯协议编码片限定完成 · 2026-10-27
 
 五叶提供严格字段、帧/阶段、双向计费与候选摘要；新增27正文实际通过，offhost累计54。默认450/特性503各106 ignored分别记账，格式/严格Clippy/bin构建通过并独核。净差53并非计划53项分层义务；所有输出仍Untrusted/Candidate，无真实IO/认证或发布权限，runner始终拒绝。

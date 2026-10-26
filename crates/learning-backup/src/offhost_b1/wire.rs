@@ -1,6 +1,7 @@
-//! Pure, default-off wire syntax. No IO, keys, authentication or permissions.
+//! Default-off wire syntax with private pipe IO; no keys or permissions.
 //! All decoded messages, phases and transcript heads remain UNTRUSTED DATA.
 //! Existing Ready/receipt body semantics and real EOF require later consumers.
+mod io;
 mod schema;
 mod transcript;
 
@@ -429,9 +430,25 @@ impl WireSyntax {
     fn observe_untrusted<'a>(&mut self, raw: &'a [u8]) -> Result<UntrustedFrame<'a>, WireError> {
         let result = self.observe_open(raw);
         if result.is_err() {
-            self.phase = SyntaxPhase::Poisoned;
+            self.poison();
         }
         result
+    }
+    fn check_header(&self, h: Header) -> Result<(), WireError> {
+        match self.phase {
+            SyntaxPhase::Poisoned => return Err(WireError::Poisoned),
+            SyntaxPhase::BothEndsSeen | SyntaxPhase::Aborted => return Err(WireError::Closed),
+            _ => {}
+        }
+        if self.phase == SyntaxPhase::DestinationEnd
+            && h.direction == Direction::SourceToDestination
+        {
+            return Err(WireError::Closed);
+        }
+        if h.sequence != self.next[h.direction.index()] || h.sequence.checked_add(1).is_none() {
+            return Err(WireError::Sequence);
+        }
+        Ok(())
     }
     fn observe_open<'a>(&mut self, raw: &'a [u8]) -> Result<UntrustedFrame<'a>, WireError> {
         match self.phase {
@@ -440,17 +457,7 @@ impl WireSyntax {
             _ => {}
         }
         let h = inspect_header(raw.get(..HEADER).ok_or(WireError::Header)?)?;
-        // S End closes S>D, including Abort. Only the still-open direction can
-        // supply its remaining termination; an error poisons the whole syntax.
-        if self.phase == SyntaxPhase::DestinationEnd
-            && h.direction == Direction::SourceToDestination
-        {
-            return Err(WireError::Closed);
-        }
-        if h.sequence != self.next[h.direction.index()] {
-            return Err(WireError::Sequence);
-        }
-        let next = h.sequence.checked_add(1).ok_or(WireError::Sequence)?;
+        self.check_header(h)?;
         if usize::try_from(h.payload_bytes)
             .ok()
             .and_then(|n| n.checked_add(HEADER))
@@ -458,11 +465,20 @@ impl WireSyntax {
         {
             return Err(WireError::Length);
         }
-        // Valid declared frames (including later schema/phase failures) are
-        // charged once before typed parsing. A malformed header is terminal.
         self.budget
             .charge_frame(h.kind.budget_kind(), u64::from(h.payload_bytes))
             .map_err(|_| WireError::Budget)?;
+        self.apply_reserved_bytes(raw, h)
+    }
+    // Callers are exactly the atomic complete-frame path above and the private
+    // original-owner reservation below. There is no caller skip-charge flag.
+    fn apply_reserved_bytes<'a>(
+        &mut self,
+        raw: &'a [u8],
+        h: Header,
+    ) -> Result<UntrustedFrame<'a>, WireError> {
+        self.check_header(h)?;
+        let next = h.sequence.checked_add(1).ok_or(WireError::Sequence)?;
         let frame = parse_frame(raw, h)?;
         match &frame.message {
             UntrustedMessage::Abort => self.phase = SyntaxPhase::Aborted,
@@ -699,6 +715,46 @@ impl WireSyntax {
         self.phase = SyntaxPhase::FileOpen;
         Ok(())
     }
+    fn poison(&mut self) {
+        self.phase = SyntaxPhase::Poisoned;
+        self.budget.poison();
+    }
+    fn reserve_frame(&mut self, direction: Direction) -> Result<FrameReservation<'_>, WireError> {
+        let h = Header {
+            kind: Kind::End,
+            direction,
+            sequence: self.next[direction.index()],
+            payload_bytes: 0,
+        };
+        if let Err(error) = self.check_header(h) {
+            self.poison();
+            return Err(error);
+        }
+        if self.budget.reserve_header().is_err() {
+            self.poison();
+            return Err(WireError::Budget);
+        }
+        Ok(FrameReservation {
+            owner: self,
+            direction,
+            header: None,
+            staged: false,
+            finished: false,
+        })
+    }
+    fn reserve_eof(&mut self) -> Result<EofReservation<'_>, WireError> {
+        if self.phase == SyntaxPhase::Poisoned {
+            return Err(WireError::Poisoned);
+        }
+        if self.budget.reserve_eof_probe().is_err() {
+            self.poison();
+            return Err(WireError::Budget);
+        }
+        Ok(EofReservation {
+            owner: self,
+            finished: false,
+        })
+    }
     /// Pure state inspection ONLY. Never a socket EOF, exit0 or success receipt.
     /// Ok includes Aborted and therefore does not mean normal completion.
     fn finish_syntax(&mut self) -> Result<(), WireError> {
@@ -709,6 +765,109 @@ impl WireSyntax {
                 self.phase = SyntaxPhase::Poisoned;
                 Err(WireError::Incomplete)
             }
+        }
+    }
+}
+
+// Mutably borrowing the original owner prevents cloning/moving its budget or
+// completing another session with this reservation. Drop/cancel never refunds.
+struct FrameReservation<'a> {
+    owner: &'a mut WireSyntax,
+    direction: Direction,
+    header: Option<Header>,
+    staged: bool,
+    finished: bool,
+}
+impl FrameReservation<'_> {
+    fn declare(&mut self, raw: &[u8]) -> Result<Header, WireError> {
+        let result = self.declare_open(raw);
+        if result.is_err() {
+            self.owner.poison();
+        }
+        result
+    }
+    fn declare_open(&mut self, raw: &[u8]) -> Result<Header, WireError> {
+        if self.header.is_some() {
+            return Err(WireError::Budget);
+        }
+        let h = inspect_header(raw)?;
+        if h.direction != self.direction {
+            return Err(WireError::Fields);
+        }
+        self.owner.check_header(h)?;
+        let expected_kind = match self.owner.phase {
+            SyntaxPhase::HelloS | SyntaxPhase::HelloD => Kind::Metadata,
+            SyntaxPhase::SourceEnd | SyntaxPhase::DestinationEnd => Kind::End,
+            _ => Kind::Data,
+        };
+        // Kind is already knowable from the fixed header. Reject before any
+        // payload allocation/read; control tags still use the one old parser.
+        if h.kind != Kind::Abort && h.kind != expected_kind {
+            return Err(WireError::Phase);
+        }
+        self.owner
+            .budget
+            .reserve_payload(h.kind.budget_kind(), u64::from(h.payload_bytes))
+            .map_err(|_| WireError::Budget)?;
+        self.header = Some(h);
+        Ok(h)
+    }
+    fn stage<'a>(&mut self, raw: &'a [u8]) -> Result<UntrustedFrame<'a>, WireError> {
+        let result = self.stage_open(raw);
+        if result.is_err() {
+            self.owner.poison();
+        }
+        result
+    }
+    fn stage_open<'a>(&mut self, raw: &'a [u8]) -> Result<UntrustedFrame<'a>, WireError> {
+        if self.staged {
+            return Err(WireError::Budget);
+        }
+        let h = self.header.ok_or(WireError::Budget)?;
+        if inspect_header(raw.get(..HEADER).ok_or(WireError::Header)?)? != h {
+            return Err(WireError::Header);
+        }
+        let frame = self.owner.apply_reserved_bytes(raw, h)?;
+        self.staged = true;
+        Ok(frame)
+    }
+    fn finish(mut self) -> Result<(), WireError> {
+        if !self.staged {
+            return Err(WireError::Budget);
+        }
+        self.owner
+            .budget
+            .finish_reserved_frame()
+            .map_err(|_| WireError::Budget)?;
+        self.finished = true;
+        Ok(())
+    }
+}
+impl Drop for FrameReservation<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            self.owner.poison();
+        }
+    }
+}
+struct EofReservation<'a> {
+    owner: &'a mut WireSyntax,
+    finished: bool,
+}
+impl EofReservation<'_> {
+    fn finish(mut self) -> Result<(), WireError> {
+        self.owner
+            .budget
+            .finish_eof_probe()
+            .map_err(|_| WireError::Budget)?;
+        self.finished = true;
+        Ok(())
+    }
+}
+impl Drop for EofReservation<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            self.owner.poison();
         }
     }
 }

@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "R2b协议编码片已验证，真实权限接线未完成",
-    "detail": "Task2a纯协议编码片完成限定Linux检查：typed字段、阶段、双向预算与候选摘要；未接实际IO或认证。真实S/D actor、fence与发布仍待实现和对应准入，安装及恢复另批。",
-    "evidence": "本片新增27项，offhost累计54逐名通过；默认450/特性503各106 ignored分别记账，格式/严格Clippy/bin构建通过并独核。净差53不等计划53义务；runner仍拒绝，真实IO/认证及五门未闭合。"
+    "statusLabel": "R2b有界管道IO已验证，真实权限接线未完成",
+    "detail": "Task2b完成有界AsyncFd管道、原预算预付计费、绝对deadline与EOF分账的限定Linux检查；尚未接Child/SSH监督或认证，真实S/D actor、fence与发布仍待接线。",
+    "evidence": "新增21项（4单元＋16原生管道＋1EINTR分类），offhost累计75；默认450/特性524各106 ignored分账，格式/严格Clippy/bin构建通过并独核。不等53义务或五门关闭。"
   }
 ];
 
@@ -1641,17 +1641,17 @@ export const meta = {
   "date": "2026-10-27",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9 R2b协议编码片已限定验证",
-  "progressSummary": "R2b Task2a五叶纯协议编码已实现，新增27正文经Linux与原件独核，offhost累计54。默认450/特性503各106忽略分别计；净差53不是53项分层义务，真实IO/认证/权限仍未接线。",
+  "state": "C4实施中 · Task8限定完成 · Task9 R2b有界管道IO已限定验证",
+  "progressSummary": "R2b Task2b五叶有界管道IO已实现，新增21/offhost75实际通过并独核。默认450/特性524各106忽略分别计；真实Child/SSH、认证、原S时钟与权限接线未完成。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "下一步接真实有界IO/监督及认证准备；生产capture、Root发证、peer认证和跨crate计费合同继续具体化独审，不暗改旧guard。key/trust/安装/安全权限、目标整链与恢复另批，Task9/C4五门仍OPEN。",
+  "pendingSummary": "下一步接受控Child监督与认证准备；生产capture、Root发证、固定peer会话和跨crate预算合同继续独审，扩码另需批准。key/trust/安装/权限、目标整链与恢复另批，Task9/C4五门仍OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · R2b Task2a协议编码片已过Linux检查；真实权限未接线",
-  "taskPlanScope": "本轮五叶纯协议编码和新增27项Linux正文完成独核；所有输出仍Untrusted/Candidate，不产生认证或发布权限。原公共v2、旧guard、五门与37条规格不改，失败/HOLD保留；未安装/启用，Windows未运行产品测试。",
+  "roadmapHeadline": "当前进度 · R2b Task2b有界管道IO已过Linux检查；真实权限未接线",
+  "taskPlanScope": "本轮五叶IO和新增21项Linux正文完成独核；16项原生管道不等真实EINTR信号、OS追踪或Child/SSH认证。原公共v2、旧guard、五门与37条规格不改；未安装/启用，Windows未运行产品测试。",
   "nextSteps": [
     [
       "01 · 已采纳语义，规范定稿与独审",
@@ -1659,7 +1659,7 @@ export const meta = {
     ],
     [
       "02 · 按已批准准确范围逐任务实现R2b",
-      "Task1a/1b与Task2a纯协议片限定完成，新27/offhost54逐名通过；接下来做有界IO/监督、认证准备，原actor扩码合同独审后再定。纯阶段终态不是真实EOF或Committed，现场变更仍另批。"
+      "Task1a/1b、Task2a协议与Task2b管道片限定完成，新21/offhost75逐名通过；受控Child监督、认证和原actor接线待续。EOF/语法终态不等自然退出或Committed，现场变更另批。"
     ],
     [
       "03 · 准确审批安装与真实整链",
@@ -1801,7 +1801,7 @@ export const references = [
     "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md"
   ],
   [
-    "Task9 R2b协议编码片、实际Linux检查与未验层",
+    "Task9 R2b有界管道IO、实际Linux检查与未验层",
     "docs/task9/r2b-implementation-progress.md"
   ]
 ];

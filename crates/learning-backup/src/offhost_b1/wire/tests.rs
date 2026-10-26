@@ -15,7 +15,7 @@ fn root(role: &str, i: usize) -> Value {
     json!({"role":role,"enrollment_id":format!("{i:08x}-1111-4111-8111-111111111111"),
         "path":format!("/example/{role}"),"dev":1,"ino":i+1,"uid":0,"mode":448,"record_sha256":HEX})
 }
-fn source() -> Value {
+pub(super) fn source() -> Value {
     json!({"deployment_id":ID,"source_group_id":ID,"backup_id":ID,"registry_authority_sha256":HEX,
         "registry_generation":1,"generation_sha256":HEX,"source_binding_sha256":HEX,
         "application_commit":"a".repeat(40),"application_build_sha256":HEX,"manager_release_sha256":HEX,
@@ -61,7 +61,7 @@ fn raw_data(tag: u8, control: &[u8], body: &[u8], d: Direction, sequence: u64) -
     p.extend_from_slice(body);
     raw_frame(Kind::Data, d, sequence, &p)
 }
-fn hello(direction: Direction, value: Value) -> Vec<u8> {
+pub(super) fn hello(direction: Direction, value: Value) -> Vec<u8> {
     let bytes = registry::canonical(&metadata(direction, value)).unwrap();
     encode_frame(Kind::Metadata, direction, 0, &bytes).unwrap()
 }
@@ -810,7 +810,7 @@ fn result_ack_and_end_direction_cannot_be_reordered() {
     assert_eq!(s.observe_untrusted(&early).err(), Some(WireError::Phase));
 }
 
-fn fill_wire(budget: &mut profile::SessionBudget, mut bytes: u64) {
+pub(super) fn fill_wire(budget: &mut profile::SessionBudget, mut bytes: u64) {
     let full = profile::DATA_BYTES + profile::HEADER_BYTES;
     while bytes > full {
         budget
@@ -987,4 +987,128 @@ fn actor_binding_uses_exact_domain_and_all_four_data_fields() {
         )
         .unwrap()
     );
+}
+
+pub(super) fn syntax_fixture_frames() -> Vec<Vec<u8>> {
+    let mut s = WireSyntax::default();
+    let mut frames = Vec::new();
+    for direction in [
+        Direction::SourceToDestination,
+        Direction::DestinationToSource,
+    ] {
+        let raw = hello(direction, source());
+        s.observe_untrusted(&raw).unwrap();
+        frames.push(raw);
+    }
+    for (tag, body) in [
+        (1, Vec::new()),
+        (2, Vec::new()),
+        (3, Vec::new()),
+        (4, MANIFEST.to_vec()),
+        (5, Vec::new()),
+        (6, Vec::new()),
+        (7, ready_body(COPY, INTENT)),
+        (8, Vec::new()),
+        (9, RECEIPT.to_vec()),
+        (10, Vec::new()),
+    ] {
+        let c = typed(tag, &control(&s, tag));
+        let raw = encode_control(&c, &body).unwrap();
+        s.observe_untrusted(&raw).unwrap();
+        frames.push(raw);
+    }
+    for direction in [
+        Direction::SourceToDestination,
+        Direction::DestinationToSource,
+    ] {
+        let raw = encode_frame(Kind::End, direction, s.next[direction.index()], &[]).unwrap();
+        s.observe_untrusted(&raw).unwrap();
+        frames.push(raw);
+    }
+    frames
+}
+
+// A large opaque DATA-only file, not an actual package manifest or permission.
+pub(super) fn large_chunk_fixture() -> (WireSyntax, Vec<u8>) {
+    let body = vec![b'x'; profile::CHUNK_BODY_BYTES as usize];
+    let mut src = source();
+    src["package_bytes"] = json!(body.len());
+    let mut s = streaming_with(src);
+    let mut begin = control(&s, 3);
+    begin["size"] = json!(body.len());
+    begin["sha256"] = json!(crate::digest(&body));
+    s.observe_untrusted(&raw_control(&begin, 3, &[])).unwrap();
+    let chunk = typed(4, &control(&s, 4));
+    (s, encode_control(&chunk, &body).unwrap())
+}
+
+#[test]
+fn split_frame_reservation_counts_once_and_retains_original_budget() {
+    let raw = hello(Direction::SourceToDestination, source());
+    let mut s = WireSyntax::default();
+    fill_wire(&mut s.budget, profile::WIRE_BYTES - raw.len() as u64);
+    let mut token = s.reserve_frame(Direction::SourceToDestination).unwrap();
+    token.declare(&raw[..HEADER]).unwrap();
+    token.stage(&raw).unwrap();
+    token.finish().unwrap();
+    assert_eq!(s.phase, SyntaxPhase::HelloD);
+    let d = hello(Direction::DestinationToSource, source());
+    assert_eq!(s.observe_untrusted(&d).err(), Some(WireError::Budget));
+}
+
+#[test]
+fn dropped_or_rejected_reservations_poison_without_refund() {
+    let raw = hello(Direction::SourceToDestination, source());
+    let mut s = WireSyntax::default();
+    drop(s.reserve_frame(Direction::SourceToDestination).unwrap());
+    assert_eq!(s.phase, SyntaxPhase::Poisoned);
+    assert!(s.budget.charge_frame(profile::FrameKind::End, 0).is_err());
+    let mut s = WireSyntax::default();
+    let mut token = s.reserve_frame(Direction::SourceToDestination).unwrap();
+    assert!(token.declare(&[0; HEADER]).is_err());
+    assert!(token.declare(&raw[..HEADER]).is_err());
+    drop(token);
+    assert_eq!(s.phase, SyntaxPhase::Poisoned);
+    let mut s = WireSyntax::default();
+    let mut token = s.reserve_frame(Direction::SourceToDestination).unwrap();
+    let premature_end = raw_header(Kind::End, Direction::SourceToDestination, 0, 0);
+    assert_eq!(token.declare(&premature_end).err(), Some(WireError::Phase));
+    drop(token);
+    assert_eq!(s.phase, SyntaxPhase::Poisoned);
+    let mut s = WireSyntax::default();
+    let mut token = s.reserve_frame(Direction::SourceToDestination).unwrap();
+    token.declare(&raw[..HEADER]).unwrap();
+    assert_eq!(token.declare(&raw[..HEADER]).err(), Some(WireError::Budget));
+    assert!(token.stage(&raw).is_err());
+}
+
+#[test]
+fn reservation_rejects_header_replacement_and_unstaged_completion() {
+    let raw = hello(Direction::SourceToDestination, source());
+    let mut s = WireSyntax::default();
+    let mut token = s.reserve_frame(Direction::SourceToDestination).unwrap();
+    token.declare(&raw[..HEADER]).unwrap();
+    let mut replacement = raw.clone();
+    replacement[15] = 1;
+    assert_eq!(token.stage(&replacement).err(), Some(WireError::Header));
+    drop(token);
+    let mut s = WireSyntax::default();
+    let mut token = s.reserve_frame(Direction::SourceToDestination).unwrap();
+    token.declare(&raw[..HEADER]).unwrap();
+    assert_eq!(token.finish().err(), Some(WireError::Budget));
+    assert_eq!(s.phase, SyntaxPhase::Poisoned);
+}
+
+#[test]
+fn eof_reservation_is_one_byte_not_a_frame_and_does_not_refund() {
+    let mut s = WireSyntax::default();
+    fill_wire(&mut s.budget, profile::WIRE_BYTES - profile::HEADER_BYTES);
+    s.reserve_eof().unwrap().finish().unwrap();
+    assert!(s.budget.charge_frame(profile::FrameKind::End, 0).is_err());
+    let mut s = WireSyntax::default();
+    for _ in 0..profile::FRAMES {
+        s.budget.charge_frame(profile::FrameKind::End, 0).unwrap();
+    }
+    s.reserve_eof().unwrap().finish().unwrap(); // Full frame count is irrelevant.
+    assert!(s.reserve_eof().is_err()); // One probe per original local budget.
 }

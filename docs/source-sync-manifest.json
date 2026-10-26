@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 62176,
-      "sha256": "d7bf9963cf1f20e354ebc2440e8d01e490d9db0786bdce580e90d48c4121930d",
+      "bytes": 62030,
+      "sha256": "eacb1a7376bede2a83d6c42d59c2c3b60efb9ea0175422114c085f82b0aaa140",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115206,
+      "bytes": 115060,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "c756f870ca9f438200e8abee9e726c0d23fd3edd332100cac627901b040a8ce0",
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "eebaa2ae8b234f33cb61be19a8819d53ff8541abbad115e9a23f0e717878a326",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 79227,
+      "bytes": 79833,
       "path": "README.md",
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "77323c67be4a8a2b9e99a2fefc5d10b9ffbbc5ae7348d55efc92e0a84be5234c",
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "0b69e65368720092d585ba157c05b09647eedad643bb2884f69835af980ed168",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -603,10 +603,10 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/profile.rs",
-      "bytes": 7233,
-      "sha256": "9630dd13c8d28ec52babd42956e5b84bb22c3d948db926a2de019a495caa1ef3",
+      "bytes": 10594,
+      "sha256": "d49bba0f5e48688b4305bb9cd24b6fc8e8761be62d053b4f60853a62427fca6d",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/tests.rs",
@@ -617,10 +617,24 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/wire.rs",
-      "bytes": 26372,
-      "sha256": "49f8bcf9de40987bb698684d21537497c78b53eaacfed107666797b2ed06a02b",
+      "bytes": 31227,
+      "sha256": "2b5d022266ab35799d10374c2b15cb5ff122f24816c96925b5ff47f8dc3a1af7",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/io.rs",
+      "bytes": 13456,
+      "sha256": "316fb7d90a7dcc1e760c4bf28d52d9c3d328b1021db762ba89ec028227937c52",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/io/tests.rs",
+      "bytes": 17245,
+      "sha256": "09553aa78b88588716a94e6f36624a64a3acfce6a5f97fa850a7636984a9011c",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/wire/schema.rs",
@@ -631,10 +645,10 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/wire/tests.rs",
-      "bytes": 35555,
-      "sha256": "36256d1b5e480cc46a3a979dbf2975873044c165a8b447fb897689bd79e917f9",
+      "bytes": 40578,
+      "sha256": "a997ecda8af387a0d94f87cfbbeb20eeea3585e31901fd46691064be26571b57",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/wire/transcript.rs",
@@ -3610,10 +3624,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47018,
+      "bytes": 46867,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "e2259ed040211e02adf6db9b5f8b7e921788901d412f1a7ad64c6a7990774c36",
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "d29d015f1f0c6369c281c0f6563ae7c7aa7675b3c44cd3125188d33e160a064d",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4287,10 +4301,10 @@
     },
     {
       "path": "docs/p0c4-task9-readiness.md",
-      "bytes": 24623,
-      "sha256": "ff2cc5b95a2907cd8a735f3464444df0175f21b8d53fa70bd12670be104a9897",
+      "bytes": 25321,
+      "sha256": "48f7cf692bc73c4d23d9d8e5abce4341d601de26b0c1b1d2385ec1e14f52561a",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "bytes": 163606,
@@ -4474,10 +4488,10 @@
     },
     {
       "path": "docs/task9/execution-readiness.md",
-      "bytes": 21604,
-      "sha256": "8f6d98a45dbee2bdf8081ccdc1da225ab31ab0fe13e90259b34babe233e7b176",
+      "bytes": 22296,
+      "sha256": "1e5d2620db611eb2216df7840cf3748c8c0c29935e6349db8a912d5ee88fe391",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "docs/task9/local-preparation-closeout.md",
@@ -4495,10 +4509,10 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 11985,
-      "sha256": "ce9cc64cabb964135eb8e61b07acc23da62d25c06d78469e6384bb19a6e1f198",
+      "bytes": 16064,
+      "sha256": "96de87a888e3b5d6faa33552791002a4e730783cfcaf98f2dce038c74d47e712",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "path": "docs/task9/r2b-validation-plan.json",
@@ -4516,10 +4530,10 @@
     },
     {
       "path": "docs/task9/selected-target-preparation.md",
-      "bytes": 14432,
-      "sha256": "2786670436bf1a371916d27df664ed3155b047fe7042a0f7d2702ba3b1aa5451",
+      "bytes": 15124,
+      "sha256": "00967dc2bdc38bda5e2a293c06890d5a59b6776689a26a00f9db580d1d7d51b2",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
     },
     {
       "bytes": 4309,
@@ -4578,10 +4592,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 112917,
+      "bytes": 113518,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "0823f0a583b8aa26742aa678f2a3cf3866113eb07dad09f064dcde18ef6197e3",
+      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
+      "sha256": "34765a0f199919beab6053f48236ddac7ad4dd0ef78d6071483f729c5b4f85d4",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5433,15 +5447,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 679,
+  "manifest_file_count_excludes_manifest_itself": 681,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "ccf71a5bf170bb08ce5c9b4668bef90ca47acf3d",
+  "previous_public_commit": "f89f4bd5afadde6314c4c29ec2c5360c524a7852",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-27T02:06:10+08:00",
+  "progress_as_of": "2026-10-27T03:26:42+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS",
+  "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -13513,6 +13527,112 @@
     "installation_or_keys_or_permissions_changed": false,
     "postgres_networks_or_volumes_created": false,
     "source_actor_auth_capture_issuer_extension_not_approved": true,
+    "Task9_accepted": false,
+    "formal_five_gates_unchanged": true,
+    "old_37_matrix_bytes_unchanged": true,
+    "planned_53_obligations_not_closed_by_unit_tests": true
+  },
+  "task9_r2b_task2b_pipe_io": {
+    "status": "OWNED_PIPE_IO_LINUX_CHECKED_UNAUTHENTICATED_NOT_INSTALLED",
+    "source_base_commit": "f89f4bd5afadde6314c4c29ec2c5360c524a7852",
+    "source_files": [
+      {
+        "path": "crates/learning-backup/src/offhost_b1/profile.rs",
+        "bytes": 10594,
+        "sha256": "d49bba0f5e48688b4305bb9cd24b6fc8e8761be62d053b4f60853a62427fca6d"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire.rs",
+        "bytes": 31227,
+        "sha256": "2b5d022266ab35799d10374c2b15cb5ff122f24816c96925b5ff47f8dc3a1af7"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/tests.rs",
+        "bytes": 40578,
+        "sha256": "a997ecda8af387a0d94f87cfbbeb20eeea3585e31901fd46691064be26571b57"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/io.rs",
+        "bytes": 13456,
+        "sha256": "316fb7d90a7dcc1e760c4bf28d52d9c3d328b1021db762ba89ec028227937c52"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/io/tests.rs",
+        "bytes": 17245,
+        "sha256": "09553aa78b88588716a94e6f36624a64a3acfce6a5f97fa850a7636984a9011c"
+      }
+    ],
+    "source_refs_sha256": "ad9e44a948af4de06b781ba69bdfbefb6b13858c83251bb15d09118fb65a25c8",
+    "implementation_and_actual_evidence_review_sha256": "c8757971ce1c52dad30ea3af7f1cead60c95ed116cf99bf0050e35ccf19fb4b5",
+    "linux_case_batch": "c424c99d-313e-42aa-b44a-081f5925c773",
+    "linux_source_archive_sha256": "f48f6a45ce8051d9bfcee2ebbb33031c9957d2a0903a5d757beb9cbc864560a2",
+    "linux_source_manifest_sha256": "e5e15c8291a94174b00faa72db78b24cd813b538ad2c25f48958a5106fdbf322",
+    "linux_result_sha256": "1260f0acb36190816a1bca7888241eebe9e4861c3d275d7755561a96a495c6a3",
+    "linux_phase_exits": {
+      "build": 0,
+      "clippy": 0,
+      "default-list": 0,
+      "default-tests": 0,
+      "feature-list": 0,
+      "feature-tests": 0,
+      "format": 0
+    },
+    "default_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 450
+    },
+    "feature_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 524
+    },
+    "offhost_total_actual_bodies": 75,
+    "offhost_new_actual_bodies": 21,
+    "offhost_new_actual_names": [
+      "offhost_b1::wire::io::tests::cancel_during_blocked_write_is_sticky_without_replay",
+      "offhost_b1::wire::io::tests::cancel_during_partial_read_poison_preserves_native_offsets",
+      "offhost_b1::wire::io::tests::fragmented_native_reads_reassemble_one_exact_borrowed_frame",
+      "offhost_b1::wire::io::tests::header_budget_room_is_checked_before_native_read",
+      "offhost_b1::wire::io::tests::interrupted_classification_is_not_a_native_signal_experiment",
+      "offhost_b1::wire::io::tests::native_abort_and_eof_never_mean_normal_completion",
+      "offhost_b1::wire::io::tests::native_blocked_write_uses_original_absolute_deadline_and_retains_buffer",
+      "offhost_b1::wire::io::tests::native_broken_pipe_reports_actual_epipe_under_sigpipe_precondition",
+      "offhost_b1::wire::io::tests::native_eof_probe_prepays_one_byte_and_refuses_without_room",
+      "offhost_b1::wire::io::tests::native_eof_probe_waits_for_kernel_zero_and_rejects_extra_one_byte",
+      "offhost_b1::wire::io::tests::native_eof_read_zero_is_not_refunded_and_no_second_probe_is_allowed",
+      "offhost_b1::wire::io::tests::native_fifo_access_flags_and_aliases_are_checked_without_mutation",
+      "offhost_b1::wire::io::tests::native_operation_idle_and_handshake_clocks_are_not_per_call_timeouts",
+      "offhost_b1::wire::io::tests::native_partial_header_and_payload_eof_are_terminal",
+      "offhost_b1::wire::io::tests::native_short_writes_complete_only_after_peer_drain",
+      "offhost_b1::wire::io::tests::native_two_pipe_end_halfclose_order_is_only_untrusted_transport",
+      "offhost_b1::wire::io::tests::payload_reservation_precedes_allocation_and_native_payload_read",
+      "offhost_b1::wire::tests::dropped_or_rejected_reservations_poison_without_refund",
+      "offhost_b1::wire::tests::eof_reservation_is_one_byte_not_a_frame_and_does_not_refund",
+      "offhost_b1::wire::tests::reservation_rejects_header_replacement_and_unstaged_completion",
+      "offhost_b1::wire::tests::split_frame_reservation_counts_once_and_retains_original_budget"
+    ],
+    "new_reservation_unit_bodies": 4,
+    "new_native_pipe_bodies": 16,
+    "new_EINTR_classification_bodies": 1,
+    "actual_signal_EINTR_or_OS_trace_proven": false,
+    "not_added_across_configurations": true,
+    "ignored_not_executed": 106,
+    "Child_SSH_auth_or_original_S_clock_proven": false,
+    "runtime_authority_wired": false,
+    "runners_always_refuse_even_fully_pinned": true,
+    "source_unchanged_in_builder": true,
+    "builder_exact_id_cleanup_confirmed": true,
+    "cleanup_proof_level": "Root driver exact-ID assertions and returned evidence, not independent remote observer",
+    "output_cap_level": "post capture/read check, not continuous product hard cap",
+    "new_independent_ELF_hash": false,
+    "installation_or_keys_or_permissions_changed": false,
+    "postgres_networks_or_volumes_created": false,
+    "source_actor_extension_not_approved": true,
     "Task9_accepted": false,
     "formal_five_gates_unchanged": true,
     "old_37_matrix_bytes_unchanged": true,

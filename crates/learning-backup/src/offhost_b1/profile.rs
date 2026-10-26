@@ -51,6 +51,15 @@ pub(super) enum FileClass {
 
 /// One local session counter for BOTH directions; it is neither a wire parser
 /// nor the original registry ScanBudget. Runtime consumers must retain both.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum PendingWire {
+    #[default]
+    None,
+    Header,
+    Payload,
+    EofProbe,
+}
+
 #[derive(Default)]
 pub(super) struct SessionBudget {
     wire_bytes: u64,
@@ -59,6 +68,8 @@ pub(super) struct SessionBudget {
     evidence_bytes: u64,
     files: u64,
     failed: bool,
+    pending_wire: PendingWire,
+    eof_probe_used: bool,
 }
 
 impl SessionBudget {
@@ -79,6 +90,7 @@ impl SessionBudget {
             .and_then(|v| v.checked_add(payload_bytes));
         let next_frames = self.frames.checked_add(1);
         if self.failed
+            || self.pending_wire != PendingWire::None
             || payload_bytes > cap
             || (payload_bytes == 0 && matches!(kind, FrameKind::Metadata | FrameKind::Data))
             || next_bytes.is_none_or(|v| v > WIRE_BYTES)
@@ -90,6 +102,89 @@ impl SessionBudget {
         self.wire_bytes = next_bytes.expect("checked wire bytes");
         self.frames = next_frames.expect("checked frame count");
         Ok(())
+    }
+
+    // These reservations belong to the original shared counter. No credit,
+    // refund, reset or caller-selected allowance is returned to the codec.
+    pub(super) fn reserve_header(&mut self) -> Result<(), BackupError> {
+        let bytes = self.wire_bytes.checked_add(HEADER_BYTES);
+        let frames = self.frames.checked_add(1);
+        if self.failed
+            || self.pending_wire != PendingWire::None
+            || bytes.is_none_or(|v| v > WIRE_BYTES)
+            || frames.is_none_or(|v| v > FRAMES)
+        {
+            self.failed = true;
+            return Err(BackupError::Capacity("offhost B1 header reservation"));
+        }
+        self.wire_bytes = bytes.expect("checked bytes");
+        self.frames = frames.expect("checked frames");
+        self.pending_wire = PendingWire::Header;
+        Ok(())
+    }
+
+    pub(super) fn reserve_payload(
+        &mut self,
+        kind: FrameKind,
+        payload_bytes: u64,
+    ) -> Result<(), BackupError> {
+        let cap = match kind {
+            FrameKind::Metadata => CONTROL_BYTES,
+            FrameKind::Data => DATA_BYTES,
+            FrameKind::End => 0,
+            FrameKind::Abort => ABORT_BYTES,
+        };
+        let bytes = self.wire_bytes.checked_add(payload_bytes);
+        if self.failed
+            || self.pending_wire != PendingWire::Header
+            || payload_bytes > cap
+            || (payload_bytes == 0 && matches!(kind, FrameKind::Metadata | FrameKind::Data))
+            || bytes.is_none_or(|v| v > WIRE_BYTES)
+        {
+            self.failed = true;
+            return Err(BackupError::Capacity("offhost B1 payload reservation"));
+        }
+        self.wire_bytes = bytes.expect("checked bytes");
+        self.pending_wire = PendingWire::Payload;
+        Ok(())
+    }
+
+    pub(super) fn finish_reserved_frame(&mut self) -> Result<(), BackupError> {
+        if self.failed || self.pending_wire != PendingWire::Payload {
+            self.failed = true;
+            return Err(BackupError::Invalid("offhost B1 unfinished reservation"));
+        }
+        self.pending_wire = PendingWire::None;
+        Ok(())
+    }
+
+    pub(super) fn reserve_eof_probe(&mut self) -> Result<(), BackupError> {
+        let bytes = self.wire_bytes.checked_add(1);
+        if self.failed
+            || self.eof_probe_used
+            || self.pending_wire != PendingWire::None
+            || bytes.is_none_or(|v| v > WIRE_BYTES)
+        {
+            self.failed = true;
+            return Err(BackupError::Capacity("offhost B1 EOF probe reservation"));
+        }
+        self.wire_bytes = bytes.expect("checked byte");
+        self.pending_wire = PendingWire::EofProbe;
+        self.eof_probe_used = true;
+        Ok(())
+    }
+
+    pub(super) fn finish_eof_probe(&mut self) -> Result<(), BackupError> {
+        if self.failed || self.pending_wire != PendingWire::EofProbe {
+            self.failed = true;
+            return Err(BackupError::Invalid("offhost B1 unfinished EOF probe"));
+        }
+        self.pending_wire = PendingWire::None;
+        Ok(())
+    }
+
+    pub(super) fn poison(&mut self) {
+        self.failed = true;
     }
 
     pub(super) fn charge_file(&mut self, class: FileClass, bytes: u64) -> Result<(), BackupError> {

@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-27。当前状态：C4实施中 · Task8限定完成 · Task9 R2b协议编码片已限定验证，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-10-27。当前状态：C4实施中 · Task8限定完成 · Task9 R2b有界管道IO已限定验证，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。R2b Task2a五叶纯协议编码已实现，新增27正文经Linux与原件独核，offhost累计54。默认450/特性503各106忽略分别计；净差53不是53项分层义务，真实IO/认证/权限仍未接线。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。R2b Task2b五叶有界管道IO已实现，新增21/offhost75实际通过并独核。默认450/特性524各106忽略分别计；真实Child/SSH、认证、原S时钟与权限接线未完成。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,19 +61,19 @@ flowchart LR
 
 ## 下一步
 
-下一步接真实有界IO/监督及认证准备；生产capture、Root发证、peer认证和跨crate计费合同继续具体化独审，不暗改旧guard。key/trust/安装/安全权限、目标整链与恢复另批，Task9/C4五门仍OPEN。
+下一步接受控Child监督与认证准备；生产capture、Root发证、固定peer会话和跨crate预算合同继续独审，扩码另需批准。key/trust/安装/权限、目标整链与恢复另批，Task9/C4五门仍OPEN。
 
 - **01 · 已采纳语义，规范定稿与独审**：已明确原S最终核对与持久保护、D一次消费、许可/自然完成两点及历史读取分账；Task9五门和旧失败不改，规范定稿不授实现权限。
-- **02 · 按已批准准确范围逐任务实现R2b**：Task1a/1b与Task2a纯协议片限定完成，新27/offhost54逐名通过；接下来做有界IO/监督、认证准备，原actor扩码合同独审后再定。纯阶段终态不是真实EOF或Committed，现场变更仍另批。
+- **02 · 按已批准准确范围逐任务实现R2b**：Task1a/1b、Task2a协议与Task2b管道片限定完成，新21/offhost75逐名通过；受控Child监督、认证和原actor接线待续。EOF/语法终态不等自然退出或Committed，现场变更另批。
 - **03 · 准确审批安装与真实整链**：key/trust/registry/构建pin与管理身份分项批准；D1正常恢复、D2源隔离另设停止点，保留原件，不合并main或部署生产。
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-R2b Task2a五叶纯协议编码已实现，新增27正文经Linux与原件独核，offhost累计54。默认450/特性503各106忽略分别计；净差53不是53项分层义务，真实IO/认证/权限仍未接线。
+R2b Task2b五叶有界管道IO已实现，新增21/offhost75实际通过并独核。默认450/特性524各106忽略分别计；真实Child/SSH、认证、原S时钟与权限接线未完成。
 
-下一步接真实有界IO/监督及认证准备；生产capture、Root发证、peer认证和跨crate计费合同继续具体化独审，不暗改旧guard。key/trust/安装/安全权限、目标整链与恢复另批，Task9/C4五门仍OPEN。
+下一步接受控Child监督与认证准备；生产capture、Root发证、固定peer会话和跨crate预算合同继续独审，扩码另需批准。key/trust/安装/权限、目标整链与恢复另批，Task9/C4五门仍OPEN。
 
 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。
 
@@ -87,7 +87,7 @@ flowchart LR
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>私有单机范围限定验收"]
-    C4T9["Task 9<br/>真实独立故障域闭合<br/>R2b协议编码片已验证，真实权限接线未完成"]
+    C4T9["Task 9<br/>真实独立故障域闭合<br/>R2b有界管道IO已验证，真实权限接线未完成"]
     C4T1 --> C4T2
     C4T2 --> C4T3
     C4T3 --> C4T4
@@ -113,7 +113,7 @@ flowchart LR
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
 | Task 8 · 当前回归、旧版升级与审查 | 私有单机范围限定验收 | Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。 169 ignored已具名处置，不等于169全部运行；65 extra与3 measurement未执行披露。 |
-| Task 9 · 真实独立故障域闭合 | R2b协议编码片已验证，真实权限接线未完成 | Task2a纯协议编码片完成限定Linux检查：typed字段、阶段、双向预算与候选摘要；未接实际IO或认证。真实S/D actor、fence与发布仍待实现和对应准入，安装及恢复另批。 本片新增27项，offhost累计54逐名通过；默认450/特性503各106 ignored分别记账，格式/严格Clippy/bin构建通过并独核。净差53不等计划53义务；runner仍拒绝，真实IO/认证及五门未闭合。 |
+| Task 9 · 真实独立故障域闭合 | R2b有界管道IO已验证，真实权限接线未完成 | Task2b完成有界AsyncFd管道、原预算预付计费、绝对deadline与EOF分账的限定Linux检查；尚未接Child/SSH监督或认证，真实S/D actor、fence与发布仍待接线。 新增21项（4单元＋16原生管道＋1EINTR分类），offhost累计75；默认450/特性524各106 ignored分账，格式/严格Clippy/bin构建通过并独核。不等53义务或五门关闭。 |
 
 ### 原五任务父里程碑（保留原编号）
 
@@ -482,7 +482,7 @@ flowchart TB
 - [Task9最终决定原提案（历史封存字节）](../docs/task9/b1-final-decision-contract-proposal.md)
 - [Task9最终决定语义采纳记录与实施边界](../docs/task9/b1-final-decision-adoption.md)
 - [Task9 R2b准确编码范围、预算与分层验证计划](../docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md)
-- [Task9 R2b协议编码片、实际Linux检查与未验层](../docs/task9/r2b-implementation-progress.md)
+- [Task9 R2b有界管道IO、实际Linux检查与未验层](../docs/task9/r2b-implementation-progress.md)
 
 ### 历史证据的范围
 

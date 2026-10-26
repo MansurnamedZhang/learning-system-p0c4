@@ -1,5 +1,34 @@
 # Task9 R2b实施进展
 
+## 最新检查点：Task2b有界管道IO片 · 2026-10-27
+
+状态：**OWNED_PIPE_IO_LINUX_CHECKED / UNAUTHENTICATED / R2B_NOT_FULLY_WIRED / NOT_INSTALLED / TASK9_OPEN**。五叶实现拥有FIFO句柄的有界AsyncFd读写、分段预付计费、绝对deadline、取消后粘性拒绝及实际read(0)观察。数据仍是Untrusted；两个runner仍始终拒绝，未产生Source/D权限或发布许可。
+
+20B帧头与一帧额度在首次原生读取前预付，payload在分配/读取前计费；取消、Drop与失败不退款。EOF探针也在读取前从同一SessionBudget预留1B，不增加帧计数，读到0不退款；额度不足即拒绝，不能免费越过wire cap探测。旧完整帧的原子计费语义不变。无新增独立预算重置。
+
+实际管道End、Abort、半关闭和内核EOF分账，finish_untrusted不证明自然Child退出或Committed。D输出End前要求观察S真实EOF；语法夹具不是认证握手。构造和每次写前只读检查SIGPIPE为SIG_IGN，不改全局信号或FD标志；不满足即拒绝。未来固定运行时仍须封闭并发改信号的调用图。
+
+IO对象只持有一个创建时钟，1800s操作、60s握手、30s空闲以绝对deadline取最早者，真实正向IO才更新空闲时间。当前未接真实认证actor，UntrustedAuthAccepted不能解除握手时限；本片IO创建时钟也不等于原S首次准入时刻，后续接线必须绑定原时钟。
+
+| 实际Linux门 | 结果 | 边界 |
+|---|---|---|
+| 格式、全target新feature严格Clippy、全部bin构建 | 三项exit0 | 不等完整workspace或实际manager执行 |
+| 默认库列举与正文 | 450 passed / 0 failed / 106 ignored | 独立配置，不相加 |
+| feature库列举与正文 | 524 passed / 0 failed / 106 ignored | offhost75逐名ok：旧54＋本片21 |
+| 本片21项 | 4项reservation单元＋17项IO | 17项中16项原生管道正文、1项EINTR错误分类；后者不是真实信号中断实验 |
+
+16项原生管道正文覆盖短读写、阻塞/取消、实际EPIPE、实际EOF与半关闭等，不冒充OS追踪、内核墙钟严格测量、Child/SSH、认证或全局64FD证明。75项offhost、计划53项分层义务和旧37规格是不同集合；106 ignored未执行，不相加450与524。既有54项名称和本次正文通过由原始日志逐名核对。
+
+实际批次`c424c99d-313e-42aa-b44a-081f5925c773`；ZIP `f48f6a45ce8051d9bfcee2ebbb33031c9957d2a0903a5d757beb9cbc864560a2`；result `1260f0acb36190816a1bca7888241eebe9e4861c3d275d7755561a96a495c6a3`。普通UID、固定builder、网络none、只读rootfs/源码、4CPU/8GiB，七门exit0且源码前后相同。独立复核完整14日志、684包条目/682源码条目、680基线＋3改2新、完整容器inspect；INDEX SHA-256 `c8757971ce1c52dad30ea3af7f1cead60c95ed116cf99bf0050e35ccf19fb4b5`。精确ID清理确认来自固定Root驱动断言/返回证据，非审查者独立远程观察；rm/ps原始输出及out/*.exit未单独导出。日志上限是事后读取检查，本批无新增完整ELF独立hash或OS时钟证明。
+
+保留早期设计HOLD：免费EOF额外1B探针已改为同预算预留，未放宽cap。`5490f440…`仅Linux shadow格式准备、零正文，result `6af7db45170e5007c4a68dba0da5af53c03ec1e05bceb7e33228ffe06e5c281b`；四份格式差异和五叶原字节桥经独审后才运行本轮。没有复用旧失败批次，也未清理旧失败/HOLD。
+
+没有Child/stdout与stderr双EOF/自然退出监督、SSH、PG、密钥、验签、Root完整holder、真实S/D actor、fence或一次消费writer；不以纯IO取消/EOF回退已Consuming的P。未创建PG、网络或卷，未连接目标端或在Windows执行产品测试。
+
+下一步接受控Child监督和认证准备。SourceActor的生产capture布局、Root发证、固定peer会话与跨crate累计计费合同仍在独审；这部分超出原learning-backup表的新增代码尚未批准。现场key/trust/权限/PG配置、目标整链、源隔离与恢复另批；Task9五门、父Task3/4/5与C4保持OPEN。下方为已发布历史检查点。
+
+---
+
 ## 最新检查点：Task2a纯协议编码片 · 2026-10-27
 
 状态：**UNTRUSTED_WIRE_CODEC_LINUX_CHECKED / NO_AUTH_OR_IO / R2B_NOT_FULLY_WIRED / NOT_INSTALLED / TASK9_OPEN**。五叶提供20B帧头、2种Hello、10种typed控制、精确字段/重复键/canonical检查、双向同一SessionBudget、单文件流语法及候选摘要链。Ready unsigned CopyWitness/Intent各≤16KiB并借用原字节；receipt≤8KiB；不重排旧v2 body或替代原业务验证。空Abort受支持，非空固定Unsupported拒绝，未擅自新增reason编码。
