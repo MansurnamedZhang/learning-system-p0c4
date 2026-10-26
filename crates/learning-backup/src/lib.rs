@@ -2,8 +2,12 @@
 
 mod catalog;
 pub mod full_restore;
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+mod offhost_b1;
 mod protection;
 mod registry;
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub use offhost_b1::{run_installed_offhost_b1_receiver, run_installed_offhost_b1_source};
 pub use protection::{
     CaptureProtection, ProtectionSnapshot, begin_capture_protection, discover_backup_protection,
     reconcile_registered_assets,

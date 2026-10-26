@@ -1,5 +1,13 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 最新实施：Task1a基础片已完成限定Linux检查
+
+九文件默认关闭入口、严格policy输入与累计预算基础片已实现；新增19正文逐名通过，默认库450/特性库468各106 ignored，格式、严格Clippy和bin构建通过并独立核对原件。计数分别记账，不能与旧准备Rust19相加，不能作为53完整义务或37集成的通过数。
+
+新runner即使pin完整也明确integration incomplete，尚无FS/PG/stdin/SSH/key/sign调用。固定FD/custody loader、真实S/D actor与后续wire/fence/发布仍待实现；安装、安全权限、源隔离及恢复仍未批准或执行。详细来源与前两轮保留RED见[实施进展](task9/r2b-implementation-progress.md)。Task9/C4仍OPEN，下方批准时“尚未实现”保留为历史时点。
+
+---
+
 ## 当前检查点：R2b准确编码范围已批准，开始逐任务实现
 
 已把源码影响、原S/D操作、固定协议与预算、D session持久空间、精确摘要对象、snapshot-effects副证明和全部writer/fence门控列入[准确实施计划](superpowers/plans/2026-10-26-task9-r2b-implementation.md)。[wire profile](task9/r2b-wire-profile.json)与[53项分层验证义务](task9/r2b-validation-plan.json)均为未执行候选，不是程序配置、测试正文数量或53项通过；原37条历史规格保持原字节。

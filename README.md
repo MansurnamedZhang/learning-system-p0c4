@@ -1,6 +1,14 @@
 # 知织 · KnowWeave
 
-## Task9准确编码及限定Linux检查已批准 · 2026-10-26
+## Task9 R2b基础片已实现并通过限定Linux检查 · 2026-10-26
+
+Task1a九文件已提供默认关闭的入口、严格policy数据与累计预算，新增19项基础正文在Linux逐名通过；格式、严格Clippy和bin构建均过，默认450/特性468各106 ignored分别记账，源码与原始证据经独立核对。详见[实施进展](docs/task9/r2b-implementation-progress.md)。
+
+新runner即使pin完整也明确拒绝，真实FD/actor、wire/auth/fence与一次消费尚未接线；基础单测不是53项完整义务、37集成或Task9正式验收。前两轮启动/格式RED及旧HOLD保留，无新密钥/信任或安全安装，没有PG、目标产品运行、源隔离或恢复。下一片继续固定FD/custody与真实actor；Task9/C4仍OPEN，main与生产不变。
+
+---
+
+## 历史检查点 · Task9准确编码及限定Linux检查已批准 · 2026-10-26
 
 已将R2b原S/D操作、固定协议与预算、源fence、D session持久空间、副证明与精确摘要、一次消费及源码改动范围写入[准确实施计划](docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md)，并完成独立设计复审。首轮两项合同缺口已修订，旧审查及失败/HOLD保留。
 
@@ -10,7 +18,7 @@
 
 ---
 
-## Task9时序语义已采纳，仅规范定稿 · 2026-10-26
+## 历史检查点 · Task9时序语义已采纳，仅规范定稿 · 2026-10-26
 
 用户明确选择“采纳方案，仅定稿规范（推荐）”。本轮将已独审提案的时序语义定稿到[完成规范Appendix B1](docs/superpowers/specs/2026-10-04-p0c4-completion-design.md)、[B1集成规范](docs/superpowers/specs/2026-10-26-task9-b1-integration-preparation.md)及Task9实施依赖，准确范围见[采纳记录](docs/task9/b1-final-decision-adoption.md)。原提案和旧独审保持历史原字节。
 
