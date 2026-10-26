@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "本地准备收尾，正式验收待前置",
-    "detail": "B1草案、37规格、历史拒绝回归与离线工具已备齐；规范Git导出复用检查通过，真实域/托管/权限集成仍未具备。",
-    "evidence": "27fc导出655文件/654MF，既有38工具body重跑0失败/跳过；两cwd CLI一致，拒参数实际exit1，655路径/字节前后不变。未新增用例/权限；Rust19未重跑，37集成及Task9五门不转绿。"
+    "statusLabel": "执行单已备，待目标事实与准入",
+    "detail": "目标事实需逐项记录来源/时间/身份/限制；托管、B1及恢复审批分阶段列明。当前目标仍暂无，不分配业务UUID或自动执行。",
+    "evidence": "新增事实表、A/B/C/D1/D2模板与八步前置/动作/审批/原件/失败停止清单。五包均未实例化/未授权/未执行；本轮0新测试/0目标/安装观察，Task9五框与37集成不转绿。"
   }
 ];
 
@@ -1641,17 +1641,17 @@ export const meta = {
   "date": "2026-10-26",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9本地准备检查收尾",
-  "progressSummary": "Task9已列本地准备项完成检查：27fc规范Git字节导出655文件并核654MF，相同38个工具body重跑通过；两cwd结构报告相同、未知参数实际exit1，完整文件集合及字节前后不变。仅文档整理与字节桥核对，不新增工具/Rust权限或Task9集成执行。",
+  "state": "C4实施中 · Task8限定完成 · Task9执行单已备，待真实目标",
+  "progressSummary": "已把正式五门的条件整理为可填写事实表、A/B/C/D1/D2最小审批模板和八步依赖单。所有未来包未实例化/未授权/未执行；本轮只做文档，不新增或重跑测试，不增加目标/安装观察。既有本地准备与27fc执行记录保持，Task9不转绿。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "本地准备收尾不关闭正式Task9：真实独立目标仍暂缺，托管/安装/构建pin仍未核实；B1真实跨边界准入、正常CompleteBackup及源端不可访问恢复仍待具备条件，五门与C4保持开放。",
+  "pendingSummary": "当前停在目标事实准备：尚无真实独立目标/托管/通道资料；历史私有安装UNKNOWN不是实时核验或未安装结论。不能开始安装、权限启用、源隔离或恢复；Task9五门与C4仍OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · Task9本地准备已收尾，正式门待前置条件",
-  "taskPlanScope": "Task9本地准备检查表限定收尾；实际执行仍27fc源码655文件，38为既有工具测试重跑不累计，Rust19保留历史，37条集成规格未执行。后续文档提交只桥十份输入字节，未改变权限、服务、安装或恢复。",
+  "roadmapHeadline": "当前进度 · Task9执行准备单已备，下一步待目标事实",
+  "taskPlanScope": "执行准备单是人工文档模板，不是机器permit或批准；A/B/C不自动覆盖D1正常恢复与D2源隔离恢复。旧五检查点、工具十份文件字节桥和37未执行规格保持，未采纳新B1权限合同。",
   "nextSteps": [
     [
       "01 · 完成本地契约与失败规格审阅",
@@ -1775,6 +1775,10 @@ export const references = [
   [
     "Task9本地准备收尾、导出复用与剩余阻碍",
     "docs/task9/local-preparation-closeout.md"
+  ],
+  [
+    "Task9目标事实、最小审批与八步执行准备单",
+    "docs/task9/execution-readiness.md"
   ]
 ];
 
