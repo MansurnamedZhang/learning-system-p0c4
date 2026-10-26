@@ -1,3 +1,33 @@
+# P0-C4 Task8 · 完整回归与四套旧版升级限定验收
+
+更新：2026-10-26。状态：**Task8规定私有单机范围完成；Task9和C4整关开放**。
+
+## 2026-10-26 · Task8 私有单机回归限定验收
+
+Task8 的规定范围完成：当前完整回归、四套真正旧程序升级、规定专项原件独核、源码差异与质量审查，按原计划收尾。Task9、父 Task3/4/5 的真实独立备份／正常恢复门、C4 整关及生产仍开放。本节为 Task8 最新范围；后续历史记录保留其当时的源码、计数和未完成状态。
+
+| 门 | 实际范围与结果 |
+|---|---|
+| 完整 Linux/PG18 回归 | A5：Rust 1052 通过／0 失败／169 ignored；忽略项另按下述具名处置，不当执行。 |
+| 四套真正旧版升级 | 冻结程序 `b60056ba08892d69efdfa4778c976154a421e17d` 生成 `p0a / b1 / b3-schema / b2`，实际升级及 15 迁移 checksum 核验通过。 |
+| Python 与严格门 | ordinary 824 通过／82 跳过；Root 903 通过／3 跳过；两身份合并 904 个 unique Linux 正文；deploy 21。格式及 workspace／all-targets／all-features 严格 Clippy 通过。两 private Linux frame opt-in 跳过保留，Windows parser 不混算。 |
+| 规定 primary60 | 53 个 A5 fresh＋1 个 Source679 fresh＝54 项；另列 Source36 未变依赖历史桥 6 项，fresh 增量 0。完整原件与独审／Root采用连接均闭合。 |
+| 辅助与 ignored 处置 | RootFS33、生命周期 FS5 分列；2 alias、1 parent-driven child 不增独立入口；3 optional measurement 与 65 extra entry 明确未执行且不在 required60，169 项全部具名处置。 |
+| 最终源码连接 | A5 全回归与 Source679 九行测试修复分别记账；611 叶中 610 相同，产品、22 控制器、15 迁移和 Cargo 未变。679 自己的质量与 registry-reopen 新执行已独核；A5 没有改名为 679 执行。 |
+| 整组审查／发布 | 独立整组门 `d56f662b0140558ca4c08e2c599a36edf9931dde793bc5ebbe251603f595c834`；Root 采用 `fd326fa9b653ab84a76b27c438fc714cfac2fda9866ad0abe0378bc9cb370a2e`。公开 feature 正常非 force 推送并另存 ref／commit／完整 tree 与改动 blob 回读；不合并 main，不部署。 |
+
+54 fresh＋6 历史桥主清单索引 SHA：`41f014ff8582f265039a05edff813a5b8063530c8ee4cd52454cb777f2babc81`；169 项处置 SHA：`051a5060b1d58af0d15600cc7b15476ed44df49cf1cbd953537d600454cfcaf3`。构建源码标识与公开文档提交分别记账，不能用公开同步 commit 代替执行来源。
+
+有限原件与证明层级保留：Full9 五个大 negative 审计原文件未导出；Source5 部分 final proof、Schema3 未选 9/27/7 output、部分 issuer／registry／中间状态不是独立 physical FD9 或全量目标／generic decoded／COPY 外部逐字证明。ELF 未独立完整下载，部分 exporter/full-gate inspect 与最终独立 OS monotonic 见证缺口仍在；相应结论仅限实际 Rust 断言、原始 RPC/stdout 与已导出小 proof。目的端两案为合成 sealed-package 边界，不是正常 PGdump／CompleteBackup。
+
+生命周期读取器原 8192 上限因实际 13094 raw 日志拒绝，旧 HOLD 保留。新独审配方允许 16384 文件／16MiB index／393416 次派生 metadata 操作，实际 13099 文件完整返回；512MiB read/wire、32MiB 单件、300/360 秒及原资源等式保持。各次 metadata/core 只核各自原 before==final，不假设跨时永久同一基线，不过滤或停止其它项目，不回放旧业务／失败 UUID。
+
+正常 CompleteBackup、RecoveredInstance、独立故障域、密钥托管与首签／新发布权限集成、源端不可访问恢复都仍归 Task9。Task8 完成不授予这些资格，不关闭 C4。浏览器视觉交互未验收；路线图执行静态内容、链接与 SVG 几何检查。
+
+
+<details>
+<summary>历史执行检查点与失败／HOLD记录（以下状态均指各记录当时）</summary>
+
 # P0-C4 Task8 · 当前完整回归与四套旧版升级
 
 更新：2026-10-26。状态：**实施中，Task8未完成**。当前十门与四升级已限定独审通过；源码差异独审也已采用；规定专项原件和最终整组采用仍未闭合。
@@ -201,3 +231,5 @@ Task6的2e5026d私有16/16、Task7的Source36私有6/6保留各自原采用范�
 九案返回SHA-256：`f0ed6e841103b9a8291930903612cc73408a365dc0b666ea2398f39c1706323a`；stage逐份核对索引：`c084c571e6b1f7f7a343047135188fb789e3b0e0ed828d68f1b85538b6dea160`；互斥peer组合摘要：`f352269ca0aab600132798ed865d15551d8ebcb2c2f67025ac54491ca9982805`；Root限定采用：`1a5ff57d0bcd41cec67c9589d74d3e6164258084dc5fc12b1d6c2e57ede65113`。
 
 本节仅记录当时Full9外层回执的来源与阶段原件采用，不替代后续inner审查。当前25项A5原件已收齐且按规定正文／小proof限定采用，余21操作／28正文与679单案inner进度见顶部；旧余22队列首案失败HOLD保留。私有inspect仅留digest和非独立外层OS计时的限制不变；Task8最终整组、Task9、C4整关及正常恢复仍开放。
+
+</details>
