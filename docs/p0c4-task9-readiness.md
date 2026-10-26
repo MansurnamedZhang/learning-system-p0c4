@@ -8,6 +8,12 @@ Task8 已按规定私有单机范围完成，发布基线为 `07fa721d9469da7755
 
 依据：[现有施工单 Task9](superpowers/plans/2026-10-04-p0c4-completion.md)、[完成规范 Appendix B/B1](superpowers/specs/2026-10-04-p0c4-completion-design.md)、[父设计](superpowers/specs/2026-09-28-p0c4-backup-recovery-design.md)。以下是原 Task9 的准备记录，不是替代规范、安装配置或运行授权。
 
+## 最新检查与本地准备收尾
+
+已完成[本地准备收尾清单](task9/local-preparation-closeout.md)：在已发布27fc规范Git字节的新导出中核654MF／655文件，既有38个工具body重跑通过，仓库内及异cwd CLI报告相同、未知参数实际退出1；完整文件集合与字节前后不变。不是38个新用例，不累计76；Rust19仍为历史，37条集成规格未执行。工具十份相关文件／八份读取数据与后续文档提交另做字节桥，实际执行不改名为未来提交。
+
+此前工具38及Rust19等检查点保留在下方；Task9五个正式门与C4继续开放。真实独立目标、托管／安装与B1异机准入仍未具备，没有新SSH、权限、key/trust、服务、断联或恢复动作。
+
 ## 本轮可核验进展
 
 - 已重读 Task9 五项要求与 B1，复核 Task8 最终收尾记录和发布基线。
@@ -65,7 +71,7 @@ Task8 已按规定私有单机范围完成，发布基线为 `07fa721d9469da7755
 - 实际Windows Rust1.97 offline/locked：模块19 passed／0 failed／0 ignored＝既有14＋本次5；本轮任务前缀共10个unique body，不把以前的5再累计。格式和包级lib/tests严格Clippy通过，测试源码及执行binary已封存。
 - 生产前缀和原14个测试逐字不变；没有新运行时API、wire格式、权限或安装变化。37条Task9集成规格与五个正式验收框原样保持未完成；本次没有Linux/PG、物理FS、独立域或正常恢复验收。
 
-## 最新本地交付：可复用离线准备检查器
+## 已交付检查点：可复用离线准备检查器
 
 仓库新增[离线检查器](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/scripts/p0c4_task9_preparation_check.py)及[38项纯Python回归](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/scripts/test_p0c4_task9_preparation_check.py)。检查器本身只使用标准库；固定读取本Git检出中的matrix和七个公开源码文件，不调用网络、子进程、环境配置、sudo、key/trust、数据库或恢复，也不写文件。产品不引用该工具或其报告。
 
