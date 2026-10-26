@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 61466,
-      "sha256": "a61d268b505ac78a78cec691fe9a63b92c461f1a5d6224ba47086e3490fe49a9",
+      "bytes": 61751,
+      "sha256": "dff4b299c783d32f278ff9f9eca560bee4d427c4d69e2cef177f2b20ea237566",
       "source_bytes_preserved": false,
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 114496,
+      "bytes": 114781,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION",
-      "sha256": "4cadacb5b81e55b4f7902856c0818519f4adb1dcc7c21ed1a0ce7e97a08b10bb",
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
+      "sha256": "32c7edbc95971c8a5c6fd0993f8a45706cee8b31d1edc8aeb91ef8f24bdf47c8",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 73050,
+      "bytes": 74208,
       "path": "README.md",
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION",
-      "sha256": "ae233fed57b0f608a8a2de7a4f122b9ef4f345fa8e79541fd7a796cfd107c09f",
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
+      "sha256": "ca4b18915e955e7d684936c9e78e6ab7d14a9714668d4df8a1b577df0c0615cd",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3517,10 +3517,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 46448,
+      "bytes": 46782,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION",
-      "sha256": "872a2762db369b383f86b1c5116adfb47459b1a8261a4d8de24d58f2261dab63",
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
+      "sha256": "9aec00b2f4006f46c7f7594b3c6cf39c2edb47f9f0a119c6f003affd7821b090",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4194,10 +4194,10 @@
     },
     {
       "path": "docs/p0c4-task9-readiness.md",
-      "bytes": 17636,
-      "sha256": "384dfccc9b81f0abf9b89074522732e3116859b9feb31680a880ae4de0f4dbb0",
+      "bytes": 19149,
+      "sha256": "75482896a1fc6c91d57c14201a97500dd3cab6024af80e700e7f39efcc7f4ad6",
       "source_bytes_preserved": false,
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
     },
     {
       "bytes": 163606,
@@ -4344,6 +4344,13 @@
       "scope": "PUBLIC_DOCUMENTATION_OVERLAY"
     },
     {
+      "path": "docs/task9/b1-final-decision-contract-proposal.md",
+      "bytes": 24590,
+      "sha256": "2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
+    },
+    {
       "path": "docs/task9/b1-offhost-admission-rfc.md",
       "bytes": 18948,
       "sha256": "c2b7c7c2ed4ef72b246b11deec408c40aef60d3fe5c810521a676ebe05b85adc",
@@ -4359,10 +4366,10 @@
     },
     {
       "path": "docs/task9/execution-readiness.md",
-      "bytes": 14655,
-      "sha256": "132833916153325dde559afb08adb0b509829b95ce712e76cf17a37905e55ffd",
+      "bytes": 16323,
+      "sha256": "a11d07a20faeb7b6964f8776738787f3851dbb6c40b3f9806b18c1e56281ef20",
       "source_bytes_preserved": false,
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
     },
     {
       "path": "docs/task9/local-preparation-closeout.md",
@@ -4373,10 +4380,10 @@
     },
     {
       "path": "docs/task9/selected-target-preparation.md",
-      "bytes": 7963,
-      "sha256": "58fcae086d3d8f4c795ac9b558d63201729916f5c21034fbf19dc7c4f4d33cc3",
+      "bytes": 9525,
+      "sha256": "5023b0aec32018d6a46306e4c53888694b1771cfa741a30101a7702c8c0cb2d6",
       "source_bytes_preserved": false,
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION"
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED"
     },
     {
       "bytes": 4309,
@@ -4435,10 +4442,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 106796,
+      "bytes": 107947,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_SELECTED_TARGET_AND_LIMITED_PREPARATION_DOCUMENTATION",
-      "sha256": "ef875f1448c5d27bedcb92236aadb129edb4d54658d1751cabc7d98d3083d347",
+      "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
+      "sha256": "cc980538b9395c7f29a889a090badd05bce3d070350de06d6827a9eb067909ab",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5290,15 +5297,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 659,
+  "manifest_file_count_excludes_manifest_itself": 660,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "600c6ee4fdf1ec08f4867aa16e429b6a71315256",
+  "previous_public_commit": "d94e124530666b285ffd6c5b4641d83d675a6d74",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-26T18:02:34+08:00",
+  "progress_as_of": "2026-10-26T20:06:36+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_SELECTED_TARGET_FACTS_AND_NON_AUTHORITY_LINUX_FRAME_PREPARATION",
+  "scope": "TASK9_FINAL_DECISION_PROPOSAL_DOCUMENTATION_NOT_ADOPTED",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -12949,5 +12956,34 @@
     "new_security_permissions_installed": false,
     "normal_complete_backup_issued": false,
     "recovery_executed": false
+  },
+  "task9_final_decision_proposal": {
+    "status": "NOT_ADOPTED_NOT_AUTHORIZED_NOT_IMPLEMENTED",
+    "path": "docs/task9/b1-final-decision-contract-proposal.md",
+    "sha256": "2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59",
+    "reviewed_code_baseline": "d94e124530666b285ffd6c5b4641d83d675a6d74",
+    "timing_change_requires_explicit_user_adoption": true,
+    "source_liveness_after_last_message_proven": false,
+    "negative_protection_fence_proposed_not_implemented": true,
+    "target_original_operation_one_shot_proposed_not_implemented": true,
+    "historical_v2_read_is_not_original_publication_success": true,
+    "manager_account_is_not_automatic_transport_identity": true,
+    "admin_principal_metadata": {
+      "kind": "ROOT_TOOL_STRUCTURED_OBSERVATION_NOT_INDEPENDENT_RAW_COLLECTION",
+      "observed_at_utc": "2026-10-26T11:56:38.051589+00:00",
+      "local_system_docker_socket_access_observed": true,
+      "rootless_flag_not_reported": true,
+      "daemon_uid_independently_verified": false,
+      "fixed_install_root_absent_at_observation": true,
+      "sudo_or_docker_exec_attempted": false
+    },
+    "new_product_tests_executed": 0,
+    "B1_integration_cases_executed": 0,
+    "old_37_case_specification_bytes_unchanged": true,
+    "formal_five_gates_unchanged": true,
+    "new_keys_trust_registry_or_source_auth_installed": false,
+    "security_permissions_changed": false,
+    "restore_executed": false,
+    "Task9_accepted": false
   }
 }

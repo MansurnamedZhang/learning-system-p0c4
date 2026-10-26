@@ -108,3 +108,11 @@ D1与D2分别有执行停止点。可以在同一份已具体化的批次单中�
 已有选定目标、普通账户元数据和隔离目录平台预检，用户已选托管方案。**仍没有key/trust/registry或管理身份安装、权限启用、源隔离或恢复执行。** 预检UUID仅标识普通合成平台检查，不是业务backup/attempt，也不获得新的发布权限。
 
 下一步是[具体B1候选](b1-offhost-admission-rfc.md)的身份来源、源死亡/最终决策、P一次消费及UNKNOWN裁决。当前独审仅允许继续设计和无权限帧解析准备，不能进入authority实现或部署。B0/B/C安装与安全配置、D1/D2仍须准确实施单和对应执行批准。旧五个检查点、37条case、十件工具字节桥、Task9五个未勾正式门及全部失败／HOLD保持。公开v2和原引擎不变；不合并main、不部署生产。
+
+## 后续检查点：先裁决语义，不进入R2b或现场配置
+
+当前待裁决输入是[最终决定时序合同建议](b1-final-decision-contract-proposal.md)，封存SHA-256 `2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59`。该提案仍为 **NOT_ADOPTED / NOT_IMPLEMENTED / NOT_AUTHORIZED**，设计审阅尚未形成采纳结论。下一步是明确语义采纳：S最后决定后的不可即时观测死亡窗口、D许可/提交点、持久负fence和未知结果的历史只读边界；不是重复扩展已限定的parser准备。采纳只准后续规范定稿和独审，不批准R2b权限实现、安装或启用。
+
+Root工具于2026-10-26 11:56:38 UTC提供的结构化元数据报告管理身份可访问系统Docker Unix socket、daemon info未报告rootless；这不是独立原始采集或独核，也不构成绝对rootful判定。管理身份不能默认复用为S的最小权限transport身份；[Docker官方权限模型](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user)明确docker组授予root-level权限。受限非交互principal、固定命令、新用户/公钥/forced command/sudoers或任何权限变更须在C包另列并审批，不把广泛管理凭证默认交给S。
+
+B/C/D包仍待准确实例化：D key/trust/registry和构建pin、fence namespace及扫描/保留预算、S原manager认证和身份使用约束、真实整链及源隔离/恢复分别独审并获对应执行批准。语义采纳不能替代这些执行许可。Task9五门与37条规格原样保持；本次不运行产品或准备测试、不增加测试数，也不发放B1/Task9验收信用。

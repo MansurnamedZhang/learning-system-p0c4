@@ -124,3 +124,11 @@ python -B -m unittest discover -s scripts -p test_p0c4_task9_preparation_check.p
 | 源端隔离与正常恢复 | 本批源与全新目标的精确容器／网络／卷／目录、原件保留与恢复连接步骤 | 单独授权源端断联及目标写入；不碰生产、旧失败资源或其它项目，不删除源数据。 |
 
 无需提供或存储密码。真实独立目标和安装／托管事实未核实之前，Task9 和 C4 保持开放；不合并 main、不部署生产。
+
+## 后续检查点：最终决定合同候选待采纳
+
+已封存[最终决定时序合同建议](task9/b1-final-decision-contract-proposal.md)，SHA-256 `2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59`。状态仍为 **NOT_ADOPTED / NOT_IMPLEMENTED / NOT_AUTHORIZED**，尚在设计审阅；当前下一步是明确语义采纳，不是重复增加parser。所拟S死亡窗口、D一次消费与负fence是需要明示的合同调整；即使采纳，也只允许后续正式规范定稿和独审，不授R2b权限实现或机器配置许可。
+
+目标管理身份访问系统Docker socket的新观察仅来自Root工具结构化元数据回报，非独立原始采集或独核；daemon info未报告rootless不等于已完成独立daemon身份审查。该管理身份不是默认受限transport身份。[Docker官方说明](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user)指出docker组具有root-level权限；这项权限模型不能与点时元数据混写成攻击验证或最小权限证明。实际观察层级见[目标准备页](task9/selected-target-preparation.md)。
+
+D key/trust/registry、负fence namespace、源管理认证/受限传输身份及权限，真实首发、源隔离与恢复均保持待具体审批，分层范围见[执行准备单](task9/execution-readiness.md)。Task9五个正式门、37条未执行规格、Task8历史与旧失败/HOLD不变；本次只追加文档，无新测试、B1集成或Task9验收信用。

@@ -69,3 +69,11 @@ Root实际回读四份文件，核对摘要/普通文件身份以及写入计划
 另一子代理随后仅以既有SSH身份只读采集上述两个Linux批次，独核34份原件的普通文件/所有者/链接/前后元数据与全量SHA；其中33份非binary作字节副本，7,084,816B测试binary只在128MiB上限内分块hash、未复制或执行。20项列举和正文逐项一致，旧format失败不计通过。独审INDEX SHA-256为 `d896ab257a894daedd14e43ec528dab8a1c22c8d188a1a1099306ad7bd1d5276`，结论仅为20个实际Linux纯parser正文的准备范围。
 
 该独审没有补造旧测试进程/时钟或完整Docker原件；阶段现有exit+双流，不具备独立OS process原件。新SSH采集收据只见证此次只读采集，不能冒充当时运行观察。没有再跑测试，也没有获得Task9、B1、workspace或Clippy信用。
+
+## 后续检查点：最终决定合同仍待语义采纳
+
+[最终决定时序合同建议](b1-final-decision-contract-proposal.md)已封存，SHA-256 `2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59`；状态仍为 **NOT_ADOPTED / NOT_IMPLEMENTED / NOT_AUTHORIZED**，提案正在审阅，尚未采纳。当前下一步是明确是否接受其中的S死亡窗口、D一次消费、负fence及UNKNOWN/历史只读分账语义，不是重复增加parser。语义采纳也只允许后续正式规范定稿及独审，不授权R2b权限编码或机器配置。
+
+补充的目标观察来自Root工具结构化元数据回报（2026-10-26 11:56:38 UTC），不是另一观察者的独立原始采集或独核：管理身份可访问本机系统Docker Unix socket，daemon info未报告rootless。不能把该管理身份默认当作受限自动transport身份；Docker官方说明docker组具有root-level权限，这是官方权限模型，与上述点时观察分别记账。[Docker官方权限说明](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user)。未据此实施root容器、密钥读取或恶意管理员防护验证。
+
+D key/trust/registry、负fence namespace、S管理认证和受限传输身份、固定调用权限，以及实际首发、源隔离和恢复仍须具体方案、独审及对应执行审批；管理登录或托管方案选择不覆盖它们。Task9五个正式门、37条历史规格及旧失败/HOLD不变。本次仅追加文档检查点，没有新测试或验收信用。

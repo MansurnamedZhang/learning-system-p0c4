@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "目标预检/帧准备完成，B1权限待裁决",
-    "detail": "云目标与托管方案已选，普通FS六项及Linux无权限parser20正文通过；不是root安装、B1首签/发布或正常恢复。",
-    "evidence": "FS6保留原件与Root同会话回读；Rust单文件格式/编译/列举/20正文通过，另一子代理独核日志和binary摘要。旧format失败保留；37集成及正式五门未完成。"
+    "statusLabel": "最终提交合同候选待采纳，整链未验收",
+    "detail": "目标及root托管方案已选；FS六项/无权限帧20正文保留。最终决定时序与持久保护已有具体候选，尚未采纳或实现。",
+    "evidence": "新建议区分许可与物理提交、未知结果与历史只读；管理账户与自动传输身份分开。无新增产品测试，37集成及正式五门未完成，旧失败/HOLD不改。"
   }
 ];
 
@@ -1641,25 +1641,25 @@ export const meta = {
   "date": "2026-10-26",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9目标预检与无权限帧准备已完成",
-  "progressSummary": "已选独立云目标，既有SSH元数据及普通账户FS六项预检通过，用户选择目标root托管方案。新增独立Rust帧准备文件不导入产品；Linux格式/编译/列举/20正文通过且原件独核。旧格式失败保留，未增加首签/发布权限或Task9验收信用。",
+  "state": "C4实施中 · Task8限定完成 · Task9最终提交合同候选待采纳",
+  "progressSummary": "真实独立云目标已选，普通FS六项和Linux无权限帧20正文的既有结果保留。本轮把源端最后消息后的死亡窗口、目标原操作一次消费、持久保护和未知结果收敛成明确建议；仍未采纳、未实施，无新增产品测试或正式验收信用。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "当前阻断转为B1：原manager可信身份、源死亡与最终决策、P一次消费及UNKNOWN规则待裁决。key/trust/registry/构建pin与管理身份未安装，未执行正常CompleteBackup或恢复；正式五门和C4仍OPEN。",
+  "pendingSummary": "先裁决最终提交时序：源端最后检查并持久保护后，由原目标操作一次消费；结果未知不重放，历史读取不追补原调用成功。管理账户不能默认成为自动传输身份。规范修订、权限代码、key/trust/registry与真实整链仍未批准或实施。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · 云目标已盘点，Linux帧准备20/20，B1权限接入待裁决",
-  "taskPlanScope": "A仅完成既有SSH/元数据及普通账户隔离预检；B/C/D未执行。6是平台检查、20是纯parser正文，不合并为Task9集成数。37条原规格和公共v2不变，未采纳新权限合同；Windows不承担目标或产品测试。",
+  "roadmapHeadline": "当前进度 · B1最终提交方案已具体化，待语义采纳",
+  "taskPlanScope": "A限定观察/平台预检及无权限帧准备已完成；B/C/D未执行。新最终提交方案仅为未采纳建议，不改现行规范、37条原规格或公共v2，不增加Task9集成计数。Windows只维护控制与文档，不承担目标或产品测试。",
   "nextSteps": [
     [
-      "01 · 裁决B1身份和最终消费规则",
-      "原manager身份不能靠SSH账号或自报build；最后消息/心跳不能证明S持续活性；旧finalize_use不是one-shot。"
+      "01 · 采纳或保留最终提交时序",
+      "候选允许源端最终决定后退出、由原目标操作一次消费；未知不重放，持久保护不自动解除。未明确采纳前不改规范或实现权限。"
     ],
     [
-      "02 · 再实现并审查权限接入",
-      "现阶段只允许独立无权限帧准备；具体契约采纳后才接原S/D/C/P与v2 writer，保持旧拒绝入口。"
+      "02 · 规范定稿及权限实现另审",
+      "语义采纳仅进入R1规范定稿与独审；通过后才另审R2b原操作/一次消费、源身份和持久保护代码，保持旧拒绝与v2历史读取边界。"
     ],
     [
       "03 · 准确审批安装与真实整链",
@@ -1787,6 +1787,10 @@ export const references = [
   [
     "Task9异机活操作RFC与待裁决权限",
     "docs/task9/b1-offhost-admission-rfc.md"
+  ],
+  [
+    "Task9最终决定/一次发布合同建议（未采纳）",
+    "docs/task9/b1-final-decision-contract-proposal.md"
   ]
 ];
 
