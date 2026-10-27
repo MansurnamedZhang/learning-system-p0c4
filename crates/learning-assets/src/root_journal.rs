@@ -124,6 +124,12 @@ impl SharedJournalBudget {
             entries_limit,
         })))
     }
+    /// Allocation identity only, including exhausted or poisoned meters.
+    /// This does not lock, read, charge, clone or expose the inner counter.
+    /// A true result is neither operation/lease identity nor any authority.
+    pub fn shares_meter_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
     pub fn usage(&self) -> io::Result<JournalBudgetUsage> {
         Ok(self.0.lock().map_err(|_| poisoned())?.usage)
     }
@@ -208,6 +214,58 @@ fn encode_frame(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn meter_identity_distinguishes_shared_usage_from_equal_independent_usage() {
+        let original = SharedJournalBudget::limited(32, 4);
+        let alias = original.clone();
+        let independent = SharedJournalBudget::limited(32, 4);
+        assert_eq!(original.usage().unwrap(), independent.usage().unwrap());
+        assert!(original.shares_meter_with(&original));
+        assert!(original.shares_meter_with(&alias));
+        assert!(alias.shares_meter_with(&original));
+        assert!(!original.shares_meter_with(&independent));
+        alias.charge(7, 1).unwrap();
+        assert_eq!(original.usage().unwrap(), alias.usage().unwrap());
+        assert_eq!(original.usage().unwrap().charged_bytes, 7);
+        assert_eq!(independent.usage().unwrap().charged_bytes, 0);
+        assert!(!independent.shares_meter_with(&alias));
+    }
+    #[test]
+    fn meter_identity_check_neither_charges_nor_revives_exhaustion() {
+        let original = SharedJournalBudget::limited(3, 1);
+        let alias = original.clone();
+        let independent = SharedJournalBudget::limited(3, 1);
+        original.charge(3, 1).unwrap();
+        let full = original.usage().unwrap();
+        assert!(original.shares_meter_with(&alias));
+        assert!(!original.shares_meter_with(&independent));
+        assert_eq!(original.usage().unwrap(), full);
+        assert!(alias.charge(1, 0).is_err());
+        let exhausted = original.usage().unwrap();
+        assert!(exhausted.exhausted);
+        assert!(alias.shares_meter_with(&original));
+        assert_eq!(original.usage().unwrap(), exhausted);
+        assert!(original.charge(0, 0).is_err());
+        assert!(alias.charge(0, 0).is_err());
+        assert!(!independent.usage().unwrap().exhausted);
+    }
+    #[test]
+    fn meter_identity_survives_lock_poison_without_recovering_usage() {
+        let original = SharedJournalBudget::limited(8, 2);
+        let alias = original.clone();
+        let independent = SharedJournalBudget::limited(8, 2);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _held = original.0.lock().unwrap();
+            panic!("synthetic budget mutex poison");
+        }));
+        assert!(result.is_err());
+        assert!(original.shares_meter_with(&alias));
+        assert!(alias.shares_meter_with(&original));
+        assert!(!original.shares_meter_with(&independent));
+        assert!(original.usage().is_err());
+        assert!(alias.charge(0, 0).is_err());
+        assert!(!independent.usage().unwrap().exhausted);
+    }
     #[test]
     fn shared_budget_aggregates_clones_and_is_sticky_after_overflow() {
         let a = SharedJournalBudget::limited(256, 3);

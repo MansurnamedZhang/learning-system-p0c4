@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-27。当前状态：C4实施中 · Task8限定完成 · Task9 R2b签名DATA已限定验证，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-10-27。当前状态：C4实施中 · Task8限定完成 · Task9签名DATA与scan身份组件限定完成，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。 固定公开RFC夹具只证明单帧DATA及原owner错误/unwind后的粘性拒绝；没有运行密钥来源、跨操作真实认证、原S时钟、Child/SSH、Source/D权限、fence或一次消费发布。两个runner仍拒绝。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。M1a新增 `SharedJournalBudget::shares_meter_with` 借用只读 Arc 身份比较；不加锁、不计费、不重置额度、不产生权限。单叶按Git053592d＋此候选运行格式、严格Clippy、assets构建、精确列举及六项正文：旧3＋新增3，6 passed/0 failed/0 ignored，30 filtered未执行。 该组件在旧053源码实际验证；全部assets/core/锁文件/工具链依赖与本次ab8caae集成基线逐字节桥接一致。字节桥不是新合并树全量测试，也不证明真实跨crate原预算接线、Root/PG主体、Source/D actor或全局64FD。Task2c的默认450/特性538、offhost89属于先前独立检查点，保持原记录且不与本轮6项相加。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,19 +61,19 @@ flowchart LR
 
 ## 下一步
 
-下一步接原监督/认证与已批SourceActor32叶默认关闭实现；现场key/trust/安装/权限、目标整链、源隔离与恢复另批，Task9/C4五门仍OPEN。
+下一步继续已批准SourceActor32叶的默认关闭实现，先接manager编译身份与真实固定peer factory/原控制owner。密钥/信任/launcher安装、PG与安全配置、目标整链、源隔离与恢复仍另批；Task9/C4及原五门保持OPEN，旧失败/HOLD保留。
 
 - **01 · 已采纳语义，规范定稿与独审**：已明确原S最终核对与持久保护、D一次消费、许可/自然完成两点及历史读取分账；Task9五门和旧失败不改，规范定稿不授实现权限。
-- **02 · 按已批准准确范围逐任务实现R2b**：Task2c新增14/offhost89逐名通过，仍为单帧DATA；原监督/真实认证/actor/fence与D能力待续。32叶默认关闭编码已批，现场变更另批。
+- **02 · 按已批准准确范围逐任务实现R2b**：Task2c签名DATA历史检查保留；M1a单叶新增3/总6组件正文通过并作依赖字节桥。下一步manager编译身份、原peer factory与控制owner；真实actor/fence/D待续，现场变更另批。
 - **03 · 准确审批安装与真实整链**：key/trust/registry/构建pin与管理身份分项批准；D1正常恢复、D2源隔离另设停止点，保留原件，不合并main或部署生产。
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。 固定公开RFC夹具只证明单帧DATA及原owner错误/unwind后的粘性拒绝；没有运行密钥来源、跨操作真实认证、原S时钟、Child/SSH、Source/D权限、fence或一次消费发布。两个runner仍拒绝。
+M1a新增 `SharedJournalBudget::shares_meter_with` 借用只读 Arc 身份比较；不加锁、不计费、不重置额度、不产生权限。单叶按Git053592d＋此候选运行格式、严格Clippy、assets构建、精确列举及六项正文：旧3＋新增3，6 passed/0 failed/0 ignored，30 filtered未执行。 该组件在旧053源码实际验证；全部assets/core/锁文件/工具链依赖与本次ab8caae集成基线逐字节桥接一致。字节桥不是新合并树全量测试，也不证明真实跨crate原预算接线、Root/PG主体、Source/D actor或全局64FD。Task2c的默认450/特性538、offhost89属于先前独立检查点，保持原记录且不与本轮6项相加。
 
-下一步接原监督/认证与已批SourceActor32叶默认关闭实现；现场key/trust/安装/权限、目标整链、源隔离与恢复另批，Task9/C4五门仍OPEN。
+下一步继续已批准SourceActor32叶的默认关闭实现，先接manager编译身份与真实固定peer factory/原控制owner。密钥/信任/launcher安装、PG与安全配置、目标整链、源隔离与恢复仍另批；Task9/C4及原五门保持OPEN，旧失败/HOLD保留。
 
 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。
 
@@ -87,7 +87,7 @@ flowchart LR
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>私有单机范围限定验收"]
-    C4T9["Task 9<br/>真实独立故障域闭合<br/>R2b签名DATA已验证，真实权限接线未完成"]
+    C4T9["Task 9<br/>真实独立故障域闭合<br/>签名DATA与scan身份组件限定完成，真实权限未接线"]
     C4T1 --> C4T2
     C4T2 --> C4T3
     C4T3 --> C4T4
@@ -113,7 +113,7 @@ flowchart LR
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
 | Task 8 · 当前回归、旧版升级与审查 | 私有单机范围限定验收 | Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。 169 ignored已具名处置，不等于169全部运行；65 extra与3 measurement未执行披露。 |
-| Task 9 · 真实独立故障域闭合 | R2b签名DATA已验证，真实权限接线未完成 | Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。 固定公开RFC夹具只证明单帧DATA及原owner错误/unwind后的粘性拒绝；没有运行密钥来源、跨操作真实认证、原S时钟、Child/SSH、Source/D权限、fence或一次消费发布。两个runner仍拒绝。 新增14/offhost89逐名通过；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。不等53义务或五门关闭；32叶仅编码获批，未安装。 |
+| Task 9 · 真实独立故障域闭合 | 签名DATA与scan身份组件限定完成，真实权限未接线 | M1a同Arc身份比较单叶完成6项组件检查（旧3＋新增3），依赖字节桥接到auth发布基线；不是新合并树全量测试或真实跨crate原预算接线。 M1a格式/严格Clippy/assets构建和六正文通过并独核；30 filtered未执行。历史Task2c89及450/538分账保留，不相加；Task9五门OPEN。 |
 
 ### 原五任务父里程碑（保留原编号）
 
@@ -482,7 +482,7 @@ flowchart TB
 - [Task9最终决定原提案（历史封存字节）](../docs/task9/b1-final-decision-contract-proposal.md)
 - [Task9最终决定语义采纳记录与实施边界](../docs/task9/b1-final-decision-adoption.md)
 - [Task9 R2b准确编码范围、预算与分层验证计划](../docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md)
-- [Task9 R2b签名DATA、实际Linux检查与未验层](../docs/task9/r2b-implementation-progress.md)
+- [Task9签名DATA与scan身份组件、实际检查与未验层](../docs/task9/r2b-implementation-progress.md)
 
 ### 历史证据的范围
 

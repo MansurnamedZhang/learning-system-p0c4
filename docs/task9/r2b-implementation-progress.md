@@ -1,5 +1,17 @@
 # Task9 R2b实施进展
 
+## M1a scan账本身份组件限定完成 · 2026-10-27
+
+M1a新增 `SharedJournalBudget::shares_meter_with` 借用只读 Arc 身份比较；不加锁、不计费、不重置额度、不产生权限。单叶按Git053592d＋此候选运行格式、严格Clippy、assets构建、精确列举及六项正文：旧3＋新增3，6 passed/0 failed/0 ignored，30 filtered未执行。
+
+该组件在旧053源码实际验证；全部assets/core/锁文件/工具链依赖与本次ab8caae集成基线逐字节桥接一致。字节桥不是新合并树全量测试，也不证明真实跨crate原预算接线、Root/PG主体、Source/D actor或全局64FD。Task2c的默认450/特性538、offhost89属于先前独立检查点，保持原记录且不与本轮6项相加。
+
+下一步继续已批准SourceActor32叶的默认关闭实现，先接manager编译身份与真实固定peer factory/原控制owner。密钥/信任/launcher安装、PG与安全配置、目标整链、源隔离与恢复仍另批；Task9/C4及原五门保持OPEN，旧失败/HOLD保留。
+
+实际M1a批次`02bf4d0b-fcfa-4e83-8837-b55d04a371ba`；ZIP `e897691db450cd6e9dc994a72b5c7f5b37d97234293d74375dd59ed42ba89608`；result `45781eb0709dc57e3e8b952753594345b87b2069937a22ae3c0d9adfeb17f804`；独审 `efe3bef4097825627a2988bcf0f46cf6762892216464717045f1a93356b07248`；依赖桥针 `531492274e0f112f8862ec3f73f427b5db18adb029633b22855da243859e6a52`。普通UID1000、固定builder、network none、4CPU/8GiB、只读源码/rootfs；五门exit0、源前后相同。精确ID删除/缺席来自原驱动与返回原件核验，非审查者独立远程观察；日志1MiB上限为事后读取检查，不是OS追踪或连续写限制。没有Root正例或运行安装。
+
+---
+
 ## 最新检查点：Task2c签名DATA片 · 2026-10-27
 
 Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。

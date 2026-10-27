@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "R2b签名DATA已验证，真实权限接线未完成",
-    "detail": "Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。 固定公开RFC夹具只证明单帧DATA及原owner错误/unwind后的粘性拒绝；没有运行密钥来源、跨操作真实认证、原S时钟、Child/SSH、Source/D权限、fence或一次消费发布。两个runner仍拒绝。",
-    "evidence": "新增14/offhost89逐名通过；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。不等53义务或五门关闭；32叶仅编码获批，未安装。"
+    "statusLabel": "签名DATA与scan身份组件限定完成，真实权限未接线",
+    "detail": "M1a同Arc身份比较单叶完成6项组件检查（旧3＋新增3），依赖字节桥接到auth发布基线；不是新合并树全量测试或真实跨crate原预算接线。",
+    "evidence": "M1a格式/严格Clippy/assets构建和六正文通过并独核；30 filtered未执行。历史Task2c89及450/538分账保留，不相加；Task9五门OPEN。"
   }
 ];
 
@@ -1641,17 +1641,17 @@ export const meta = {
   "date": "2026-10-27",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9 R2b签名DATA已限定验证",
-  "progressSummary": "Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。 固定公开RFC夹具只证明单帧DATA及原owner错误/unwind后的粘性拒绝；没有运行密钥来源、跨操作真实认证、原S时钟、Child/SSH、Source/D权限、fence或一次消费发布。两个runner仍拒绝。",
+  "state": "C4实施中 · Task8限定完成 · Task9签名DATA与scan身份组件限定完成",
+  "progressSummary": "M1a新增 `SharedJournalBudget::shares_meter_with` 借用只读 Arc 身份比较；不加锁、不计费、不重置额度、不产生权限。单叶按Git053592d＋此候选运行格式、严格Clippy、assets构建、精确列举及六项正文：旧3＋新增3，6 passed/0 failed/0 ignored，30 filtered未执行。 该组件在旧053源码实际验证；全部assets/core/锁文件/工具链依赖与本次ab8caae集成基线逐字节桥接一致。字节桥不是新合并树全量测试，也不证明真实跨crate原预算接线、Root/PG主体、Source/D actor或全局64FD。Task2c的默认450/特性538、offhost89属于先前独立检查点，保持原记录且不与本轮6项相加。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "下一步接原监督/认证与已批SourceActor32叶默认关闭实现；现场key/trust/安装/权限、目标整链、源隔离与恢复另批，Task9/C4五门仍OPEN。",
+  "pendingSummary": "下一步继续已批准SourceActor32叶的默认关闭实现，先接manager编译身份与真实固定peer factory/原控制owner。密钥/信任/launcher安装、PG与安全配置、目标整链、源隔离与恢复仍另批；Task9/C4及原五门保持OPEN，旧失败/HOLD保留。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · R2b Task2c签名DATA已过Linux检查；真实权限未接线",
-  "taskPlanScope": "Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。 原公共v2、旧guard、五门与37条规格不改；32叶只获编码许可，未安装/启用，Windows未运行产品测试。",
+  "roadmapHeadline": "当前进度 · M1a scan身份组件完成限定检查；真实actor接线继续",
+  "taskPlanScope": "M1a新增 `SharedJournalBudget::shares_meter_with` 借用只读 Arc 身份比较；不加锁、不计费、不重置额度、不产生权限。单叶按Git053592d＋此候选运行格式、严格Clippy、assets构建、精确列举及六项正文：旧3＋新增3，6 passed/0 failed/0 ignored，30 filtered未执行。 原公共v2、旧guard、37规格和五门不变；未安装启用，Windows未运行产品测试。",
   "nextSteps": [
     [
       "01 · 已采纳语义，规范定稿与独审",
@@ -1659,7 +1659,7 @@ export const meta = {
     ],
     [
       "02 · 按已批准准确范围逐任务实现R2b",
-      "Task2c新增14/offhost89逐名通过，仍为单帧DATA；原监督/真实认证/actor/fence与D能力待续。32叶默认关闭编码已批，现场变更另批。"
+      "Task2c签名DATA历史检查保留；M1a单叶新增3/总6组件正文通过并作依赖字节桥。下一步manager编译身份、原peer factory与控制owner；真实actor/fence/D待续，现场变更另批。"
     ],
     [
       "03 · 准确审批安装与真实整链",
@@ -1801,7 +1801,7 @@ export const references = [
     "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md"
   ],
   [
-    "Task9 R2b签名DATA、实际Linux检查与未验层",
+    "Task9签名DATA与scan身份组件、实际检查与未验层",
     "docs/task9/r2b-implementation-progress.md"
   ]
 ];

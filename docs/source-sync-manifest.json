@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 62629,
-      "sha256": "0cc8d016d8aa3bcb68631b809d027ef92d73837a6b7e98baae8f30808ececd9f",
+      "bytes": 62754,
+      "sha256": "5900c11b54e9a9d036868791a31a206733650de0596398aad9da8a146a018315",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115659,
+      "bytes": 115784,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
-      "sha256": "47fab9f1a28894d382acbc785f92208ca40f7ec690e0ad86eaf511094857b2b0",
+      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
+      "sha256": "21138ad96f75f7a7f6daab95cbf0567c9d59641142db25d1c1753b626c7fb3e4",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 80617,
+      "bytes": 81669,
       "path": "README.md",
-      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
-      "sha256": "621dfdc65bc4c2ce644850fe5582098d9b8e94e4b49cbcb33f529d89c99a8544",
+      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
+      "sha256": "ecff76c0f4fe76992e7df3d5913bf549304d95e99cae4ff04db88d9598bae378",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -173,10 +173,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 10117,
+      "bytes": 13000,
       "path": "crates/learning-assets/src/root_journal.rs",
-      "scope": "PUBLIC_DOCUMENTATION_OVERLAY",
-      "sha256": "77653c5a47f4773ec6bba2c4241b0f6b496e3fe62d7bbec0f73d7194aa425c2e",
+      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
+      "sha256": "c69f870144f1d4d87e05881552d52340bdc26f9d501926f7b4cd4fe8fa9d7a02",
       "source_blob_sha256": "77653c5a47f4773ec6bba2c4241b0f6b496e3fe62d7bbec0f73d7194aa425c2e",
       "source_bytes_preserved": true,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -3645,10 +3645,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47547,
+      "bytes": 47974,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
-      "sha256": "4e051b952c69beb210b179cd286dfcd91c7399389a4a3152238f9ee5349708f0",
+      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
+      "sha256": "9fd4015f6e4cff9d1bc63a468833e13dd07ad8e95553c69f54de22b9ee4b0121",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4530,10 +4530,10 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 18102,
-      "sha256": "27ba66b2723952b573b65b399c5a356406d5c2dae95e63a600b25b446fd00ee7",
+      "bytes": 19834,
+      "sha256": "a322c33fffdebb61815d66ce71182884eed8fa5dd54e8f0832554ffc09635101",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY"
     },
     {
       "path": "docs/task9/r2b-source-actor-code-contract.md",
@@ -4634,10 +4634,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 114302,
+      "bytes": 115354,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
-      "sha256": "73b8a6fa90cff619a94ee2ddc4e06ff9ec07e6d7a0be72a14785d497a8c8b4f7",
+      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
+      "sha256": "a0281a64ca93ffd97a522ad170e08f6060778920069ad64dc4fa34b6d62d8c70",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5491,13 +5491,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 687,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "053592d8bc3382b21539700a63d47fe0b6057595",
+  "previous_public_commit": "ab8caae30a1edb6a01187780c6ed922af3c39b6e",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-27T22:18:22+08:00",
+  "progress_as_of": "2026-10-27T22:48:40+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
+  "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -13844,5 +13844,53 @@
     "formal_five_gates_unchanged": true,
     "old_37_matrix_bytes_unchanged": true,
     "planned_53_obligations_not_closed_by_unit_tests": true
+  },
+  "task9_r2b_source_meter_identity_component": {
+    "status": "M1A_SCAN_METER_IDENTITY_COMPONENT_CHECKED_NOT_GENUINE_PROCESS_AUTHORITY",
+    "source_component_base": "053592d8bc3382b21539700a63d47fe0b6057595",
+    "integration_base": "ab8caae30a1edb6a01187780c6ed922af3c39b6e",
+    "source_file": "crates/learning-assets/src/root_journal.rs",
+    "source_sha256": "c69f870144f1d4d87e05881552d52340bdc26f9d501926f7b4cd4fe8fa9d7a02",
+    "actual_batch": "02bf4d0b-fcfa-4e83-8837-b55d04a371ba",
+    "actual_result_sha256": "45781eb0709dc57e3e8b952753594345b87b2069937a22ae3c0d9adfeb17f804",
+    "archive_sha256": "e897691db450cd6e9dc994a72b5c7f5b37d97234293d74375dd59ed42ba89608",
+    "source_manifest_sha256": "8f5a37d115346581bab7d186d86c5e3093ec261d42179fdd8e79c4cd663ddd79",
+    "actual_independent_review_sha256": "efe3bef4097825627a2988bcf0f46cf6762892216464717045f1a93356b07248",
+    "dependency_bridge_pins_sha256": "531492274e0f112f8862ec3f73f427b5db18adb029633b22855da243859e6a52",
+    "dependency_bridge_sha256": "f1f0d15bf67aa4f132cd411ec6bc9432b9569fb2ab9016ee4834ffce70b92f0e",
+    "phase_exits": {
+      "build": 0,
+      "clippy": 0,
+      "format": 0,
+      "meter-list": 0,
+      "meter-tests": 0
+    },
+    "unit_summary": {
+      "failed": 0,
+      "filtered": 30,
+      "ignored": 0,
+      "measured": 0,
+      "passed": 6
+    },
+    "old_actual_bodies": 3,
+    "new_actual_bodies": 3,
+    "total_component_actual_bodies": 6,
+    "actual_names": [
+      "root_journal::tests::bounded_opaque_frames_chain_exact_bytes_without_business_interpretation",
+      "root_journal::tests::meter_identity_check_neither_charges_nor_revives_exhaustion",
+      "root_journal::tests::meter_identity_distinguishes_shared_usage_from_equal_independent_usage",
+      "root_journal::tests::meter_identity_survives_lock_poison_without_recovering_usage",
+      "root_journal::tests::oversized_body_nil_identity_and_sequence_wrap_are_rejected",
+      "root_journal::tests::shared_budget_aggregates_clones_and_is_sticky_after_overflow"
+    ],
+    "merged_whole_tree_tests_proven": false,
+    "not_added_to_historical_auth_test_counts": true,
+    "source_unchanged": true,
+    "exact_id_cleanup_raw_checked": true,
+    "independent_reviewer_remote_observer": false,
+    "real_cross_crate_meter_integration_or_root_peer_auth_proven": false,
+    "operational_changes": false,
+    "Task9_accepted": false,
+    "C4_accepted": false
   }
 }
