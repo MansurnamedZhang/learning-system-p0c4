@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 62754,
-      "sha256": "5900c11b54e9a9d036868791a31a206733650de0596398aad9da8a146a018315",
+      "bytes": 63406,
+      "sha256": "86ae31bcbe3a39a7aff32f7838805f7c202ad297211fa510f48e142d28a31dd6",
       "source_bytes_preserved": false,
-      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY"
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -52,12 +52,13 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 51404,
+      "bytes": 51413,
       "path": "Cargo.lock",
-      "sha256": "223a12ada8987dadcfaa4e3fe9f5e589aa20595fd5da1ca9706b0db3bef5b3e3",
+      "sha256": "1289ab8082f4f14eafe393fd04662b8f61df6a009ac7bef58647e487e0be99b5",
       "source_blob_sha256": "223a12ada8987dadcfaa4e3fe9f5e589aa20595fd5da1ca9706b0db3bef5b3e3",
       "source_bytes_preserved": true,
-      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
+      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
     },
     {
       "bytes": 746,
@@ -68,10 +69,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115784,
+      "bytes": 116436,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
-      "sha256": "21138ad96f75f7a7f6daab95cbf0567c9d59641142db25d1c1753b626c7fb3e4",
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
+      "sha256": "689e80c6c38e006a8638be2d4be6738ab72ff014334411012305b5a3a1022b17",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +85,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 81669,
+      "bytes": 83152,
       "path": "README.md",
-      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
-      "sha256": "ecff76c0f4fe76992e7df3d5913bf549304d95e99cae4ff04db88d9598bae378",
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
+      "sha256": "0fa0f2fdd0067235c4d73f94fd03a2e6608734ce3fe2f1864c71b57d44e4f5a9",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -263,13 +264,13 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 1184,
+      "bytes": 1214,
       "path": "crates/learning-backup/Cargo.toml",
-      "sha256": "1264bdcf2086c507df2468ecdcf5499597ca1a0d117a1a3b354da6bccb6807d0",
+      "sha256": "7f9ac431fab81bbb758a1028fa89c1da565ee6a4772459a4af2d387c298e06d2",
       "source_blob_sha256": "1d54f0a56c053d935dddfd89fdfcb69f41b044ad9b10dadda0afa0829a34fcb9",
       "source_bytes_preserved": true,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-      "scope": "TASK9_R2B_TASK1A_DEFAULT_OFF_FOUNDATION_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
     },
     {
       "bytes": 3369,
@@ -568,10 +569,10 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/mod.rs",
-      "bytes": 4631,
-      "sha256": "7cce0527a1858c5b6fd4643cf84c34cc9ad346ae3a97e0a2ff390256ec566ff1",
+      "bytes": 12418,
+      "sha256": "5e22ab5bf3a09b735d30d9170e91a44d87c4c9ef40d0021589f0f72e3c944a4d",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK2A_UNTRUSTED_WIRE_CODEC_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy.rs",
@@ -1514,12 +1515,13 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 423,
+      "bytes": 592,
       "path": "crates/learning-db/Cargo.toml",
-      "sha256": "8519fbfe9d772b64653a8b823124245901eae28eacb7139e1ad17516a03eec5a",
+      "sha256": "5722170b080ab4c334d5907cade71a0855661f30165b9c2299a0fab4e450fa6a",
       "source_blob_sha256": "8519fbfe9d772b64653a8b823124245901eae28eacb7139e1ad17516a03eec5a",
       "source_bytes_preserved": true,
-      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
+      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
     },
     {
       "bytes": 2422,
@@ -3645,10 +3647,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47974,
+      "bytes": 48745,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
-      "sha256": "9fd4015f6e4cff9d1bc63a468833e13dd07ad8e95553c69f54de22b9ee4b0121",
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
+      "sha256": "c238a917fb35297858673867aaf02f3eb4bb4efc718a38a255f9345ece91e74a",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4530,10 +4532,10 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 19834,
-      "sha256": "a322c33fffdebb61815d66ce71182884eed8fa5dd54e8f0832554ffc09635101",
+      "bytes": 21841,
+      "sha256": "0471fd2e8674dc987c4b5baa012e1849683a28ca299cc80fd94597c90f0bc95f",
       "source_bytes_preserved": false,
-      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY"
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
     },
     {
       "path": "docs/task9/r2b-source-actor-code-contract.md",
@@ -4634,10 +4636,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 115354,
+      "bytes": 116837,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
-      "sha256": "a0281a64ca93ffd97a522ad170e08f6060778920069ad64dc4fa34b6d62d8c70",
+      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
+      "sha256": "e43afd55517aec3c6e51956ab3bd0f22b3665bda800cd309152119ea96b429e1",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5491,13 +5493,13 @@
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
   "manifest_file_count_excludes_manifest_itself": 687,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "ab8caae30a1edb6a01187780c6ed922af3c39b6e",
+  "previous_public_commit": "bfe44c6c13d7607e7253f075b4acc30e25c5238e",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-27T22:48:40+08:00",
+  "progress_as_of": "2026-10-28T00:13:42+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_M1A_SINGLE_SCAN_IDENTITY_COMPONENT_AND_PROGRESS_ONLY",
+  "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -13889,6 +13891,232 @@
     "exact_id_cleanup_raw_checked": true,
     "independent_reviewer_remote_observer": false,
     "real_cross_crate_meter_integration_or_root_peer_auth_proven": false,
+    "operational_changes": false,
+    "Task9_accepted": false,
+    "C4_accepted": false
+  },
+  "task9_r2b_source_compile_environment_component": {
+    "status": "M1B_COMPILE_INPUT_FAMILIES_AND_DEFAULT_OFF_DB_EDGE_CHECKED_NOT_GENUINE_FACTORY",
+    "integration_base": "bfe44c6c13d7607e7253f075b4acc30e25c5238e",
+    "source_files": {
+      "Cargo.lock": {
+        "bytes": 51413,
+        "sha256": "1289ab8082f4f14eafe393fd04662b8f61df6a009ac7bef58647e487e0be99b5"
+      },
+      "crates/learning-backup/Cargo.toml": {
+        "bytes": 1214,
+        "sha256": "7f9ac431fab81bbb758a1028fa89c1da565ee6a4772459a4af2d387c298e06d2"
+      },
+      "crates/learning-backup/src/offhost_b1/mod.rs": {
+        "bytes": 12418,
+        "sha256": "5e22ab5bf3a09b735d30d9170e91a44d87c4c9ef40d0021589f0f72e3c944a4d"
+      },
+      "crates/learning-db/Cargo.toml": {
+        "bytes": 592,
+        "sha256": "5722170b080ab4c334d5907cade71a0855661f30165b9c2299a0fab4e450fa6a"
+      }
+    },
+    "source_refs_sha256": "03270933e93debb0a7de297d65a3afc4ba233e28079b3338a119650c845a5edf",
+    "actual_batch": "2fc37585-67fd-4113-bb94-d6a336097c50",
+    "actual_result_sha256": "25522950c25b09b7d07cd5ef8995fc16cb9791ff5c481c93de0cdeaca66da447",
+    "archive_sha256": "c97f5c7bedb09f1d41f101f9dddee78928a85b8b5af8a0826f7dbfe9dbd09285",
+    "source_manifest_sha256": "9279f50ef3051cab39801e32b7895daf0e67b07012881f94b7ad5c3a9e86d62d",
+    "actual_independent_review_sha256": "5a7c0a954d6aa1cf423dbb48de7112a421ed536067540e503542572a5f0307ad",
+    "recipe5_index_sha256": "3a1c6bf4d601b8ebec961389f501266f6fe927fd9e700e4e42ecb4f9b472b63d",
+    "formatter_review_sha256": "a7fb1a2b59f3cac5b11217c7f5f3697622639cc05617ef9f4e52878831534c40",
+    "phase_exits": {
+      "app-only-list": 0,
+      "app-only-tests": 0,
+      "bad-app-list": 0,
+      "bad-app-tests": 0,
+      "bad-manager-list": 0,
+      "bad-manager-tests": 0,
+      "bins": 0,
+      "check-backup-default": 0,
+      "check-db-default": 0,
+      "check-db-peer": 0,
+      "clippy": 0,
+      "default-list": 0,
+      "default-tests": 0,
+      "feature-list": 0,
+      "feature-tests": 0,
+      "format": 0,
+      "manager-only-list": 0,
+      "manager-only-tests": 0,
+      "metadata-backup-default": 0,
+      "metadata-backup-offhost": 0,
+      "metadata-db-default": 0,
+      "metadata-db-peer": 0,
+      "separate-families-list": 0,
+      "separate-families-tests": 0,
+      "tree-backup-offhost": 0,
+      "tree-db-default": 0,
+      "tree-db-peer": 0
+    },
+    "raw_phase_exits": {
+      "app-only-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "app-only-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "bad-app-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "bad-app-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "bad-manager-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "bad-manager-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "bins.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "check-backup-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "check-db-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "check-db-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "clippy.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "default-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "default-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "feature-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "feature-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "format.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "manager-only-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "manager-only-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "metadata-backup-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "metadata-backup-offhost.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "metadata-db-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "metadata-db-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "separate-families-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "separate-families-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "tree-backup-offhost.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "tree-db-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "tree-db-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      }
+    },
+    "ordinary": {
+      "default": {
+        "ignored": 106,
+        "passed": 450
+      },
+      "feature": {
+        "ignored": 106,
+        "passed": 542
+      }
+    },
+    "metadata_feature_observations": {
+      "backup-default": {
+        "db_features": [],
+        "db_optional_sha2_direct_edge_active": false,
+        "global_sha2_package_present_is_not_direct_activation_proof": true
+      },
+      "backup-offhost": {
+        "db_features": [
+          "b1-source-peer"
+        ],
+        "db_optional_sha2_direct_edge_active": true,
+        "global_sha2_package_present_is_not_direct_activation_proof": true
+      },
+      "db-default": {
+        "db_features": [],
+        "db_optional_sha2_direct_edge_active": false,
+        "global_sha2_package_present_is_not_direct_activation_proof": true
+      },
+      "db-peer": {
+        "db_features": [
+          "b1-source-peer"
+        ],
+        "db_optional_sha2_direct_edge_active": true,
+        "global_sha2_package_present_is_not_direct_activation_proof": true
+      }
+    },
+    "new_distinct_test_bodies": 4,
+    "compile_variant_count": 5,
+    "variant_body_invocations": 20,
+    "variant_invocations_not_distinct_bodies": true,
+    "actual_test_names": [
+      "offhost_b1::compile_env_tests::actual_fixed_inputs_select_only_manager_compile_family",
+      "offhost_b1::compile_env_tests::original_application_data_join_uses_legacy_compile_family",
+      "offhost_b1::compile_env_tests::dropping_each_family_pin_cannot_borrow_the_other_family",
+      "offhost_b1::compile_env_tests::actual_compiled_manager_data_does_not_open_installed_entries"
+    ],
+    "variant_ELF_SHA_not_returned": true,
+    "historical_Task2c_and_M1a_checkpoints_preserved_not_summed": true,
+    "ordinary_ignored_each_configuration_not_executed": 106,
+    "source_unchanged": true,
+    "driver_exact_id_cleanup_raw_checked": true,
+    "independent_reviewer_remote_observer": false,
+    "legacy_Root_PG_getter_executed": false,
+    "genuine_factory_or_cross_crate_authority_proven": false,
     "operational_changes": false,
     "Task9_accepted": false,
     "C4_accepted": false

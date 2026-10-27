@@ -10,7 +10,7 @@ license.workspace = true
 independent-verifier = []
 # Default-off foundation only. Role/profile/key build pins are additional gates;
 # the installed runners remain closed until the original-operation path exists.
-offhost-b1 = ["independent-verifier"]
+offhost-b1 = ["independent-verifier", "learning-db/b1-source-peer"]
 
 [[bin]]
 name = "knowweave-c4-b1-source"

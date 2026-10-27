@@ -1,5 +1,19 @@
 # Task9 R2b实施进展
 
+## M1b 编译身份与默认关闭依赖限定完成 · 2026-10-27
+
+M1b完成manager与业务application两族编译pin拆分：原业务registry谓词不变；learning-db新增默认关闭b1-source-peer，仅激活已有可选sha2直接边，offhost-b1显式传递该feature，无第三方版本或checksum变更。
+
+同一bfe44c6基线＋四叶候选在普通Linux固定builder执行27门全部exit0：格式、四套Linux metadata、三套tree与三套check、严格Clippy、bins，以及learning-backup库默认450/特性542通过，各106 ignored未执行。五种独立编译环境各跑相同4个新增正文，共20次调用，不是20个不同测试；特性下offhost93＝旧89＋本片4。
+
+这证明实际option_env编译族、原registry的DATA join和默认关闭依赖边；五变体连接独立target/Cargo编译路径、compileID及实际4ok，各变体ELF SHA未返回，不作其摘要独核声明。未执行旧Root/PG getter，未构造genuine factory或完成真实权限接线。Task2c默认450/特性538/offhost89与M1a assets6保留各自历史检查点，不相加、不改写。原37规格、53义务和五门仍开放，Task9/C4未验收。
+
+下一步在已批32叶内继续真实固定peer factory、原控制owner及其后SQL/Root/capture/Source/D接线。M2a私有候选未在本次Linux验证，也不随本包发布；密钥/信任/launcher安装、PG与安全配置、独立目标整链、源隔离和恢复仍另批。旧失败/HOLD保留。
+
+实际批次`2fc37585-67fd-4113-bb94-d6a336097c50`；result `25522950c25b09b7d07cd5ef8995fc16cb9791ff5c481c93de0cdeaca66da447`；独审 `5a7c0a954d6aa1cf423dbb48de7112a421ed536067540e503542572a5f0307ad`；源码ZIP `c97f5c7bedb09f1d41f101f9dddee78928a85b8b5af8a0826f7dbfe9dbd09285`。UID1000、固定builder、network none、4CPU/8GiB、只读源码/rootfs；源前后相同，精确ID收尾由原驱动与返回原件核验，非审查者独立远程观察。日志上限为事后读取检查，不是OS连续写限制。
+
+---
+
 ## M1a scan账本身份组件限定完成 · 2026-10-27
 
 M1a新增 `SharedJournalBudget::shares_meter_with` 借用只读 Arc 身份比较；不加锁、不计费、不重置额度、不产生权限。单叶按Git053592d＋此候选运行格式、严格Clippy、assets构建、精确列举及六项正文：旧3＋新增3，6 passed/0 failed/0 ignored，30 filtered未执行。

@@ -4,12 +4,17 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+# Default-off source-process peer integration; no runtime admission by this flag.
+b1-source-peer = ["dep:sha2"]
+
 [dependencies]
 learning-assets = { path = "../learning-assets" }
 learning-core = { path = "../learning-core" }
 sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2 = { workspace = true, optional = true }
 uuid.workspace = true
 tokio.workspace = true
 chrono.workspace = true
