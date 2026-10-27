@@ -1,5 +1,15 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 最新检查点：Task2c签名DATA片 · 2026-10-27
+
+Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。
+
+固定公开RFC夹具只证明单帧DATA及原owner错误/unwind后的粘性拒绝；没有运行密钥来源、跨操作真实认证、原S时钟、Child/SSH、Source/D权限、fence或一次消费发布。两个runner仍拒绝。
+
+SourceActor准确32叶补充编码范围已获人类批准；默认关闭，尚未接入和现场安装。key/trust、Root launcher/PG配置/安全权限、目标整链、源隔离和恢复仍另批；Task9/C4五门保持OPEN。
+
+---
+
 ## 最新实施：Task2b有界管道IO限定完成 · 2026-10-27
 
 五叶完成原预算预付、实际管道IO、绝对deadline与EOF分账；新增21正文通过，offhost75逐名核对。默认450/特性524各106 ignored分账，格式/严格Clippy/bin构建通过并独核。新增由4单元、16原生管道及1EINTR分类组成，不是真实信号或Child/SSH/auth证明；runner仍拒绝。

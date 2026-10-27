@@ -163,6 +163,58 @@ pub(super) struct UntrustedDestinationInputs {
     launch: LaunchManifest,
 }
 
+/// Borrowed candidate policy DATA only. No installed custody, actor, nonce or
+/// source application commit/current-root proof is represented by this view.
+pub(super) struct CandidateDestinationSignaturePins<'a> {
+    public_key_hex: &'a str,
+    source_auth_sha256: &'a str,
+    source_deployment: &'a str,
+    source_group: &'a str,
+    source_manager: &'a str,
+    source_application_build: &'a str,
+    destination_deployment: &'a str,
+    destination_group: &'a str,
+    destination_registry_authority: &'a str,
+    destination_receiver: &'a str,
+}
+impl CandidateDestinationSignaturePins<'_> {
+    pub(super) fn public_key_data(&self) -> (&str, &str) {
+        (self.public_key_hex, self.source_auth_sha256)
+    }
+    pub(super) fn source_data(&self) -> (&str, &str, &str, &str) {
+        (
+            self.source_deployment,
+            self.source_group,
+            self.source_manager,
+            self.source_application_build,
+        )
+    }
+    pub(super) fn destination_data(&self) -> (&str, &str, &str, &str) {
+        (
+            self.destination_deployment,
+            self.destination_group,
+            self.destination_registry_authority,
+            self.destination_receiver,
+        )
+    }
+}
+impl UntrustedDestinationInputs {
+    pub(super) fn signature_data_pins(&self) -> CandidateDestinationSignaturePins<'_> {
+        CandidateDestinationSignaturePins {
+            public_key_hex: &self.policy.source_auth_public_key_hex,
+            source_auth_sha256: &self.launch.source_auth_public_key_sha256,
+            source_deployment: &self.policy.source_deployment_id,
+            source_group: &self.policy.source_group_id,
+            source_manager: &self.policy.source_manager_release_sha256,
+            source_application_build: &self.policy.source_application_build_sha256,
+            destination_deployment: &self.policy.deployment_id,
+            destination_group: &self.policy.destination_group_id,
+            destination_registry_authority: &self.policy.registry_anchor.authority_sha256,
+            destination_receiver: &self.policy.receiver_release_sha256,
+        }
+    }
+}
+
 fn invalid() -> BackupError {
     BackupError::Invalid("offhost B1 untrusted installed record")
 }

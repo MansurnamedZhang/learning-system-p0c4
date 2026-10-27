@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 62030,
-      "sha256": "eacb1a7376bede2a83d6c42d59c2c3b60efb9ea0175422114c085f82b0aaa140",
+      "bytes": 62629,
+      "sha256": "0cc8d016d8aa3bcb68631b809d027ef92d73837a6b7e98baae8f30808ececd9f",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -68,10 +68,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115060,
+      "bytes": 115659,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "eebaa2ae8b234f33cb61be19a8819d53ff8541abbad115e9a23f0e717878a326",
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
+      "sha256": "47fab9f1a28894d382acbc785f92208ca40f7ec690e0ad86eaf511094857b2b0",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -84,10 +84,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 79833,
+      "bytes": 80617,
       "path": "README.md",
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "0b69e65368720092d585ba157c05b09647eedad643bb2884f69835af980ed168",
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
+      "sha256": "621dfdc65bc4c2ce644850fe5582098d9b8e94e4b49cbcb33f529d89c99a8544",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -575,10 +575,10 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy.rs",
-      "bytes": 12124,
-      "sha256": "f8bf41a4824448a8a29ee7684c26e445a09c43718c067b8a0acc1aa4963f8778",
+      "bytes": 14246,
+      "sha256": "a87964a6194d11a612d1efdcd1a6c42195677d62cc916038956498c9ee96cb29",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK1B_FIXED_METADATA_FD_AND_NONPRIVILEGED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy/installed.rs",
@@ -617,10 +617,31 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/wire.rs",
-      "bytes": 31227,
-      "sha256": "2b5d022266ab35799d10374c2b15cb5ff122f24816c96925b5ff47f8dc3a1af7",
+      "bytes": 33401,
+      "sha256": "1d6ff4c4b023ec5834ad7301b4c9acc4d3009366e3a572bc88a5c6470414d5d6",
       "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/auth.rs",
+      "bytes": 5166,
+      "sha256": "72b27f9b3e8ae5987b044669a0b4bfb4f0483c789b415fdd95f4293f3aadeed3",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/auth/fixtures/synthetic-b1-data-v1.json",
+      "bytes": 226091,
+      "sha256": "415af146ad6a899b0fc6227027d3be7c95b60d5c579292eba81de190589af1e4",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/wire/auth/tests.rs",
+      "bytes": 21679,
+      "sha256": "c0f5c3c8d0985ee92283d956bb0f8955979ac24806aee33130d792e81106f9a1",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/wire/io.rs",
@@ -3624,10 +3645,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 46867,
+      "bytes": 47547,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "d29d015f1f0c6369c281c0f6563ae7c7aa7675b3c44cd3125188d33e160a064d",
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
+      "sha256": "4e051b952c69beb210b179cd286dfcd91c7399389a4a3152238f9ee5349708f0",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4301,10 +4322,10 @@
     },
     {
       "path": "docs/p0c4-task9-readiness.md",
-      "bytes": 25321,
-      "sha256": "48f7cf692bc73c4d23d9d8e5abce4341d601de26b0c1b1d2385ec1e14f52561a",
+      "bytes": 26096,
+      "sha256": "0598f7a6797aab4d2f11b4200ddbd02f38417551ef9476560986bde6e0b25715",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "bytes": 163606,
@@ -4398,10 +4419,10 @@
     },
     {
       "path": "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md",
-      "bytes": 27602,
-      "sha256": "a470e6a3600bcfdb7a1380855f946209f7d4742baa480f744baed781b99d4def",
+      "bytes": 28012,
+      "sha256": "c24b555ae1eefc10e4a22cbe3c1834b629e0a4970ab38d7d10a999dff3016159",
       "source_bytes_preserved": false,
-      "scope": "TASK9_EXACT_R2B_CODING_AND_LIMITED_LINUX_AUTHORIZATION_DOCUMENTATION_ONLY"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "bytes": 11777,
@@ -4488,10 +4509,10 @@
     },
     {
       "path": "docs/task9/execution-readiness.md",
-      "bytes": 22296,
-      "sha256": "1e5d2620db611eb2216df7840cf3748c8c0c29935e6349db8a912d5ee88fe391",
+      "bytes": 23071,
+      "sha256": "b0b4b46c12170b4e849ddafbd68924b2295e2252cbb135232b954c5317644130",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "path": "docs/task9/local-preparation-closeout.md",
@@ -4509,10 +4530,31 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 16064,
-      "sha256": "96de87a888e3b5d6faa33552791002a4e730783cfcaf98f2dce038c74d47e712",
+      "bytes": 18102,
+      "sha256": "27ba66b2723952b573b65b399c5a356406d5c2dae95e63a600b25b446fd00ee7",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+    },
+    {
+      "path": "docs/task9/r2b-source-actor-code-contract.md",
+      "bytes": 59472,
+      "sha256": "b4ee882aada5f2c909d7a2011f4dbf16f6816d1c9371a5acdd77317f96c3f11b",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+    },
+    {
+      "path": "docs/task9/r2b-source-actor-extension-approval.md",
+      "bytes": 3881,
+      "sha256": "0f589768e11de9e3e5828abdb90891d36493a4a4b38ef5ed1dfd1344978d2a30",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+    },
+    {
+      "path": "docs/task9/r2b-source-actor-machine-schema.json",
+      "bytes": 75105,
+      "sha256": "f7413f400c6b18e83ac2899a8ee5ee86b512116039d02b2f13279674fc695d3f",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "path": "docs/task9/r2b-validation-plan.json",
@@ -4530,10 +4572,10 @@
     },
     {
       "path": "docs/task9/selected-target-preparation.md",
-      "bytes": 15124,
-      "sha256": "00967dc2bdc38bda5e2a293c06890d5a59b6776689a26a00f9db580d1d7d51b2",
+      "bytes": 15899,
+      "sha256": "a42c098f335fefe7cea3d6c1507dd6e7fbf48dd74b907b953b12b48664662a97",
       "source_bytes_preserved": false,
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
     },
     {
       "bytes": 4309,
@@ -4592,10 +4634,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 113518,
+      "bytes": 114302,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
-      "sha256": "34765a0f199919beab6053f48236ddac7ad4dd0ef78d6071483f729c5b4f85d4",
+      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
+      "sha256": "73b8a6fa90cff619a94ee2ddc4e06ff9ec07e6d7a0be72a14785d497a8c8b4f7",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5447,15 +5489,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 681,
+  "manifest_file_count_excludes_manifest_itself": 687,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "f89f4bd5afadde6314c4c29ec2c5360c524a7852",
+  "previous_public_commit": "053592d8bc3382b21539700a63d47fe0b6057595",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-27T03:26:42+08:00",
+  "progress_as_of": "2026-10-27T22:18:22+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS",
+  "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -13633,6 +13675,171 @@
     "installation_or_keys_or_permissions_changed": false,
     "postgres_networks_or_volumes_created": false,
     "source_actor_extension_not_approved": true,
+    "Task9_accepted": false,
+    "formal_five_gates_unchanged": true,
+    "old_37_matrix_bytes_unchanged": true,
+    "planned_53_obligations_not_closed_by_unit_tests": true
+  },
+  "task9_r2b_source_actor_extension_authorization": {
+    "status": "DIRECT_HUMAN_SOURCE_ACTOR_CODE_SCOPE_APPROVED_NOT_SITE_PERMISSION",
+    "human_answer": "批准补充编码范围与限定检查（推荐）",
+    "code_scope_extension_approved": true,
+    "source_allowlist": [
+      "Cargo.lock",
+      "crates/learning-backup/Cargo.toml",
+      "crates/learning-backup/src/bin/knowweave-c4-b1-source.rs",
+      "crates/learning-backup/src/bin/knowweave-c4-b1-capture.rs",
+      "crates/learning-backup/src/bin/knowweave-c4-b1-source-launcher.rs",
+      "crates/learning-backup/src/offhost_b1/mod.rs",
+      "crates/learning-backup/src/offhost_b1/policy.rs",
+      "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "crates/learning-backup/src/offhost_b1/capture_child.rs",
+      "crates/learning-backup/src/offhost_b1/capture_job.rs",
+      "crates/learning-backup/src/offhost_b1/capture_export.rs",
+      "crates/learning-backup/src/offhost_b1/source_actor.rs",
+      "crates/learning-backup/src/source.rs",
+      "crates/learning-backup/src/source/admission.rs",
+      "crates/learning-backup/src/source/binding.rs",
+      "crates/learning-backup/src/source/endpoint.rs",
+      "crates/learning-backup/src/source/snapshot_effects.rs",
+      "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "crates/learning-backup/src/registry.rs",
+      "crates/learning-backup/src/destination/snapshot_effects.rs",
+      "crates/learning-db/Cargo.toml",
+      "crates/learning-db/src/snapshot_broker/mod.rs",
+      "crates/learning-db/src/snapshot_broker/lifecycle.rs",
+      "crates/learning-db/src/snapshot_broker/history.rs",
+      "crates/learning-db/src/snapshot_broker/writer.rs",
+      "crates/learning-db/src/snapshot_broker/transition.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/job.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/session.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "crates/learning-assets/src/root_journal.rs"
+    ],
+    "approval_record_sha256": "67c22aaebf9e9abdff5b0ab0bae9718626a24d2f632ec2e87bd721dbbc5687fc",
+    "approval_review_sha256": "c764e064711dc6376645e923c293b35701725915112216b98ee4fcb50684b52f",
+    "approved_document_pins": {
+      "docs/task9/r2b-source-actor-extension-approval.md": {
+        "bytes": 3881,
+        "sha256": "0f589768e11de9e3e5828abdb90891d36493a4a4b38ef5ed1dfd1344978d2a30"
+      },
+      "docs/task9/r2b-source-actor-code-contract.md": {
+        "bytes": 59472,
+        "sha256": "b4ee882aada5f2c909d7a2011f4dbf16f6816d1c9371a5acdd77317f96c3f11b"
+      },
+      "docs/task9/r2b-source-actor-machine-schema.json": {
+        "bytes": 75105,
+        "sha256": "f7413f400c6b18e83ac2899a8ee5ee86b512116039d02b2f13279674fc695d3f"
+      },
+      "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md": {
+        "bytes": 28012,
+        "sha256": "c24b555ae1eefc10e4a22cbe3c1834b629e0a4970ab38d7d10a999dff3016159"
+      }
+    },
+    "limited_ordinary_Linux_checks_approved": true,
+    "implemented_by_this_publication": false,
+    "operational_changes_approved": false,
+    "installation_or_keys_or_permissions_changed": false,
+    "Task9_accepted": false
+  },
+  "task9_r2b_task2c_signature_data": {
+    "status": "SOURCE_SIGNATURE_DATA_LINUX_CHECKED_NOT_OPERATION_AUTHENTICATION_NOT_INSTALLED",
+    "source_base_commit": "053592d8bc3382b21539700a63d47fe0b6057595",
+    "source_files": [
+      {
+        "path": "crates/learning-backup/src/offhost_b1/policy.rs",
+        "bytes": 14246,
+        "sha256": "a87964a6194d11a612d1efdcd1a6c42195677d62cc916038956498c9ee96cb29"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire.rs",
+        "bytes": 33401,
+        "sha256": "1d6ff4c4b023ec5834ad7301b4c9acc4d3009366e3a572bc88a5c6470414d5d6"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/auth.rs",
+        "bytes": 5166,
+        "sha256": "72b27f9b3e8ae5987b044669a0b4bfb4f0483c789b415fdd95f4293f3aadeed3"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/auth/fixtures/synthetic-b1-data-v1.json",
+        "bytes": 226091,
+        "sha256": "415af146ad6a899b0fc6227027d3be7c95b60d5c579292eba81de190589af1e4"
+      },
+      {
+        "path": "crates/learning-backup/src/offhost_b1/wire/auth/tests.rs",
+        "bytes": 21679,
+        "sha256": "c0f5c3c8d0985ee92283d956bb0f8955979ac24806aee33130d792e81106f9a1"
+      }
+    ],
+    "source_refs_sha256": "cddad1f103675b3e62e24e2d24bd9fca752110c9d92d6ee2d4e11c41ea84ac82",
+    "implementation_and_actual_evidence_review_path": "D:\\codex\\DeepLearning\\.worktrees\\knowweave-task7-attention\\.artifacts\\task9-r2b-task2c-actual-independent-review-2026-10-27-1\\INDEX.json",
+    "implementation_and_actual_evidence_review_sha256": "f85f7475ea40a39443e4b1a3021a9581f4630908f389c900df62d382f8475abc",
+    "linux_case_batch": "43fadcb8-89df-4ab3-be72-e062a7153dbf",
+    "linux_source_archive_sha256": "06b999e20a7f90369e40e8a1ff6dc63eba979e5261d141cb3b74828bcfadb180",
+    "linux_source_manifest_sha256": "fea9eced926a46d17c6bf50f3025abe5654a52ef2335384b8c88d611fa067fb4",
+    "linux_result_sha256": "c41ac78c38c866d2e7ea52492989f76405abe0f17397715537c6be79dcf7855b",
+    "linux_phase_exits": {
+      "build": 0,
+      "clippy": 0,
+      "default-list": 0,
+      "default-tests": 0,
+      "feature-list": 0,
+      "feature-tests": 0,
+      "format": 0
+    },
+    "default_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 450
+    },
+    "feature_library": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 106,
+      "measured": 0,
+      "passed": 538
+    },
+    "offhost_total_actual_bodies": 89,
+    "offhost_old_actual_bodies_preserved": 75,
+    "offhost_new_actual_bodies": 14,
+    "offhost_new_actual_names": [
+      "offhost_b1::wire::auth::tests::candidate_policy_expected_source_and_destination_fields_are_not_message_claims",
+      "offhost_b1::wire::auth::tests::checked_final_after_syntax_only_auth_remains_exact_frame_data",
+      "offhost_b1::wire::auth::tests::complete_signature_entry_refuses_duplicate_unknown_noncanonical_or_body_bytes",
+      "offhost_b1::wire::auth::tests::complete_signature_operation_unwind_poison_is_the_original_owner",
+      "offhost_b1::wire::auth::tests::decoded_key_fingerprint_signature_bytes_and_hex_forms_are_bound",
+      "offhost_b1::wire::auth::tests::final_requires_original_ready_attempt_input_and_fence_links",
+      "offhost_b1::wire::auth::tests::fixed_source_auth_and_final_domains_cannot_reflect_signatures",
+      "offhost_b1::wire::auth::tests::only_current_source_signed_frames_enter_and_errors_poison_original_syntax",
+      "offhost_b1::wire::auth::tests::rfc8032_test1_primitive_is_not_a_b1_message_or_authority",
+      "offhost_b1::wire::auth::tests::signed_data_uses_original_exhausted_or_in_flight_budget_without_reset",
+      "offhost_b1::wire::auth::tests::source_signature_entry_checks_sequence_direction_prev_and_message_reflection",
+      "offhost_b1::wire::auth::tests::synthetic_signed_frames_match_independent_preimages_and_original_transcript",
+      "offhost_b1::wire::auth::tests::valid_final_for_other_current_session_is_rejected",
+      "offhost_b1::wire::auth::tests::valid_source_auth_for_other_hello_nonce_or_destination_is_rejected"
+    ],
+    "public_fixture_result_sha256": "11d6211e34f751f2e8def2583d97ce171ad2bcb4676f590f0f9cd2393663ec8a",
+    "public_fixture_review_sha256": "d3898ac44a5e34b1184c4bf719a5e6def18e7e1650ae6dace0ecdd2918edf36d",
+    "public_fixture_sha256": "415af146ad6a899b0fc6227027d3be7c95b60d5c579292eba81de190589af1e4",
+    "signature_slots_recomputed": 6,
+    "one_encoder_two_signature_algorithms": true,
+    "not_added_across_configurations": true,
+    "runtime_authority_wired": false,
+    "operational_key_provenance_or_operation_replay_prevention_established": false,
+    "Child_SSH_auth_or_original_S_clock_proven": false,
+    "runners_always_refuse_even_fully_pinned": true,
+    "source_unchanged_in_builder": true,
+    "builder_exact_id_cleanup_confirmed": true,
+    "cleanup_proof_level": "Driver exact-ID assertions and returned evidence, not independent remote observer",
+    "output_cap_level": "post capture/read check, not continuous product hard cap",
+    "installation_or_keys_or_permissions_changed": false,
+    "postgres_networks_or_volumes_created": false,
+    "old_failed_review_and_HOLD_preserved": true,
     "Task9_accepted": false,
     "formal_five_gates_unchanged": true,
     "old_37_matrix_bytes_unchanged": true,

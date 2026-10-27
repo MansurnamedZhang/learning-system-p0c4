@@ -1,0 +1,2522 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "artifact_kind": "SOURCE_B1_ROOT_JOB_CANDIDATE_SCHEMA_NOT_PRODUCT_INPUT",
+  "status": "PENDING_INDEPENDENT_REVIEW_NOT_ADOPTED_NOT_IMPLEMENTED_NOT_INSTALLED",
+  "fixed_paths": {
+    "execution_catalog": "/var/lib/knowweave-c4/b1/source-peer-execution.json",
+    "job_root": "/var/lib/knowweave-c4/b1-source-observation/jobs/<internal-job-v4>",
+    "source_binary": "/opt/knowweave-c4/bin/knowweave-c4-b1-source",
+    "capture_binary": "/opt/knowweave-c4/b1-capture/knowweave-c4-b1-capture",
+    "launcher_binary": "/opt/knowweave-c4/bin/knowweave-c4-b1-source-launcher",
+    "generation": "jobs/<job-v4>/backups/<backup-v4>/<install-or-capture>/isolation-<backup-v4>.json"
+  },
+  "canonical_rules": [
+    "TYPED_FIRST_DENY_UNKNOWN_AND_DUPLICATE_ALL_LEVELS",
+    "RECURSIVE_LEXICAL_CANONICAL_JSON_EXACT_BYTES_NO_NEWLINE",
+    "UUID_V4_LOWERCASE_FOR_JOB_BACKUP_REQUEST_LAUNCH",
+    "DIGEST_LOWERCASE_HEX_AND_CHECKED_INTEGER_RANGES",
+    "IMAGE_ROLES_EXACT_ONE_EACH_AND_CODE_LIBRARIES_SORTED_UNIQUE",
+    "PATHS_CANONICAL_POSIX_NO_DOT_NUL_OR_EMPTY_SEGMENTS_AND_AT_MOST_1024_UTF8_BYTES",
+    "SYSTEM_IDENTIFIER_PARSE_NONZERO_U64_AND_ROUNDTRIP",
+    "TIME_STAMP_VALUES_DATA_NOT_CURRENT_LIVENESS_AUTHORITY",
+    "ROLE_SPECIFIC_EXECUTABLE_PATH_AND_LAUNCH_MANIFEST_RECORD_LITERAL",
+    "MODE_AND_FILE_TYPE_REQUIRE_ROLE_SPECIFIC_REAL_METADATA_PREDICATES_NOT_ONLY_JSON_INTEGER_SHAPE"
+  ],
+  "required_compile_inputs": {
+    "application_family_legacy_unchanged": {
+      "KNOWWEAVE_SOURCE_COMMIT": "SOURCE_GROUP_APPLICATION_COMMIT",
+      "KNOWWEAVE_BUILD_ID_SHA256": "SOURCE_GROUP_APPLICATION_BUILD_SHA256"
+    },
+    "new_manager_family": {
+      "KNOWWEAVE_C4_B1_MANAGER_CODE_COMMIT": "OWN_ROLE_MANAGER_CODE_COMMIT",
+      "KNOWWEAVE_C4_B1_MANAGER_BUILD_INPUT_SHA256": "OWN_ROLE_MANAGER_BUILD_INPUT_SHA256"
+    },
+    "other_existing": [
+      "KNOWWEAVE_C4_B1_ROLE",
+      "KNOWWEAVE_C4_B1_PROFILE",
+      "KNOWWEAVE_C4_B1_SOURCE_AUTH_KEY_SHA256",
+      "KNOWWEAVE_C4_VERIFIER_KEY_SHA256",
+      "KNOWWEAVE_C4_SOURCE_CONTROL_BINDING_SHA256"
+    ],
+    "new_fixed_process_role": "KNOWWEAVE_C4_B1_SOURCE_PROCESS_ROLE",
+    "process_role_values": [
+      "publication-source",
+      "capture",
+      "root-launcher"
+    ],
+    "missing_or_different": "REFUSE_NO_FALLBACK",
+    "separate_role_builds": "C_BUILD_EXACT_BIN_PER_ROLE_AND_MEASURE_ACTUAL_ELF",
+    "b1_registry_bridge": "ORIGINAL_APP_PIN_GUARD_THEN_GENUINE_MANAGER_CTX_GROUP_JOIN_OLD_API_UNCHANGED"
+  },
+  "record_producers": {
+    "ExecutionCatalog": "INDEPENDENT_C_INSTALLER_AFTER_ELF_AND_MANIFEST_HASHES",
+    "SourceStart": "ORIGINAL_ROOT_LAUNCHER_FROM_OWN_SOCKETPAIR_FORK_PIDFD_KERNEL_OBSERVATIONS",
+    "CaptureStart": "SAME_ORIGINAL_ROOT_LAUNCHER_FROM_EXACT_DOCKER_EXEC_AND_ACTUAL_PROC_BEFORE_AFTER",
+    "GenerationBinding": "SAME_ORIGINAL_ROOT_ISOLATION_ISSUER_AFTER_IMMUTABLE_PROOF_AND_INSPECTION_AND_LOCK",
+    "CapturedData": "ROOT_LAUNCHER_BINDS_GENUINE_CHILD_REPORT_ONLY_DATA_NOT_CAPABILITY",
+    "CaptureSettlement": "ROOT_LAUNCHER_ONLY_AFTER_EXACT_CHILD_NATURAL_WAIT0_DOUBLE_EOF_AND_NO_EXTRA",
+    "Hold": "SAME_ORIGINAL_ROOT_LAUNCHER_APPEND_ONCE_NEVER_ERASE"
+  },
+  "file_custody": {
+    "json_uid": 0,
+    "json_mode": 384,
+    "json_links": 1,
+    "directory_uid": 0,
+    "directory_mode": 448,
+    "job_lock_uid": 0,
+    "job_lock_mode": 384,
+    "job_lock_links": 1,
+    "job_lock_bytes": 0,
+    "declared_bytes_caps": {
+      "ExecutionCatalog": 16384,
+      "SourceStart": 4096,
+      "CaptureStart": 16384,
+      "GenerationBinding": 4096,
+      "CapturedData": 4096,
+      "CaptureSettlement": 4096,
+      "Hold": 4096
+    },
+    "read_and_reread": "HELD_NOFOLLOW_FILE_AND_CURRENT_NAME_FULL_STAMP_BYTE_DIGEST_COMPARE_CHARGE_BEFORE_ALLOCATION",
+    "publish": "CREATE_EXCL_FSYNC_FILE_PUBLISH_NO_REPLACE_FSYNC_PARENT_READBACK",
+    "generation_binding_written_last": true,
+    "hold_or_partial_or_extra_blocks_new_admission": true
+  },
+  "held_owners": {
+    "host_factory": [
+      "OWN_EXEC_FD",
+      "ROOT_METADATA_PARENT_FDS_AND_RECORD_FDS",
+      "GENUINE_FD3_WITH_SO_PEERCRED_AND_SO_COOKIE",
+      "ORIGINAL_ROOT_PARENT_PIDFD_AND_START",
+      "ROOT_JOB_LOCK_OBSERVATION"
+    ],
+    "capture_factory": [
+      "OWN_EXEC_FD",
+      "ACTUAL_NATIVE_PROCESS_IDENTITIES",
+      "ROOT_METADATA_PARENT_FDS_AND_IMMUTABLE_RECORD_FDS",
+      "ROOT_JOB_AND_GENERATION_LIVE_LOCK_OBSERVATIONS",
+      "ORIGINAL_FIXED_CAPTURE_CONTROL_PIPE_OWNER"
+    ],
+    "root_launcher": [
+      "OWN_SOURCE_CHILD_PIDFD_AND_WAIT_OWNER",
+      "ORIGINAL_SOCKETPAIR_SERVER_FD",
+      "EXACT_DOCKER_EXEC_ID_AND_CURRENT_PROCESS_OWNER",
+      "JOB_LOCK_EX_FD",
+      "INSTALL_LOCK_EX_FD",
+      "CAPTURE_LOCK_EX_FD"
+    ],
+    "no_false_claims": [
+      "CAPTURE_DOES_NOT_OPEN_HOST_ROOT_PIDFD_OR_CLAIM_HOST_PPID",
+      "COOKIE_AND_RECORD_JSON_ALONE_NEVER_CREATE_ADMISSION",
+      "NO_LATER_DISK_REOPEN_RECONSTRUCTS_ORIGINAL_OWNER",
+      "GLOBAL64FD_AND_KERNEL_SETTLEMENT_NOT_PROVED_BY_THIS_SCHEMA"
+    ]
+  },
+  "control_transport": {
+    "prefix": "u32be-json-length",
+    "maximum_message_bytes": 4096,
+    "maximum_total_bidirectional_frames_both_channels": 64,
+    "maximum_total_bytes_including_prefixes": 262400,
+    "body_bytes": 0,
+    "unknown_or_duplicate_or_extra": "PERMANENT_REJECT_NO_RESYNC",
+    "one_process_factory_attempt": "ATOMIC_USED_FLAG_SET_BEFORE_ANY_FALLIBLE_IO_FAILURE_IS_STICKY",
+    "messages": [
+      "SourceBootstrap",
+      "SpawnCapture",
+      "CaptureBootstrap",
+      "CaptureInit",
+      "CaptureStartBound",
+      "RequestInstallProof",
+      "InstallProofBound",
+      "BrokerInstalled",
+      "RequestCaptureProof",
+      "CaptureProofBound",
+      "CapturedDataReady",
+      "SettleCapture",
+      "CaptureSettled",
+      "Abort"
+    ]
+  },
+  "control_direction_phase": {
+    "RootToSource": [
+      "SourceBootstrap",
+      "CapturedDataReady",
+      "CaptureSettled",
+      "Abort"
+    ],
+    "SourceToRoot": [
+      "SpawnCapture",
+      "SettleCapture",
+      "Abort"
+    ],
+    "CaptureToRoot": [
+      "CaptureInit",
+      "RequestInstallProof",
+      "BrokerInstalled",
+      "RequestCaptureProof",
+      "CapturedDataReady",
+      "Abort"
+    ],
+    "RootToCapture": [
+      "CaptureBootstrap",
+      "CaptureStartBound",
+      "InstallProofBound",
+      "CaptureProofBound",
+      "SettleCapture",
+      "Abort"
+    ],
+    "normal_order": [
+      "RootSourceBootstrap",
+      "SourceSpawnCapture",
+      "RootCaptureBootstrap_DATA_ONLY_BEFORE_FACTORY_ADMISSION",
+      "CaptureInit_INTERNAL_FRESH_BACKUP_AND_NONCE",
+      "RootCaptureStartBound",
+      "CaptureRequestInstallProof",
+      "RootInstallProofBound",
+      "CaptureBrokerInstalled",
+      "CaptureRequestCaptureProof_AFTER_ALL_WORK_SETTLED_AND_QUIESCED",
+      "RootCaptureProofBound",
+      "CaptureCapturedDataReady",
+      "RootSourceCapturedDataReady",
+      "SOURCE_GENUINE_ORIGINAL_D_READY",
+      "SourceSettleCapture",
+      "RootCaptureSettleCapture",
+      "EXACT_CAPTURE_NATURAL_WAIT0_DOUBLE_EOF",
+      "RootSourceCaptureSettled",
+      "SOURCE_FINAL_RECHECK_FENCE_FINAL"
+    ],
+    "sequence": "CONTIGUOUS_U64_PER_DIRECTION_PER_ORIGINAL_CHANNEL_START_ZERO_NO_RESET"
+  },
+  "hash_preimages": {
+    "record_hash": "SHA256(EXACT_EXISTING_PUBLISHED_CANONICAL_RECORD_BYTES)",
+    "execution_catalog": "REFERS_TO_EARLIER_ELF_AND_LAUNCH_MANIFEST_HASHES_NO_SELF_HASH",
+    "generation_binding": "REFERS_TO_ALREADY_PUBLISHED_PROOF_INSPECTION_CAPTURE_START_NO_SELF_HASH",
+    "control_binding": "RECORD_SHA_RETURNED_ONLY_AFTER_RECORD_AND_PARENT_SYNC_READBACK",
+    "capture_data_and_settlement": "DATA_HASHES_NOT_DESERIALIZED_AUTHORITY",
+    "capture_exec_recipe": "SHA256(EXACT_CANONICAL_CATALOG_CAPTURE_EXEC_RECIPE_OBJECT_NO_SELF_HASH)"
+  },
+  "freshness": {
+    "install_initial_age_ms": 30000,
+    "capture_initial_age_ms": 30000,
+    "all_existing_require_fresh_true_false_call_sites_preserved": true,
+    "periodic_proof_overwrite": false,
+    "maximum_generations": 2,
+    "larger_legal_slow_input_can_hold": true
+  },
+  "proposed_not_authorized_limits": {
+    "capture_supervisor_seconds": 1200,
+    "single_request_seconds": 30,
+    "settlement_observation_seconds": 30,
+    "stderr_bytes_each": 1048576,
+    "diagnostic_bytes_each": 1048576
+  },
+  "$defs": {
+    "RecordRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "record": {
+          "enum": [
+            "launch-manifest.json",
+            "capture-launch-manifest.json",
+            "launcher-launch-manifest.json",
+            "source-peer-execution.json",
+            "source-start.json",
+            "capture-start.json",
+            "generation-binding.json",
+            "captured-data.json",
+            "capture-settlement.json"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "FileStamp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dev",
+        "ino",
+        "uid",
+        "gid",
+        "mode",
+        "nlink",
+        "bytes",
+        "mtime_ns",
+        "ctime_ns"
+      ],
+      "properties": {
+        "dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "uid": {
+          "const": 0
+        },
+        "gid": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "mode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "nlink": {
+          "const": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 134217728
+        },
+        "mtime_ns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "ctime_ns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        }
+      }
+    },
+    "CodeFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "stamp",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^/(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))[^\\x00]+$",
+          "maxLength": 1024
+        },
+        "stamp": {
+          "$ref": "#/$defs/FileStamp"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "ProcessRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_pid",
+        "namespace_pid",
+        "start_ticks",
+        "pid_namespace",
+        "mount_namespace",
+        "exe_sha256",
+        "exe_dev",
+        "exe_ino",
+        "real_uid",
+        "effective_uid",
+        "saved_uid",
+        "real_gid",
+        "effective_gid",
+        "saved_gid"
+      ],
+      "properties": {
+        "host_pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "namespace_pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "start_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "pid_namespace": {
+          "type": "string",
+          "pattern": "^pid:\\[[1-9][0-9]*\\]$",
+          "maxLength": 64
+        },
+        "mount_namespace": {
+          "type": "string",
+          "pattern": "^mnt:\\[[1-9][0-9]*\\]$",
+          "maxLength": 64
+        },
+        "exe_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "exe_dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "exe_ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "real_uid": {
+          "const": 0
+        },
+        "effective_uid": {
+          "const": 0
+        },
+        "saved_uid": {
+          "const": 0
+        },
+        "real_gid": {
+          "const": 0
+        },
+        "effective_gid": {
+          "const": 0
+        },
+        "saved_gid": {
+          "const": 0
+        }
+      }
+    },
+    "InstalledSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deployment_id",
+        "source_group_id",
+        "application_commit",
+        "application_build_sha256",
+        "source_auth_public_key_sha256",
+        "registry_authority_sha256",
+        "source_group_record_sha256",
+        "source_control_binding_sha256",
+        "database",
+        "database_oid",
+        "system_identifier"
+      ],
+      "properties": {
+        "deployment_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "source_group_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "application_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "maxLength": 40
+        },
+        "application_build_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "source_auth_public_key_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "registry_authority_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "source_group_record_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "source_control_binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "database": {
+          "type": "string",
+          "pattern": "^learning_backup_c4_task3_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 63
+        },
+        "database_oid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "system_identifier": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$",
+          "maxLength": 20
+        }
+      }
+    },
+    "PeerEndpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capture_directory",
+        "source_directory",
+        "port",
+        "socket_leaf",
+        "directory_dev",
+        "directory_ino",
+        "socket_dev",
+        "socket_ino",
+        "admin_role",
+        "broker_role",
+        "runtime_role",
+        "original_login"
+      ],
+      "properties": {
+        "capture_directory": {
+          "const": "/var/run/postgresql"
+        },
+        "source_directory": {
+          "const": "/run/knowweave-c4-source-pg"
+        },
+        "port": {
+          "const": 5432
+        },
+        "socket_leaf": {
+          "const": ".s.PGSQL.5432"
+        },
+        "directory_dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "directory_ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "socket_dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "socket_ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "admin_role": {
+          "const": "learning_admin"
+        },
+        "broker_role": {
+          "const": "learning_snapshot_claim_broker"
+        },
+        "runtime_role": {
+          "const": "learning_runtime"
+        },
+        "original_login": {
+          "const": "peer:root"
+        }
+      }
+    },
+    "RoleImage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "executable",
+            "launch_manifest",
+            "libraries",
+            "code_commit",
+            "build_input_sha256"
+          ],
+          "properties": {
+            "role": {
+              "const": "PublicationSource"
+            },
+            "executable": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "stamp",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "/opt/knowweave-c4/bin/knowweave-c4-b1-source"
+                },
+                "stamp": {
+                  "$ref": "#/$defs/FileStamp"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "maxLength": 64
+                }
+              }
+            },
+            "launch_manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "record",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "record": {
+                  "const": "launch-manifest.json"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16384
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "maxLength": 64
+                }
+              }
+            },
+            "libraries": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/CodeFile"
+              }
+            },
+            "code_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "maxLength": 40
+            },
+            "build_input_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "maxLength": 64
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "executable",
+            "launch_manifest",
+            "libraries",
+            "code_commit",
+            "build_input_sha256"
+          ],
+          "properties": {
+            "role": {
+              "const": "Capture"
+            },
+            "executable": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "stamp",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "/opt/knowweave-c4/b1-capture/knowweave-c4-b1-capture"
+                },
+                "stamp": {
+                  "$ref": "#/$defs/FileStamp"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "maxLength": 64
+                }
+              }
+            },
+            "launch_manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "record",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "record": {
+                  "const": "capture-launch-manifest.json"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16384
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "maxLength": 64
+                }
+              }
+            },
+            "libraries": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/CodeFile"
+              }
+            },
+            "code_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "maxLength": 40
+            },
+            "build_input_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "maxLength": 64
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "executable",
+            "launch_manifest",
+            "libraries",
+            "code_commit",
+            "build_input_sha256"
+          ],
+          "properties": {
+            "role": {
+              "const": "RootLauncher"
+            },
+            "executable": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "stamp",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "/opt/knowweave-c4/bin/knowweave-c4-b1-source-launcher"
+                },
+                "stamp": {
+                  "$ref": "#/$defs/FileStamp"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "maxLength": 64
+                }
+              }
+            },
+            "launch_manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "record",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "record": {
+                  "const": "launcher-launch-manifest.json"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16384
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "maxLength": 64
+                }
+              }
+            },
+            "libraries": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/CodeFile"
+              }
+            },
+            "code_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "maxLength": 40
+            },
+            "build_input_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "maxLength": 64
+            }
+          }
+        }
+      ]
+    },
+    "ExecutionCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "capability",
+        "profile",
+        "launch_id",
+        "installed_source",
+        "peer_endpoint",
+        "capture_recipe_sha256",
+        "images",
+        "installed_runtime",
+        "capture_exec_recipe"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "capability": {
+          "const": "b1_source_peer_execution_v1"
+        },
+        "profile": {
+          "const": "task9-b1-limited-v1"
+        },
+        "launch_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "installed_source": {
+          "$ref": "#/$defs/InstalledSource"
+        },
+        "peer_endpoint": {
+          "$ref": "#/$defs/PeerEndpoint"
+        },
+        "capture_recipe_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "images": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/RoleImage"
+          }
+        },
+        "installed_runtime": {
+          "$ref": "#/$defs/InstalledRuntime"
+        },
+        "capture_exec_recipe": {
+          "$ref": "#/$defs/CaptureExecRecipe"
+        }
+      }
+    },
+    "SourceStart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "launch_id",
+        "catalog_sha256",
+        "boot_id",
+        "root_cookie",
+        "capability",
+        "launcher",
+        "source",
+        "source_control_fd",
+        "source_socket_cookie",
+        "job_lock_dev",
+        "job_lock_ino",
+        "started_monotonic_ns"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "launch_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "catalog_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "boot_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "capability": {
+          "const": "b1_source_process_start_v1"
+        },
+        "launcher": {
+          "$ref": "#/$defs/ProcessRef"
+        },
+        "source": {
+          "$ref": "#/$defs/ProcessRef"
+        },
+        "source_control_fd": {
+          "const": 3
+        },
+        "source_socket_cookie": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "job_lock_dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "job_lock_ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "started_monotonic_ns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        }
+      }
+    },
+    "Native": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "postmaster_start_ticks",
+        "data_dev",
+        "data_ino",
+        "socket_dev",
+        "socket_ino"
+      ],
+      "properties": {
+        "postmaster_start_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "data_dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "data_ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "socket_dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "socket_ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        }
+      }
+    },
+    "CaptureStart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "launch_id",
+        "catalog_sha256",
+        "boot_id",
+        "root_cookie",
+        "capability",
+        "backup_id",
+        "capture_nonce",
+        "capture_request_id",
+        "source_start_sha256",
+        "container_id",
+        "exec_id",
+        "image_id",
+        "mount_recipe_sha256",
+        "capture",
+        "native",
+        "image_ref",
+        "image_digest",
+        "exec_process_config",
+        "capture_exec_recipe_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "launch_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "catalog_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "boot_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "capability": {
+          "const": "b1_capture_process_start_v1"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "capture_nonce": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "capture_request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "source_start_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "container_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "exec_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "image_id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "maxLength": 71
+        },
+        "mount_recipe_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "capture": {
+          "$ref": "#/$defs/ProcessRef"
+        },
+        "native": {
+          "$ref": "#/$defs/Native"
+        },
+        "image_ref": {
+          "const": "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d"
+        },
+        "image_digest": {
+          "const": "sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d"
+        },
+        "exec_process_config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entrypoint",
+            "arguments",
+            "tty",
+            "privileged",
+            "user"
+          ],
+          "properties": {
+            "entrypoint": {
+              "const": "/usr/bin/env"
+            },
+            "arguments": {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "prefixItems": [
+                {
+                  "const": "-i"
+                },
+                {
+                  "const": "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                },
+                {
+                  "const": "HOME=/root"
+                },
+                {
+                  "const": "LANG=C"
+                },
+                {
+                  "const": "PGHOST=/var/run/postgresql"
+                },
+                {
+                  "const": "PGPORT=5432"
+                },
+                {
+                  "const": "PGUSER=learning_admin"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^PGDATABASE=learning_backup_c4_task3_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "maxLength": 74
+                },
+                {
+                  "const": "/opt/knowweave-c4/b1-capture/knowweave-c4-b1-capture"
+                }
+              ],
+              "items": false
+            },
+            "tty": {
+              "const": false
+            },
+            "privileged": {
+              "const": false
+            },
+            "user": {
+              "const": "0:0"
+            }
+          }
+        },
+        "capture_exec_recipe_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "GenerationBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "capability",
+        "job_id",
+        "backup_id",
+        "phase",
+        "request_id",
+        "capture_start_sha256",
+        "isolation_bytes",
+        "isolation_sha256",
+        "inspection_bytes",
+        "inspection_sha256",
+        "lock_dev",
+        "lock_ino",
+        "observed_unix_ms"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "capability": {
+          "const": "b1_immutable_isolation_generation_v1"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "phase": {
+          "enum": [
+            "Install",
+            "Capture"
+          ]
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "capture_start_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "isolation_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "isolation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "inspection_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "inspection_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "lock_dev": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "lock_ino": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "observed_unix_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        }
+      }
+    },
+    "CapturedData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "capability",
+        "job_id",
+        "backup_id",
+        "capture_start_sha256",
+        "capture_generation_sha256",
+        "source_group_id",
+        "source_registry_generation_sha256",
+        "manifest_sha256",
+        "captured_roster_sha256",
+        "snapshot_effects_roster_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "capability": {
+          "const": "b1_captured_input_data_only_v1"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "capture_start_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "capture_generation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "source_group_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "source_registry_generation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "captured_roster_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "snapshot_effects_roster_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "CaptureSettlement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "capability",
+        "job_id",
+        "backup_id",
+        "capture_start_sha256",
+        "captured_data_sha256",
+        "exec_id",
+        "child_start_ticks",
+        "natural_exit_code",
+        "stdout_eof",
+        "stderr_eof",
+        "extra_bytes",
+        "owner_settled",
+        "stdout_sha256",
+        "stderr_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "capability": {
+          "const": "b1_capture_natural_settlement_observation_v1"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "capture_start_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "captured_data_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "exec_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "child_start_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "natural_exit_code": {
+          "const": 0
+        },
+        "stdout_eof": {
+          "const": true
+        },
+        "stderr_eof": {
+          "const": true
+        },
+        "extra_bytes": {
+          "const": false
+        },
+        "owner_settled": {
+          "const": true
+        },
+        "stdout_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "stderr_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "Hold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "capability",
+        "job_id",
+        "phase",
+        "reason_code",
+        "retry_allowed",
+        "owner_settlement"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "capability": {
+          "const": "b1_source_job_hold_v1"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "phase": {
+          "enum": [
+            "Bootstrap",
+            "Install",
+            "Quiesce",
+            "Capture",
+            "Transfer",
+            "Settle",
+            "Final"
+          ]
+        },
+        "reason_code": {
+          "enum": [
+            "InputShape",
+            "ProcessChanged",
+            "RootOwnerLost",
+            "CookieMismatch",
+            "Phase",
+            "StaleInitialProof",
+            "Budget",
+            "ChildExit",
+            "UnexpectedEof",
+            "ExtraBytes",
+            "Deadline",
+            "SettlementUnconfirmed"
+          ]
+        },
+        "retry_allowed": {
+          "const": false
+        },
+        "owner_settlement": {
+          "enum": [
+            "Unconfirmed",
+            "ObservedStopped"
+          ]
+        }
+      }
+    },
+    "SourceBootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "source_start_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "SourceBootstrap"
+        },
+        "source_start_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "SpawnCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "SpawnCapture"
+        }
+      }
+    },
+    "CaptureBootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "source_start_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "CaptureBootstrap"
+        },
+        "source_start_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "CaptureInit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "capture_nonce",
+        "request_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "CaptureInit"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "capture_nonce": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        }
+      }
+    },
+    "CaptureStartBound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "capture_start_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "CaptureStartBound"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "capture_start_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "RequestInstallProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "request_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "RequestInstallProof"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        }
+      }
+    },
+    "InstallProofBound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "request_id",
+        "generation_binding_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "InstallProofBound"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "generation_binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "BrokerInstalled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "request_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "BrokerInstalled"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        }
+      }
+    },
+    "RequestCaptureProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "request_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "RequestCaptureProof"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        }
+      }
+    },
+    "CaptureProofBound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "request_id",
+        "generation_binding_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "CaptureProofBound"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "generation_binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "CapturedDataReady": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "captured_data_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "CapturedDataReady"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "captured_data_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "SettleCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "captured_data_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "SettleCapture"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "captured_data_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "CaptureSettled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "backup_id",
+        "capture_settlement_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "CaptureSettled"
+        },
+        "backup_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "capture_settlement_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "Abort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "root_cookie",
+        "sequence",
+        "kind",
+        "reason_code"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "root_cookie": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "kind": {
+          "const": "Abort"
+        },
+        "reason_code": {
+          "enum": [
+            "InputShape",
+            "ProcessChanged",
+            "RootOwnerLost",
+            "CookieMismatch",
+            "Phase",
+            "StaleInitialProof",
+            "Budget",
+            "ChildExit",
+            "UnexpectedEof",
+            "ExtraBytes",
+            "Deadline",
+            "SettlementUnconfirmed"
+          ]
+        }
+      }
+    },
+    "InstalledRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compose_project",
+        "pg_container_id",
+        "pg_image_ref",
+        "daemon_id",
+        "internal_network_id",
+        "capture_mount_recipe_sha256",
+        "source_root_records_sha256",
+        "pg_pid_namespace",
+        "pg_mount_namespace",
+        "postmaster_start_ticks",
+        "admitted_pg_image_id",
+        "pg_image_digest"
+      ],
+      "properties": {
+        "compose_project": {
+          "type": "string",
+          "pattern": "^(learning-system-p0c4-[A-Za-z0-9_-]+|kwc4c-[0-9a-f]{32})$",
+          "maxLength": 63
+        },
+        "pg_container_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "pg_image_ref": {
+          "const": "postgres:18.6-bookworm@sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d"
+        },
+        "daemon_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9:_-]+$",
+          "maxLength": 128
+        },
+        "internal_network_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "capture_mount_recipe_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "source_root_records_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "pg_pid_namespace": {
+          "type": "string",
+          "pattern": "^pid:\\[[1-9][0-9]*\\]$",
+          "maxLength": 64
+        },
+        "pg_mount_namespace": {
+          "type": "string",
+          "pattern": "^mnt:\\[[1-9][0-9]*\\]$",
+          "maxLength": 64
+        },
+        "postmaster_start_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "admitted_pg_image_id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "maxLength": 71
+        },
+        "pg_image_digest": {
+          "const": "sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d"
+        }
+      }
+    },
+    "CaptureExecRecipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "entrypoint",
+        "arguments",
+        "wrapper_code",
+        "wrapper_libraries",
+        "final_capture_path",
+        "same_exec_pid_start_no_fork"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "entrypoint": {
+          "const": "/usr/bin/env"
+        },
+        "arguments": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "prefixItems": [
+            {
+              "const": "-i"
+            },
+            {
+              "const": "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            },
+            {
+              "const": "HOME=/root"
+            },
+            {
+              "const": "LANG=C"
+            },
+            {
+              "const": "PGHOST=/var/run/postgresql"
+            },
+            {
+              "const": "PGPORT=5432"
+            },
+            {
+              "const": "PGUSER=learning_admin"
+            },
+            {
+              "type": "string",
+              "pattern": "^PGDATABASE=learning_backup_c4_task3_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "maxLength": 74
+            },
+            {
+              "const": "/opt/knowweave-c4/b1-capture/knowweave-c4-b1-capture"
+            }
+          ],
+          "items": false
+        },
+        "wrapper_code": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "stamp",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "const": "/usr/bin/env"
+            },
+            "stamp": {
+              "$ref": "#/$defs/FileStamp"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "maxLength": 64
+            }
+          }
+        },
+        "wrapper_libraries": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/CodeFile"
+          }
+        },
+        "final_capture_path": {
+          "const": "/opt/knowweave-c4/b1-capture/knowweave-c4-b1-capture"
+        },
+        "same_exec_pid_start_no_fork": {
+          "const": true
+        }
+      }
+    }
+  },
+  "runtime_binding_rules": [
+    "ROOT_LAUNCHER_SELECTS_ONLY_INSTALLED_RUNTIME_EXACT_CID_DAEMON_PROJECT_NETWORK_IMAGE_AND_RECIPE_NO_CALLER_CID",
+    "CAPTURE_SELF_NATIVE_AND_EXACT_ROOT_JOB_EXEC_MUST_MATCH_INSTALLED_PG_NAMESPACES_AND_POSTMASTER_START",
+    "HOST_SOURCE_ALIAS_AND_CAPTURE_SOCKET_REQUIRE_SAME_ACTUAL_SOCKET_DEVICE_INODE",
+    "APPLICATION_COMMIT_AND_BUILD_ARE_SOURCE_GROUP_FACTS_NOT_MANAGER_RELEASE_COMMIT",
+    "RUNTIME_RESTART_OR_NAMESPACE_CHANGE_REFUSES_NO_AUTO_REISSUE_OR_REENROLL",
+    "FIXED_IMAGE_REF_AND_REPO_DIGEST_ARE_DISTINCT_FROM_C_ADMITTED_ACTUAL_DOCKER_CONFIG_IMAGE_ID",
+    "CURRENT_CONTAINER_IMAGE_EQUALS_CURRENT_IMAGE_INSPECT_ID_EQUALS_CATALOG_ADMITTED_IMAGE_ID",
+    "CURRENT_IMAGE_INSPECT_REPO_DIGESTS_JOIN_FIXED_IMAGE_REF_DIGEST",
+    "CAPTURE_START_IMAGE_ID_EQUALS_C_ADMITTED_CURRENT_ID_NOT_CALLER_OR_WIRE_SELECTED",
+    "CAPTURE_DOCKER_PROCESS_CONFIG_EQUALS_FIXED_CAPTURE_EXEC_RECIPE",
+    "ROOT_OBSERVES_SAME_EXEC_ID_PID_START_FINAL_CAPTURE_ELF_AND_NATIVE_NOT_WRAPPER_AS_CAPTURE",
+    "CAPTURE_FACTORY_MEASURES_ONLY_COMPILED_OWN_ROLE_ROW_AND_NAMESPACE_REACHABLE_PATHS",
+    "CAPTURE_CODE_CATALOG_COPIED_WITHIN_EXISTING_MOUNT9_CANONICAL_BYTES_SHA_EQUAL_HOST_CATALOG_NO_EXTRA_MOUNT",
+    "SOURCE_AND_CAPTURE_ACTUAL_ENV_EXACT_SEVEN_KEYS_VALUES_FROM_CATALOG_NO_CALLER_OVERRIDE_BEFORE_ANY_OPTIONS",
+    "CAPTURE_ENV_I_ARGUMENT_INDEX7_EQUALS_PGDATABASE_EQUALS_EXACT_INSTALLED_SOURCE_DATABASE_NOT_ONLY_SHAPE",
+    "CAPTURE_EXEC_RECIPE_AND_DOCKER_PROCESS_CONFIG_ARGUMENTS_EXACT_CURRENT_CATALOG_VALUES",
+    "CONSTRUCTOR_BRANCH_EXCLUSION_FROM_ALREADY_PRESENT_FIXED_ENV_NOT_POSTHOC_SETTER",
+    "NORMAL_EPOCH_WORK_DROP_POISONS_ONLY_ITS_ORIGINAL_AND_SLOTS_NOT_HOST_CTX_OR_COPIED_D_DATA"
+  ],
+  "per_role_fixed_metadata_paths": {
+    "publication-source": {
+      "catalog": "/var/lib/knowweave-c4/b1/source-peer-execution.json",
+      "own_manifest": "/var/lib/knowweave-c4/b1/launch-manifest.json"
+    },
+    "root-launcher": {
+      "catalog": "/var/lib/knowweave-c4/b1/source-peer-execution.json",
+      "own_manifest": "/var/lib/knowweave-c4/b1/launcher-launch-manifest.json",
+      "DB_source_factory_accepts": false
+    },
+    "capture": {
+      "catalog": "/opt/knowweave-c4/b1-capture/source-peer-execution.json",
+      "own_manifest": "/opt/knowweave-c4/b1-capture/capture-launch-manifest.json",
+      "existing_readonly_mount_number": 9,
+      "host_other_role_paths_opened": false
+    },
+    "mirror_join": "C_EXACT_CANONICAL_BYTES_AND_SHA_EQUAL_BUT_METADATA_INODES_CAN_DIFFER_CURRENT_SOURCE_START_CATALOG_HASH_MATCHES"
+  },
+  "fixed_environment_recipe": {
+    "source": "ROOT_RUST_LAUNCHER_ENV_CLEAR_THEN_SEVEN_FIXED_KEYS_FROM_CURRENT_ADMITTED_CATALOG",
+    "source_and_capture_SQLx_process_allowlist": {
+      "complete_keys_exactly": [
+        "PATH",
+        "HOME",
+        "LANG",
+        "PGHOST",
+        "PGPORT",
+        "PGUSER",
+        "PGDATABASE"
+      ],
+      "common_exact_values": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/root",
+        "LANG": "C",
+        "PGPORT": "5432",
+        "PGUSER": "learning_admin"
+      },
+      "per_role_PGHOST": {
+        "publication-source": "/run/knowweave-c4-source-pg",
+        "capture": "/var/run/postgresql"
+      },
+      "PGDATABASE": "EXACT_ADMITTED_CATALOG_INSTALLED_SOURCE_DATABASE_NOT_CALLER_OR_WIRE"
+    },
+    "capture": "FIXED_ENV_I_WRAPPER_NOT_DOCKER_ENV_OVERLAY",
+    "capture_docker_process_config": {
+      "entrypoint": "/usr/bin/env",
+      "arguments": {
+        "type": "array",
+        "minItems": 9,
+        "maxItems": 9,
+        "prefixItems": [
+          {
+            "const": "-i"
+          },
+          {
+            "const": "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          },
+          {
+            "const": "HOME=/root"
+          },
+          {
+            "const": "LANG=C"
+          },
+          {
+            "const": "PGHOST=/var/run/postgresql"
+          },
+          {
+            "const": "PGPORT=5432"
+          },
+          {
+            "const": "PGUSER=learning_admin"
+          },
+          {
+            "type": "string",
+            "pattern": "^PGDATABASE=learning_backup_c4_task3_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "maxLength": 74
+          },
+          {
+            "const": "/opt/knowweave-c4/b1-capture/knowweave-c4-b1-capture"
+          }
+        ],
+        "items": false
+      }
+    },
+    "wrapper_identity": "C_ADMITS_IMAGE_INTERNAL_ENV_ACTUAL_ELF_DEPENDENCIES_SHA_NO_CALLER_COMMAND",
+    "actual_capture_identity": "SAME_EXEC_ID_PID_START_AFTER_WRAPPER_EXEC_MUST_MATCH_CAPTURE_ELF_AND_INTERNAL_NONCE",
+    "PID1_PG_metadata": "NOT_MUTATED_NOT_PASSWORD_VALUES",
+    "SQLx": "NEW_WITHOUT_PGPASS_AFTER_SEVEN_KEY_EXACT_VALUE_GATE_PGHOST_AND_PGUSER_SKIP_DEFAULT_HOST_AND_WHOAMI_THEN_FIXED_SETTERS_SSL_DISABLE_NO_URL_PASSWORD_OR_APPLY_PGPASS",
+    "pg_tools_B1_private_fixed_env": {
+      "LC_ALL": "C",
+      "PGCONNECT_TIMEOUT": "5",
+      "PGPASSFILE": "/dev/null",
+      "PGSSLMODE": "disable"
+    },
+    "pg_tools_passfile_device": "NOFOLLOW_CHARACTER_DEVICE_MAJOR1_MINOR3_BEFORE_EXEC_NEVER_DEFAULT_CREDENTIAL_FILE",
+    "credential_values_read_or_stored": false,
+    "actual_environment_gate": "SYNC_BEFORE_THREADS_OPTIONS_HELPERS_KEYS_FIRST_SEVEN_ENTRIES_MAX_KEY10_READ_VALUE_ONLY_AFTER_ALLOWLIST_MATCH_REPEAT_BEFORE_EACH_OPTIONS_NO_ENV_MUTATION",
+    "forbidden_other_process_keys": [
+      "PGHOSTADDR",
+      "PGPASSWORD",
+      "PGPASSFILE",
+      "PGSERVICE",
+      "PGSERVICEFILE",
+      "PGOPTIONS",
+      "PGAPPNAME",
+      "PGSSLMODE",
+      "PGSSLROOTCERT",
+      "PGSSLCERT",
+      "PGSSLKEY",
+      "DATABASE_URL",
+      "TEST_*",
+      "LD_*",
+      "ALL_NOT_IN_SEVEN_KEY_SET"
+    ],
+    "secret_key_rejection": "IDENTIFY_KEY_ONLY_NEVER_COPY_FORBIDDEN_VALUE_NO_VARS_OS_OR_PROC_ENVIRON_FULL_VALUES",
+    "process_environment_immutability": "NO_SETENV_PUTENV_UNSETENV_OR_OTHER_MUTATION_IN_EXACT_APPROVED_ELF_DEPENDENCY_CLOSURE_NO_RUNTIME_REPAIR_IF_UNPROVED_REFUSE",
+    "constructor_environment_queries": [
+      "PGPORT",
+      "PGHOSTADDR",
+      "PGHOST",
+      "PGUSER",
+      "PGDATABASE",
+      "PGPASSWORD",
+      "PGSSLROOTCERT",
+      "PGSSLCERT",
+      "PGSSLKEY",
+      "PGSSLMODE",
+      "PGAPPNAME",
+      "PGOPTIONS"
+    ],
+    "constructor_observation_accounting": "PRECHARGE_REAL_SCAN_ENTRIES_AND_NONSECRET_BYTES_FOR_CURRENT_KEYS_VALUES_AND_TWELVE_FIXED_QUERY_KEYS_EACH_OPTIONS_CREATION_NO_NEW_QUOTA_OR_REFUND",
+    "default_host_path_exists_and_whoami": "UNREACHABLE_ONLY_WITH_REQUIRED_FIXED_PGHOST_PGUSER_ALREADY_PRESENT_NO_LATER_SETTER_RETROACTIVE_CLAIM",
+    "TLS": "EXPLICIT_OPTIONS_SSL_MODE_DISABLE_BEFORE_CONNECT_SKIPS_UPGRADE_AND_CERT_INPUT_PATHS",
+    "passfile_HOME": "NEW_WITHOUT_PGPASS_NO_APPLY_PGPASS_NEW_DEFAULT_OR_URL_PATH_HOME_HOME_DIR_NOT_CALLED",
+    "DNS_TCP": "FETCH_SOCKET_FIXED_ABSOLUTE_HOST_TO_EXACT_UNIXSTREAM_CONNECT_NO_TCP_OR_DNS_BRANCH",
+    "wrong_server_auth_boundary": "PASSWORD_NONE_MAY_SEND_EMPTY_AUTH_RESPONSE_NOT_PEER_ONLY_HANDSHAKE_REAL_PEER_ROOT_SQL_GATE_AND_C_PEER_CONFIGURATION_STILL_REQUIRED",
+    "pool_constructor": "PG_POOL_OPTIONS_CONNECT_LAZY_WITH_FIXED_OPTIONS_MIN0_NO_IMPLICIT_EAGER_ACQUIRE_RELEASE_CLOSE_ON_DROP_AT_FIRST_REAL_ACQUIRE",
+    "fixed_application_name_by_process_role": {
+      "publication-source": "knowweave-c4-b1-source",
+      "capture": "knowweave-c4-b1-capture"
+    }
+  },
+  "new_code_custody_and_metering": {
+    "scope": "ONLY_NEW_B1_CONTEXT_CODE_OBJECTS_EXISTING_METADATA_AND_TOOL_RECHECKS_UNCHANGED",
+    "initial": "FULL_BOUNDED_READ_AND_FULL_HASH_CHARGED_SEPARATELY_HOLD_SAME_FD_FULL_STAMP_AND_HASH",
+    "new_manager_ELF_mode": 320,
+    "image_wrapper_native_libraries_mode": "EXACT_C_ADMITTED_REAL_MODE_ROOT_OWNED_SINGLE_LINK_NO_GROUP_OTHER_WRITE",
+    "each_revalidate": "HELD_AND_NAMED_NOFOLLOW_FULL_STAMP_INODE_PARENT_IDENTITY_PROCESS_EXE_PID_START_MAPPING_JOB_LOCK_SOCKET_FLAGS_COOKIE",
+    "large_ELF_reread_each_boundary": false,
+    "changed_stamp_or_mapping": "STICKY_REJECT_NEVER_REHASH_TO_ADOPT_NEW_ORIGINAL",
+    "small_metadata_each_recheck": "FULL_BYTES_HASH_COMPARE_REPEATED_REAL_IO_FULLY_CHARGED",
+    "executable_mappings": "FILE_BACKED_JOIN_MEASURED_CODE_FILES_KERNEL_VDSO_VSYSCALL_SEPARATELY_C_PROVED_UNKNOWN_ANON_EXEC_REJECT",
+    "trust_boundary": "TRUSTED_ROOT_KERNEL_MAINTENANCE_FIXED_UNWRITABLE_ALIASES_NO_DLOPEN_OR_CODE_INJECTION_NOT_MALICIOUS_ROOT_DEFENSE",
+    "limits_unchanged": "SCAN512M_ENTRIES100000_OBSERVATION64M_ORIGINAL_JOURNAL_LIMITS",
+    "C_positive_feasibility": "ACTUAL_SIZE_READ_HASH_CHARGES_BUDGET_TRACE_AND_GLOBAL64FD_STILL_REQUIRED_NOT_EXECUTED",
+    "arbitrary_256MiB_success_claim": false
+  },
+  "fd_handoff_contract": {
+    "entry_before_threads_or_helpers": "CLOSE_RANGE_3_MAX_CLOEXEC_REQUIRED_NO_UNSUPPORTED_FALLBACK",
+    "root_parent": "RESERVE_FD3_BEFORE_STD_COMMAND_ALLOCATES_EXEC_ERROR_PIPE",
+    "root_to_source_whitelist": [
+      "stdin",
+      "stdout",
+      "stderr",
+      "EXACT_CHILD_SOCKET_ENDPOINT_AS_FD3_ONLY_HANDOFF_CLEAR_CLOEXEC"
+    ],
+    "source_factory": "BURN_ONCE_THEN_SET_AND_VERIFY_FD3_CLOEXEC_BEFORE_ANY_HELPER_SPAWN_HOLD_SAME_OWNED_FD_NO_DUP",
+    "all_later_exec_whitelist": [
+      "stdin",
+      "stdout",
+      "stderr"
+    ],
+    "authority_fd_inheritance": "NONE_METADATA_LOCKS_REGISTRY_PIDFDS_OR_ROOT_CONTROL",
+    "all_later_fd_creation": "ATOMIC_CLOEXEC_AND_EXACT_SPAWN_GATE_VERIFICATION",
+    "rust_internal_error_pipe": "DO_NOT_BLINDLY_CLOSE_ALL_GE3_IN_PRE_EXEC",
+    "dynamic_execution_tests": "NOT_EXECUTED"
+  },
+  "owned_db_api": {
+    "caller_PgConnection_or_PgPool_or_DSN_accepted": false,
+    "public_admin_type": "OwnedB1AdminSession_PRIVATE_FIELDS_NO_SERDE_CLONE_DEFAULT_DEBUG",
+    "factory_owns_fixed_options_and_pool_creation": true,
+    "immediate_close_on_drop_before_first_fallible_check": true,
+    "admin_connection_max": 1,
+    "broker_connection_max": 4,
+    "runtime_connection_max": 4,
+    "minimum_connections": 0,
+    "pool_limits_are_proposed_not_dynamic_proof": true,
+    "install_admission_close": "CLOSE_ORIGINAL_CONNECTION_PRIVATE_POOL_RETAINED_ONLY_UNTIL_BROKER_INSTALL",
+    "broker_install_exit": "ALWAYS_CLOSE_DEDICATED_ADMIN_POOL_AWAIT_NATURAL_SETTLEMENT",
+    "quiesce": "WAIT_ORIGINAL_BROKER_RUNTIME_POOLS_AND_WORK_SETTLED",
+    "capture_publication_exit": "CLOSE_ORIGINAL_CONNECTION_AND_DEDICATED_POOL_OWNER_RETAINED_UNTIL_SETTLED",
+    "SQLx_raw_socket_FD_or_SO_PEERCRED_claim": false,
+    "actual_endpoint_evidence": "PRIVATE_FIXED_OPTIONS_PROVENANCE_PLUS_REAL_SQL_FACTS_PLUS_SEPARATE_ROOT_C_ALIAS_AND_NO_REPLACEMENT_CLOSURE",
+    "ctx_failure": "NO_NEW_POSITIVE_SQL_NO_FRESH_POOL_NO_LEGACY_FALLBACK_ORIGINAL_FIXED_NEGATIVE_CLEANUP_ONLY_OTHERWISE_HOLD"
+  },
+  "proposed_code_file_allowlist": [
+    "Cargo.lock",
+    "crates/learning-backup/Cargo.toml",
+    "crates/learning-backup/src/bin/knowweave-c4-b1-source.rs",
+    "crates/learning-backup/src/bin/knowweave-c4-b1-capture.rs",
+    "crates/learning-backup/src/bin/knowweave-c4-b1-source-launcher.rs",
+    "crates/learning-backup/src/offhost_b1/mod.rs",
+    "crates/learning-backup/src/offhost_b1/policy.rs",
+    "crates/learning-backup/src/offhost_b1/source_launch.rs",
+    "crates/learning-backup/src/offhost_b1/capture_child.rs",
+    "crates/learning-backup/src/offhost_b1/capture_job.rs",
+    "crates/learning-backup/src/offhost_b1/capture_export.rs",
+    "crates/learning-backup/src/offhost_b1/source_actor.rs",
+    "crates/learning-backup/src/source.rs",
+    "crates/learning-backup/src/source/admission.rs",
+    "crates/learning-backup/src/source/binding.rs",
+    "crates/learning-backup/src/source/endpoint.rs",
+    "crates/learning-backup/src/source/snapshot_effects.rs",
+    "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+    "crates/learning-backup/src/registry.rs",
+    "crates/learning-backup/src/destination/snapshot_effects.rs",
+    "crates/learning-db/Cargo.toml",
+    "crates/learning-db/src/snapshot_broker/mod.rs",
+    "crates/learning-db/src/snapshot_broker/lifecycle.rs",
+    "crates/learning-db/src/snapshot_broker/history.rs",
+    "crates/learning-db/src/snapshot_broker/writer.rs",
+    "crates/learning-db/src/snapshot_broker/transition.rs",
+    "crates/learning-db/src/snapshot_broker/b1_peer.rs",
+    "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+    "crates/learning-db/src/snapshot_broker/b1_peer/job.rs",
+    "crates/learning-db/src/snapshot_broker/b1_peer/session.rs",
+    "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+    "crates/learning-assets/src/root_journal.rs"
+  ],
+  "dependency_change_contract": {
+    "Cargo_lock_change": "ONLY_LEARNING_DB_DEPENDENCY_EDGE_TO_EXISTING_SHA2",
+    "third_party_version_or_checksum_upgrades": false,
+    "new_third_party_packages": false
+  }
+}

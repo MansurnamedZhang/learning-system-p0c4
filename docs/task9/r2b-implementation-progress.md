@@ -1,5 +1,21 @@
 # Task9 R2b实施进展
 
+## 最新检查点：Task2c签名DATA片 · 2026-10-27
+
+Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。
+
+固定公开RFC夹具只证明单帧DATA及原owner错误/unwind后的粘性拒绝；没有运行密钥来源、跨操作真实认证、原S时钟、Child/SSH、Source/D权限、fence或一次消费发布。两个runner仍拒绝。
+
+SourceActor准确32叶补充编码范围已获人类批准；默认关闭，尚未接入和现场安装。key/trust、Root launcher/PG配置/安全权限、目标整链、源隔离和恢复仍另批；Task9/C4五门保持OPEN。
+
+实际批次`43fadcb8-89df-4ab3-be72-e062a7153dbf`；ZIP `06b999e20a7f90369e40e8a1ff6dc63eba979e5261d141cb3b74828bcfadb180`；result `c41ac78c38c866d2e7ea52492989f76405abe0f17397715537c6be79dcf7855b`；源码五叶refs `cddad1f103675b3e62e24e2d24bd9fca752110c9d92d6ee2d4e11c41ea84ac82`；代码与实际原件独审 `f85f7475ea40a39443e4b1a3021a9581f4630908f389c900df62d382f8475abc`。普通UID、固定builder、网络none、只读源码/rootfs，七门exit0、源前后相同、精确ID清理确认来自驱动断言与返回原件；不宣称独立远程观察、OS追踪或全局64FD。日志限制是事后读取检查。
+
+公开夹具批次`9c11b182-0d87-4a89-a3cb-7430e2c9f87b`，result `11d6211e34f751f2e8def2583d97ce171ad2bcb4676f590f0f9cd2393663ec8a`，独审 `d3898ac44a5e34b1184c4bf719a5e6def18e7e1650ae6dace0ecdd2918edf36d`：一套独立Python framer、两种签名算法重算六槽，不是两个编码器，也不是产品认证。旧79b7源目录准入RED保留，未启动容器/签名；旧source_unchanged=false不改写。
+
+旧75项、计划53项分层义务和原37规格是不同集合；忽略用例未执行。五叶签名DATA不能补证原Hello/整个operation认证或产生D permit。历史检查点和旧失败/HOLD原样保留。
+
+---
+
 ## 最新检查点：Task2b有界管道IO片 · 2026-10-27
 
 状态：**OWNED_PIPE_IO_LINUX_CHECKED / UNAUTHENTICATED / R2B_NOT_FULLY_WIRED / NOT_INSTALLED / TASK9_OPEN**。五叶实现拥有FIFO句柄的有界AsyncFd读写、分段预付计费、绝对deadline、取消后粘性拒绝及实际read(0)观察。数据仍是Untrusted；两个runner仍始终拒绝，未产生Source/D权限或发布许可。

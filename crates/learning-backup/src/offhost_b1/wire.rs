@@ -1,6 +1,7 @@
 //! Default-off wire syntax with private pipe IO; no keys or permissions.
 //! All decoded messages, phases and transcript heads remain UNTRUSTED DATA.
 //! Existing Ready/receipt body semantics and real EOF require later consumers.
+mod auth;
 mod io;
 mod schema;
 mod transcript;
@@ -76,6 +77,7 @@ enum WireError {
     Closed,
     Poisoned,
     Incomplete,
+    SignatureData,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Header {
@@ -450,7 +452,7 @@ impl WireSyntax {
         }
         Ok(())
     }
-    fn observe_open<'a>(&mut self, raw: &'a [u8]) -> Result<UntrustedFrame<'a>, WireError> {
+    fn prepare_complete_frame(&mut self, raw: &[u8]) -> Result<Header, WireError> {
         match self.phase {
             SyntaxPhase::Poisoned => return Err(WireError::Poisoned),
             SyntaxPhase::BothEndsSeen | SyntaxPhase::Aborted => return Err(WireError::Closed),
@@ -468,18 +470,54 @@ impl WireSyntax {
         self.budget
             .charge_frame(h.kind.budget_kind(), u64::from(h.payload_bytes))
             .map_err(|_| WireError::Budget)?;
-        self.apply_reserved_bytes(raw, h)
+        Ok(h)
     }
-    // Callers are exactly the atomic complete-frame path above and the private
-    // original-owner reservation below. There is no caller skip-charge flag.
+    fn observe_open<'a>(&mut self, raw: &'a [u8]) -> Result<UntrustedFrame<'a>, WireError> {
+        let header = self.prepare_complete_frame(raw)?;
+        self.apply_reserved_bytes(raw, header)
+    }
+    /// Checks this one signed frame's DATA only. In particular a Final checked
+    /// here never retroactively verifies a SourceAuth observed by pure syntax.
+    /// No session-authenticated flag, clock release or authority is produced.
+    fn observe_source_signature_data<'a>(
+        &mut self,
+        raw: &'a [u8],
+        destination: &super::policy::UntrustedDestinationInputs,
+    ) -> Result<auth::CheckedSourceSignatureData<'a>, WireError> {
+        let mut operation = SignatureDataOperation {
+            owner: self,
+            finished: false,
+        };
+        let header = operation.owner.prepare_complete_frame(raw)?;
+        let frame = parse_frame(raw, header)?;
+        let checked = auth::verify_frame_data(operation.owner, frame, destination)?;
+        operation
+            .owner
+            .apply_parsed_frame(raw, header, checked.frame_data())?;
+        operation.finished = true;
+        Ok(checked)
+    }
+    // Atomic full-frame and private original-owner reservation paths share the
+    // same parsed mutation. The signed DATA path verifies before entering it.
+    // None of these callers has a skip-charge flag.
     fn apply_reserved_bytes<'a>(
         &mut self,
         raw: &'a [u8],
         h: Header,
     ) -> Result<UntrustedFrame<'a>, WireError> {
         self.check_header(h)?;
-        let next = h.sequence.checked_add(1).ok_or(WireError::Sequence)?;
         let frame = parse_frame(raw, h)?;
+        self.apply_parsed_frame(raw, h, &frame)?;
+        Ok(frame)
+    }
+    fn apply_parsed_frame(
+        &mut self,
+        raw: &[u8],
+        h: Header,
+        frame: &UntrustedFrame<'_>,
+    ) -> Result<(), WireError> {
+        self.check_header(h)?;
+        let next = h.sequence.checked_add(1).ok_or(WireError::Sequence)?;
         match &frame.message {
             UntrustedMessage::Abort => self.phase = SyntaxPhase::Aborted,
             UntrustedMessage::HelloS(c) if self.phase == SyntaxPhase::HelloS => {
@@ -522,7 +560,7 @@ impl WireSyntax {
         self.transcript
             .observe_untrusted(h.direction, &raw[..HEADER], &raw[HEADER..])?;
         self.next[h.direction.index()] = next;
-        Ok(frame)
+        Ok(())
     }
     fn check_common(&self, control: &UntrustedControl) -> Result<(), WireError> {
         let c = control.common();
@@ -542,11 +580,7 @@ impl WireSyntax {
     fn control(&mut self, c: &UntrustedControl, body: &UntrustedBody<'_>) -> Result<(), WireError> {
         match c {
             UntrustedControl::SourceAuth(c) if self.phase == SyntaxPhase::SourceAuth => {
-                if self.source.as_ref() != Some(&c.source)
-                    || self.destination.as_ref() != Some(&c.destination)
-                {
-                    return Err(WireError::Binding);
-                }
+                self.check_source_auth_data(c)?;
                 self.source_key = c.source_auth_key_sha256.clone();
                 self.phase = SyntaxPhase::AuthAccepted;
             }
@@ -623,25 +657,7 @@ impl WireSyntax {
                 self.phase = SyntaxPhase::Final;
             }
             UntrustedControl::SourceFinalDecision(c) if self.phase == SyntaxPhase::Final => {
-                let source = self.source.as_ref().ok_or(WireError::Phase)?;
-                let ready = self.ready.as_ref().ok_or(WireError::Phase)?;
-                if !self.attempt(&c.attempt_id)
-                    || c.proof_sha256 != ready.proof
-                    || c.snapshot_effects_proof_sha256 != ready.effect
-                    || c.snapshot_effects_intent_sha256 != ready.intent
-                    || c.source_auth_key_sha256 != self.source_key
-                    || c.snapshot_effects_input_sha256 != source.snapshot_effects_input_sha256
-                    || c.fence.operation_id != source.source_operation_id
-                    || c.fence.source_actor_binding_sha256
-                        != transcript::actor_binding(
-                            &source.source_operation_id,
-                            &self.binding,
-                            &self.s_nonce,
-                            &self.d_nonce,
-                        )?
-                {
-                    return Err(WireError::Binding);
-                }
+                self.check_source_final_data(c)?;
                 self.phase = SyntaxPhase::Result;
             }
             UntrustedControl::CommittedResult(c) if self.phase == SyntaxPhase::Result => {
@@ -663,6 +679,42 @@ impl WireSyntax {
                 self.phase = SyntaxPhase::SourceEnd;
             }
             _ => return Err(WireError::Phase),
+        }
+        Ok(())
+    }
+    fn check_source_auth_data(&self, c: &schema::SourceAuth) -> Result<(), WireError> {
+        if self.phase != SyntaxPhase::SourceAuth {
+            return Err(WireError::Phase);
+        }
+        if self.source.as_ref() != Some(&c.source)
+            || self.destination.as_ref() != Some(&c.destination)
+        {
+            return Err(WireError::Binding);
+        }
+        Ok(())
+    }
+    fn check_source_final_data(&self, c: &schema::SourceFinalDecision) -> Result<(), WireError> {
+        if self.phase != SyntaxPhase::Final {
+            return Err(WireError::Phase);
+        }
+        let source = self.source.as_ref().ok_or(WireError::Phase)?;
+        let ready = self.ready.as_ref().ok_or(WireError::Phase)?;
+        if !self.attempt(&c.attempt_id)
+            || c.proof_sha256 != ready.proof
+            || c.snapshot_effects_proof_sha256 != ready.effect
+            || c.snapshot_effects_intent_sha256 != ready.intent
+            || c.source_auth_key_sha256 != self.source_key
+            || c.snapshot_effects_input_sha256 != source.snapshot_effects_input_sha256
+            || c.fence.operation_id != source.source_operation_id
+            || c.fence.source_actor_binding_sha256
+                != transcript::actor_binding(
+                    &source.source_operation_id,
+                    &self.binding,
+                    &self.s_nonce,
+                    &self.d_nonce,
+                )?
+        {
+            return Err(WireError::Binding);
         }
         Ok(())
     }
@@ -765,6 +817,20 @@ impl WireSyntax {
                 self.phase = SyntaxPhase::Poisoned;
                 Err(WireError::Incomplete)
             }
+        }
+    }
+}
+
+// Private original owner: even unwinding during complete-frame verification
+// poisons the same syntax and budget; it cannot retry via the pure entry point.
+struct SignatureDataOperation<'a> {
+    owner: &'a mut WireSyntax,
+    finished: bool,
+}
+impl Drop for SignatureDataOperation<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            self.owner.poison();
         }
     }
 }

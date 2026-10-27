@@ -44,6 +44,8 @@ D首次取自己的本地lease，只需真实DestinationGroup及destination/evid
 
 下列名称是计划新增，不是现存接口。只在`learning-backup`内形成一个纵切片，不新增通用框架、任意RPC或签名代理。
 
+2026-10-27准确增量：用户另已批准[源端补充编码合同及32文件表](../../task9/r2b-source-actor-extension-approval.md)，允许所列learning-db/learning-assets及固定Root/capture入口的默认关闭代码与原限定Linux检查。上句保留首轮范围的历史文字，仅这份明确增量构成例外；本节其余范围、预算、语义和现场安装/运行停止点不扩大。
+
 | 文件/位置 | 准确职责与限制 |
 |---|---|
 | `crates/learning-backup/Cargo.toml` | 新默认关闭feature `offhost-b1`，依赖现`independent-verifier`；两个新bin明确required-features。复用ring0.17.14、sha2、serde_json、tokio、libc，不引新第三方库或改数据库迁移。 |
