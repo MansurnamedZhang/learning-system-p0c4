@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 63406,
-      "sha256": "86ae31bcbe3a39a7aff32f7838805f7c202ad297211fa510f48e142d28a31dd6",
+      "bytes": 63259,
+      "sha256": "ba7246498579cf156fa2fff618f68e4106646b9b20b1b8484ae873b2b79cdd6c",
       "source_bytes_preserved": false,
-      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -69,10 +69,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 116436,
+      "bytes": 116289,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
-      "sha256": "689e80c6c38e006a8638be2d4be6738ab72ff014334411012305b5a3a1022b17",
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "sha256": "6ea9f99c5e74f81305ea4b43b8f7ab80b97f631adafb31749b3a5f8d3f69f0a8",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -85,10 +85,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 83152,
+      "bytes": 84269,
       "path": "README.md",
-      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
-      "sha256": "0fa0f2fdd0067235c4d73f94fd03a2e6608734ce3fe2f1864c71b57d44e4f5a9",
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "sha256": "b5c9e7215590f2969a2e96c708ff03f916b7c5ac383d1c6abc8b64f247ee5a2b",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -2092,6 +2092,58 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer.rs",
+      "bytes": 2173,
+      "sha256": "6b0f7cb2b1c2e9a6fb33f6aa6f09aa7e18d785129542e2d22a30660728a4d351",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "source_provenance": {
+        "kind": "SEALED_CANDIDATE_FORMATTED_BYTES_NOT_BASE46b_BLOB",
+        "candidate_index_sha256": "a3d6bd10d5da6b911a67685ae5e72dee1e6f5501cf7cbd40b883b1e222b110e6",
+        "source_refs_sha256": "011790c5e2ac16ccec68dbcf89f53c76643815b268439352d4451cb9e282dd46",
+        "format_result_sha256": "67152c3070f15e505252dcfb3f976a933b5750d220c11e5f97142cd79ceb1e8f"
+      }
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer/job.rs",
+      "bytes": 80875,
+      "sha256": "2a8b65d8cd6972d818cbef7609ffca264839f9e28a05de2e319b4350e6dc11fa",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "source_provenance": {
+        "kind": "SEALED_CANDIDATE_FORMATTED_BYTES_NOT_BASE46b_BLOB",
+        "candidate_index_sha256": "a3d6bd10d5da6b911a67685ae5e72dee1e6f5501cf7cbd40b883b1e222b110e6",
+        "source_refs_sha256": "011790c5e2ac16ccec68dbcf89f53c76643815b268439352d4451cb9e282dd46",
+        "format_result_sha256": "67152c3070f15e505252dcfb3f976a933b5750d220c11e5f97142cd79ceb1e8f"
+      }
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+      "bytes": 94655,
+      "sha256": "342e129acdc1c527c56726d1129801a41c20efca5c577af59a4607e5b7127d8b",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "source_provenance": {
+        "kind": "SEALED_CANDIDATE_FORMATTED_BYTES_NOT_BASE46b_BLOB",
+        "candidate_index_sha256": "a3d6bd10d5da6b911a67685ae5e72dee1e6f5501cf7cbd40b883b1e222b110e6",
+        "source_refs_sha256": "011790c5e2ac16ccec68dbcf89f53c76643815b268439352d4451cb9e282dd46",
+        "format_result_sha256": "67152c3070f15e505252dcfb3f976a933b5750d220c11e5f97142cd79ceb1e8f"
+      }
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "bytes": 30209,
+      "sha256": "69c4c9d15bbf4cda9a3144054618f0ffc19b4eaff82e8e06de6aa4118118c977",
+      "source_bytes_preserved": true,
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "source_provenance": {
+        "kind": "SEALED_CANDIDATE_FORMATTED_BYTES_NOT_BASE46b_BLOB",
+        "candidate_index_sha256": "a3d6bd10d5da6b911a67685ae5e72dee1e6f5501cf7cbd40b883b1e222b110e6",
+        "source_refs_sha256": "011790c5e2ac16ccec68dbcf89f53c76643815b268439352d4451cb9e282dd46",
+        "format_result_sha256": "67152c3070f15e505252dcfb3f976a933b5750d220c11e5f97142cd79ceb1e8f"
+      }
+    },
+    {
       "bytes": 2432,
       "path": "crates/learning-db/src/snapshot_broker/catalog.rs",
       "sha256": "517ba9dbf396bb55144574367cb5bfd2a0a02319c08a792c2fc380e95ad66083",
@@ -2116,12 +2168,13 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 4647,
+      "bytes": 4947,
       "path": "crates/learning-db/src/snapshot_broker/mod.rs",
-      "sha256": "bc0a75463b37b00673bd2080aed44a57250f1bcffe6ae3f63a5ef1b460f9f9c0",
+      "sha256": "a8f019b6f311a0498859097d14815d1de46e3c2f1801f3b1ed3ccf9e2f701b5e",
       "source_blob_sha256": "bc0a75463b37b00673bd2080aed44a57250f1bcffe6ae3f63a5ef1b460f9f9c0",
       "source_bytes_preserved": true,
-      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
+      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY"
     },
     {
       "bytes": 13276,
@@ -3647,10 +3700,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 48745,
+      "bytes": 48485,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
-      "sha256": "c238a917fb35297858673867aaf02f3eb4bb4efc718a38a255f9345ece91e74a",
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "sha256": "60b7b3f960d72992058ecd9bee9d4f8229dd0b73d7c99462c99511bc63e5653d",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4532,10 +4585,10 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 21841,
-      "sha256": "0471fd2e8674dc987c4b5baa012e1849683a28ca299cc80fd94597c90f0bc95f",
+      "bytes": 23436,
+      "sha256": "cec02563700550312e623602535fe390dcce343cfbacabdf6eb60a32dba4a640",
       "source_bytes_preserved": false,
-      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY"
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY"
     },
     {
       "path": "docs/task9/r2b-source-actor-code-contract.md",
@@ -4636,10 +4689,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 116837,
+      "bytes": 117954,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
-      "sha256": "e43afd55517aec3c6e51956ab3bd0f22b3665bda800cd309152119ea96b429e1",
+      "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
+      "sha256": "b2b61c7f748873bd46ed1275ccf4d0100556aa63dc946cf6b5c36a69fbd30487",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -5491,15 +5544,15 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 687,
+  "manifest_file_count_excludes_manifest_itself": 691,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
-  "previous_public_commit": "bfe44c6c13d7607e7253f075b4acc30e25c5238e",
+  "previous_public_commit": "46b3d057bf93462ae512196a946a078f7f2e8f58",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
   "previous_source_archive_sha256": "a2779a6ab3eb98ffeaf05b8bdaecd9cc7ccd8f0f66b22907644a35b64071fab0",
-  "progress_as_of": "2026-10-28T00:13:42+08:00",
+  "progress_as_of": "2026-10-28T02:45:50+08:00",
   "public_hash_basis": "staged Git blob bytes; excludes this manifest to avoid self-reference",
   "schema": 1,
-  "scope": "TASK9_M1B_FOUR_COMPILE_IDENTITY_LEAVES_AND_PROGRESS_ONLY",
+  "scope": "TASK9_M2A_ORIGINAL_PROCESS_CONTROL_COMPONENT_ONLY",
   "source_archive_sha256": "e8f0ffe17b2e9db22d545498944562106756b7afa01767e3a789860ac8212221",
   "source_archive_status": "A5_FULL_PLUS_SEPARATE_679_TEST_FIX_AND_FINAL_SCOPED_GATE_ADOPTED",
   "source_capture_method": "EXACT_SOURCE_679_GIT_BYTES_WITH_DOCUMENTATION_OVERLAY",
@@ -14118,6 +14171,444 @@
     "legacy_Root_PG_getter_executed": false,
     "genuine_factory_or_cross_crate_authority_proven": false,
     "operational_changes": false,
+    "Task9_accepted": false,
+    "C4_accepted": false
+  },
+  "task9_r2b_original_peer_and_control_owner_component": {
+    "status": "M2A_DEFAULT_OFF_ORIGINAL_PROCESS_AND_CONTROL_OWNER_COMPONENT_ORDINARY_CHECKED_NOT_GENUINE_FACTORY",
+    "integration_base": "46b3d057bf93462ae512196a946a078f7f2e8f58",
+    "source_files": {
+      "crates/learning-db/src/snapshot_broker/b1_peer.rs": {
+        "bytes": 2173,
+        "sha256": "6b0f7cb2b1c2e9a6fb33f6aa6f09aa7e18d785129542e2d22a30660728a4d351"
+      },
+      "crates/learning-db/src/snapshot_broker/b1_peer/job.rs": {
+        "bytes": 80875,
+        "sha256": "2a8b65d8cd6972d818cbef7609ffca264839f9e28a05de2e319b4350e6dc11fa"
+      },
+      "crates/learning-db/src/snapshot_broker/b1_peer/process.rs": {
+        "bytes": 94655,
+        "sha256": "342e129acdc1c527c56726d1129801a41c20efca5c577af59a4607e5b7127d8b"
+      },
+      "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs": {
+        "bytes": 30209,
+        "sha256": "69c4c9d15bbf4cda9a3144054618f0ffc19b4eaff82e8e06de6aa4118118c977"
+      },
+      "crates/learning-db/src/snapshot_broker/mod.rs": {
+        "bytes": 4947,
+        "sha256": "a8f019b6f311a0498859097d14815d1de46e3c2f1801f3b1ed3ccf9e2f701b5e"
+      }
+    },
+    "source_refs_sha256": "011790c5e2ac16ccec68dbcf89f53c76643815b268439352d4451cb9e282dd46",
+    "actual_batch": "c3eebe79-eafc-448a-af2c-704b10063202",
+    "actual_result_sha256": "8a0668e8d3f9e49ed379b345241a30e3aac74104df7348eb3e76e4bc25f833f1",
+    "archive_sha256": "846223b8ae41ce22bae772e2ee87778675b590b87581862c3234a90c83b191c5",
+    "source_manifest_sha256": "82f25794fa03489317826d3b21fa46c9e4ddd02a5478ec8239d160217dfa6335",
+    "actual_independent_review_sha256": "b23b484557f5b630bc8f8abb30f1348a686fb778a119671d021eba43fa11d5b6",
+    "candidate7_index_sha256": "a3d6bd10d5da6b911a67685ae5e72dee1e6f5501cf7cbd40b883b1e222b110e6",
+    "formatter_review_sha256": "6b07ac75d298b8df1d628ad596124cdd626dbd68418e8b9a0db8253db06c9bfd",
+    "phase_exits": {
+      "clippy-db-default": 0,
+      "clippy-db-peer": 0,
+      "compile-db-default": 0,
+      "compile-db-peer": 0,
+      "component-ignored": 0,
+      "component-list": 0,
+      "component-tests": 0,
+      "format": 0,
+      "ignored-default": 0,
+      "ignored-peer": 0,
+      "list-default": 0,
+      "list-peer": 0,
+      "unit-default": 0,
+      "unit-peer": 0
+    },
+    "raw_phase_exits": {
+      "clippy-db-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "clippy-db-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "compile-db-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "compile-db-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "component-ignored.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "component-list.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "component-tests.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "format.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "ignored-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "ignored-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "list-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "list-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "unit-default.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "unit-peer.exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      }
+    },
+    "ordinary": {
+      "default": {
+        "filtered": 0,
+        "ignored": 24,
+        "ignored_names": [
+          "snapshot_broker::lifecycle::tests::formal_socket_retains_pathname_inode_separately_from_listener_and_refuses_replacement",
+          "snapshot_broker::transition_tests::p1_cancelled_receiver_keeps_original_owner_and_never_publishes_late",
+          "snapshot_broker::transition_tests::p1_durable_boundaries_and_lost_commit_knowledge_never_mint_result",
+          "snapshot_broker::transition_tests::p1_fresh_claim_known_commit_has_exact_durable_intent_and_outcome",
+          "snapshot_broker::transition_tests::p1_same_work_budget_and_typed_record_bounds_are_enforced",
+          "snapshot_broker::transition_tests::p1_singleflight_and_deadline_fence_precede_first_await",
+          "snapshot_broker::transition_tests::p1_unsupported_rows_issue_neither_intent_nor_claim",
+          "snapshot_broker::writer_tests::linux::c2_changed_lease_before_issue_rejects_without_package_files",
+          "snapshot_broker::writer_tests::linux::c2_durable_issue_cancel_before_first_create_stays_issued_hold",
+          "snapshot_broker::writer_tests::linux::c2_exact_request_is_rejected_before_issue_or_files",
+          "snapshot_broker::writer_tests::linux::c2_real_enqueued_copy_reaches_ordered_issue_and_verified_package",
+          "snapshot_broker::writer_tests::linux::c2_started_blocking_copy_retains_shared_lock_until_original_settlement",
+          "snapshot_broker::writer_tests::linux::c2_wrong_runtime_or_custody_root_never_reclaims_or_writes",
+          "snapshot_broker::writer_tests::linux::d1_business_or_close_append_failure_stays_hold",
+          "snapshot_broker::writer_tests::linux::d1_original_commit_knowledge_loss_stays_hold_without_adoption",
+          "snapshot_broker::writer_tests::linux::d1_original_token_or_expiry_drift_prevents_publication",
+          "snapshot_broker::writer_tests::linux::d1_publication_observer_installer_requires_owner_and_is_verify_only_on_repeat",
+          "snapshot_broker::writer_tests::linux::d1_publication_observer_profile_drift_is_rejected_without_repair",
+          "snapshot_broker::writer_tests::linux::d1_publication_observer_rejects_wrong_token_expiry_request_and_phase",
+          "snapshot_broker::writer_tests::linux::d1_real_enqueued_copy_publishes_receipt_and_six_durable_frames",
+          "snapshot_broker::writer_tests::linux::d1_runtime_recheck_rejects_revocation_or_changed_plan",
+          "snapshot_broker::writer_tests::linux::d1_started_commit_or_append_cancel_retains_shared_custody_until_settled",
+          "snapshot_broker::writer_tests::linux::formal_quiesce_cancellation_drains_original_blocking_worker_before_releasing_sh",
+          "snapshot_broker::writer_tests::linux::formal_quiesce_cancellation_retains_original_append_and_effect_sh_until_settled"
+        ],
+        "passed": 62,
+        "passed_names": [
+          "overlay::anchor::tests::gap_resolves_exact_parent_occurrence_path",
+          "overlay::anchor::tests::insertion_requires_actual_neighbors",
+          "overlay::persist::tests::resulting_group_and_placement_limits_are_inclusive",
+          "placement_migration::classify::tests::empty_boundaries_and_unplaced_do_not_guess",
+          "placement_migration::classify::tests::fixed_neighbors_classify_without_text_similarity",
+          "placement_migration::classify::tests::nested_migration_keeps_exact_occurrence_path_and_rejects_lost_parent",
+          "reading::projection::tests::explicitly_unplaced_item_has_no_active_location",
+          "reading::projection::tests::unplaced_projection_preserves_visible_saved_order",
+          "snapshot::import::tests::included_originals_enforce_unique_byte_budget",
+          "snapshot::import::tests::metadata_only_originals_do_not_consume_included_byte_budget",
+          "snapshot::import::tests::only_included_originals_have_a_single_file_budget",
+          "snapshot::import::tests::overlay_revision_authorization_follows_actual_overlay_owner",
+          "snapshot::import_plan::tests::heads_and_insertion_order_follow_ancestry_not_uuid_or_input_order",
+          "snapshot::import_plan::tests::receipt_reuse_depends_on_committed_package_receipt_not_business_rows",
+          "snapshot::import_plan::tests::review_heads_use_previous_review_terminals_and_all_seven_heads_are_planned",
+          "snapshot::import_plan::tests::root_heads_keep_exact_selected_ancestors_and_missing_candidates_fail",
+          "snapshot::import_tests::asset_metadata_size_is_not_an_included_original_limit",
+          "snapshot::import_tests::historical_basis_accepts_selected_review_before_later_withdrawal",
+          "snapshot::import_tests::historical_basis_rejects_empty_selected_relations",
+          "snapshot::import_tests::historical_basis_rejects_missing_selected_review",
+          "snapshot::import_tests::historical_basis_rejects_non_reviewed_selected_review",
+          "snapshot::import_tests::historical_basis_rejects_wrong_direction",
+          "snapshot::import_tests::preflight_accepts_valid_historical_epistemic_semantics",
+          "snapshot::import_tests::preflight_checks_canonical_fields_identity_and_business_digests",
+          "snapshot::import_tests::preflight_preserves_bounded_necessary_reference_cycles",
+          "snapshot::import_tests::preflight_rejects_epistemic_relation_unrelated_to_target",
+          "snapshot::import_tests::preflight_rejects_epistemic_support_direction_or_missing_evidence",
+          "snapshot::import_tests::preflight_rejects_non_judgment_target_intent",
+          "snapshot::import_tests::preflight_requires_exact_reference_dependency_and_review_head",
+          "snapshot::import_tests::valid_preflight_rows_and_missing_required_closure",
+          "snapshot::import_write::tests::registry_comparison_preserves_unrelated_revisions_and_types",
+          "snapshot::import_write::tests::registry_comparison_rejects_extra_object_for_included_typed_revision",
+          "snapshot::jobs::publication_budget_tests::d1_canonical_output_or_hash_one_byte_short_rejects_sticky_shared_budget",
+          "snapshot::jobs::publication_budget_tests::d1_large_leaf_streaming_canonical_fits_only_output_and_hash_budget",
+          "snapshot::jobs::publication_budget_tests::d1_metered_plan_preserves_canonical_copy_and_sorted_spaces",
+          "snapshot::jobs::publication_budget_tests::d1_plan_encoding_uses_original_exhausted_budget_without_reset",
+          "snapshot::rows::import_record_tests::import_record_rejects_body_tampering_even_with_recomputed_full_row_hash",
+          "snapshot::walk::tests::ancestors_and_required_edges_share_depth_limit",
+          "snapshot::walk::tests::historical_cycles_are_rejected_while_reference_cycles_remain_bounded",
+          "snapshot::walk::tests::shared_diamond_depth_is_bounded_without_enumerating_paths",
+          "snapshot_broker::attempts::tests::formal_acquired_claim_checks_exact_clock_bounds_and_full_immutable_rows",
+          "snapshot_broker::attempts::tests::formal_business_request_binding_never_uses_the_worker_dispatch_nonce",
+          "snapshot_broker::catalog::tests::shared_profile_has_no_install_ddl_or_secret_data_access",
+          "snapshot_broker::history::runtime::gate_tests::formal_concurrent_revoke_cannot_undo_an_issued_permit",
+          "snapshot_broker::history::runtime::gate_tests::formal_revoke_and_issue_share_one_gate_in_both_orders",
+          "snapshot_broker::history::tests::p1_encoding_charges_actual_escaped_bytes_twice_before_allocation",
+          "snapshot_broker::history::tests::p1_external_source_reference_cannot_parse_as_enrolled_authority",
+          "snapshot_broker::history::tests::p1_record_limit_and_shared_work_exhaustion_reject_without_reset",
+          "snapshot_broker::history::tests::p1_second_serialize_growth_is_rejected_before_unpaid_vec_growth",
+          "snapshot_broker::history::tests::p1_typed_claim_rejects_duplicate_unknown_and_missing_fields_without_authority",
+          "snapshot_broker::lifecycle::tests::formal_signal_is_exactly_four_fields_and_never_admits_worker_authority",
+          "snapshot_broker::transaction::tests::binding_accepts_real_payload_and_rejects_actor_or_event_rebinding",
+          "snapshot_broker::transaction::tests::binding_rejects_other_job_id_undispatched_or_unbound_business_key",
+          "snapshot_broker::transaction::tests::external_work_budget_exhaustion_poison_is_not_reset_by_new_observation_budget",
+          "snapshot_broker::transaction::tests::shared_budget_stays_exhausted_across_clones_and_smaller_later_requests",
+          "snapshot_broker::transaction::tests::two_observation_budgets_charge_the_same_work_meter",
+          "snapshot_broker::writer::publication::observation::tests::canonical_prosrc_preserves_the_exact_body_bytes",
+          "snapshot_broker::writer::publication::observation::tests::canonical_prosrc_rejects_missing_ambiguous_or_following_sql",
+          "snapshot_broker::writer_tests::c2_issue_rejects_any_full_row_or_outbox_mutation",
+          "snapshot_broker::writer_tests::c2_issue_rejects_changed_token_and_expired_database_clock",
+          "snapshot_observation::tests::shared_observation_budget_never_resets_on_clone",
+          "snapshot_observation::tests::strict_rows_reject_extra_columns_and_installer_is_separate_from_migrations"
+        ]
+      },
+      "peer": {
+        "filtered": 0,
+        "ignored": 26,
+        "ignored_names": [
+          "snapshot_broker::b1_peer::tests::ordinary_factory_fresh_child_entry",
+          "snapshot_broker::b1_peer::tests::ordinary_pid_fork_child_entry",
+          "snapshot_broker::lifecycle::tests::formal_socket_retains_pathname_inode_separately_from_listener_and_refuses_replacement",
+          "snapshot_broker::transition_tests::p1_cancelled_receiver_keeps_original_owner_and_never_publishes_late",
+          "snapshot_broker::transition_tests::p1_durable_boundaries_and_lost_commit_knowledge_never_mint_result",
+          "snapshot_broker::transition_tests::p1_fresh_claim_known_commit_has_exact_durable_intent_and_outcome",
+          "snapshot_broker::transition_tests::p1_same_work_budget_and_typed_record_bounds_are_enforced",
+          "snapshot_broker::transition_tests::p1_singleflight_and_deadline_fence_precede_first_await",
+          "snapshot_broker::transition_tests::p1_unsupported_rows_issue_neither_intent_nor_claim",
+          "snapshot_broker::writer_tests::linux::c2_changed_lease_before_issue_rejects_without_package_files",
+          "snapshot_broker::writer_tests::linux::c2_durable_issue_cancel_before_first_create_stays_issued_hold",
+          "snapshot_broker::writer_tests::linux::c2_exact_request_is_rejected_before_issue_or_files",
+          "snapshot_broker::writer_tests::linux::c2_real_enqueued_copy_reaches_ordered_issue_and_verified_package",
+          "snapshot_broker::writer_tests::linux::c2_started_blocking_copy_retains_shared_lock_until_original_settlement",
+          "snapshot_broker::writer_tests::linux::c2_wrong_runtime_or_custody_root_never_reclaims_or_writes",
+          "snapshot_broker::writer_tests::linux::d1_business_or_close_append_failure_stays_hold",
+          "snapshot_broker::writer_tests::linux::d1_original_commit_knowledge_loss_stays_hold_without_adoption",
+          "snapshot_broker::writer_tests::linux::d1_original_token_or_expiry_drift_prevents_publication",
+          "snapshot_broker::writer_tests::linux::d1_publication_observer_installer_requires_owner_and_is_verify_only_on_repeat",
+          "snapshot_broker::writer_tests::linux::d1_publication_observer_profile_drift_is_rejected_without_repair",
+          "snapshot_broker::writer_tests::linux::d1_publication_observer_rejects_wrong_token_expiry_request_and_phase",
+          "snapshot_broker::writer_tests::linux::d1_real_enqueued_copy_publishes_receipt_and_six_durable_frames",
+          "snapshot_broker::writer_tests::linux::d1_runtime_recheck_rejects_revocation_or_changed_plan",
+          "snapshot_broker::writer_tests::linux::d1_started_commit_or_append_cancel_retains_shared_custody_until_settled",
+          "snapshot_broker::writer_tests::linux::formal_quiesce_cancellation_drains_original_blocking_worker_before_releasing_sh",
+          "snapshot_broker::writer_tests::linux::formal_quiesce_cancellation_retains_original_append_and_effect_sh_until_settled"
+        ],
+        "passed": 97,
+        "passed_names": [
+          "overlay::anchor::tests::gap_resolves_exact_parent_occurrence_path",
+          "overlay::anchor::tests::insertion_requires_actual_neighbors",
+          "overlay::persist::tests::resulting_group_and_placement_limits_are_inclusive",
+          "placement_migration::classify::tests::empty_boundaries_and_unplaced_do_not_guess",
+          "placement_migration::classify::tests::fixed_neighbors_classify_without_text_similarity",
+          "placement_migration::classify::tests::nested_migration_keeps_exact_occurrence_path_and_rejects_lost_parent",
+          "reading::projection::tests::explicitly_unplaced_item_has_no_active_location",
+          "reading::projection::tests::unplaced_projection_preserves_visible_saved_order",
+          "snapshot::import::tests::included_originals_enforce_unique_byte_budget",
+          "snapshot::import::tests::metadata_only_originals_do_not_consume_included_byte_budget",
+          "snapshot::import::tests::only_included_originals_have_a_single_file_budget",
+          "snapshot::import::tests::overlay_revision_authorization_follows_actual_overlay_owner",
+          "snapshot::import_plan::tests::heads_and_insertion_order_follow_ancestry_not_uuid_or_input_order",
+          "snapshot::import_plan::tests::receipt_reuse_depends_on_committed_package_receipt_not_business_rows",
+          "snapshot::import_plan::tests::review_heads_use_previous_review_terminals_and_all_seven_heads_are_planned",
+          "snapshot::import_plan::tests::root_heads_keep_exact_selected_ancestors_and_missing_candidates_fail",
+          "snapshot::import_tests::asset_metadata_size_is_not_an_included_original_limit",
+          "snapshot::import_tests::historical_basis_accepts_selected_review_before_later_withdrawal",
+          "snapshot::import_tests::historical_basis_rejects_empty_selected_relations",
+          "snapshot::import_tests::historical_basis_rejects_missing_selected_review",
+          "snapshot::import_tests::historical_basis_rejects_non_reviewed_selected_review",
+          "snapshot::import_tests::historical_basis_rejects_wrong_direction",
+          "snapshot::import_tests::preflight_accepts_valid_historical_epistemic_semantics",
+          "snapshot::import_tests::preflight_checks_canonical_fields_identity_and_business_digests",
+          "snapshot::import_tests::preflight_preserves_bounded_necessary_reference_cycles",
+          "snapshot::import_tests::preflight_rejects_epistemic_relation_unrelated_to_target",
+          "snapshot::import_tests::preflight_rejects_epistemic_support_direction_or_missing_evidence",
+          "snapshot::import_tests::preflight_rejects_non_judgment_target_intent",
+          "snapshot::import_tests::preflight_requires_exact_reference_dependency_and_review_head",
+          "snapshot::import_tests::valid_preflight_rows_and_missing_required_closure",
+          "snapshot::import_write::tests::registry_comparison_preserves_unrelated_revisions_and_types",
+          "snapshot::import_write::tests::registry_comparison_rejects_extra_object_for_included_typed_revision",
+          "snapshot::jobs::publication_budget_tests::d1_canonical_output_or_hash_one_byte_short_rejects_sticky_shared_budget",
+          "snapshot::jobs::publication_budget_tests::d1_large_leaf_streaming_canonical_fits_only_output_and_hash_budget",
+          "snapshot::jobs::publication_budget_tests::d1_metered_plan_preserves_canonical_copy_and_sorted_spaces",
+          "snapshot::jobs::publication_budget_tests::d1_plan_encoding_uses_original_exhausted_budget_without_reset",
+          "snapshot::rows::import_record_tests::import_record_rejects_body_tampering_even_with_recomputed_full_row_hash",
+          "snapshot::walk::tests::ancestors_and_required_edges_share_depth_limit",
+          "snapshot::walk::tests::historical_cycles_are_rejected_while_reference_cycles_remain_bounded",
+          "snapshot::walk::tests::shared_diamond_depth_is_bounded_without_enumerating_paths",
+          "snapshot_broker::attempts::tests::formal_acquired_claim_checks_exact_clock_bounds_and_full_immutable_rows",
+          "snapshot_broker::attempts::tests::formal_business_request_binding_never_uses_the_worker_dispatch_nonce",
+          "snapshot_broker::b1_peer::tests::abort_is_terminal_even_when_shape_cookie_and_sequence_match",
+          "snapshot_broker::b1_peer::tests::actual_namespace_kind_guard_rejects_non_namespace_device_without_qualification",
+          "snapshot_broker::b1_peer::tests::actual_ordinary_proc_view_holds_real_self_userns_objects_without_initial_claim",
+          "snapshot_broker::b1_peer::tests::actual_ordinary_uid_rejects_factory_attempt_before_other_observation",
+          "snapshot_broker::b1_peer::tests::actual_original_pid_guard_rejects_fork_inheritor_in_fresh_ordinary_process",
+          "snapshot_broker::b1_peer::tests::actual_pidfd_keeps_exact_start_and_never_opens_an_arbitrary_parent_ctx",
+          "snapshot_broker::b1_peer::tests::actual_poll_deadline_and_closed_peer_are_not_success_or_settlement",
+          "snapshot_broker::b1_peer::tests::actual_socket_and_fd_primitives_do_not_qualify_ordinary_root_peer",
+          "snapshot_broker::b1_peer::tests::actual_zero_argument_factory_denies_ordinary_process_in_fresh_child",
+          "snapshot_broker::b1_peer::tests::capture_data_phase_allows_fourteen_contract_subset_without_new_ack",
+          "snapshot_broker::b1_peer::tests::capture_self_native_component_reads_boot_id_without_pg_namespace_or_qualification",
+          "snapshot_broker::b1_peer::tests::changed_backup_request_or_digest_is_rejected_without_replay",
+          "snapshot_broker::b1_peer::tests::changed_job_and_cookie_are_not_adopted_after_bootstrap",
+          "snapshot_broker::b1_peer::tests::control_length_rejection_precedes_allocation_and_reservation_is_sticky",
+          "snapshot_broker::b1_peer::tests::control_reserves_exact_prefix_inclusive_sixty_four_frame_budget",
+          "snapshot_broker::b1_peer::tests::control_scan_exhaustion_cannot_be_replaced_with_a_new_scope",
+          "snapshot_broker::b1_peer::tests::environment_exact_seven_keys_values_accept_data_only_and_reject_all_extras",
+          "snapshot_broker::b1_peer::tests::environment_missing_duplicate_and_wrong_values_never_repair_global_env",
+          "snapshot_broker::b1_peer::tests::forbidden_environment_value_guard_page_is_never_dereferenced",
+          "snapshot_broker::b1_peer::tests::identity_mapping_parser_rejects_remap_multisegment_overflow_and_extra_text",
+          "snapshot_broker::b1_peer::tests::launch_manifest_retains_old_network_source_shape_without_process_authority",
+          "snapshot_broker::b1_peer::tests::mapping_parser_rejects_unknown_anonymous_writable_alias_and_deleted_code",
+          "snapshot_broker::b1_peer::tests::nonregular_named_file_is_not_code_and_no_test_creates_a_qualified_ctx",
+          "snapshot_broker::b1_peer::tests::proc_root_descriptor_rejects_subtree_bind_wrong_mount_and_nonproc_data",
+          "snapshot_broker::b1_peer::tests::proc_stat_parser_handles_parentheses_and_rejects_pid_or_tick_changes",
+          "snapshot_broker::b1_peer::tests::proc_sys_shape_data_rejects_wrong_root_parent_device_flags_stack_and_children",
+          "snapshot_broker::b1_peer::tests::proc_sys_shape_data_selects_direct_or_exact_readonly_native_subtree_only",
+          "snapshot_broker::b1_peer::tests::source_data_phase_allows_only_original_order_and_contiguous_directions",
+          "snapshot_broker::b1_peer::tests::typed_all_fourteen_message_shapes_round_trip_without_qualification",
+          "snapshot_broker::b1_peer::tests::typed_control_rejects_duplicates_unknown_fields_and_unknown_kind",
+          "snapshot_broker::b1_peer::tests::typed_control_rejects_noncanonical_layout_numbers_and_extra_bytes",
+          "snapshot_broker::b1_peer::tests::typed_control_rejects_wrong_ranges_schema_uuid_and_digest_case",
+          "snapshot_broker::b1_peer::tests::typed_nested_record_rejects_duplicate_unknown_and_noncanonical_digest",
+          "snapshot_broker::b1_peer::tests::typed_paths_uuid_and_system_identifier_are_exact_data_predicates",
+          "snapshot_broker::b1_peer::tests::wrong_direction_sequence_and_phase_make_data_model_sticky",
+          "snapshot_broker::catalog::tests::shared_profile_has_no_install_ddl_or_secret_data_access",
+          "snapshot_broker::history::runtime::gate_tests::formal_concurrent_revoke_cannot_undo_an_issued_permit",
+          "snapshot_broker::history::runtime::gate_tests::formal_revoke_and_issue_share_one_gate_in_both_orders",
+          "snapshot_broker::history::tests::p1_encoding_charges_actual_escaped_bytes_twice_before_allocation",
+          "snapshot_broker::history::tests::p1_external_source_reference_cannot_parse_as_enrolled_authority",
+          "snapshot_broker::history::tests::p1_record_limit_and_shared_work_exhaustion_reject_without_reset",
+          "snapshot_broker::history::tests::p1_second_serialize_growth_is_rejected_before_unpaid_vec_growth",
+          "snapshot_broker::history::tests::p1_typed_claim_rejects_duplicate_unknown_and_missing_fields_without_authority",
+          "snapshot_broker::lifecycle::tests::formal_signal_is_exactly_four_fields_and_never_admits_worker_authority",
+          "snapshot_broker::transaction::tests::binding_accepts_real_payload_and_rejects_actor_or_event_rebinding",
+          "snapshot_broker::transaction::tests::binding_rejects_other_job_id_undispatched_or_unbound_business_key",
+          "snapshot_broker::transaction::tests::external_work_budget_exhaustion_poison_is_not_reset_by_new_observation_budget",
+          "snapshot_broker::transaction::tests::shared_budget_stays_exhausted_across_clones_and_smaller_later_requests",
+          "snapshot_broker::transaction::tests::two_observation_budgets_charge_the_same_work_meter",
+          "snapshot_broker::writer::publication::observation::tests::canonical_prosrc_preserves_the_exact_body_bytes",
+          "snapshot_broker::writer::publication::observation::tests::canonical_prosrc_rejects_missing_ambiguous_or_following_sql",
+          "snapshot_broker::writer_tests::c2_issue_rejects_any_full_row_or_outbox_mutation",
+          "snapshot_broker::writer_tests::c2_issue_rejects_changed_token_and_expired_database_clock",
+          "snapshot_observation::tests::shared_observation_budget_never_resets_on_clone",
+          "snapshot_observation::tests::strict_rows_reject_extra_columns_and_installer_is_separate_from_migrations"
+        ]
+      }
+    },
+    "component": {
+      "filtered": 86,
+      "ignored": 2,
+      "ignored_names": [
+        "snapshot_broker::b1_peer::tests::ordinary_factory_fresh_child_entry",
+        "snapshot_broker::b1_peer::tests::ordinary_pid_fork_child_entry"
+      ],
+      "passed": 35,
+      "passed_names": [
+        "snapshot_broker::b1_peer::tests::abort_is_terminal_even_when_shape_cookie_and_sequence_match",
+        "snapshot_broker::b1_peer::tests::actual_namespace_kind_guard_rejects_non_namespace_device_without_qualification",
+        "snapshot_broker::b1_peer::tests::actual_ordinary_proc_view_holds_real_self_userns_objects_without_initial_claim",
+        "snapshot_broker::b1_peer::tests::actual_ordinary_uid_rejects_factory_attempt_before_other_observation",
+        "snapshot_broker::b1_peer::tests::actual_original_pid_guard_rejects_fork_inheritor_in_fresh_ordinary_process",
+        "snapshot_broker::b1_peer::tests::actual_pidfd_keeps_exact_start_and_never_opens_an_arbitrary_parent_ctx",
+        "snapshot_broker::b1_peer::tests::actual_poll_deadline_and_closed_peer_are_not_success_or_settlement",
+        "snapshot_broker::b1_peer::tests::actual_socket_and_fd_primitives_do_not_qualify_ordinary_root_peer",
+        "snapshot_broker::b1_peer::tests::actual_zero_argument_factory_denies_ordinary_process_in_fresh_child",
+        "snapshot_broker::b1_peer::tests::capture_data_phase_allows_fourteen_contract_subset_without_new_ack",
+        "snapshot_broker::b1_peer::tests::capture_self_native_component_reads_boot_id_without_pg_namespace_or_qualification",
+        "snapshot_broker::b1_peer::tests::changed_backup_request_or_digest_is_rejected_without_replay",
+        "snapshot_broker::b1_peer::tests::changed_job_and_cookie_are_not_adopted_after_bootstrap",
+        "snapshot_broker::b1_peer::tests::control_length_rejection_precedes_allocation_and_reservation_is_sticky",
+        "snapshot_broker::b1_peer::tests::control_reserves_exact_prefix_inclusive_sixty_four_frame_budget",
+        "snapshot_broker::b1_peer::tests::control_scan_exhaustion_cannot_be_replaced_with_a_new_scope",
+        "snapshot_broker::b1_peer::tests::environment_exact_seven_keys_values_accept_data_only_and_reject_all_extras",
+        "snapshot_broker::b1_peer::tests::environment_missing_duplicate_and_wrong_values_never_repair_global_env",
+        "snapshot_broker::b1_peer::tests::forbidden_environment_value_guard_page_is_never_dereferenced",
+        "snapshot_broker::b1_peer::tests::identity_mapping_parser_rejects_remap_multisegment_overflow_and_extra_text",
+        "snapshot_broker::b1_peer::tests::launch_manifest_retains_old_network_source_shape_without_process_authority",
+        "snapshot_broker::b1_peer::tests::mapping_parser_rejects_unknown_anonymous_writable_alias_and_deleted_code",
+        "snapshot_broker::b1_peer::tests::nonregular_named_file_is_not_code_and_no_test_creates_a_qualified_ctx",
+        "snapshot_broker::b1_peer::tests::proc_root_descriptor_rejects_subtree_bind_wrong_mount_and_nonproc_data",
+        "snapshot_broker::b1_peer::tests::proc_stat_parser_handles_parentheses_and_rejects_pid_or_tick_changes",
+        "snapshot_broker::b1_peer::tests::proc_sys_shape_data_rejects_wrong_root_parent_device_flags_stack_and_children",
+        "snapshot_broker::b1_peer::tests::proc_sys_shape_data_selects_direct_or_exact_readonly_native_subtree_only",
+        "snapshot_broker::b1_peer::tests::source_data_phase_allows_only_original_order_and_contiguous_directions",
+        "snapshot_broker::b1_peer::tests::typed_all_fourteen_message_shapes_round_trip_without_qualification",
+        "snapshot_broker::b1_peer::tests::typed_control_rejects_duplicates_unknown_fields_and_unknown_kind",
+        "snapshot_broker::b1_peer::tests::typed_control_rejects_noncanonical_layout_numbers_and_extra_bytes",
+        "snapshot_broker::b1_peer::tests::typed_control_rejects_wrong_ranges_schema_uuid_and_digest_case",
+        "snapshot_broker::b1_peer::tests::typed_nested_record_rejects_duplicate_unknown_and_noncanonical_digest",
+        "snapshot_broker::b1_peer::tests::typed_paths_uuid_and_system_identifier_are_exact_data_predicates",
+        "snapshot_broker::b1_peer::tests::wrong_direction_sequence_and_phase_make_data_model_sticky"
+      ]
+    },
+    "actual_component_body_names": [
+      "snapshot_broker::b1_peer::tests::abort_is_terminal_even_when_shape_cookie_and_sequence_match",
+      "snapshot_broker::b1_peer::tests::actual_namespace_kind_guard_rejects_non_namespace_device_without_qualification",
+      "snapshot_broker::b1_peer::tests::actual_ordinary_proc_view_holds_real_self_userns_objects_without_initial_claim",
+      "snapshot_broker::b1_peer::tests::actual_ordinary_uid_rejects_factory_attempt_before_other_observation",
+      "snapshot_broker::b1_peer::tests::actual_original_pid_guard_rejects_fork_inheritor_in_fresh_ordinary_process",
+      "snapshot_broker::b1_peer::tests::actual_pidfd_keeps_exact_start_and_never_opens_an_arbitrary_parent_ctx",
+      "snapshot_broker::b1_peer::tests::actual_poll_deadline_and_closed_peer_are_not_success_or_settlement",
+      "snapshot_broker::b1_peer::tests::actual_socket_and_fd_primitives_do_not_qualify_ordinary_root_peer",
+      "snapshot_broker::b1_peer::tests::actual_zero_argument_factory_denies_ordinary_process_in_fresh_child",
+      "snapshot_broker::b1_peer::tests::capture_data_phase_allows_fourteen_contract_subset_without_new_ack",
+      "snapshot_broker::b1_peer::tests::capture_self_native_component_reads_boot_id_without_pg_namespace_or_qualification",
+      "snapshot_broker::b1_peer::tests::changed_backup_request_or_digest_is_rejected_without_replay",
+      "snapshot_broker::b1_peer::tests::changed_job_and_cookie_are_not_adopted_after_bootstrap",
+      "snapshot_broker::b1_peer::tests::control_length_rejection_precedes_allocation_and_reservation_is_sticky",
+      "snapshot_broker::b1_peer::tests::control_reserves_exact_prefix_inclusive_sixty_four_frame_budget",
+      "snapshot_broker::b1_peer::tests::control_scan_exhaustion_cannot_be_replaced_with_a_new_scope",
+      "snapshot_broker::b1_peer::tests::environment_exact_seven_keys_values_accept_data_only_and_reject_all_extras",
+      "snapshot_broker::b1_peer::tests::environment_missing_duplicate_and_wrong_values_never_repair_global_env",
+      "snapshot_broker::b1_peer::tests::forbidden_environment_value_guard_page_is_never_dereferenced",
+      "snapshot_broker::b1_peer::tests::identity_mapping_parser_rejects_remap_multisegment_overflow_and_extra_text",
+      "snapshot_broker::b1_peer::tests::launch_manifest_retains_old_network_source_shape_without_process_authority",
+      "snapshot_broker::b1_peer::tests::mapping_parser_rejects_unknown_anonymous_writable_alias_and_deleted_code",
+      "snapshot_broker::b1_peer::tests::nonregular_named_file_is_not_code_and_no_test_creates_a_qualified_ctx",
+      "snapshot_broker::b1_peer::tests::proc_root_descriptor_rejects_subtree_bind_wrong_mount_and_nonproc_data",
+      "snapshot_broker::b1_peer::tests::proc_stat_parser_handles_parentheses_and_rejects_pid_or_tick_changes",
+      "snapshot_broker::b1_peer::tests::proc_sys_shape_data_rejects_wrong_root_parent_device_flags_stack_and_children",
+      "snapshot_broker::b1_peer::tests::proc_sys_shape_data_selects_direct_or_exact_readonly_native_subtree_only",
+      "snapshot_broker::b1_peer::tests::source_data_phase_allows_only_original_order_and_contiguous_directions",
+      "snapshot_broker::b1_peer::tests::typed_all_fourteen_message_shapes_round_trip_without_qualification",
+      "snapshot_broker::b1_peer::tests::typed_control_rejects_duplicates_unknown_fields_and_unknown_kind",
+      "snapshot_broker::b1_peer::tests::typed_control_rejects_noncanonical_layout_numbers_and_extra_bytes",
+      "snapshot_broker::b1_peer::tests::typed_control_rejects_wrong_ranges_schema_uuid_and_digest_case",
+      "snapshot_broker::b1_peer::tests::typed_nested_record_rejects_duplicate_unknown_and_noncanonical_digest",
+      "snapshot_broker::b1_peer::tests::typed_paths_uuid_and_system_identifier_are_exact_data_predicates",
+      "snapshot_broker::b1_peer::tests::wrong_direction_sequence_and_phase_make_data_model_sticky"
+    ],
+    "helper_names": [
+      "snapshot_broker::b1_peer::tests::ordinary_factory_fresh_child_entry",
+      "snapshot_broker::b1_peer::tests::ordinary_pid_fork_child_entry"
+    ],
+    "helper_subprocess_invocations_not_inferred": true,
+    "whole_library_and_component_repetitions_not_distinct_bodies": true,
+    "public_methods": 4,
+    "SQL_admin_action_consumers_wired": false,
+    "historical_all_task_checkpoints_preserved_deep_equal_not_summed": true,
+    "source_unchanged": true,
+    "driver_exact_id_cleanup_raw_checked": true,
+    "independent_reviewer_remote_observer": false,
+    "genuine_factory_or_cross_crate_authority_proven": false,
+    "C_initial_and_M4_HOLD": true,
+    "operational_changes": false,
+    "M2b_extra5_approval": false,
     "Task9_accepted": false,
     "C4_accepted": false
   }

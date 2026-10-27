@@ -1,5 +1,17 @@
 # 知织 · KnowWeave
 
+## M2a 原进程与唯一控制owner组件限定完成 · 2026-10-28
+
+默认关闭的M2a只发布五个DB源码叶及四个公开窄方法；保留真实原process/control owner、原FD/记录/锁/native与同scan。SQL/admin/action消费者未接入。
+
+同一46b基线加五叶在普通Linux完成十四相位原件核验；default DB库 62 passed / 24 ignored，peer库 97 passed / 26 ignored。component37声明，实际35正文通过、2 helper ignored。实际名字及分类由完整全文parser重算；重复whole-lib/component不增不同正文信用。
+
+普通DATA/native原语与缺compilepin/普通UID拒绝不是genuine factory正例。C初始主机/proc来源和M4原Root-PG-capture producer join仍HOLD；全局64FD与真实发行权限未证明。Task2c/M1a/M1b旧检查点、旧失败/HOLD完整保留且不相加，Task9/C4未验收。
+
+下一步M2b原owned SQL与完整pool消费者；其拟新增五个既有DB源码文件尚待准确人类范围决定，本片不纳入。M4/M5/M6、真实目标整链、launcher/密钥信任/PG与安全权限、源隔离或恢复不在本次批准中。
+
+---
+
 ## M1b 编译身份与默认关闭依赖限定完成 · 2026-10-27
 
 M1b完成manager与业务application两族编译pin拆分：原业务registry谓词不变；learning-db新增默认关闭b1-source-peer，仅激活已有可选sha2直接边，offhost-b1显式传递该feature，无第三方版本或checksum变更。

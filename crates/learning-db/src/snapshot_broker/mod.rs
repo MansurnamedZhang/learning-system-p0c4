@@ -5,6 +5,14 @@
 //! private P1 and C2+D0 FIRST WRITE COMPONENT have no public factory or source
 //! admission. First-write staging is not publication or positive classification.
 //! A1 and A2 ObservationV1 contracts are not aliases for this unsupported schema.
+#[cfg(all(target_os = "linux", feature = "b1-source-peer"))]
+#[expect(
+    dead_code,
+    reason = "M2a process-only component; SQL and fixed operation consumers are later slices"
+)]
+mod b1_peer;
+#[cfg(all(target_os = "linux", feature = "b1-source-peer"))]
+pub use b1_peer::B1InstalledSourceProcess;
 #[cfg(target_os = "linux")]
 mod attempts;
 mod catalog;
