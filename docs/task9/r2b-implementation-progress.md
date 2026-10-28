@@ -1,5 +1,21 @@
 # Task9 R2b实施进展
 
+## Root／C11控制与持久记录组件完成普通检查，实际Root／M3接线继续 · 2026-10-29
+
+一个既有backup源码叶增加两端共用wire15／64帧／262400字节预算、严格关联与原期限、native IO永久负向，以及C11的0600独占持久对象和durable后单次ACK。新隔离Linux完整13门全通过：backup默认450通过／106忽略、offhost568通过／106忽略，均0失败／0过滤；offhost新增14个普通正文通过，配置间重复正文不相加。入口与部署门保持默认关闭；这不代表实际Root持有者、M3整体或C11正向整链已完成。
+
+原6个DATA／genesis测试保留；新增14覆盖共享预算、字段／方向／顺序／请求重用、期限、取消／extra／EOF、真实socketpair原语及C11 typed编码。C11 Root:Root0600正向写入未在普通UID下执行；durable writer属于本轮编译审查内容，不能把其编码测试当真实Root观察或ACK生产验收。
+
+上一新批次e8a70c89的format与默认Clippy通过，offhostClippy因collapsible_match退出101，后10门未运行；等价guard修复经独审后在全新批次重跑，旧失败result 53cb9d0241b61eeffaac185485b7774549fb56d8cacc334ecada7f7976602497与独核ba21534fe42f054c77bc0be1bf8637a5aecbdada0ec328cadf3fa6b7fface3d3保留。未降低-D warnings、未新增ignored、未改名或删除测试、未重放旧batch。
+
+本片受测基线983de1f2f0072c646d2cd6147b15f9ea82ab9c63／treecc3c309bc562f7044db61fbbd58aa9990a2f3532；唯一产品叶source_launch.rs SHA256 93d93b4fbfbe307dbf4ba77a9378d5ab204a6fee52130bc1662d7ad03b671fa7。批次a46a5ea3-4d7e-450e-852d-f88b4b1d6fc5，result da27cda980bdac1299888b296f3c17d3ef51eaf6fe61f0c9970762235e54a67b，完整evidence ZIP d97cb0a0d45d099f14a10e102eaa86efcdb8b4c50201289e6072954ef1a66d82；13门exit0、完整556／674名单与各106顶层ignored、精确CID自然退出和清理、699包内文件未变。原始回件独核9b2dab82f244f3407f734366ba9591205800d89ae36b276b2c6437fc39b4d913／INDEX2fd0a1f2ff010947c065cddc407798b3a8c5ae64e6690b24ca9f0eb6a2aed28f；不是独立远程亲见或连续OS输出cap证明。
+
+仍需实现once-burn实际Root job、source child／pidfd／wait、自己创建的Docker exec／attached mux、全host before/after与两generation issuer、原产物独立CapturedData及settlement生产者。M3整个future／finally、Source首S与preflight／Publication实际会话接入、M5保留完整cut／enrollment仍开放；不得放宽capture-only getter或转旧None路径。这些是已批叶内实现缺口，不概括为缺权限。S5下游封闭计费和cap inventory尚未闭合；现场密钥／信任／launcher、PG／安全权限、目标整链、断联与恢复仍按具体方案批准。
+
+仅追加task9_r2b_root_c11_component_ordinary；原46个task* checkpoint深层类型和值保留，总47。产品696／清单695；新路径0。Task9／C4、真实Root／PG／C11、M3整体、M5、完整计费、source_READY、CompleteBackup、main合并和生产部署信用仍为false。
+
+---
+
 ## DB3 固定控制动作完成限定普通检查，Root／M3接线继续 · 2026-10-29
 
 已批37叶内，本片6个既有DB源码叶复用同原peer、控制FD、共享预算和期限，增加三个已批窄控制动作、opaque DATA读取及原Book持有的真实阻塞任务。注册未完成时实际RAII保持unknown／cancelled并毒化同原custody；取消借用不detach已开始任务，原close自然join。公共backup runner仍关闭，不能据此产生Root或ACK资格。

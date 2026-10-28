@@ -15,10 +15,10 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 63804,
-      "sha256": "335f9149c383c2c1f9341355e709c50b9e0011c59d9ebaddea2d96a616678203",
+      "bytes": 63557,
+      "sha256": "9c1390918f2041f884f2861c420279f63b6dcb57619d032231993f41e533b64c",
       "source_bytes_preserved": false,
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -69,10 +69,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 117401,
+      "bytes": 116873,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "9ae5926977d6700cbd5c3bf56ebedcc43b7b07ff5e03b6c4f8c19a12ab517e40",
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "sha256": "e9c9c3e12efb0b25fe0ba8e17f2949374b55e164bca6c9c386d7ec43fffa0306",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -85,10 +85,10 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 100111,
+      "bytes": 103156,
       "path": "README.md",
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "66c87dabd7c28ad53b625a2730da5a4b1a5e63d4727b509d21a6223fdc8ddf97",
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "sha256": "984009aeacf5086e28768a577c14173a32fee1eee5ecfc556cf348144323e28c",
       "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -611,10 +611,10 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/source_launch.rs",
-      "bytes": 44476,
-      "sha256": "2596ccbf18f51e80f30503723afaabf9be1f42aaaed9d95e858015e4b44770ae",
+      "bytes": 118138,
+      "sha256": "93d93b4fbfbe307dbf4ba77a9378d5ab204a6fee52130bc1662d7ad03b671fa7",
       "source_bytes_preserved": false,
-      "scope": "TASK9_S5_CONSUMER_C11_DATA_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/tests.rs",
@@ -3729,10 +3729,10 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 49210,
+      "bytes": 49177,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "cbbb15872a0f9c35ccdb480ea2321ef82a037833afad76d1032c633dc0b566a0",
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "sha256": "0c31f160f3471c6a746ccab173ca8d339cea2b95c280d94e1881a5c914aa67c0",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -4628,10 +4628,10 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 39709,
-      "sha256": "c4d4541d6af256591ba19ef5d8e49f6f5ec920b45495f52be09c3ca7fbb9c21d",
+      "bytes": 42754,
+      "sha256": "9f2a66d516910a9cf7481e60125250217fe59f6aa139e01ec921ddf3ac498926",
       "source_bytes_preserved": false,
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9"
     },
     {
       "path": "docs/task9/r2b-source-actor-code-contract.md",
@@ -4642,10 +4642,10 @@
     },
     {
       "path": "docs/task9/r2b-source-actor-extension-approval.md",
-      "bytes": 9889,
-      "sha256": "5d7bddeb6afc97534a7ca36c5dbd3ddc2a7454e815b9f6808e276cd7579f2f34",
+      "bytes": 10186,
+      "sha256": "60548323c8bb75594a933c21d60940ea85c07eab32cd6d1fb97e12c1d9b1f37c",
       "source_bytes_preserved": false,
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9"
     },
     {
       "path": "docs/task9/r2b-source-actor-machine-schema.json",
@@ -4732,10 +4732,10 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 133796,
+      "bytes": 136841,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "138ee5b8321efdc29a3cf56a0fefdd45ab50100c01faae07e308bb54aa21cca9",
+      "scope": "TASK9_ROOT_C11_COMPONENT_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "sha256": "7c5a94cede2b0c5f3ed68f5d9c6cd0f1f05013df866d3c1c9f1f2cb190f86677",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -15209,5 +15209,62 @@
     "source_test_delta_sha256": "5882ad2f4be6eeff7e30c7d9e35f362dbf25d751f4aba7d4a4635966e0531cb5",
     "status": "DB3_FIXED_CONTROL_ORDINARY_LINUX_CHECKED_NOT_RUNTIME_NOT_TASK9",
     "top_level_ignored_not_blanket_function_nonexecution": true
+  },
+  "task9_r2b_root_c11_component_ordinary": {
+    "C11_complete": false,
+    "C4_accepted": false,
+    "M3_complete": false,
+    "M3_whole_future_finally_complete": false,
+    "M5_complete": false,
+    "Root_actual_issuer_complete": false,
+    "S5_closed_pipeline_complete": false,
+    "Task9_accepted": false,
+    "actual_OTHER_index_sha256": "2fd0a1f2ff010947c065cddc407798b3a8c5ae64e6690b24ca9f0eb6a2aed28f",
+    "actual_OTHER_sha256": "9b2dab82f244f3407f734366ba9591205800d89ae36b276b2c6437fc39b4d913",
+    "actual_evidence_zip_sha256": "d97cb0a0d45d099f14a10e102eaa86efcdb8b4c50201289e6072954ef1a66d82",
+    "actual_result_sha256": "da27cda980bdac1299888b296f3c17d3ef51eaf6fe61f0c9970762235e54a67b",
+    "all_chain_scan_accounting_proven": false,
+    "approved_scope_count": 37,
+    "cap_inventory_complete": false,
+    "cap_scope_closed": false,
+    "closed_source_accepted": false,
+    "cross_config_execution_counts_summed_as_distinct_tests": false,
+    "date": "2026-10-29",
+    "default_off": true,
+    "genuine_Root_PG_positive_credit": false,
+    "installation_authorized": false,
+    "main_merged": false,
+    "new_distinct_ordinary_test_bodies": 14,
+    "new_ignored": 0,
+    "old_failure_result_retained": "53cb9d0241b61eeffaac185485b7774549fb56d8cacc334ecada7f7976602497",
+    "ordinary_C11_Root_0600_positive_writer_executed": false,
+    "ordinary_Linux_13_gates_passed": true,
+    "ordinary_counts": {
+      "default": {
+        "filtered": 0,
+        "ignored": 106,
+        "passed": 450
+      },
+      "offhost": {
+        "filtered": 0,
+        "ignored": 106,
+        "passed": 568
+      }
+    },
+    "production_deployed": false,
+    "receiver_accepted": false,
+    "removed_tests": [],
+    "renamed_tests": [],
+    "runtime_authority_wired": false,
+    "shared_wire15_ledger_and_C11_durable_record_component_implemented": true,
+    "source_READY": false,
+    "source_base_commit": "983de1f2f0072c646d2cd6147b15f9ea82ab9c63",
+    "source_base_tree": "cc3c309bc562f7044db61fbbd58aa9990a2f3532",
+    "source_leaves": 1,
+    "source_paths": [
+      "crates/learning-backup/src/offhost_b1/source_launch.rs"
+    ],
+    "source_sha256": "93d93b4fbfbe307dbf4ba77a9378d5ab204a6fee52130bc1662d7ad03b671fa7",
+    "status": "ROOT_C11_COMPONENT_ORDINARY_LINUX_CHECKED_NOT_RUNTIME_NOT_TASK9"
   }
 }
