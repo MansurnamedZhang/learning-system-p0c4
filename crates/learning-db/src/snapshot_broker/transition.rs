@@ -115,7 +115,7 @@ fn fresh(rows: &Rows) -> Result<()> {
     }
     Ok(())
 }
-pub(super) async fn identity(tx: &mut Transaction<'static, Postgres>) -> Result<DatabaseIdentity> {
+pub(super) async fn identity(tx: &mut Transaction<'_, Postgres>) -> Result<DatabaseIdentity> {
     let row:(String,i64,DateTime<Utc>,String,String,i32,String)=sqlx::query_as("SELECT current_database(),(SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname=current_database()),pg_catalog.pg_postmaster_start_time(),session_user::text,current_user::text,pg_catalog.pg_backend_pid(),pg_catalog.pg_current_xact_id()::text").fetch_one(&mut **tx).await?;
     Ok(DatabaseIdentity {
         database: row.0,
@@ -163,7 +163,7 @@ fn delta(
     }
     Ok(())
 }
-async fn consume_commit(tx: Transaction<'static, Postgres>, slot: &Slot) -> Result<KnownCommit> {
+async fn consume_commit(tx: Transaction<'_, Postgres>, slot: &Slot) -> Result<KnownCommit> {
     runtime::settle_started(slot, async {
         tx.commit().await?;
         Ok(())
@@ -213,7 +213,7 @@ pub(super) async fn claim(
 async fn inner(
     owner: &Arc<Original>,
     slot: &Arc<Slot>,
-    owned: &mut Option<Transaction<'static, Postgres>>,
+    owned: &mut Option<Transaction<'_, Postgres>>,
     job: Uuid,
     request: Uuid,
 ) -> Result<Claimed> {

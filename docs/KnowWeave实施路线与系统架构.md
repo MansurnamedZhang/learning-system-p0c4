@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-27。当前状态：C4实施中 · Task8限定完成 · Task9原进程控制组件限定完成，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-10-27。当前状态：C4实施中 · Task8限定完成 · Task9 M2b事务借用接缝已验证，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`679b11c3f280546f8d6c20ab15cf7ef59fae3c1a`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。默认关闭的M2a只发布五个DB源码叶及四个公开窄方法；保留真实原process/control owner、原FD/记录/锁/native与同scan。SQL/admin/action消费者未接入。 同一46b基线加五叶在普通Linux完成十四相位原件核验；default DB库 62 passed / 24 ignored，peer库 97 passed / 26 ignored。component37声明，实际35正文通过、2 helper ignored。实际名字及分类由完整全文parser重算；重复whole-lib/component不增不同正文信用。 普通DATA/native原语与缺compilepin/普通UID拒绝不是genuine factory正例。C初始主机/proc来源和M4原Root-PG-capture producer join仍HOLD；全局64FD与真实发行权限未证明。Task2c/M1a/M1b旧检查点、旧失败/HOLD完整保留且不相加，Task9/C4未验收。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 普通Linux13门全部exit0：格式、DB默认/peer严格Clippy、backup默认/offhost编译检查，以及DB库默认62通过/24忽略、peer97通过/26忽略。名单与旧c3原件逐名相同，新增测试正文0；两配置不相加，backup未重跑完整测试。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,19 +61,19 @@ flowchart LR
 
 ## 下一步
 
-下一步M2b原owned SQL与完整pool消费者；其拟新增五个既有DB源码文件尚待准确人类范围决定，本片不纳入。M4/M5/M6、真实目标整链、launcher/密钥信任/PG与安全权限、源隔离或恢复不在本次批准中。
+下一步继续真实原会话资源owner、固定连接/三pool与完整消费者、自然关闭/安装/排空结算。密钥/信任/launcher安装、PG与安全权限、真实目标整链、源隔离和恢复仍未获本轮许可；不合并main或部署。
 
 - **01 · 已采纳语义，规范定稿与独审**：已明确原S最终核对与持久保护、D一次消费、许可/自然完成两点及历史读取分账；Task9五门和旧失败不改，规范定稿不授实现权限。
-- **02 · 按已批准准确范围逐任务实现R2b**：M2a五叶原进程/control owner完成普通限定检查，genuine C/M4仍HOLD；旧Task2c/M1a/M1b分账。下一步M2b真实owned SQL/完整pool消费者，新增五叶范围待批。
+- **02 · 按已批准准确范围逐任务实现R2b**：37文件补充范围已批准；M2b六叶14处私有借用参数完成普通限定检查。真实owned会话/完整pool消费者继续，genuine C/M4及M5/M6仍HOLD；旧检查点分账。
 - **03 · 准确审批安装与真实整链**：key/trust/registry/构建pin与管理身份分项批准；D1正常恢复、D2源隔离另设停止点，保留原件，不合并main或部署生产。
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-默认关闭的M2a只发布五个DB源码叶及四个公开窄方法；保留真实原process/control owner、原FD/记录/锁/native与同scan。SQL/admin/action消费者未接入。 同一46b基线加五叶在普通Linux完成十四相位原件核验；default DB库 62 passed / 24 ignored，peer库 97 passed / 26 ignored。component37声明，实际35正文通过、2 helper ignored。实际名字及分类由完整全文parser重算；重复whole-lib/component不增不同正文信用。 普通DATA/native原语与缺compilepin/普通UID拒绝不是genuine factory正例。C初始主机/proc来源和M4原Root-PG-capture producer join仍HOLD；全局64FD与真实发行权限未证明。Task2c/M1a/M1b旧检查点、旧失败/HOLD完整保留且不相加，Task9/C4未验收。
+本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 普通Linux13门全部exit0：格式、DB默认/peer严格Clippy、backup默认/offhost编译检查，以及DB库默认62通过/24忽略、peer97通过/26忽略。名单与旧c3原件逐名相同，新增测试正文0；两配置不相加，backup未重跑完整测试。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。
 
-下一步M2b原owned SQL与完整pool消费者；其拟新增五个既有DB源码文件尚待准确人类范围决定，本片不纳入。M4/M5/M6、真实目标整链、launcher/密钥信任/PG与安全权限、源隔离或恢复不在本次批准中。
+下一步继续真实原会话资源owner、固定连接/三pool与完整消费者、自然关闭/安装/排空结算。密钥/信任/launcher安装、PG与安全权限、真实目标整链、源隔离和恢复仍未获本轮许可；不合并main或部署。
 
 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。
 
@@ -87,7 +87,7 @@ flowchart LR
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>私有单机范围限定验收"]
-    C4T9["Task 9<br/>真实独立故障域闭合<br/>原进程与控制owner组件限定完成，真实权限仍待接线"]
+    C4T9["Task 9<br/>真实独立故障域闭合<br/>事务借用接缝限定验证，真实会话继续接入"]
     C4T1 --> C4T2
     C4T2 --> C4T3
     C4T3 --> C4T4
@@ -113,7 +113,7 @@ flowchart LR
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
 | Task 8 · 当前回归、旧版升级与审查 | 私有单机范围限定验收 | Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。 169 ignored已具名处置，不等于169全部运行；65 extra与3 measurement未执行披露。 |
-| Task 9 · 真实独立故障域闭合 | 原进程与控制owner组件限定完成，真实权限仍待接线 | 默认关闭的M2a只发布五个DB源码叶及四个公开窄方法；保留真实原process/control owner、原FD/记录/锁/native与同scan。SQL/admin/action消费者未接入。 普通DATA/native原语与缺compilepin/普通UID拒绝不是genuine factory正例。C初始主机/proc来源和M4原Root-PG-capture producer join仍HOLD；全局64FD与真实发行权限未证明。Task2c/M1a/M1b旧检查点、旧失败/HOLD完整保留且不相加，Task9/C4未验收。 同一46b基线加五叶在普通Linux完成十四相位原件核验；default DB库 62 passed / 24 ignored，peer库 97 passed / 26 ignored。component37声明，实际35正文通过、2 helper ignored。实际名字及分类由完整全文parser重算；重复whole-lib/component不增不同正文信用。 |
+| Task 9 · 真实独立故障域闭合 | 事务借用接缝限定验证，真实会话继续接入 | 本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。 普通Linux13门全部exit0：格式、DB默认/peer严格Clippy、backup默认/offhost编译检查，以及DB库默认62通过/24忽略、peer97通过/26忽略。名单与旧c3原件逐名相同，新增测试正文0；两配置不相加，backup未重跑完整测试。 |
 
 ### 原五任务父里程碑（保留原编号）
 
@@ -482,7 +482,7 @@ flowchart TB
 - [Task9最终决定原提案（历史封存字节）](../docs/task9/b1-final-decision-contract-proposal.md)
 - [Task9最终决定语义采纳记录与实施边界](../docs/task9/b1-final-decision-adoption.md)
 - [Task9 R2b准确编码范围、预算与分层验证计划](../docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md)
-- [Task9原进程控制组件、实际检查与未验层](../docs/task9/r2b-implementation-progress.md)
+- [Task9事务借用接缝、当前授权与未验层](../docs/task9/r2b-implementation-progress.md)
 
 ### 历史证据的范围
 

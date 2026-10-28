@@ -163,7 +163,7 @@ pub(super) async fn begin_owned(
     Ok(tx)
 }
 pub(super) async fn initialize_owned(
-    tx: &mut Transaction<'static, Postgres>,
+    tx: &mut Transaction<'_, Postgres>,
 ) -> Result<(), ObservationError> {
     for sql in [
         "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
@@ -186,7 +186,7 @@ pub(super) async fn initialize_owned(
     Ok(())
 }
 pub(super) async fn read_locked(
-    tx: &mut Transaction<'static, Postgres>,
+    tx: &mut Transaction<'_, Postgres>,
     budget: &ObservationBudget,
     id: Uuid,
 ) -> Result<Option<SnapshotObservation>, ObservationError> {

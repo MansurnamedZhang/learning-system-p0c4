@@ -1,5 +1,23 @@
 # Task9 R2b源端补充编码批准记录
 
+## 五文件补充已批准，当前准确范围37文件 · 2026-10-28
+
+用户在本原对话直接答复：“批准五文件补充编码及原限定检查”。当前范围为原32文件加以下5个现有DB文件，共37；此前32文件合同/schema及其历史状态保持原字节。本段是编码与原限定普通Linux检查批准，不生成安装、运行期资格或验收信用。
+
+- crates/learning-db/src/snapshot_broker/writer/publication.rs
+- crates/learning-db/src/snapshot_broker/attempts.rs
+- crates/learning-db/src/snapshot_broker/transaction.rs
+- crates/learning-db/src/snapshot/jobs.rs
+- crates/learning-db/src/jobs.rs
+
+批准记录 SHA-256 16723edb5c1ef4ee19b1f749a3a8f042348a6492b32159b8bb28652f24a15d19。原request.rs不改，仅B1私有借用读取路径可准确复用原两条有序事务设置。禁止SQLx隐藏构造/unsafe自引用/static延长/detach或泄漏连接/失败回退None；旧None真实语义保留。
+
+S5准确细化由Root按两轮独审采纳（ff4cb42001b701c74b8b31028538b1e336f428fe59c64a1eaf9774e453520247）：真实OwnedAdmin上的零参只读投影及5个DATA getter，共6方法/1型别，仅已有J/B/Install或Capture/binding hash/Catalog hash。13主动作、14消息、原记录字段和37叶不变；禁止把DATA构造成资格，完整原件/真实同会话SQL/native/锁/预算和自然结算仍必须核验。此为接口设计采纳，不是接口已实现或genuine验收。
+
+密钥、信任、launcher、PG/安全权限、真实目标整链、源隔离/恢复及main/生产均不在批准内。下方2026-10-27记录及其中历史状态不追改。
+
+---
+
 2026-10-27。状态：**SOURCE_ACTOR_CODE_EXTENSION_AUTHORIZED / NOT_IMPLEMENTED / NOT_INSTALLED / NOT_TASK9_ACCEPTANCE**。
 
 用户在本原对话，对展示-5准确合同及32文件表的范围问题直接答复：

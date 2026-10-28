@@ -273,7 +273,7 @@ mod first_write {
         slot: &Arc<Slot>,
         claimed: &Claimed,
         runtime_identity: &RuntimeIdentity,
-        tx: &mut Transaction<'static, Postgres>,
+        tx: &mut Transaction<'_, Postgres>,
     ) -> Result<IssueReceipt> {
         let original = claimed.output();
         let current = Rows::from(

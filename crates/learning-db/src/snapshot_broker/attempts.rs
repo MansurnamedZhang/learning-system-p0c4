@@ -75,7 +75,7 @@ pub(super) async fn begin(
     }
     Ok(tx)
 }
-async fn clock(tx: &mut Transaction<'static, Postgres>, slot: &Slot) -> Result<DateTime<Utc>> {
+async fn clock(tx: &mut Transaction<'_, Postgres>, slot: &Slot) -> Result<DateTime<Utc>> {
     runtime::settle(slot, async {
         Ok(sqlx::query_scalar("SELECT pg_catalog.clock_timestamp()")
             .fetch_one(&mut **tx)
@@ -84,7 +84,7 @@ async fn clock(tx: &mut Transaction<'static, Postgres>, slot: &Slot) -> Result<D
     .await
 }
 async fn observe(
-    tx: &mut Transaction<'static, Postgres>,
+    tx: &mut Transaction<'_, Postgres>,
     owner: &Arc<Original>,
     slot: &Slot,
     job: Uuid,
@@ -97,7 +97,7 @@ async fn observe(
 pub(super) struct KnownAttemptCommit {
     _private: (),
 }
-async fn commit(tx: Transaction<'static, Postgres>, slot: &Slot) -> Result<KnownAttemptCommit> {
+async fn commit(tx: Transaction<'_, Postgres>, slot: &Slot) -> Result<KnownAttemptCommit> {
     runtime::settle_started(slot, async { Ok(tx.commit().await?) }).await?;
     slot.live()?;
     Ok(KnownAttemptCommit { _private: () })
@@ -371,7 +371,7 @@ async fn transition_inner(
     slot: &Arc<Slot>,
     claimed: &Claimed,
     operation: Transition,
-    tx: &mut Transaction<'static, Postgres>,
+    tx: &mut Transaction<'_, Postgres>,
 ) -> Result<(Rows, Vec<u8>, bool)> {
     let lease = claimed.lease();
     let before = observe(tx, owner, slot, lease.job_id).await?;
@@ -535,7 +535,7 @@ async fn transition_inner(
 async fn claim_inner(
     owner: &Arc<Original>,
     slot: &Arc<Slot>,
-    tx: &mut Transaction<'static, Postgres>,
+    tx: &mut Transaction<'_, Postgres>,
     selected: &BusinessRequest,
     worker_request_id: Uuid,
     lease_ms: i64,

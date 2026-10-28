@@ -495,7 +495,7 @@ async fn clock(tx: &mut Transaction<'_, Postgres>, slot: &Slot) -> Result<DateTi
     .await
 }
 async fn commit(
-    tx: Transaction<'static, Postgres>,
+    tx: Transaction<'_, Postgres>,
     owner: &Original,
     slot: &Slot,
 ) -> Result<KnownBusinessCommit> {
@@ -559,7 +559,7 @@ async fn transaction_inner(
     owner: &Arc<Original>,
     slot: &Arc<Slot>,
     attempt: &mut StagedAttempt,
-    owned: &mut Option<Transaction<'static, Postgres>>,
+    owned: &mut Option<Transaction<'_, Postgres>>,
 ) -> Result<(KnownBusinessCommit, Vec<u8>)> {
     attempt.copied.claimed.check_original(owner, slot)?;
     let tx = owned

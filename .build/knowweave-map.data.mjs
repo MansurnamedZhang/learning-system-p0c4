@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "原进程与控制owner组件限定完成，真实权限仍待接线",
-    "detail": "默认关闭的M2a只发布五个DB源码叶及四个公开窄方法；保留真实原process/control owner、原FD/记录/锁/native与同scan。SQL/admin/action消费者未接入。 普通DATA/native原语与缺compilepin/普通UID拒绝不是genuine factory正例。C初始主机/proc来源和M4原Root-PG-capture producer join仍HOLD；全局64FD与真实发行权限未证明。Task2c/M1a/M1b旧检查点、旧失败/HOLD完整保留且不相加，Task9/C4未验收。",
-    "evidence": "同一46b基线加五叶在普通Linux完成十四相位原件核验；default DB库 62 passed / 24 ignored，peer库 97 passed / 26 ignored。component37声明，实际35正文通过、2 helper ignored。实际名字及分类由完整全文parser重算；重复whole-lib/component不增不同正文信用。"
+    "statusLabel": "事务借用接缝限定验证，真实会话继续接入",
+    "detail": "本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。",
+    "evidence": "普通Linux13门全部exit0：格式、DB默认/peer严格Clippy、backup默认/offhost编译检查，以及DB库默认62通过/24忽略、peer97通过/26忽略。名单与旧c3原件逐名相同，新增测试正文0；两配置不相加，backup未重跑完整测试。"
   }
 ];
 
@@ -1641,17 +1641,17 @@ export const meta = {
   "date": "2026-10-27",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9原进程控制组件限定完成",
-  "progressSummary": "默认关闭的M2a只发布五个DB源码叶及四个公开窄方法；保留真实原process/control owner、原FD/记录/锁/native与同scan。SQL/admin/action消费者未接入。 同一46b基线加五叶在普通Linux完成十四相位原件核验；default DB库 62 passed / 24 ignored，peer库 97 passed / 26 ignored。component37声明，实际35正文通过、2 helper ignored。实际名字及分类由完整全文parser重算；重复whole-lib/component不增不同正文信用。 普通DATA/native原语与缺compilepin/普通UID拒绝不是genuine factory正例。C初始主机/proc来源和M4原Root-PG-capture producer join仍HOLD；全局64FD与真实发行权限未证明。Task2c/M1a/M1b旧检查点、旧失败/HOLD完整保留且不相加，Task9/C4未验收。",
+  "state": "C4实施中 · Task8限定完成 · Task9 M2b事务借用接缝已验证",
+  "progressSummary": "本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 普通Linux13门全部exit0：格式、DB默认/peer严格Clippy、backup默认/offhost编译检查，以及DB库默认62通过/24忽略、peer97通过/26忽略。名单与旧c3原件逐名相同，新增测试正文0；两配置不相加，backup未重跑完整测试。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。",
   "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "下一步M2b原owned SQL与完整pool消费者；其拟新增五个既有DB源码文件尚待准确人类范围决定，本片不纳入。M4/M5/M6、真实目标整链、launcher/密钥信任/PG与安全权限、源隔离或恢复不在本次批准中。",
+  "pendingSummary": "下一步继续真实原会话资源owner、固定连接/三pool与完整消费者、自然关闭/安装/排空结算。密钥/信任/launcher安装、PG与安全权限、真实目标整链、源隔离和恢复仍未获本轮许可；不合并main或部署。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · M2a原进程控制组件限定验证；genuine准入仍HOLD",
-  "taskPlanScope": "默认关闭的M2a只发布五个DB源码叶及四个公开窄方法；保留真实原process/control owner、原FD/记录/锁/native与同scan。SQL/admin/action消费者未接入。 普通DATA/native原语与缺compilepin/普通UID拒绝不是genuine factory正例。C初始主机/proc来源和M4原Root-PG-capture producer join仍HOLD；全局64FD与真实发行权限未证明。Task2c/M1a/M1b旧检查点、旧失败/HOLD完整保留且不相加，Task9/C4未验收。",
+  "roadmapHeadline": "当前进度 · M2b借用事务接缝限定完成，真实准入仍HOLD",
+  "taskPlanScope": "本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。",
   "nextSteps": [
     [
       "01 · 已采纳语义，规范定稿与独审",
@@ -1659,7 +1659,7 @@ export const meta = {
     ],
     [
       "02 · 按已批准准确范围逐任务实现R2b",
-      "M2a五叶原进程/control owner完成普通限定检查，genuine C/M4仍HOLD；旧Task2c/M1a/M1b分账。下一步M2b真实owned SQL/完整pool消费者，新增五叶范围待批。"
+      "37文件补充范围已批准；M2b六叶14处私有借用参数完成普通限定检查。真实owned会话/完整pool消费者继续，genuine C/M4及M5/M6仍HOLD；旧检查点分账。"
     ],
     [
       "03 · 准确审批安装与真实整链",
@@ -1801,7 +1801,7 @@ export const references = [
     "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md"
   ],
   [
-    "Task9原进程控制组件、实际检查与未验层",
+    "Task9事务借用接缝、当前授权与未验层",
     "docs/task9/r2b-implementation-progress.md"
   ]
 ];

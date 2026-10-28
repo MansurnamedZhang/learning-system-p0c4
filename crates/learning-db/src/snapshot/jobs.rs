@@ -299,7 +299,7 @@ impl PreparedSnapshotExport {
     }
     pub(crate) async fn broker_initialize_publication(
         &self,
-        tx: &mut Transaction<'static, Postgres>,
+        tx: &mut Transaction<'_, Postgres>,
     ) -> Result<(), ContentError> {
         // Same fixed request transaction settings. The caller already owns the
         // top-level transaction, so even a setup failure has an awaited rollback.
