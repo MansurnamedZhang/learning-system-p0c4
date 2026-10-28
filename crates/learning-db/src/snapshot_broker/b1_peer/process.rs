@@ -1,5 +1,6 @@
 //! Real Linux observation primitives. None returns a qualified process ctx.
 use super::{Error, Result, job, session};
+pub(super) use c11::InstalledOriginal as InstalledC11Original;
 use learning_assets::root_journal::SharedJournalBudget;
 use sha2::{Digest, Sha256};
 use std::{
@@ -2204,8 +2205,12 @@ fn check_job_roster(
                         let allowed = match (leaf.as_str(), is_dir) {
                             ("capture-start.json", false) => true,
                             ("install", true) => control.phase_data() >= 4,
-                            ("capture", true) => control.phase_data() >= 7,
-                            ("captured-data.json", false) => control.phase_data() >= 9,
+                            ("capture", true) => {
+                                control.phase_data() >= if backup.is_some() { 8 } else { 7 }
+                            }
+                            ("captured-data.json", false) => {
+                                control.phase_data() >= if backup.is_some() { 10 } else { 9 }
+                            }
                             ("capture-settlement.json", false) => false,
                             _ => false,
                         };
@@ -2371,6 +2376,7 @@ struct OriginalState {
     role: OriginalRoleOwner,
     install_generation: Option<HeldSessionGeneration>,
     capture_generation: Option<HeldSessionGeneration>,
+    c11_install: Option<c11::CompletedInstall>,
 }
 impl OriginalState {
     fn admin_session_data(&self) -> Result<AdminSessionData> {
@@ -2393,26 +2399,53 @@ impl OriginalState {
         })
     }
     fn revalidate(&mut self, scan: &SharedJournalBudget) -> Result<()> {
+        self.revalidate_before(scan, None)
+    }
+    fn revalidate_before(
+        &mut self,
+        scan: &SharedJournalBudget,
+        deadline: Option<Instant>,
+    ) -> Result<()> {
+        let live = || {
+            if deadline.is_some_and(|value| Instant::now() >= value) {
+                Err(Error::Deadline)
+            } else {
+                Ok(())
+            }
+        };
+        live()?;
         // A fork inheritor must fail before any saved-PID, UID or native gate.
         require_same_current_pid(self.own_image.pid, scan)?;
+        live()?;
         self.own_image.files[0]
             .1
             .matches_actual_exe(self.own_image.pid, scan)?;
+        live()?;
         scan.charge(0, 2).map_err(|_| Error::Capacity)?;
         require_actual_root()?;
+        live()?;
         self.native_view.revalidate(scan)?;
+        live()?;
         self.catalog.revalidate(scan)?;
+        live()?;
         self.manifest.revalidate(scan)?;
+        live()?;
         self.pins.join(&self.catalog.data, &self.manifest.data)?;
+        live()?;
         self.own_image.revalidate(scan)?;
+        live()?;
         recheck_actual_environment(
             self.pins.role,
             &self.catalog.data.installed_source.database,
             scan,
         )?;
+        live()?;
         self.control.require_idle_no_extra()?;
+        live()?;
         self.source_start.revalidate(scan)?;
+        live()?;
         self.lock.revalidate(scan)?;
+        live()?;
         let start = &self.source_start.data;
         if start.catalog_sha256 != encode_hex(&self.catalog.digest)
             || start.launch_id != self.catalog.data.launch_id
@@ -2425,6 +2458,7 @@ impl OriginalState {
             image(&self.catalog.data, "PublicationSource")?,
         )?;
         declared_process_image(&start.launcher, image(&self.catalog.data, "RootLauncher")?)?;
+        live()?;
         match &mut self.role {
             OriginalRoleOwner::Source {
                 parent,
@@ -2441,16 +2475,22 @@ impl OriginalState {
                     return Err(Error::Identity);
                 }
                 parent.revalidate(scan)?;
+                live()?;
                 parent_image.revalidate(scan)?;
+                live()?;
                 parent_manifest.revalidate(scan)?;
+                live()?;
                 parent_image.join(&start.launcher, true)?;
+                live()?;
                 self.own_image.join(&start.source, true)?;
+                live()?;
                 match_record_reference(
                     &image(&self.catalog.data, "RootLauncher")?.launch_manifest,
                     &parent_manifest.raw,
                     &parent_manifest.digest,
                 )?;
                 check_job_roster(&self.source_start, &self.control, None, scan)?;
+                live()?;
             }
             OriginalRoleOwner::Capture {
                 capture,
@@ -2460,8 +2500,11 @@ impl OriginalState {
                 request,
             } => {
                 require_capture_readonly_roots(scan)?;
+                live()?;
                 capture.revalidate(scan)?;
+                live()?;
                 native.revalidate(scan)?;
+                live()?;
                 validate_capture_start(
                     &self.catalog.data,
                     start,
@@ -2472,18 +2515,33 @@ impl OriginalState {
                     request,
                 )?;
                 self.own_image.join(&capture.data.capture, false)?;
+                live()?;
                 native.join(&self.catalog.data, &capture.data)?;
+                live()?;
                 check_job_roster(&self.source_start, &self.control, Some(backup), scan)?;
+                live()?;
             }
         }
         source_endpoint(&self.catalog.data, self.pins.role, scan)?;
+        live()?;
         if let Some(generation) = &mut self.install_generation {
             generation.revalidate(scan)?;
+            live()?;
         }
         if let Some(generation) = &mut self.capture_generation {
             generation.revalidate(scan)?;
+            live()?;
+        }
+        if let Some(install) = &self.c11_install {
+            install.revalidate_before(
+                self.install_generation.as_ref().ok_or(Error::Phase)?,
+                scan,
+                deadline,
+            )?;
+            live()?;
         }
         self.native_view.revalidate(scan)?;
+        live()?;
         Ok(())
     }
 }
@@ -2532,7 +2590,9 @@ impl ProcessCustodyCore {
         let state = self.state.lock().map_err(|_| Error::Poisoned)?;
         match (state.pins.role, state.control.phase_data()) {
             (job::ProcessRole::Capture, 3) => Ok(session::AdminStage::Install),
-            (job::ProcessRole::Capture, 8) if state.capture_generation.is_some() => {
+            (job::ProcessRole::Capture, 9)
+                if state.capture_generation.is_some() && state.c11_install.is_some() =>
+            {
                 Ok(session::AdminStage::Capture)
             }
             (job::ProcessRole::Source, 1) => Ok(session::AdminStage::Publication),
@@ -2585,14 +2645,28 @@ impl ProcessCustodyCore {
         }
         Ok(())
     }
-    pub(super) fn broker_installed(&self) -> Result<()> {
+    pub(super) fn broker_installed(
+        &self,
+        original: std::sync::Arc<InstalledC11Original>,
+    ) -> Result<()> {
         self.revalidate()?;
-        let result = self
-            .state
-            .lock()
-            .map_err(|_| Error::Poisoned)?
-            .control
-            .broker_installed();
+        let result = (|| {
+            if !original.belongs_to(self) {
+                return Err(Error::Identity);
+            }
+            let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
+            if state.c11_install.is_some() || state.pins.role != job::ProcessRole::Capture {
+                return Err(Error::Phase);
+            }
+            let (held, deadline) =
+                c11::CompletedInstall::bind(&mut state, original, &self.scan, &self.failed)?;
+            state.c11_install = Some(held);
+            state.revalidate_before(&self.scan, Some(deadline))?;
+            if self.is_failed() || Instant::now() >= deadline {
+                return Err(Error::Deadline);
+            }
+            Ok(())
+        })();
         if result.is_err() {
             self.poison();
         }
@@ -2602,7 +2676,10 @@ impl ProcessCustodyCore {
         self.revalidate()?;
         let result = (|| {
             let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
-            if state.capture_generation.is_some() || state.control.phase_data() != 6 {
+            if state.capture_generation.is_some()
+                || state.control.phase_data() != 7
+                || state.c11_install.is_none()
+            {
                 return Err(Error::Phase);
             }
             let (backup, capture_digest) = match &state.role {
@@ -2972,6 +3049,7 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
         role,
         install_generation: None,
         capture_generation: None,
+        c11_install: None,
     };
     state.revalidate(&scan)?;
     let custody = std::sync::Arc::new(ProcessCustodyCore {
@@ -2982,4 +3060,569 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
     });
     session::register_original_book(&custody)?;
     Ok(PeerOriginal { custody })
+}
+
+// Pure DATA byte-domain validation shared by the actual I0 reader and the
+// ordinary parser tests. It cannot construct custody or a writable epoch.
+pub(super) fn install_genesis_data(
+    header: &[u8],
+    frame: &[u8],
+    descriptor: &[u8],
+    identities: (uuid::Uuid, uuid::Uuid),
+) -> Result<([u8; 32], [u8; 32], [u8; 32])> {
+    let (binding, epoch) = identities;
+    if header.len() != 40
+        || frame.len() > 4 * 1024 * 1024
+        || frame.len() < 120
+        || descriptor.len().checked_add(120) != Some(frame.len())
+    {
+        return Err(Error::Identity);
+    }
+    let descriptor_digest: [u8; 32] = Sha256::digest(descriptor).into();
+    let header_digest: [u8; 32] = Sha256::digest(header).into();
+    if &header[..8] != b"KWSJEPO2"
+        || &header[8..24] != epoch.as_bytes()
+        || &header[24..40] != binding.as_bytes()
+        || &frame[..8] != b"KWSJBYT2"
+        || frame[8..16] != 1u64.to_be_bytes()
+        || &frame[16..32] != epoch.as_bytes()
+        || &frame[32..48] != binding.as_bytes()
+        || frame[48..80] != header_digest
+        || frame[80..112] != descriptor_digest
+        || frame[112..120] != (descriptor.len() as u64).to_be_bytes()
+        || &frame[120..] != descriptor
+    {
+        return Err(Error::Identity);
+    }
+    Ok((
+        descriptor_digest,
+        header_digest,
+        Sha256::digest(frame).into(),
+    ))
+}
+
+// The C11 child consumer owns only actual lifecycle objects and fixed held
+// record bytes. This module cannot manufacture a Root issuer or an admin.
+mod c11 {
+    use super::*;
+    use learning_assets::{InstalledSnapshotBinding, backup_fs::BackupDir};
+    use std::{
+        os::unix::fs::FileExt,
+        sync::{Arc, Weak},
+    };
+
+    const OBSERVATION: &str = "install-cutover-observation.json";
+    const HEADER: &str = "epoch.header";
+    const FRAME: &str = "00000000000000000001.frame";
+
+    struct Accounting<'a> {
+        scan: &'a SharedJournalBudget,
+        journal: &'a SharedJournalBudget,
+        observation: &'a crate::snapshot_broker::ObservationBudget,
+        owner: &'a Weak<ProcessCustodyCore>,
+        deadline: Option<Instant>,
+    }
+    impl Accounting<'_> {
+        fn live(&self) -> Result<()> {
+            if self.owner.upgrade().ok_or(Error::Poisoned)?.is_failed() {
+                return Err(Error::Poisoned);
+            }
+            if self
+                .deadline
+                .is_some_and(|deadline| Instant::now() >= deadline)
+            {
+                return Err(Error::Deadline);
+            }
+            Ok(())
+        }
+        fn pay(&self, bytes: u64, entries: u64) -> Result<()> {
+            self.live()?;
+            self.scan
+                .charge(bytes, entries)
+                .map_err(|_| Error::Capacity)?;
+            // The clone is the actual Epoch Original's existing64MiB meter;
+            // its charge already debits the original journal byte scope.
+            self.observation
+                .charge(bytes)
+                .map_err(|_| Error::Capacity)?;
+            self.journal.charge(0, entries).map_err(|_| Error::Capacity)
+        }
+        fn stamp(&self, file: &File) -> Result<Stamp> {
+            self.live()?;
+            self.journal.charge(0, 1).map_err(|_| Error::Capacity)?;
+            self.observation.charge(0).map_err(|_| Error::Capacity)?;
+            Stamp::observe(file, self.scan)
+        }
+    }
+
+    struct Bytes {
+        file: File,
+        stamp: Stamp,
+        raw: Vec<u8>,
+        digest: [u8; 32],
+    }
+    impl Bytes {
+        fn read(file: &File, cap: u64, a: &Accounting<'_>) -> Result<(Stamp, Vec<u8>, [u8; 32])> {
+            let stamp = a.stamp(file)?;
+            if !stamp.root_file(cap) || stamp.gid != 0 || stamp.mode & 0o7777 != 0o600 {
+                return Err(Error::Identity);
+            }
+            let amount = stamp
+                .bytes
+                .checked_mul(3)
+                .and_then(|n| n.checked_add(1))
+                .ok_or(Error::Capacity)?;
+            a.pay(amount, 3)?; // allocation, complete actual read/hash and EOF
+            let length = usize::try_from(stamp.bytes).map_err(|_| Error::Capacity)?;
+            let mut raw = vec![0u8; length];
+            file.read_exact_at(&mut raw, 0).map_err(|_| Error::Io)?;
+            // A started synchronous read finishes naturally. Poison/expiry
+            // prevents the next EOF read, hash or other positive operation.
+            a.live()?;
+            let mut extra = [0];
+            if file
+                .read_at(&mut extra, stamp.bytes)
+                .map_err(|_| Error::Io)?
+                != 0
+                || a.stamp(file)? != stamp
+            {
+                return Err(Error::Identity);
+            }
+            a.live()?;
+            let digest = Sha256::digest(&raw).into();
+            a.live()?;
+            Ok((stamp, raw, digest))
+        }
+        fn open(file: File, cap: u64, a: &Accounting<'_>) -> Result<Self> {
+            let (stamp, raw, digest) = Self::read(&file, cap, a)?;
+            Ok(Self {
+                file,
+                stamp,
+                raw,
+                digest,
+            })
+        }
+        fn revalidate(&self, named: File, a: &Accounting<'_>) -> Result<()> {
+            for file in [&self.file, &named] {
+                let (stamp, raw, digest) = Self::read(file, self.raw.len() as u64, a)?;
+                a.pay(self.raw.len() as u64, 0)?;
+                if stamp != self.stamp || raw != self.raw || digest != self.digest {
+                    return Err(Error::Identity);
+                }
+            }
+            Ok(())
+        }
+    }
+    fn named_in(parent: &File, leaf: &str, a: &Accounting<'_>) -> Result<File> {
+        if leaf.is_empty() || leaf.contains('/') || leaf == "." || leaf == ".." {
+            return Err(Error::Shape);
+        }
+        a.pay((leaf.len() + 1) as u64, 1)?;
+        let leaf = CString::new(leaf).map_err(|_| Error::Shape)?;
+        let fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+            )
+        };
+        if fd < 0 {
+            return Err(Error::Io);
+        }
+        Ok(unsafe { File::from_raw_fd(fd) })
+    }
+    fn install_parent(generation: &HeldSessionGeneration) -> Result<&File> {
+        Ok(&generation
+            .binding
+            .held
+            .parents
+            .last()
+            .ok_or(Error::Identity)?
+            .0)
+    }
+    fn install_roster(
+        generation: &HeldSessionGeneration,
+        observed: bool,
+        a: &Accounting<'_>,
+    ) -> Result<()> {
+        let maximum = if observed { 5usize } else { 4usize };
+        // The original generic iterator still charges its own actual steps;
+        // reserve every fixed-name/overflow/dot/EOF allocation before its
+        // first iterator call, including malformed/residue failure paths.
+        a.pay(
+            (64 * 1024 + (maximum + 1) * 255 * 2 + 4096) as u64,
+            (maximum * 4 + 12) as u64,
+        )?;
+        let mut expected = vec![
+            ("generation-binding.json".to_owned(), false),
+            (
+                format!("inspection-{}.json", generation.binding.data.backup_id),
+                false,
+            ),
+            (
+                format!("isolation-{}.json", generation.binding.data.backup_id),
+                false,
+            ),
+            (
+                format!("isolation-{}.lock", generation.binding.data.backup_id),
+                false,
+            ),
+        ];
+        if observed {
+            expected.push((OBSERVATION.to_owned(), false));
+        }
+        expected.sort();
+        if directory_roster(install_parent(generation)?, maximum, a.scan)? != expected {
+            return Err(Error::Identity);
+        }
+        Ok(())
+    }
+
+    pub(in crate::snapshot_broker::b1_peer) struct InstalledOriginal {
+        installed: Arc<InstalledSnapshotBinding>,
+        owner: Weak<ProcessCustodyCore>,
+        observation: crate::snapshot_broker::ObservationBudget,
+        descriptor: Vec<u8>,
+        descriptor_digest: [u8; 32],
+        epoch: BackupDir,
+        epoch_identity: (u64, u64),
+        header: Bytes,
+        frame: Bytes,
+    }
+    impl InstalledOriginal {
+        pub(in crate::snapshot_broker::b1_peer) fn open(
+            installed: Arc<InstalledSnapshotBinding>,
+            descriptor: &[u8],
+            observation: crate::snapshot_broker::ObservationBudget,
+            custody: &Arc<ProcessCustodyCore>,
+        ) -> Result<Self> {
+            let scan = &custody.scan;
+            if installed.shared_budget().shares_meter_with(scan) {
+                return Err(Error::Identity);
+            }
+            scan.charge(32, 1).map_err(|_| Error::Capacity)?;
+            let owner = Arc::downgrade(custody);
+            let a = Accounting {
+                scan,
+                journal: installed.shared_budget(),
+                observation: &observation,
+                owner: &owner,
+                deadline: None,
+            };
+            a.pay(8192 + (descriptor.len() as u64) * 2, 128)?;
+            installed.revalidate().map_err(|_| Error::Identity)?;
+            let expected = format!(
+                "{}/journals/{}/epochs/{}",
+                InstalledSnapshotBinding::COMPANION_PATH,
+                installed.binding_id(),
+                installed.epoch_id()
+            );
+            if installed.journal_path().to_str() != Some(expected.as_str()) {
+                return Err(Error::Identity);
+            }
+            let epoch = BackupDir::open_trusted_private_root(installed.journal_path())
+                .map_err(|_| Error::Identity)?;
+            let epoch_identity = epoch.identity().map_err(|_| Error::Io)?;
+            a.pay(64 * 1024 + 3 * 255 * 2 + 512, 10)?;
+            let mut names = epoch.list_bounded(2).map_err(|_| Error::Identity)?;
+            names.sort_unstable();
+            if names != [FRAME.to_owned(), HEADER.to_owned()] {
+                return Err(Error::Identity);
+            }
+            a.pay(256, 6)?; // two fixed opens and their nested file metadata
+            let header = Bytes::open(epoch.open_file(HEADER).map_err(|_| Error::Io)?, 40, &a)?;
+            let frame = Bytes::open(
+                epoch.open_file(FRAME).map_err(|_| Error::Io)?,
+                4 * 1024 * 1024,
+                &a,
+            )?;
+            let h = &header.raw;
+            let f = &frame.raw;
+            a.pay((h.len() + f.len() + descriptor.len()) as u64, 0)?;
+            let (descriptor_digest, header_digest, frame_digest) = install_genesis_data(
+                h,
+                f,
+                descriptor,
+                (installed.binding_id(), installed.epoch_id()),
+            )?;
+            if header.digest != header_digest || frame.digest != frame_digest {
+                return Err(Error::Identity);
+            }
+            a.live()?;
+            let value = Self {
+                installed,
+                owner,
+                observation,
+                descriptor: descriptor.to_owned(),
+                descriptor_digest,
+                epoch,
+                epoch_identity,
+                header,
+                frame,
+            };
+            value.revalidate(scan)?;
+            Ok(value)
+        }
+        pub(super) fn belongs_to(&self, custody: &ProcessCustodyCore) -> bool {
+            std::ptr::eq(self.owner.as_ptr(), custody)
+        }
+        fn accounting<'a>(&'a self, scan: &'a SharedJournalBudget) -> Accounting<'a> {
+            self.accounting_before(scan, None)
+        }
+        fn accounting_before<'a>(
+            &'a self,
+            scan: &'a SharedJournalBudget,
+            deadline: Option<Instant>,
+        ) -> Accounting<'a> {
+            Accounting {
+                scan,
+                journal: self.installed.shared_budget(),
+                observation: &self.observation,
+                owner: &self.owner,
+                deadline,
+            }
+        }
+        fn revalidate(&self, scan: &SharedJournalBudget) -> Result<()> {
+            self.revalidate_before(scan, None)
+        }
+        fn revalidate_before(
+            &self,
+            scan: &SharedJournalBudget,
+            deadline: Option<Instant>,
+        ) -> Result<()> {
+            let a = self.accounting_before(scan, deadline);
+            a.pay(8192, 128)?;
+            self.installed.revalidate().map_err(|_| Error::Identity)?;
+            if self.epoch.identity().map_err(|_| Error::Io)? != self.epoch_identity {
+                return Err(Error::Identity);
+            }
+            a.live()?;
+            if BackupDir::open_trusted_private_root(self.installed.journal_path())
+                .map_err(|_| Error::Identity)?
+                .identity()
+                .map_err(|_| Error::Io)?
+                != self.epoch_identity
+            {
+                return Err(Error::Identity);
+            }
+            a.pay(256, 6)?;
+            a.pay(self.descriptor.len() as u64, 0)?;
+            if self.frame.raw.get(120..) != Some(self.descriptor.as_slice()) {
+                return Err(Error::Identity);
+            }
+            self.header
+                .revalidate(self.epoch.open_file(HEADER).map_err(|_| Error::Io)?, &a)?;
+            self.frame
+                .revalidate(self.epoch.open_file(FRAME).map_err(|_| Error::Io)?, &a)
+            // Later legitimate frame2+ appends are checked by the original
+            // writer/journal owner; the immutable genesis bytes remain held.
+        }
+    }
+
+    pub(super) struct CompletedInstall {
+        original: Arc<InstalledOriginal>,
+        record: Bytes,
+        data: job::InstallCutoverObservation,
+    }
+    impl CompletedInstall {
+        pub(super) fn bind(
+            state: &mut OriginalState,
+            original: Arc<InstalledOriginal>,
+            scan: &SharedJournalBudget,
+            failed: &AtomicBool,
+        ) -> Result<(Self, Instant)> {
+            let generation = state.install_generation.as_ref().ok_or(Error::Phase)?;
+            if generation.binding.data.phase != "Install" || state.control.phase_data() != 5 {
+                return Err(Error::Phase);
+            }
+            original.revalidate(scan)?;
+            install_roster(generation, false, &original.accounting(scan))?;
+            // New control codec work is additionally debited to the actual
+            // epoch journal/64MiB scope before its original scan allocation.
+            original.accounting(scan).pay(4096 * 64, 4)?;
+            let (expected, deadline) = state.control.broker_installed(
+                &original.installed.binding_id().to_string(),
+                &original.installed.epoch_id().to_string(),
+                &encode_hex(&original.descriptor_digest),
+            )?;
+            if failed.load(Ordering::Acquire) || Instant::now() >= deadline {
+                return Err(Error::Deadline);
+            }
+            let generation = state.install_generation.as_ref().ok_or(Error::Phase)?;
+            let a = original.accounting_before(scan, Some(deadline));
+            install_roster(generation, true, &a)?;
+            let record = Bytes::open(
+                named_in(install_parent(generation)?, OBSERVATION, &a)?,
+                1024 * 1024,
+                &a,
+            )?;
+            if record.digest != expected {
+                return Err(Error::Identity);
+            }
+            // Bound structural allocation before serde; every body/unknown
+            // failure remains charged to scan+journal+the original64MiB cap.
+            a.pay(record.raw.len() as u64, 0)?;
+            let entries = record
+                .raw
+                .iter()
+                .filter(|b| matches!(**b, b'{' | b'[' | b',' | b':'))
+                .count();
+            a.pay(
+                (record.raw.len() as u64)
+                    .checked_mul(64)
+                    .ok_or(Error::Capacity)?,
+                entries as u64,
+            )?;
+            let data: job::InstallCutoverObservation = job::parse(&record.raw, 1024 * 1024)?;
+            let value = Self {
+                original,
+                record,
+                data,
+            };
+            value.matches(state, scan, Some(deadline))?;
+            value.revalidate_before(generation, scan, Some(deadline))?;
+            if failed.load(Ordering::Acquire) || Instant::now() >= deadline {
+                return Err(Error::Deadline);
+            }
+            Ok((value, deadline))
+        }
+        fn matches(
+            &self,
+            state: &OriginalState,
+            scan: &SharedJournalBudget,
+            deadline: Option<Instant>,
+        ) -> Result<()> {
+            let generation = state.install_generation.as_ref().ok_or(Error::Phase)?;
+            let data = &self.data;
+            let a = self.original.accounting_before(scan, deadline);
+            a.pay((self.record.raw.len() as u64) * 8 + 8192, 128)?;
+            if data.job_id != state.source_start.data.job_id
+                || data.backup_id != generation.binding.data.backup_id
+                || data.request_id != generation.binding.data.request_id
+                || data.phase != "Install"
+                || data.generation_binding_sha256 != encode_hex(&generation.binding.digest)
+                || data.binding_id != self.original.installed.binding_id().to_string()
+                || data.epoch_id != self.original.installed.epoch_id().to_string()
+                || data.descriptor_sha256 != encode_hex(&self.original.descriptor_digest)
+                || data.epoch_header_sha256 != encode_hex(&self.original.header.digest)
+                || data.genesis_frame_sha256 != encode_hex(&self.original.frame.digest)
+            {
+                return Err(Error::Identity);
+            }
+            a.pay(0, 1)?;
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| Error::Identity)?;
+            let now = u64::try_from(now.as_millis()).map_err(|_| Error::Identity)?;
+            if data.observed_unix_ms < generation.binding.data.observed_unix_ms
+                || data.observed_unix_ms > now
+            {
+                return Err(Error::Identity);
+            }
+            let runtime = &state.catalog.data.installed_runtime;
+            let host = &data.host_cutover;
+            if host.container_id != runtime.pg_container_id
+                || host.image_sha256 != runtime.admitted_pg_image_id
+                || host.daemon_id != runtime.daemon_id
+                || option_env!("KNOWWEAVE_C4_DOCKER_CLI_SHA256")
+                    != Some(host.docker_cli_sha256.as_str())
+            {
+                return Err(Error::Identity);
+            }
+            let current = host
+                .complete_container_projection
+                .iter()
+                .find(|r| r.container_id == host.container_id)
+                .ok_or(Error::Identity)?;
+            if !current.running
+                || current.process_id == 0
+                || current.image_sha256 != host.image_sha256
+                || current.project.as_deref() != Some(runtime.compose_project.as_str())
+                || current.service.as_deref() != Some("pg")
+                || current.mounts.len() != 12
+            {
+                return Err(Error::Identity);
+            }
+            let mut legacy = host.legacy_producers.iter();
+            for row in &host.complete_container_projection {
+                if row.container_id == current.container_id {
+                    continue;
+                }
+                if row.project.as_deref() == Some(runtime.compose_project.as_str())
+                    && (legacy.next() != Some(row)
+                        || (row.running && row.service.as_deref() != Some("pg")))
+                {
+                    return Err(Error::Identity);
+                }
+            }
+            if legacy.next().is_some() {
+                return Err(Error::Identity);
+            }
+            #[derive(serde::Serialize)]
+            struct Mount<'a> {
+                destination: &'a str,
+                source: &'a str,
+                kind: &'a str,
+                rw: bool,
+                name: &'a str,
+            }
+            // Strings may require six-byte JSON escapes; reserve the actual
+            // bounded normalization/canonical allocation/hash before creating
+            // the vector or canonical bytes. It remains the original meters.
+            let maximum = current.mounts.iter().try_fold(2u64, |total, mount| {
+                let strings = mount
+                    .source
+                    .len()
+                    .checked_add(mount.destination.len())
+                    .and_then(|n| n.checked_add(mount.kind.len()))
+                    .and_then(|n| n.checked_add(mount.name.as_ref().map_or(0, String::len)))
+                    .ok_or(Error::Capacity)?;
+                total
+                    .checked_add(
+                        (strings as u64)
+                            .checked_mul(6)
+                            .and_then(|n| n.checked_add(256))
+                            .ok_or(Error::Capacity)?,
+                    )
+                    .ok_or(Error::Capacity)
+            })?;
+            a.pay(
+                maximum.checked_mul(4).ok_or(Error::Capacity)?,
+                (current.mounts.len() as u64) * 8,
+            )?;
+            let mounts = current
+                .mounts
+                .iter()
+                .map(|m| Mount {
+                    destination: &m.destination,
+                    source: &m.source,
+                    kind: &m.kind,
+                    rw: m.rw,
+                    name: m.name.as_deref().unwrap_or(""),
+                })
+                .collect::<Vec<_>>();
+            let raw = job::canonical(&mounts)?;
+            a.live()?;
+            let digest = encode_hex(&Sha256::digest(&raw));
+            if digest != runtime.capture_mount_recipe_sha256
+                || digest != state.catalog.data.capture_recipe_sha256
+            {
+                return Err(Error::Identity);
+            }
+            Ok(())
+        }
+        pub(super) fn revalidate_before(
+            &self,
+            generation: &HeldSessionGeneration,
+            scan: &SharedJournalBudget,
+            deadline: Option<Instant>,
+        ) -> Result<()> {
+            self.original.revalidate_before(scan, deadline)?;
+            let a = self.original.accounting_before(scan, deadline);
+            install_roster(generation, true, &a)?;
+            self.record
+                .revalidate(named_in(install_parent(generation)?, OBSERVATION, &a)?, &a)?;
+            a.live()
+        }
+    }
 }

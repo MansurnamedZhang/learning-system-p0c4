@@ -1,5 +1,23 @@
 # Task9 R2b实施进展
 
+## C11 DB消费者完成普通 Linux 检查，Root 接线继续 · 2026-10-28
+
+已批 37 个产品源码文件内的 15 个 DB 源码叶，完成 C11 新 DATA、15 消息与安装观察回应消费端的普通 Linux 编译和回归。当前仅形成 DB 消费端普通检查结果，尚未闭合真实 Root 发行者、M3 原入口整体 finally、S5 封闭内部计费或完整 C11 管线；Task9／C4 仍开放。
+
+新批次 eeca0765-37de-4b99-99b7-5f62592335df 的 13 道门全部 exit0：格式检查、DB 默认／peer 严格 Clippy、backup 默认／offhost 编译检查，以及 DB 两套库编译、完整列举、忽略名单与普通正文。默认库 62 passed／24 ignored；peer 库 105 passed／26 ignored。两配置的重复正文不相加。新增 5 个 C11 DATA 正文通过，保留原 3 个资源生命周期正文；仅 2 个原协议测试名称随获批 14→15 协议适配，原忽略名称集合保持不变。
+
+24／26 是顶层 libtest 的 ignored 数量。原普通 UID 包装负例会在全新普通子进程中精确调用两个既有 ignored child helper；不能据此概括“所有 ignored 函数均未执行”。没有执行真实 Root／PG 正向套件；backup 两套仅 cargo check，没有重跑其完整测试。
+
+本轮基线 43e212665083e4c0a8dc0a58adc1ba413e14b1fb，加封存 lint 修复候选 INDEX f93bd823c6c5aa1ed34a13efb80819fa9f23f3a74a930a091ac13b7a9ec06aed／MF dae15e70cfb23c51ec3d25ad0e98814be7e844eca65c0488d6fb89d42a6e804a。当前 695 个产品文件中 15 路径全部既有，5 处 C11 源差异、10 处原 R7。实际 result SHA-256 f816b881868f7b585eb4a0a82ef08f28ae21d8a03f52bd5bbea321d683933da3；返回结果记录源码原件未变、精确容器清理完成。完整原件已经独立核验：源码包、全部实际退出码、完整名单与正文、源码前后、同一容器身份及精确清理、返回证据均已逐项核对。独审 INDEX SHA-256 a6771c08a79abf2231e973f1e087c31dcdc55fef7e8b2d181ddf5b4cad20b96b；不声称独立远程亲见、OS 连续日志上限或全局 64FD 实测。
+
+首个 02f0f0a2 批次因一个 collapsible_if 严格 Clippy 诊断保持 RED；原始失败和证据保留、不重放。新候选只把该处嵌套 if 等价合为短路条件，保留 legacy.next 的调用条件／次序／次数；未添加 allow、跳过用例或放宽任何检查，再以全新 UUID 完整检查。
+
+原 R7 的 62／24、100／26 属于旧 14 消息版本，原 43 个历史 checkpoint、旧失败及 HOLD 原样保留，不倒改或重复计入本轮。两份已批 C11 合同原字节已在公开基线中，继续原样保留。本轮新增的仅是 C11 DB消费者普通检查点。
+
+后续继续真实 Root 发行者、M3 整个 actor future／finally 与 S5 原始封闭计费的接线，再推进 Source／D、fence 和 C／D 安装、真实 RA／RB 资格及异机整链。密钥／信任／launcher 安装、PG／安全权限、源隔离、恢复和 CompleteBackup 仍按原定准确审批；不宣称 genuine、C11 整链完成、Task9／C4 验收、main 合并或生产部署。
+
+---
+
 ## M2b 原会话与资源结算完成限定 Linux 检查 · 2026-10-28
 
 14 个 DB 源码叶已实现固定 peer 会话、实际连接与三组 pool 的持有、安装／排空的原任务衔接及负向结算接缝；新增一个私有 session 源文件。该候选完成普通 Linux 编译与回归，不等于真实 Root／PG 正向准入或完整 M2b／Task9 验收。

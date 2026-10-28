@@ -1,7 +1,7 @@
 //! Fixed typed DATA and original-channel codec. Parsing grants no process qualification.
 use super::{Error, Result};
 use learning_assets::root_journal::SharedJournalBudget;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Deserializer, Serialize, de::DeserializeOwned};
 
 pub(super) const MAX_MESSAGE: usize = 4096;
 pub(super) const MAX_FRAMES: u64 = 64;
@@ -48,6 +48,17 @@ pub(super) fn hex(value: &str, length: usize) -> bool {
         && value
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+fn digest_bytes(value: &str) -> Result<[u8; 32]> {
+    if !hex(value, 64) {
+        return Err(Error::Shape);
+    }
+    let mut out = [0; 32];
+    for (index, chunk) in value.as_bytes().chunks_exact(2).enumerate() {
+        let digit = |c: u8| if c <= b'9' { c - b'0' } else { c - b'a' + 10 };
+        out[index] = digit(chunk[0]) * 16 + digit(chunk[1]);
+    }
+    Ok(out)
 }
 pub(super) fn uuid(value: &str, v4: bool) -> bool {
     uuid::Uuid::parse_str(value).is_ok_and(|id| {
@@ -952,6 +963,241 @@ impl Record for RecordRef {
         }
     }
 }
+// Exact human-approved C11 record DATA. None of these values can construct
+// an installed binding, session, process or original journal owner.
+fn c11_text(value: &str, maximum: usize) -> bool {
+    value.len() <= maximum && !value.contains('\0')
+}
+fn c11_path(value: &str) -> bool {
+    c11_text(value, 4096)
+        && value.starts_with('/')
+        && value != "/"
+        && value[1..]
+            .split('/')
+            .all(|p| !p.is_empty() && p != "." && p != "..")
+}
+#[derive(Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub(super) enum InstallOptionalString {
+    #[default]
+    Missing,
+    Present(Option<String>),
+}
+// A serde field default is absence; the custom deserializer wraps even JSON
+// null as Present(None). Serialization skips Missing before this is called.
+fn install_optional<'de, D: Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<InstallOptionalString, D::Error> {
+    Option::<String>::deserialize(d).map(InstallOptionalString::Present)
+}
+impl InstallOptionalString {
+    fn missing(&self) -> bool {
+        matches!(self, Self::Missing)
+    }
+    fn valid(&self, maximum: usize) -> bool {
+        match self {
+            Self::Present(Some(value)) => c11_text(value, maximum),
+            _ => true,
+        }
+    }
+}
+fn install_required_nullable<'de, D: Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(d)
+}
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct InstallAssetsMount {
+    #[serde(rename = "Type")]
+    pub(super) kind: String,
+    #[serde(rename = "Source")]
+    pub(super) source: String,
+    #[serde(rename = "Destination")]
+    pub(super) destination: String,
+    #[serde(rename = "RW")]
+    pub(super) rw: bool,
+    #[serde(
+        rename = "Name",
+        default,
+        deserialize_with = "install_optional",
+        skip_serializing_if = "InstallOptionalString::missing"
+    )]
+    pub(super) name: InstallOptionalString,
+    #[serde(
+        rename = "Driver",
+        default,
+        deserialize_with = "install_optional",
+        skip_serializing_if = "InstallOptionalString::missing"
+    )]
+    pub(super) driver: InstallOptionalString,
+    #[serde(
+        rename = "Mode",
+        default,
+        deserialize_with = "install_optional",
+        skip_serializing_if = "InstallOptionalString::missing"
+    )]
+    pub(super) mode: InstallOptionalString,
+    #[serde(
+        rename = "Propagation",
+        default,
+        deserialize_with = "install_optional",
+        skip_serializing_if = "InstallOptionalString::missing"
+    )]
+    pub(super) propagation: InstallOptionalString,
+}
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct InstallMountProjection {
+    pub(super) destination: String,
+    pub(super) source: String,
+    pub(super) kind: String,
+    pub(super) rw: bool,
+    #[serde(deserialize_with = "install_required_nullable")]
+    pub(super) name: Option<String>,
+}
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct InstallContainerProjection {
+    pub(super) container_id: String,
+    pub(super) image_sha256: String,
+    pub(super) running: bool,
+    pub(super) process_id: u64,
+    pub(super) started_at: String,
+    pub(super) restart_count: u64,
+    #[serde(deserialize_with = "install_required_nullable")]
+    pub(super) project: Option<String>,
+    #[serde(deserialize_with = "install_required_nullable")]
+    pub(super) service: Option<String>,
+    pub(super) mounts: Vec<InstallMountProjection>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct InstallHostCutover {
+    pub(super) container_id: String,
+    pub(super) image_sha256: String,
+    pub(super) export_mount: String,
+    pub(super) journal_mount: String,
+    pub(super) assets_mount: InstallAssetsMount,
+    pub(super) legacy_producers: Vec<InstallContainerProjection>,
+    pub(super) complete_container_projection: Vec<InstallContainerProjection>,
+    pub(super) daemon_id: String,
+    pub(super) mountinfo_sha256: String,
+    pub(super) docker_cli_sha256: String,
+}
+impl InstallHostCutover {
+    fn validate(&self) -> Result<()> {
+        let assets = &self.assets_mount;
+        if !hex(&self.container_id, 64)
+            || !self
+                .image_sha256
+                .strip_prefix("sha256:")
+                .is_some_and(|s| hex(s, 64))
+            || !c11_path(&self.export_mount)
+            || !c11_path(&self.journal_mount)
+            || !c11_text(&self.daemon_id, 128)
+            || !hex(&self.mountinfo_sha256, 64)
+            || !hex(&self.docker_cli_sha256, 64)
+            || self.complete_container_projection.is_empty()
+            || self.complete_container_projection.len() > 1024
+            || self.legacy_producers.len() > 1024
+            || !matches!(assets.kind.as_str(), "bind" | "volume")
+            || !c11_path(&assets.source)
+            || !c11_path(&assets.destination)
+            || assets.rw
+            || !assets.name.valid(4096)
+            || !assets.driver.valid(128)
+            || !assets.mode.valid(256)
+            || !assets.propagation.valid(128)
+        {
+            return Err(Error::Shape);
+        }
+        for rows in [&self.complete_container_projection, &self.legacy_producers] {
+            if rows
+                .windows(2)
+                .any(|w| w[0].container_id >= w[1].container_id)
+            {
+                return Err(Error::Shape);
+            }
+            for row in rows {
+                if !hex(&row.container_id, 64)
+                    || !row
+                        .image_sha256
+                        .strip_prefix("sha256:")
+                        .is_some_and(|s| hex(s, 64))
+                    || !c11_text(&row.started_at, 128)
+                    || row.project.as_ref().is_some_and(|s| !c11_text(s, 1024))
+                    || row.service.as_ref().is_some_and(|s| !c11_text(s, 1024))
+                    || row.mounts.len() > 100_000
+                    || row
+                        .mounts
+                        .windows(2)
+                        .any(|w| w[0].destination >= w[1].destination)
+                {
+                    return Err(Error::Shape);
+                }
+                for mount in &row.mounts {
+                    if !c11_path(&mount.source)
+                        || !c11_path(&mount.destination)
+                        || !c11_text(&mount.kind, 64)
+                        || mount.name.as_ref().is_some_and(|s| !c11_text(s, 4096))
+                    {
+                        return Err(Error::Shape);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct InstallCutoverObservation {
+    pub(super) schema_version: u64,
+    pub(super) capability: String,
+    pub(super) job_id: String,
+    pub(super) backup_id: String,
+    pub(super) phase: String,
+    pub(super) request_id: String,
+    pub(super) binding_id: String,
+    pub(super) epoch_id: String,
+    pub(super) generation_binding_sha256: String,
+    pub(super) descriptor_sha256: String,
+    pub(super) epoch_header_sha256: String,
+    pub(super) genesis_frame_sha256: String,
+    pub(super) observed_unix_ms: u64,
+    pub(super) host_cutover: InstallHostCutover,
+}
+impl Record for InstallCutoverObservation {
+    fn validate(&self) -> Result<()> {
+        if self.schema_version != 1
+            || self.capability != "b1_install_cutover_observation_v1"
+            || self.phase != "Install"
+            || ![
+                &self.job_id,
+                &self.backup_id,
+                &self.request_id,
+                &self.binding_id,
+                &self.epoch_id,
+            ]
+            .into_iter()
+            .all(|s| uuid(s, true))
+            || ![
+                &self.generation_binding_sha256,
+                &self.descriptor_sha256,
+                &self.epoch_header_sha256,
+                &self.genesis_frame_sha256,
+            ]
+            .into_iter()
+            .all(|s| hex(s, 64))
+            || self.observed_unix_ms == 0
+        {
+            return Err(Error::Shape);
+        }
+        self.host_cutover.validate()
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", deny_unknown_fields)]
 pub(super) enum ControlData {
@@ -1016,6 +1262,21 @@ pub(super) enum ControlData {
         sequence: u64,
         backup_id: String,
         request_id: String,
+        binding_id: String,
+        epoch_id: String,
+        descriptor_sha256: String,
+    },
+    BrokerInstallObserved {
+        schema_version: u64,
+        job_id: String,
+        root_cookie: String,
+        sequence: u64,
+        backup_id: String,
+        request_id: String,
+        binding_id: String,
+        epoch_id: String,
+        descriptor_sha256: String,
+        observation_sha256: String,
     },
     RequestCaptureProof {
         schema_version: u64,
@@ -1273,8 +1534,32 @@ impl Record for ControlData {
                 sequence: _,
                 backup_id,
                 request_id,
+                binding_id,
+                epoch_id,
+                descriptor_sha256,
+            }
+            | Self::BrokerInstallObserved {
+                schema_version,
+                job_id,
+                root_cookie,
+                sequence: _,
+                backup_id,
+                request_id,
+                binding_id,
+                epoch_id,
+                descriptor_sha256,
+                ..
             } => {
-                if *schema_version == 1
+                if uuid(binding_id, true)
+                    && uuid(epoch_id, true)
+                    && hex(descriptor_sha256, 64)
+                    && match self {
+                        Self::BrokerInstallObserved {
+                            observation_sha256, ..
+                        } => hex(observation_sha256, 64),
+                        _ => true,
+                    }
+                    && *schema_version == 1
                     && job_id.len() <= 36
                     && pattern(
                         job_id,
@@ -1502,6 +1787,7 @@ impl ControlData {
             Self::RequestInstallProof { .. } => "RequestInstallProof",
             Self::InstallProofBound { .. } => "InstallProofBound",
             Self::BrokerInstalled { .. } => "BrokerInstalled",
+            Self::BrokerInstallObserved { .. } => "BrokerInstallObserved",
             Self::RequestCaptureProof { .. } => "RequestCaptureProof",
             Self::CaptureProofBound { .. } => "CaptureProofBound",
             Self::CapturedDataReady { .. } => "CapturedDataReady",
@@ -1555,6 +1841,12 @@ impl ControlData {
                 ..
             } => (job_id, root_cookie, *sequence),
             Self::BrokerInstalled {
+                job_id,
+                root_cookie,
+                sequence,
+                ..
+            } => (job_id, root_cookie, *sequence),
+            Self::BrokerInstallObserved {
                 job_id,
                 root_cookie,
                 sequence,
@@ -1626,6 +1918,7 @@ pub(super) struct ControlState {
     backup: Option<String>,
     request: Option<String>,
     captured_digest: Option<String>,
+    installed: Option<(String, String, String)>,
 }
 impl ControlState {
     pub(super) fn new(role: ProcessRole) -> Self {
@@ -1642,6 +1935,7 @@ impl ControlState {
             backup: None,
             request: None,
             captured_digest: None,
+            installed: None,
         }
     }
     pub(super) fn is_failed(&self) -> bool {
@@ -1736,6 +2030,7 @@ impl ControlState {
                 (Direction::Send, "RequestInstallProof"),
                 (Direction::Receive, "InstallProofBound"),
                 (Direction::Send, "BrokerInstalled"),
+                (Direction::Receive, "BrokerInstallObserved"),
                 (Direction::Send, "RequestCaptureProof"),
                 (Direction::Receive, "CaptureProofBound"),
                 (Direction::Send, "CapturedDataReady"),
@@ -1778,14 +2073,46 @@ impl ControlState {
                 backup_id,
                 request_id,
                 ..
+            } => {
+                if self.backup.as_deref() != Some(backup_id)
+                    || self.request.as_deref() != Some(request_id)
+                {
+                    return Err(Error::Identity);
+                }
             }
-            | ControlData::BrokerInstalled {
+            ControlData::BrokerInstalled {
                 backup_id,
                 request_id,
+                binding_id,
+                epoch_id,
+                descriptor_sha256,
                 ..
             } => {
                 if self.backup.as_deref() != Some(backup_id)
                     || self.request.as_deref() != Some(request_id)
+                    || self.installed.is_some()
+                {
+                    return Err(Error::Identity);
+                }
+                self.installed = Some((
+                    binding_id.clone(),
+                    epoch_id.clone(),
+                    descriptor_sha256.clone(),
+                ));
+            }
+            ControlData::BrokerInstallObserved {
+                backup_id,
+                request_id,
+                binding_id,
+                epoch_id,
+                descriptor_sha256,
+                ..
+            } => {
+                let installed = self.installed.as_ref().ok_or(Error::Phase)?;
+                if self.backup.as_deref() != Some(backup_id)
+                    || self.request.as_deref() != Some(request_id)
+                    || (&installed.0, &installed.1, &installed.2)
+                        != (binding_id, epoch_id, descriptor_sha256)
                 {
                     return Err(Error::Identity);
                 }
@@ -2033,10 +2360,28 @@ impl OriginalControlOwner {
             _ => Err(Error::Phase),
         }
     }
-    pub(super) fn broker_installed(&mut self) -> Result<()> {
-        if self.state.role != ProcessRole::Capture || self.state.phase() != 5 {
+    pub(super) fn broker_installed(
+        &mut self,
+        binding_id: &str,
+        epoch_id: &str,
+        descriptor_sha256: &str,
+    ) -> Result<([u8; 32], std::time::Instant)> {
+        if self.state.role != ProcessRole::Capture
+            || self.state.phase() != 5
+            || !uuid(binding_id, true)
+            || !uuid(epoch_id, true)
+            || !hex(descriptor_sha256, 64)
+        {
             return Err(Error::Phase);
         }
+        // One original request deadline covers both frames and the caller's
+        // subsequent held-record validation; neither read nor ACK renews it.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        // New fixed message cloning/encoding/parsing work, including malformed
+        // bounded replies, is paid before it occurs on the same original scan.
+        self.scan
+            .charge((MAX_MESSAGE * 64) as u64, 4)
+            .map_err(|_| Error::Capacity)?;
         let message = ControlData::BrokerInstalled {
             schema_version: 1,
             job_id: self.state.job_id.clone().ok_or(Error::Phase)?,
@@ -2044,12 +2389,26 @@ impl OriginalControlOwner {
             sequence: self.state.next_send,
             backup_id: self.state.backup.clone().ok_or(Error::Phase)?,
             request_id: self.state.request.clone().ok_or(Error::Phase)?,
+            binding_id: binding_id.to_owned(),
+            epoch_id: epoch_id.to_owned(),
+            descriptor_sha256: descriptor_sha256.to_owned(),
         };
-        self.write_frame(&message)
+        self.write_frame_before(&message, deadline)?;
+        let reply = self.read_frame_before(deadline)?;
+        if std::time::Instant::now() >= deadline {
+            self.state.poison();
+            return Err(Error::Deadline);
+        }
+        match reply {
+            ControlData::BrokerInstallObserved {
+                observation_sha256, ..
+            } => Ok((digest_bytes(&observation_sha256)?, deadline)),
+            _ => Err(Error::Phase),
+        }
     }
     pub(super) fn request_capture_proof(&mut self, request: &str) -> Result<String> {
         if self.state.role != ProcessRole::Capture
-            || self.state.phase() != 6
+            || self.state.phase() != 7
             || !uuid(request, true)
         {
             return Err(Error::Phase);
@@ -2102,8 +2461,11 @@ impl OriginalControlOwner {
         Err(Error::Io)
     }
     pub(super) fn read_frame(&mut self) -> Result<ControlData> {
-        let entered = EnteredAction::enter(&self.action_failed)?;
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        self.read_frame_before(deadline)
+    }
+    fn read_frame_before(&mut self, deadline: std::time::Instant) -> Result<ControlData> {
+        let entered = EnteredAction::enter(&self.action_failed)?;
         let mut prefix = [0; 4];
         // Reserve the real prefix/frame before read. A malformed length still
         // consumes that observation; no payload allocation precedes its gate.
@@ -2131,6 +2493,14 @@ impl OriginalControlOwner {
         Ok(parsed)
     }
     pub(super) fn write_frame(&mut self, data: &ControlData) -> Result<()> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        self.write_frame_before(data, deadline)
+    }
+    fn write_frame_before(
+        &mut self,
+        data: &ControlData,
+        deadline: std::time::Instant,
+    ) -> Result<()> {
         let entered = EnteredAction::enter(&self.action_failed)?;
         let body = match canonical(data) {
             Ok(v) => v,
@@ -2146,7 +2516,6 @@ impl OriginalControlOwner {
         let length = u32::try_from(body.len()).map_err(|_| Error::Capacity)?;
         let mut frame = length.to_be_bytes().to_vec();
         frame.extend_from_slice(&body);
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
         Self::write_all(&self.transport, &frame, deadline)?;
         self.state.failed = false;
         entered.complete();

@@ -694,6 +694,7 @@ pub(in crate::snapshot_broker) struct FixedWorkPools {
     broker: PgPool,
     runtime: PgPool,
     owner: Weak<SessionResourceCore>,
+    c11_original: OnceLock<Arc<super::process::InstalledC11Original>>,
 }
 enum WorkCreationError {
     NoPoolsCreated(Error),
@@ -722,6 +723,7 @@ impl FixedWorkPools {
             broker,
             runtime,
             owner: Arc::downgrade(resources),
+            c11_original: OnceLock::new(),
         })
     }
     pub(in crate::snapshot_broker) fn retain_epoch(
@@ -784,7 +786,13 @@ impl FixedWorkPools {
             .await
             .map_err(super::observation_error)
     }
-    pub(in crate::snapshot_broker) fn installed(&self) -> super::super::history::Result<()> {
+    pub(in crate::snapshot_broker) fn installed(
+        &self,
+        installed: Arc<learning_assets::InstalledSnapshotBinding>,
+        descriptor: &[u8],
+        observation: super::super::ObservationBudget,
+    ) -> super::super::history::Result<()> {
+        self.revalidate()?;
         let state = self
             .install
             .state
@@ -794,8 +802,23 @@ impl FixedWorkPools {
             return Err(super::observation_error(Error::Poisoned));
         }
         drop(state);
+        let original = super::process::InstalledC11Original::open(
+            installed,
+            descriptor,
+            observation,
+            &self.custody,
+        )
+        .map_err(|error| {
+            self.custody.poison();
+            super::observation_error(error)
+        })?;
+        let original = Arc::new(original);
+        self.c11_original.set(original.clone()).map_err(|_| {
+            self.custody.poison();
+            super::observation_error(Error::Phase)
+        })?;
         self.custody
-            .broker_installed()
+            .broker_installed(original)
             .map_err(super::observation_error)
     }
     pub(in crate::snapshot_broker) fn bind_capture_generation(

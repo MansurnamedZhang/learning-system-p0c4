@@ -1291,7 +1291,14 @@ impl RootSnapshotBroker {
         pending.await?;
         #[cfg(feature = "b1-source-peer")]
         if let Some(fixed) = &fixed {
-            fixed.installed()?;
+            // This exact lifecycle owns the naturally closed install pool and
+            // the durable frame1 bytes. I0 keeps these originals while the
+            // fixed control owner waits for C11's authenticated ACK/record.
+            fixed.installed(
+                installed.clone(),
+                &descriptor_bytes,
+                owner.observation.clone(),
+            )?;
         }
         Ok(Self {
             #[cfg(feature = "b1-source-peer")]

@@ -25,8 +25,21 @@ fn value(kind: &str, sequence: u64) -> serde_json::Value {
             ("backup_id", BACKUP.into()),
             ("capture_start_sha256", "d".repeat(64)),
         ],
-        "RequestInstallProof" | "RequestCaptureProof" | "BrokerInstalled" => {
+        "RequestInstallProof" | "RequestCaptureProof" => {
             vec![("backup_id", BACKUP.into()), ("request_id", REQUEST.into())]
+        }
+        "BrokerInstalled" | "BrokerInstallObserved" => {
+            let mut fields = vec![
+                ("backup_id", BACKUP.into()),
+                ("request_id", REQUEST.into()),
+                ("binding_id", "44444444-4444-4444-8444-444444444444".into()),
+                ("epoch_id", "55555555-5555-4555-8555-555555555555".into()),
+                ("descriptor_sha256", "6".repeat(64)),
+            ];
+            if kind == "BrokerInstallObserved" {
+                fields.push(("observation_sha256", "7".repeat(64)));
+            }
+            fields
         }
         "InstallProofBound" | "CaptureProofBound" => vec![
             ("backup_id", BACKUP.into()),
@@ -56,7 +69,7 @@ fn observe(state: &mut ControlState, kind: &str, sequence: u64, direction: Direc
 }
 
 #[test]
-fn typed_all_fourteen_message_shapes_round_trip_without_qualification() {
+fn typed_all_fifteen_message_shapes_round_trip_without_qualification() {
     for kind in [
         "SourceBootstrap",
         "SpawnCapture",
@@ -66,6 +79,7 @@ fn typed_all_fourteen_message_shapes_round_trip_without_qualification() {
         "RequestInstallProof",
         "InstallProofBound",
         "BrokerInstalled",
+        "BrokerInstallObserved",
         "RequestCaptureProof",
         "CaptureProofBound",
         "CapturedDataReady",
@@ -184,7 +198,7 @@ fn source_data_phase_allows_only_original_order_and_contiguous_directions() {
     assert!(s.is_failed());
 }
 #[test]
-fn capture_data_phase_allows_fourteen_contract_subset_without_new_ack() {
+fn capture_data_phase_requires_approved_fifteen_contract_ack() {
     let mut s = ControlState::new(ProcessRole::Capture);
     for (k, n, d) in [
         ("CaptureBootstrap", 0, Direction::Receive),
@@ -193,10 +207,11 @@ fn capture_data_phase_allows_fourteen_contract_subset_without_new_ack() {
         ("RequestInstallProof", 1, Direction::Send),
         ("InstallProofBound", 2, Direction::Receive),
         ("BrokerInstalled", 2, Direction::Send),
+        ("BrokerInstallObserved", 3, Direction::Receive),
         ("RequestCaptureProof", 3, Direction::Send),
-        ("CaptureProofBound", 3, Direction::Receive),
+        ("CaptureProofBound", 4, Direction::Receive),
         ("CapturedDataReady", 4, Direction::Send),
-        ("SettleCapture", 4, Direction::Receive),
+        ("SettleCapture", 5, Direction::Receive),
     ] {
         observe(&mut s, k, n, d);
     }
@@ -782,4 +797,236 @@ fn capture_self_native_component_reads_boot_id_without_pg_namespace_or_qualifica
     native.revalidate(&scan).unwrap();
     assert_eq!(native.boot_id(&scan).unwrap(), first);
     assert!(scan.usage().unwrap().charged_bytes > 0);
+}
+
+// New C11 cases exercise closed DATA and phase correlation only. No fixture
+// constructs a process/session/installed binding or asserts Root observation.
+fn c11_waiting_for_ack() -> ControlState {
+    let mut state = ControlState::new(ProcessRole::Capture);
+    for (kind, sequence, direction) in [
+        ("CaptureBootstrap", 0, Direction::Receive),
+        ("CaptureInit", 0, Direction::Send),
+        ("CaptureStartBound", 1, Direction::Receive),
+        ("RequestInstallProof", 1, Direction::Send),
+        ("InstallProofBound", 2, Direction::Receive),
+        ("BrokerInstalled", 2, Direction::Send),
+    ] {
+        observe(&mut state, kind, sequence, direction);
+    }
+    state
+}
+#[test]
+fn c11_installed_and_observed_require_exact_new_data_fields() {
+    for kind in ["BrokerInstalled", "BrokerInstallObserved"] {
+        for field in ["binding_id", "epoch_id", "descriptor_sha256"] {
+            let mut v = value(kind, 0);
+            v.as_object_mut().unwrap().remove(field);
+            assert!(job::parse::<ControlData>(&job::canonical(&v).unwrap(), 4096).is_err());
+        }
+        for (field, bad) in [
+            (
+                "binding_id",
+                "44444444-4444-1444-8444-444444444444".to_owned(),
+            ),
+            (
+                "epoch_id",
+                "55555555-5555-4555-A555-555555555555".to_owned(),
+            ),
+            ("descriptor_sha256", "A".repeat(64)),
+        ] {
+            let mut v = value(kind, 0);
+            v[field] = bad.into();
+            assert!(job::parse::<ControlData>(&job::canonical(&v).unwrap(), 4096).is_err());
+        }
+    }
+    let mut v = value("BrokerInstallObserved", 0);
+    v.as_object_mut().unwrap().remove("observation_sha256");
+    assert!(job::parse::<ControlData>(&job::canonical(&v).unwrap(), 4096).is_err());
+}
+#[test]
+fn c11_ack_is_required_correlated_once_and_failure_stays_poisoned() {
+    let mut missing = c11_waiting_for_ack();
+    assert_eq!(
+        missing.observe(&data("RequestCaptureProof", 3), Direction::Send),
+        Err(Error::Phase)
+    );
+    for field in [
+        "job_id",
+        "root_cookie",
+        "backup_id",
+        "request_id",
+        "binding_id",
+        "epoch_id",
+        "descriptor_sha256",
+    ] {
+        let mut state = c11_waiting_for_ack();
+        let mut v = value("BrokerInstallObserved", 3);
+        v[field] = if field.ends_with("sha256") || field == "root_cookie" {
+            "8".repeat(64).into()
+        } else {
+            "88888888-8888-4888-8888-888888888888".into()
+        };
+        let changed: ControlData = job::parse(&job::canonical(&v).unwrap(), 4096).unwrap();
+        assert_eq!(
+            state.observe(&changed, Direction::Receive),
+            Err(Error::Identity)
+        );
+        assert_eq!(
+            state.observe(&data("BrokerInstallObserved", 3), Direction::Receive),
+            Err(Error::Poisoned)
+        );
+    }
+    let mut replay = c11_waiting_for_ack();
+    observe(&mut replay, "BrokerInstallObserved", 3, Direction::Receive);
+    assert!(
+        replay
+            .observe(&data("BrokerInstallObserved", 4), Direction::Receive)
+            .is_err()
+    );
+    assert!(replay.is_failed());
+}
+fn c11_observation() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version":1,"capability":"b1_install_cutover_observation_v1",
+        "job_id":JOB,"backup_id":BACKUP,"phase":"Install","request_id":REQUEST,
+        "binding_id":"44444444-4444-4444-8444-444444444444",
+        "epoch_id":"55555555-5555-4555-8555-555555555555",
+        "generation_binding_sha256":"1".repeat(64),"descriptor_sha256":"2".repeat(64),
+        "epoch_header_sha256":"3".repeat(64),"genesis_frame_sha256":"4".repeat(64),
+        "observed_unix_ms":1,
+        "host_cutover":{
+            "container_id":"5".repeat(64),"image_sha256":format!("sha256:{}","6".repeat(64)),
+            "export_mount":"/host/export","journal_mount":"/host/journal",
+            "assets_mount":{"Type":"bind","Source":"/host/assets","Destination":"/assets","RW":false},
+            "legacy_producers":[],
+            "complete_container_projection":[{
+                "container_id":"5".repeat(64),"image_sha256":format!("sha256:{}","6".repeat(64)),
+                "running":true,"process_id":1,"started_at":"actual-data-only","restart_count":0,
+                "project":null,"service":null,
+                "mounts":[{"destination":"/assets","source":"/host/assets","kind":"bind","rw":false,"name":null}]
+            }],
+            "daemon_id":"daemon-data-only","mountinfo_sha256":"7".repeat(64),"docker_cli_sha256":"8".repeat(64)
+        }
+    })
+}
+#[test]
+fn c11_assets_round_trip_preserves_missing_null_strings_and_rejects_unknown() {
+    for optional in [
+        None,
+        Some(serde_json::Value::Null),
+        Some(serde_json::json!("")),
+        Some(serde_json::json!("rprivate")),
+    ] {
+        let mut v = c11_observation();
+        if let Some(optional) = optional {
+            v["host_cutover"]["assets_mount"]["Propagation"] = optional;
+        }
+        let raw = job::canonical(&v).unwrap();
+        let parsed: job::InstallCutoverObservation = job::parse(&raw, 1024 * 1024).unwrap();
+        assert_eq!(job::canonical(&parsed).unwrap(), raw);
+    }
+    for path in [
+        vec!["host_cutover", "unchecked"],
+        vec!["host_cutover", "assets_mount", "UncheckedDockerField"],
+    ] {
+        let mut v = c11_observation();
+        let mut nested = &mut v;
+        for key in &path[..path.len() - 1] {
+            nested = &mut nested[*key];
+        }
+        nested[path[path.len() - 1]] = true.into();
+        assert!(
+            job::parse::<job::InstallCutoverObservation>(&job::canonical(&v).unwrap(), 1024 * 1024)
+                .is_err()
+        );
+    }
+}
+#[test]
+fn c11_record_rejects_missing_nullable_noncanonical_duplicate_and_bounds() {
+    for field in ["project", "service"] {
+        let mut v = c11_observation();
+        v["host_cutover"]["complete_container_projection"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(
+            job::parse::<job::InstallCutoverObservation>(&job::canonical(&v).unwrap(), 1024 * 1024)
+                .is_err()
+        );
+    }
+    let mut v = c11_observation();
+    v["host_cutover"]["complete_container_projection"][0]["mounts"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("name");
+    assert!(
+        job::parse::<job::InstallCutoverObservation>(&job::canonical(&v).unwrap(), 1024 * 1024)
+            .is_err()
+    );
+    let raw = job::canonical(&c11_observation()).unwrap();
+    let text = String::from_utf8(raw.clone()).unwrap();
+    let duplicate = text.replacen(
+        "\"observed_unix_ms\":1",
+        "\"observed_unix_ms\":1,\"observed_unix_ms\":1",
+        1,
+    );
+    assert!(
+        job::parse::<job::InstallCutoverObservation>(duplicate.as_bytes(), 1024 * 1024).is_err()
+    );
+    let mut newline = raw;
+    newline.push(b'\n');
+    assert!(job::parse::<job::InstallCutoverObservation>(&newline, 1024 * 1024).is_err());
+    let mut v = c11_observation();
+    v["phase"] = "Capture".into();
+    assert!(
+        job::parse::<job::InstallCutoverObservation>(&job::canonical(&v).unwrap(), 1024 * 1024)
+            .is_err()
+    );
+    let mut v = c11_observation();
+    v["host_cutover"]["daemon_id"] = "x".repeat(129).into();
+    assert!(
+        job::parse::<job::InstallCutoverObservation>(&job::canonical(&v).unwrap(), 1024 * 1024)
+            .is_err()
+    );
+}
+#[test]
+fn c11_genesis_data_hashes_original_payload_header_and_complete_frame_separately() {
+    use sha2::{Digest, Sha256};
+    let binding = uuid::Uuid::parse_str("44444444-4444-4444-8444-444444444444").unwrap();
+    let epoch = uuid::Uuid::parse_str("55555555-5555-4555-8555-555555555555").unwrap();
+    let descriptor = br#"{"descriptor":"exact original bytes"}"#;
+    let mut header = b"KWSJEPO2".to_vec();
+    header.extend_from_slice(epoch.as_bytes());
+    header.extend_from_slice(binding.as_bytes());
+    let hd: [u8; 32] = Sha256::digest(&header).into();
+    let dd: [u8; 32] = Sha256::digest(descriptor).into();
+    let mut frame = b"KWSJBYT2".to_vec();
+    frame.extend_from_slice(&1u64.to_be_bytes());
+    frame.extend_from_slice(epoch.as_bytes());
+    frame.extend_from_slice(binding.as_bytes());
+    frame.extend_from_slice(&hd);
+    frame.extend_from_slice(&dd);
+    frame.extend_from_slice(&(descriptor.len() as u64).to_be_bytes());
+    frame.extend_from_slice(descriptor);
+    let fd: [u8; 32] = Sha256::digest(&frame).into();
+    assert_eq!(
+        process::install_genesis_data(&header, &frame, descriptor, (binding, epoch)).unwrap(),
+        (dd, hd, fd)
+    );
+    assert_ne!(dd, hd);
+    assert_ne!(dd, fd);
+    for offset in [0usize, 8, 16, 32, 48, 80, 112, 120] {
+        let mut changed = frame.clone();
+        changed[offset] ^= 1;
+        assert!(
+            process::install_genesis_data(&header, &changed, descriptor, (binding, epoch)).is_err()
+        );
+    }
+    assert!(
+        process::install_genesis_data(&header, &frame, b"reencoded", (binding, epoch)).is_err()
+    );
+    assert!(
+        process::install_genesis_data(&header, &frame[..119], descriptor, (binding, epoch))
+            .is_err()
+    );
 }

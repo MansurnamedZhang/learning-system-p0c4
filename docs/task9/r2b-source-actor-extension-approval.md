@@ -1,5 +1,13 @@
 # Task9 R2b源端补充编码批准记录
 
+## 2026-10-28：C11 DB消费者普通检查结果与既有批准边界
+
+人工原批准 f06536acac579e60bb52fd0885328571c6d1fa2dd03de5de8b1785c62513d129 仅支持已批 37 源码叶内的默认关闭 C11 编码与原限定普通 Linux 检查。新 eeca0765 批次返回 13 门通过、default62／24、peer105／26；完整原件的独立核验已通过；原批准和本轮普通检查不等于真实 Root／PG 或 Task9 验收。
+
+已批合同 db6c165aa84dd8bbc9f89b118664ed81114c2286abbefd80406938a5640f1f53、字段表 e7547949249886bbf82a6a6ae277b2e32bcbb5801e9c7496ca0c27862a59a1ff 已在当前基线，继续保持原 bytes；没有新增第 38 个源码叶。该普通检查结果不增加 Root／PG 正向资格、密钥／信任／launcher 安装、PG／安全权限、源隔离／恢复、CompleteBackup、main 或生产授权。旧批准、43 个历史 checkpoint、失败与 HOLD 均保留。
+
+---
+
 ## 2026-10-28：C11 准确编码补充已批准
 
 人类直接回复“批准补充编码及原限定检查”，批准 [C11 合同](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/docs/task9/c11/CONTRACT.md)与[封闭字段表](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/docs/task9/c11/MACHINE-DELTA.json)。原合同 SHA-256 `db6c165aa84dd8bbc9f89b118664ed81114c2286abbefd80406938a5640f1f53`，字段表 SHA-256 `e7547949249886bbf82a6a6ae277b2e32bcbb5801e9c7496ca0c27862a59a1ff`；直接批准记录 SHA-256 `f06536acac579e60bb52fd0885328571c6d1fa2dd03de5de8b1785c62513d129`。这两份公开文件保留获批原字节。
