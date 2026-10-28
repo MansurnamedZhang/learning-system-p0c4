@@ -41,6 +41,9 @@ enum SlotKey {
     CaptureQuiesce,
     CaptureFinalAdmin,
     HostPublicationAdmin,
+    SourceSpawn,
+    SourceSettle,
+    CaptureReport,
 }
 impl SlotKey {
     fn index(self) -> usize {
@@ -50,18 +53,37 @@ impl SlotKey {
             Self::CaptureBrokerInstallAndPools => 2,
             Self::CaptureQuiesce => 3,
             Self::CaptureFinalAdmin => 4,
+            Self::SourceSpawn | Self::CaptureReport => 5,
+            Self::SourceSettle => 6,
         }
     }
     fn belongs_to(self, role: ProcessRole) -> bool {
         matches!(
             (role, self),
             (ProcessRole::Source, Self::HostPublicationAdmin)
+                | (ProcessRole::Source, Self::SourceSpawn)
+                | (ProcessRole::Source, Self::SourceSettle)
+                | (ProcessRole::Capture, Self::CaptureReport)
                 | (ProcessRole::Capture, Self::CaptureInstallAdmin)
                 | (ProcessRole::Capture, Self::CaptureInstallPool)
                 | (ProcessRole::Capture, Self::CaptureBrokerInstallAndPools)
                 | (ProcessRole::Capture, Self::CaptureQuiesce)
                 | (ProcessRole::Capture, Self::CaptureFinalAdmin)
         )
+    }
+    fn for_index(role: ProcessRole, index: usize) -> Option<Self> {
+        match (role, index) {
+            (ProcessRole::Source, 0) => Some(Self::HostPublicationAdmin),
+            (ProcessRole::Source, 5) => Some(Self::SourceSpawn),
+            (ProcessRole::Source, 6) => Some(Self::SourceSettle),
+            (ProcessRole::Capture, 0) => Some(Self::CaptureInstallAdmin),
+            (ProcessRole::Capture, 1) => Some(Self::CaptureInstallPool),
+            (ProcessRole::Capture, 2) => Some(Self::CaptureBrokerInstallAndPools),
+            (ProcessRole::Capture, 3) => Some(Self::CaptureQuiesce),
+            (ProcessRole::Capture, 4) => Some(Self::CaptureFinalAdmin),
+            (ProcessRole::Capture, 5) => Some(Self::CaptureReport),
+            _ => None,
+        }
     }
 }
 
@@ -271,13 +293,172 @@ impl HandleState {
 struct SlotRecord {
     used: bool,
     resources: Option<Arc<SessionResourceCore>>,
+    control: Option<Arc<ControlResourceCore>>,
+    control_signal: Option<Arc<ControlSignal>>,
     settlement: Arc<AsyncMutex<HandleState>>,
+}
+struct ControlSignal {
+    cancelled: AtomicBool,
+    returned: AtomicBool,
+    unknown: AtomicBool,
+    published: AtomicBool,
+}
+impl ControlSignal {
+    fn new() -> Self {
+        Self {
+            cancelled: AtomicBool::new(false),
+            returned: AtomicBool::new(false),
+            unknown: AtomicBool::new(false),
+            published: AtomicBool::new(false),
+        }
+    }
+}
+struct ControlResourceCore {
+    custody: Arc<ProcessCustodyCore>,
+    signal: Arc<ControlSignal>,
+    registered: AtomicBool,
+    deadline: std::time::Instant,
+    send_deadline: std::time::Instant,
+}
+impl ControlResourceCore {
+    fn cancel(&self) {
+        // No state/qualification lock before making a blocked original poll
+        // negative. Cleanup can therefore wake and join the same actual task.
+        self.signal.cancelled.store(true, Ordering::Release);
+        self.custody.poison();
+    }
+}
+// Armed before channel construction or native worker registration. A worker
+// that never enters still leaves the same original slot permanently negative.
+struct ControlRegistrationSignal {
+    signal: Arc<ControlSignal>,
+    complete: bool,
+}
+impl Drop for ControlRegistrationSignal {
+    fn drop(&mut self) {
+        if !self.complete {
+            self.signal.unknown.store(true, Ordering::Release);
+            self.signal.cancelled.store(true, Ordering::Release);
+        }
+    }
+}
+struct ControlRegistration {
+    resources: Arc<ControlResourceCore>,
+    signal: ControlRegistrationSignal,
+}
+impl ControlRegistration {
+    fn new(resources: Arc<ControlResourceCore>) -> Self {
+        let signal = ControlRegistrationSignal {
+            signal: resources.signal.clone(),
+            complete: false,
+        };
+        Self { resources, signal }
+    }
+}
+impl Drop for ControlRegistration {
+    fn drop(&mut self) {
+        if !self.signal.complete {
+            self.resources.cancel();
+        }
+    }
+}
+struct ControlTaskStatus(Arc<ControlResourceCore>, bool);
+impl ControlTaskStatus {
+    fn returned(&mut self) {
+        self.0.signal.returned.store(true, Ordering::Release);
+        self.1 = true;
+    }
+}
+impl Drop for ControlTaskStatus {
+    fn drop(&mut self) {
+        if !self.1 {
+            self.0.signal.unknown.store(true, Ordering::Release);
+            self.0.cancel();
+        }
+    }
+}
+struct WaitControlPublication {
+    resources: Arc<ControlResourceCore>,
+    complete: bool,
+}
+impl WaitControlPublication {
+    fn complete(&mut self, book: &HandleBook) -> Result<()> {
+        let slots = book.slots.lock().map_err(|_| Error::Poisoned)?;
+        if slots.positive_closed
+            || std::time::Instant::now() >= self.resources.deadline
+            || self.resources.signal.cancelled.load(Ordering::Acquire)
+            || self.resources.custody.is_failed()
+            || !slots.iter().any(|s| {
+                s.control
+                    .as_ref()
+                    .is_some_and(|r| Arc::ptr_eq(r, &self.resources))
+            })
+        {
+            return Err(Error::Poisoned);
+        }
+        self.resources
+            .signal
+            .published
+            .store(true, Ordering::Release);
+        self.complete = true;
+        Ok(())
+    }
+}
+impl Drop for WaitControlPublication {
+    fn drop(&mut self) {
+        if !self.complete {
+            self.resources.cancel();
+        }
+    }
+}
+pub(super) fn control_storage_prepayment() -> u64 {
+    // 64x the largest16KiB typed record plus bounded path/record/frame staging,
+    // channels, Arc/handle storage and cloning padding, before any worker spawn.
+    (2 * 1024 * 1024
+        + std::mem::size_of::<ControlResourceCore>()
+        + std::mem::size_of::<ControlSignal>()
+        + 2 * std::mem::size_of::<SlotRecord>()
+        + std::mem::size_of::<JoinHandle<Result<()>>>()
+        + 8192) as u64
+}
+// An actual short admission reservation, not session/authority DATA. The
+// worker never owns this guard or the Book. It ends only after registration.
+struct AdminEntryGuard {
+    book: &'static HandleBook,
+    custody: Arc<ProcessCustodyCore>,
+    complete: bool,
+}
+impl AdminEntryGuard {
+    fn complete(&mut self) -> Result<()> {
+        let mut slots = self.book.slots.lock().map_err(|_| Error::Poisoned)?;
+        if slots.positive_closed || !slots.admin_entering || self.custody.is_failed() {
+            return Err(Error::Poisoned);
+        }
+        slots.admin_entering = false;
+        self.complete = true;
+        Ok(())
+    }
+}
+impl Drop for AdminEntryGuard {
+    fn drop(&mut self) {
+        if !self.complete {
+            // Negative close first, without attempting Core.state/revalidation.
+            self.book.abandon_original(&self.custody);
+            let mut slots = match self.book.slots.lock() {
+                Ok(v) => v,
+                Err(v) => v.into_inner(),
+            };
+            slots.admin_entering = false;
+        }
+    }
 }
 impl SlotRecord {
     fn unused() -> Self {
         Self {
             used: false,
             resources: None,
+            control: None,
+            control_signal: None,
             settlement: Arc::new(AsyncMutex::new(HandleState {
                 task: None,
                 joined: None,
@@ -296,7 +477,8 @@ pub(super) struct HandleBook {
 }
 struct BookState {
     positive_closed: bool,
-    slots: [SlotRecord; 5],
+    admin_entering: bool,
+    slots: [SlotRecord; 7],
 }
 impl std::ops::Index<usize> for BookState {
     type Output = SlotRecord;
@@ -313,19 +495,48 @@ impl BookState {
     fn iter(&self) -> std::slice::Iter<'_, SlotRecord> {
         self.slots.iter()
     }
+    fn control_available(&self, role: ProcessRole, key: SlotKey) -> bool {
+        !self.positive_closed
+            && !self.admin_entering
+            && key.belongs_to(role)
+            && !self[key.index()].used
+            && !self.iter().any(|s| {
+                s.control_signal
+                    .as_ref()
+                    .is_some_and(|v| !v.published.load(Ordering::Acquire))
+            })
+    }
+    fn cancel_controls(&mut self) {
+        self.positive_closed = true;
+        for slot in self.iter() {
+            if let Some(signal) = &slot.control_signal {
+                signal.cancelled.store(true, Ordering::Release);
+            }
+        }
+    }
+    fn enter_control(&mut self, role: ProcessRole, key: SlotKey) -> Result<Arc<ControlSignal>> {
+        if !self.control_available(role, key) {
+            self.cancel_controls();
+            return Err(Error::Phase);
+        }
+        let signal = Arc::new(ControlSignal::new());
+        self[key.index()].used = true;
+        self[key.index()].control_signal = Some(signal.clone());
+        Ok(signal)
+    }
 }
 pub(super) fn register_original_book(
     custody: &Arc<ProcessCustodyCore>,
 ) -> Result<&'static HandleBook> {
     // Called only after the genuine once-factory's unique finish.
-    // Include all five separately allocated Arc<AsyncMutex<HandleState>> cells,
+    // Include all seven separately allocated Arc<AsyncMutex<HandleState>> cells,
     // with conservative per-allocation storage padding; inline book size alone
     // is not the complete reservation. This charges the original scan, no refund.
     let book_storage = std::mem::size_of::<HandleBook>()
-        + 5 * (std::mem::size_of::<AsyncMutex<HandleState>>() + 1024);
+        + 7 * (std::mem::size_of::<AsyncMutex<HandleState>>() + 1024);
     custody
         .scan()
-        .charge(book_storage as u64, 5)
+        .charge(book_storage as u64, 7)
         .map_err(|_| Error::Capacity)?;
     let role = custody.process_role_data()?;
     let book = HandleBook {
@@ -334,6 +545,7 @@ pub(super) fn register_original_book(
         scheduler: OnceLock::new(),
         slots: Mutex::new(BookState {
             positive_closed: false,
+            admin_entering: false,
             slots: std::array::from_fn(|_| SlotRecord::unused()),
         }),
     };
@@ -344,6 +556,233 @@ pub(super) fn register_original_book(
     ORIGINAL_BOOK.get().ok_or(Error::Poisoned)
 }
 impl HandleBook {
+    fn enter_admin_entry(
+        &'static self,
+        custody: &Arc<ProcessCustodyCore>,
+    ) -> Result<AdminEntryGuard> {
+        if !Weak::ptr_eq(&self.custody_identity, &Arc::downgrade(custody)) {
+            return Err(Error::Identity);
+        }
+        custody.require_original_pid()?;
+        custody
+            .scan()
+            .charge((std::mem::size_of::<AdminEntryGuard>() + 1024) as u64, 1)
+            .map_err(|_| Error::Capacity)?;
+        let mut slots = self.slots.lock().map_err(|_| Error::Poisoned)?;
+        if slots.positive_closed
+            || slots.admin_entering
+            || custody.is_failed()
+            || slots.iter().any(|s| {
+                s.control_signal
+                    .as_ref()
+                    .is_some_and(|v| !v.published.load(Ordering::Acquire))
+            })
+        {
+            slots.cancel_controls();
+            custody.poison();
+            return Err(Error::Phase);
+        }
+        slots.admin_entering = true;
+        Ok(AdminEntryGuard {
+            book: self,
+            custody: custody.clone(),
+            complete: false,
+        })
+    }
+    fn reserve_control(
+        &'static self,
+        custody: Arc<ProcessCustodyCore>,
+        key: SlotKey,
+    ) -> Result<(
+        Arc<ControlResourceCore>,
+        OwnedMutexGuard<HandleState>,
+        &'static Handle,
+    )> {
+        // Identity/failure checks are lock-free with respect to Core.state.
+        // Full original revalidation runs inside the owned blocking worker.
+        if !Weak::ptr_eq(&self.custody_identity, &Arc::downgrade(&custody))
+            || !key.belongs_to(self.role)
+            || !matches!(
+                key,
+                SlotKey::SourceSpawn | SlotKey::SourceSettle | SlotKey::CaptureReport
+            )
+        {
+            custody.poison();
+            return Err(Error::Identity);
+        }
+        custody.require_original_pid()?;
+        if custody.is_failed() {
+            return Err(Error::Poisoned);
+        }
+        let scheduler = self.scheduler()?;
+        let mut slots = self.slots.lock().map_err(|_| Error::Poisoned)?;
+        if !slots.control_available(self.role, key) {
+            slots.cancel_controls();
+            custody.poison();
+            for slot in slots.iter() {
+                if let Some(r) = &slot.control {
+                    r.cancel();
+                }
+            }
+            return Err(Error::Phase);
+        }
+        let admitted = (|| {
+            if !matches!(key, SlotKey::SourceSettle) {
+                for slot in slots.iter() {
+                    if let Some(r) = &slot.resources {
+                        let state = r.state.try_lock().map_err(|_| Error::Phase)?;
+                        if r.running.load(Ordering::Acquire) != 0
+                            || !state.resources_settled(
+                                r.pool_creation.load(Ordering::Acquire),
+                                r.connection_created.load(Ordering::Acquire),
+                                r.unknown.load(Ordering::Acquire),
+                            )
+                        {
+                            return Err(Error::Phase);
+                        }
+                        let handle = slot
+                            .settlement
+                            .clone()
+                            .try_lock_owned()
+                            .map_err(|_| Error::Phase)?;
+                        if !handle.task_returned {
+                            return Err(Error::Phase);
+                        }
+                    }
+                }
+            }
+            // try_lock is an entry-time phase test, never a wait that permits
+            // a later worker phase to excuse an early second action.
+            match key {
+                SlotKey::SourceSpawn => custody.try_admit_source_spawn(),
+                SlotKey::SourceSettle => custody.try_admit_source_settle(),
+                SlotKey::CaptureReport => custody.try_admit_capture_report(),
+                _ => Err(Error::Phase),
+            }
+        })();
+        let (deadline, send_deadline) = match admitted {
+            Ok(value) => value,
+            Err(error) => {
+                slots.cancel_controls();
+                custody.poison();
+                return Err(error);
+            }
+        };
+        let cell = slots[key.index()]
+            .settlement
+            .clone()
+            .try_lock_owned()
+            .map_err(|_| Error::Poisoned)?;
+        let signal = slots.enter_control(self.role, key)?;
+        let resources = Arc::new(ControlResourceCore {
+            custody,
+            signal,
+            registered: AtomicBool::new(false),
+            deadline,
+            send_deadline,
+        });
+        slots[key.index()].control = Some(resources.clone());
+        Ok((resources, cell, scheduler))
+    }
+    fn start_source_spawn(
+        &'static self,
+        custody: Arc<ProcessCustodyCore>,
+    ) -> Result<(
+        Arc<ControlResourceCore>,
+        oneshot::Receiver<Result<super::B1CapturedInputData>>,
+    )> {
+        let (resources, mut cell, scheduler) =
+            self.reserve_control(custody, SlotKey::SourceSpawn)?;
+        let mut registration = ControlRegistration::new(resources.clone());
+        let (sender, receiver) = oneshot::channel();
+        let driver = resources.clone();
+        cell.task = Some(scheduler.spawn_blocking(move || {
+            let mut status = ControlTaskStatus(driver.clone(), false);
+            let value = driver.custody.spawn_capture_and_read_data(
+                &driver.signal.cancelled,
+                driver.deadline,
+                driver.send_deadline,
+            );
+            let outcome = value.as_ref().map(|_| ()).map_err(|e| *e);
+            if outcome.is_err() {
+                driver.cancel();
+            }
+            if sender.send(value).is_err() {
+                driver.cancel();
+            }
+            status.returned();
+            outcome
+        }));
+        resources.registered.store(true, Ordering::Release);
+        registration.signal.complete = true;
+        Ok((resources, receiver))
+    }
+    fn start_source_settle(
+        &'static self,
+        custody: Arc<ProcessCustodyCore>,
+    ) -> Result<(
+        Arc<ControlResourceCore>,
+        oneshot::Receiver<Result<super::B1CaptureSettlementData>>,
+    )> {
+        let (resources, mut cell, scheduler) =
+            self.reserve_control(custody, SlotKey::SourceSettle)?;
+        let mut registration = ControlRegistration::new(resources.clone());
+        let (sender, receiver) = oneshot::channel();
+        let driver = resources.clone();
+        cell.task = Some(scheduler.spawn_blocking(move || {
+            let mut status = ControlTaskStatus(driver.clone(), false);
+            let value = driver
+                .custody
+                .request_capture_settlement(&driver.signal.cancelled, driver.deadline);
+            let outcome = value.as_ref().map(|_| ()).map_err(|e| *e);
+            if outcome.is_err() {
+                driver.cancel();
+            }
+            if sender.send(value).is_err() {
+                driver.cancel();
+            }
+            status.returned();
+            outcome
+        }));
+        resources.registered.store(true, Ordering::Release);
+        registration.signal.complete = true;
+        Ok((resources, receiver))
+    }
+    fn start_capture_report(
+        &'static self,
+        custody: Arc<ProcessCustodyCore>,
+        digest: [u8; 32],
+    ) -> Result<(
+        Arc<ControlResourceCore>,
+        oneshot::Receiver<Result<super::B1CaptureStopRequestedData>>,
+    )> {
+        let (resources, mut cell, scheduler) =
+            self.reserve_control(custody, SlotKey::CaptureReport)?;
+        let mut registration = ControlRegistration::new(resources.clone());
+        let (sender, receiver) = oneshot::channel();
+        let driver = resources.clone();
+        cell.task = Some(scheduler.spawn_blocking(move || {
+            let mut status = ControlTaskStatus(driver.clone(), false);
+            let value = driver.custody.report_captured_digest_and_wait_for_settle(
+                digest,
+                &driver.signal.cancelled,
+                driver.deadline,
+                driver.send_deadline,
+            );
+            let outcome = value.as_ref().map(|_| ()).map_err(|e| *e);
+            if outcome.is_err() {
+                driver.cancel();
+            }
+            if sender.send(value).is_err() {
+                driver.cancel();
+            }
+            status.returned();
+            outcome
+        }));
+        resources.registered.store(true, Ordering::Release);
+        registration.signal.complete = true;
+        Ok((resources, receiver))
+    }
     fn abandon_original(&self, custody: &Arc<ProcessCustodyCore>) {
         if !Weak::ptr_eq(&self.custody_identity, &Arc::downgrade(custody)) {
             return;
@@ -357,6 +796,9 @@ impl HandleBook {
         slots.positive_closed = true;
         custody.poison(); // same lock as the positive registration fence
         for slot in slots.iter().filter(|slot| slot.used) {
+            if let Some(control) = &slot.control {
+                control.cancel();
+            }
             if let Some(resources) = &slot.resources {
                 resources.request(RequestedClose::Abandon);
             }
@@ -372,24 +814,15 @@ impl HandleBook {
                 Ok(slots) => slots,
                 Err(poisoned) => poisoned.into_inner(),
             };
-            std::array::from_fn::<_, 5, _>(|index| slots[index].used)
-        };
-        let keys = match self.role {
-            ProcessRole::Capture => [
-                SlotKey::CaptureInstallAdmin,
-                SlotKey::CaptureInstallPool,
-                SlotKey::CaptureBrokerInstallAndPools,
-                SlotKey::CaptureQuiesce,
-                SlotKey::CaptureFinalAdmin,
-            ],
-            ProcessRole::Source => [SlotKey::HostPublicationAdmin; 5],
+            std::array::from_fn::<_, 7, _>(|index| slots[index].used)
         };
         let mut outcome = Ok(());
-        for (index, key) in keys.into_iter().enumerate() {
-            if self.role == ProcessRole::Source && index != 0 {
-                break;
-            }
-            if used[index] {
+        for (index, active) in used.into_iter().enumerate() {
+            if active {
+                let Some(key) = SlotKey::for_index(self.role, index) else {
+                    outcome = Err(Error::Poisoned);
+                    continue;
+                };
                 let joined = self.join_original(key).await;
                 if outcome.is_ok() && joined.is_err() {
                     outcome = joined;
@@ -404,24 +837,32 @@ impl HandleBook {
                 Ok(slots) => slots,
                 Err(poisoned) => poisoned.into_inner(),
             };
-            std::array::from_fn::<_, 5, _>(|index| {
+            std::array::from_fn::<_, 7, _>(|index| {
                 (
                     slots[index].used,
                     slots[index].settlement.clone(),
                     slots[index].resources.clone(),
+                    slots[index].control.clone(),
                 )
             })
         };
         let mut resource_outcome = Ok(());
-        for (index, (used, handle, resources)) in snapshots.into_iter().enumerate() {
-            if self.role == ProcessRole::Source && index != 0 {
-                break;
-            }
+        for (index, (used, handle, resources, control)) in snapshots.into_iter().enumerate() {
             if !used {
                 continue;
             }
             if !handle.lock().await.task_returned {
                 resource_outcome = Err(Error::Poisoned);
+                continue;
+            }
+            if let Some(control) = control {
+                if SlotKey::for_index(self.role, index).is_none()
+                    || !control.registered.load(Ordering::Acquire)
+                    || !control.signal.returned.load(Ordering::Acquire)
+                    || control.signal.unknown.load(Ordering::Acquire)
+                {
+                    resource_outcome = Err(Error::Poisoned);
+                }
                 continue;
             }
             let Some(resources) = resources else {
@@ -446,10 +887,18 @@ impl HandleBook {
     fn start_admin(
         &'static self,
         custody: Arc<ProcessCustodyCore>,
+        entry: &AdminEntryGuard,
     ) -> Result<(
         Arc<SessionResourceCore>,
         oneshot::Receiver<Result<OwnedB1AdminSession>>,
     )> {
+        if !std::ptr::eq(entry.book, self)
+            || entry.complete
+            || !Arc::ptr_eq(&entry.custody, &custody)
+        {
+            custody.poison();
+            return Err(Error::Identity);
+        }
         self.require_original(&custody)?;
         let stage = custody.next_admin_stage()?;
         let key = stage.slot();
@@ -528,6 +977,22 @@ impl HandleBook {
         if !Weak::ptr_eq(&self.custody_identity, &Arc::downgrade(custody)) {
             return Err(Error::Identity);
         }
+        {
+            let slots = self.slots.lock().map_err(|_| Error::Poisoned)?;
+            if slots.iter().any(|slot| {
+                slot.control_signal
+                    .as_ref()
+                    .is_some_and(|r| !r.published.load(Ordering::Acquire))
+            }) {
+                custody.poison();
+                for slot in slots.iter() {
+                    if let Some(r) = &slot.control {
+                        r.cancel();
+                    }
+                }
+                return Err(Error::Phase);
+            }
+        }
         custody.revalidate()
     }
     fn scheduler(&self) -> Result<&Handle> {
@@ -553,6 +1018,10 @@ impl HandleBook {
                 resources.unknown.store(true, Ordering::Release);
                 resources.request(RequestedClose::Abandon);
             }
+            if poisoned && let Some(control) = &slot.control {
+                control.signal.unknown.store(true, Ordering::Release);
+                control.cancel();
+            }
             (slot.settlement.clone(), poisoned)
         };
         let mut settlement = settlement.lock().await;
@@ -562,6 +1031,143 @@ impl HandleBook {
         } else {
             result
         }
+    }
+}
+
+#[cfg(test)]
+mod control_resource_tests {
+    use super::*;
+
+    #[test]
+    fn control_registration_signal_unwind_is_sticky_without_qualified_core() {
+        // Exercise the actual signal-only member used by all three production
+        // registration guards. No Core, process owner or qualified ctx exists.
+        let signal = Arc::new(ControlSignal::new());
+        let observed = signal.clone();
+        let unwind = std::panic::catch_unwind(move || {
+            let _registration = ControlRegistrationSignal {
+                signal,
+                complete: false,
+            };
+            panic!("ordinary control registration resource unwind");
+        });
+        assert!(unwind.is_err());
+        assert!(observed.unknown.load(Ordering::Acquire));
+        assert!(observed.cancelled.load(Ordering::Acquire));
+        assert!(!observed.returned.load(Ordering::Acquire));
+        assert!(!observed.published.load(Ordering::Acquire));
+        // A later disarmed registration cannot clear an earlier negative fact.
+        drop(ControlRegistrationSignal {
+            signal: observed.clone(),
+            complete: true,
+        });
+        assert!(observed.unknown.load(Ordering::Acquire));
+        assert!(observed.cancelled.load(Ordering::Acquire));
+        // The complete Core guard's same-original poison is statically reviewed;
+        // this primitive test makes no dynamic Core/authority claim.
+        let complete = Arc::new(ControlSignal::new());
+        drop(ControlRegistrationSignal {
+            signal: complete.clone(),
+            complete: true,
+        });
+        assert!(!complete.unknown.load(Ordering::Acquire));
+        assert!(!complete.cancelled.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn admin_entry_reservation_excludes_early_control_before_worker_registration() {
+        let mut slots = BookState {
+            positive_closed: false,
+            admin_entering: true,
+            slots: std::array::from_fn(|_| SlotRecord::unused()),
+        };
+        assert!(!slots.control_available(ProcessRole::Source, SlotKey::SourceSpawn));
+        assert!(
+            slots
+                .enter_control(ProcessRole::Source, SlotKey::SourceSpawn)
+                .is_err()
+        );
+        assert!(slots.positive_closed);
+        let mut capture = BookState {
+            positive_closed: false,
+            admin_entering: true,
+            slots: std::array::from_fn(|_| SlotRecord::unused()),
+        };
+        assert!(
+            capture
+                .enter_control(ProcessRole::Capture, SlotKey::CaptureReport)
+                .is_err()
+        );
+        assert!(capture.positive_closed);
+    }
+
+    #[test]
+    fn early_second_control_slot_is_rejected_and_cancels_without_core_lock() {
+        // Only real Book slot/atomic primitives. No process/core/control owner
+        // or successful qualification fixture is constructed.
+        let mut slots = BookState {
+            positive_closed: false,
+            admin_entering: false,
+            slots: std::array::from_fn(|_| SlotRecord::unused()),
+        };
+        let first = slots
+            .enter_control(ProcessRole::Source, SlotKey::SourceSpawn)
+            .unwrap();
+        let slots = Arc::new(Mutex::new(slots));
+        let other = slots.clone();
+        let early = std::thread::spawn(move || {
+            other
+                .lock()
+                .unwrap()
+                .enter_control(ProcessRole::Source, SlotKey::SourceSettle)
+                .err()
+        })
+        .join()
+        .unwrap();
+        assert!(early == Some(Error::Phase));
+        assert!(first.cancelled.load(Ordering::Acquire));
+        let slots = slots.lock().unwrap();
+        assert!(slots.positive_closed);
+        assert!(!slots.control_available(ProcessRole::Source, SlotKey::SourceSettle));
+    }
+
+    #[tokio::test]
+    async fn cancelled_control_borrow_keeps_actual_blocking_handle_until_natural_join() {
+        let signal = Arc::new(ControlSignal::new());
+        let original = signal.clone();
+        let (started, started_rx) = oneshot::channel();
+        let (release, release_rx) = std::sync::mpsc::sync_channel(0);
+        let task = tokio::task::spawn_blocking(move || {
+            let _ = started.send(());
+            release_rx.recv().map_err(|_| Error::Io)?;
+            if !original.cancelled.load(Ordering::Acquire) {
+                return Err(Error::Shape);
+            }
+            original.returned.store(true, Ordering::Release);
+            Err(Error::Poisoned)
+        });
+        let mut state = HandleState {
+            task: Some(task),
+            joined: None,
+            task_returned: false,
+        };
+        {
+            let joining = state.join();
+            tokio::pin!(joining);
+            tokio::select! {
+                result = &mut joining => panic!("original task returned before barrier: {result:?}"),
+                result = started_rx => assert!(result.is_ok()),
+            }
+            // Cancel this borrowed join only. The task still lives in the same
+            // HandleState, exactly as a caller losing its result does in Book.
+        }
+        assert!(state.task.is_some());
+        signal.cancelled.store(true, Ordering::Release);
+        assert!(release.send(()).is_ok());
+        assert!(state.join().await == Err(Error::Poisoned));
+        assert!(state.task_returned && state.task.is_none());
+        assert!(signal.returned.load(Ordering::Acquire));
+        assert!(state.join().await == Err(Error::Poisoned));
     }
 }
 
@@ -605,14 +1211,16 @@ pub(super) async fn acquire_fixed_admin(
     custody: Arc<ProcessCustodyCore>,
 ) -> Result<OwnedB1AdminSession> {
     let book = ORIGINAL_BOOK.get().ok_or(Error::Poisoned)?;
+    let mut entry = book.enter_admin_entry(&custody)?;
     book.require_original(&custody)?;
     if custody.next_admin_stage()? == AdminStage::Capture {
         // A1 cannot overlap the original Q0 publication epilogue. The actual
         // proof generation alone does not replace the stored Q0 handle join.
         book.join_original(SlotKey::CaptureQuiesce).await?;
     }
-    let (resources, receiver) = book.start_admin(custody)?;
+    let (resources, receiver) = book.start_admin(custody, &entry)?;
     let mut waiting = WaitPublication::new(resources);
+    entry.complete()?;
     let result = receiver
         .await
         .map_err(|_| Error::Io)
@@ -627,6 +1235,109 @@ pub(super) async fn acquire_fixed_admin(
         waiting.complete();
     }
     result
+}
+
+pub(super) async fn spawn_capture_and_read_data(
+    custody: Arc<ProcessCustodyCore>,
+) -> Result<super::B1CapturedInputData> {
+    let original = custody.clone();
+    let outcome = async {
+        let book = ORIGINAL_BOOK.get().ok_or(Error::Poisoned)?;
+        let (resources, receiver) = book.start_source_spawn(custody)?;
+        let mut waiting = WaitControlPublication {
+            resources: resources.clone(),
+            complete: false,
+        };
+        let received = receiver
+            .await
+            .map_err(|_| Error::Io)
+            .and_then(|value| value);
+        if received.is_err() {
+            resources.cancel();
+        }
+        // Keep the borrowed handle inside the Book until its actual return,
+        // even when result delivery/qualification failed.
+        let joined = book.join_original(SlotKey::SourceSpawn).await;
+        let data = received?;
+        joined?;
+        resources
+            .custody
+            .revalidate_control_delivery(resources.deadline)?;
+        waiting.complete(book)?;
+        Ok(data)
+    }
+    .await;
+    if outcome.is_err() {
+        original.poison();
+    }
+    outcome
+}
+pub(super) async fn request_capture_settlement(
+    custody: Arc<ProcessCustodyCore>,
+) -> Result<super::B1CaptureSettlementData> {
+    let original = custody.clone();
+    let outcome = async {
+        let book = ORIGINAL_BOOK.get().ok_or(Error::Poisoned)?;
+        let (resources, receiver) = book.start_source_settle(custody)?;
+        let mut waiting = WaitControlPublication {
+            resources: resources.clone(),
+            complete: false,
+        };
+        let received = receiver
+            .await
+            .map_err(|_| Error::Io)
+            .and_then(|value| value);
+        if received.is_err() {
+            resources.cancel();
+        }
+        let joined = book.join_original(SlotKey::SourceSettle).await;
+        let data = received?;
+        joined?;
+        resources
+            .custody
+            .revalidate_control_delivery(resources.deadline)?;
+        waiting.complete(book)?;
+        Ok(data)
+    }
+    .await;
+    if outcome.is_err() {
+        original.poison();
+    }
+    outcome
+}
+pub(super) async fn report_captured_digest_and_wait_for_settle(
+    custody: Arc<ProcessCustodyCore>,
+    digest: [u8; 32],
+) -> Result<super::B1CaptureStopRequestedData> {
+    let original = custody.clone();
+    let outcome = async {
+        let book = ORIGINAL_BOOK.get().ok_or(Error::Poisoned)?;
+        let (resources, receiver) = book.start_capture_report(custody, digest)?;
+        let mut waiting = WaitControlPublication {
+            resources: resources.clone(),
+            complete: false,
+        };
+        let received = receiver
+            .await
+            .map_err(|_| Error::Io)
+            .and_then(|value| value);
+        if received.is_err() {
+            resources.cancel();
+        }
+        let joined = book.join_original(SlotKey::CaptureReport).await;
+        let data = received?;
+        joined?;
+        resources
+            .custody
+            .revalidate_control_delivery(resources.deadline)?;
+        waiting.complete(book)?;
+        Ok(data)
+    }
+    .await;
+    if outcome.is_err() {
+        original.poison();
+    }
+    outcome
 }
 
 const ADMIN_IDENTITY: &str = "SELECT session_user::text AS session_login,current_user::text AS current_login,pg_get_userbyid(d.datdba)::text AS owner,current_database()::text AS database,d.oid::bigint AS oid,(pg_catalog.pg_control_system()).system_identifier::text AS system_identifier,pg_catalog.pg_postmaster_start_time() AS postmaster,system_user AS original_login,pg_catalog.inet_server_addr()::text AS address,pg_catalog.inet_server_port() AS port FROM pg_catalog.pg_database d WHERE d.datname=current_database()";

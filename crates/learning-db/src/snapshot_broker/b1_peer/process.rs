@@ -2176,6 +2176,8 @@ fn check_job_roster(
     control: &job::OriginalControlOwner,
     backup: Option<&str>,
     scan: &SharedJournalBudget,
+    source_capture: Option<&SourceCapturedOriginal>,
+    source_settlement: Option<&HeldRecord<job::CaptureSettlement>>,
 ) -> Result<()> {
     let root = &start.held.parents.last().ok_or(Error::Identity)?.0;
     let entries = directory_roster(root, 4, scan)?;
@@ -2191,7 +2193,9 @@ fn check_job_roster(
                 let root = child_directory(root, "backups", scan)?;
                 let backups = directory_roster(&root, 1, scan)?;
                 for (name, dir) in backups {
-                    if !dir || !job::uuid(&name, true) || backup.is_some_and(|b| b != name) {
+                    let exact_backup =
+                        backup.or_else(|| source_capture.map(|c| c.data.data.backup_id.as_str()));
+                    if !dir || !job::uuid(&name, true) || exact_backup.is_some_and(|b| b != name) {
                         return Err(Error::Identity);
                     }
                     // A host has not adopted the observed ID. Before Spawn it
@@ -2202,18 +2206,14 @@ fn check_job_roster(
                     }
                     let b = child_directory(&root, &name, scan)?;
                     for (leaf, is_dir) in directory_roster(&b, 6, scan)? {
-                        let allowed = match (leaf.as_str(), is_dir) {
-                            ("capture-start.json", false) => true,
-                            ("install", true) => control.phase_data() >= 4,
-                            ("capture", true) => {
-                                control.phase_data() >= if backup.is_some() { 8 } else { 7 }
-                            }
-                            ("captured-data.json", false) => {
-                                control.phase_data() >= if backup.is_some() { 10 } else { 9 }
-                            }
-                            ("capture-settlement.json", false) => false,
-                            _ => false,
-                        };
+                        let allowed = role_roster_leaf(
+                            backup.is_some(),
+                            control.phase_data(),
+                            source_capture.is_some(),
+                            source_settlement.is_some(),
+                            &leaf,
+                            is_dir,
+                        );
                         if !allowed {
                             return Err(Error::Identity);
                         }
@@ -2225,6 +2225,33 @@ fn check_job_roster(
         }
     }
     Ok(())
+}
+// A DATA predicate only. Actual callers derive the two held flags from the
+// originals stored in this very process; this function cannot mint custody.
+pub(super) fn role_roster_leaf(
+    capture_role: bool,
+    phase: usize,
+    held_capture: bool,
+    held_settlement: bool,
+    leaf: &str,
+    directory: bool,
+) -> bool {
+    if capture_role {
+        return match (leaf, directory) {
+            ("capture-start.json", false) => true,
+            ("install", true) => phase >= 4,
+            ("capture", true) => phase >= 8,
+            ("captured-data.json", false) => phase >= 10,
+            _ => false,
+        };
+    }
+    match (leaf, directory) {
+        ("capture-start.json", false) => phase >= 2,
+        ("install" | "capture", true) => held_capture && (3..=5).contains(&phase),
+        ("captured-data.json", false) => held_capture && (3..=5).contains(&phase),
+        ("capture-settlement.json", false) => held_capture && held_settlement && phase == 5,
+        _ => false,
+    }
 }
 fn fresh_capture_ids(job: &str, scan: &SharedJournalBudget) -> Result<(String, String, String)> {
     let mut bytes = [0_u8; 64];
@@ -2364,6 +2391,213 @@ enum OriginalRoleOwner {
         request: String,
     },
 }
+struct SourceCapturedOriginal {
+    capture: HeldRecord<job::CaptureStart>,
+    generation: HeldRecord<job::GenerationBinding>,
+    data: HeldRecord<job::CapturedData>,
+}
+pub(super) fn decode_digest_data(value: &str) -> Result<[u8; 32]> {
+    if !job::hex(value, 64) {
+        return Err(Error::Shape);
+    }
+    let mut digest = [0; 32];
+    for (index, byte) in digest.iter_mut().enumerate() {
+        *byte =
+            u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).map_err(|_| Error::Shape)?;
+    }
+    Ok(digest)
+}
+pub(super) fn root_control_remaining(start: u64, now: u64) -> Result<std::time::Duration> {
+    let end = start
+        .checked_add(1_200_000_000_000)
+        .ok_or(Error::Deadline)?;
+    if start == 0 || now < start || now >= end {
+        return Err(Error::Deadline);
+    }
+    Ok(std::time::Duration::from_nanos(end - now))
+}
+fn root_control_deadline(start: u64, scan: &SharedJournalBudget) -> Result<Instant> {
+    // Anchor before the kernel observation: conversion cannot extend the
+    // original Root monotonic endpoint by time spent observing the clock.
+    let anchor = Instant::now();
+    scan.charge(0, 1).map_err(|_| Error::Capacity)?;
+    let mut time = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut time) } != 0 {
+        return Err(Error::Io);
+    }
+    let now = u64::try_from(time.tv_sec)
+        .map_err(|_| Error::Deadline)?
+        .checked_mul(1_000_000_000)
+        .and_then(|v| v.checked_add(u64::try_from(time.tv_nsec).ok()?))
+        .ok_or(Error::Deadline)?;
+    anchor
+        .checked_add(root_control_remaining(start, now)?)
+        .ok_or(Error::Deadline)
+}
+fn original_control_live(
+    deadline: Option<Instant>,
+    stop: Option<&AtomicBool>,
+    failed: Option<&AtomicBool>,
+) -> Result<()> {
+    if stop.is_some_and(|v| v.load(Ordering::Acquire))
+        || failed.is_some_and(|v| v.load(Ordering::Acquire))
+    {
+        return Err(Error::Poisoned);
+    }
+    if deadline.is_some_and(|value| Instant::now() >= value) {
+        return Err(Error::Deadline);
+    }
+    Ok(())
+}
+pub(super) fn captured_data_matches_original(
+    data: &job::CapturedData,
+    job: &str,
+    backup: &str,
+    group: &str,
+    capture: &[u8; 32],
+    generation: &[u8; 32],
+) -> Result<()> {
+    if data.job_id != job
+        || data.backup_id != backup
+        || data.source_group_id != group
+        || data.capture_start_sha256 != encode_hex(capture)
+        || data.capture_generation_sha256 != encode_hex(generation)
+    {
+        return Err(Error::Identity);
+    }
+    Ok(())
+}
+pub(super) fn settlement_data_matches_original(
+    data: &job::CaptureSettlement,
+    captured: &job::CapturedData,
+    capture_digest: &[u8; 32],
+    captured_digest: &[u8; 32],
+    exec: (&str, u64),
+) -> Result<()> {
+    if data.job_id != captured.job_id
+        || data.backup_id != captured.backup_id
+        || data.capture_start_sha256 != encode_hex(capture_digest)
+        || data.captured_data_sha256 != encode_hex(captured_digest)
+        || data.exec_id != exec.0
+        || data.child_start_ticks != exec.1
+        || data.natural_exit_code != 0
+        || !data.stdout_eof
+        || !data.stderr_eof
+        || data.extra_bytes
+        || !data.owner_settled
+    {
+        return Err(Error::Identity);
+    }
+    Ok(())
+}
+impl SourceCapturedOriginal {
+    fn open(
+        state: &OriginalState,
+        backup: &str,
+        expected: &str,
+        scan: &SharedJournalBudget,
+        stop: &AtomicBool,
+        failed: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<Self> {
+        let live = || original_control_live(Some(deadline), Some(stop), Some(failed));
+        live()?;
+        if !job::uuid(backup, true) || !job::hex(expected, 64) {
+            return Err(Error::Shape);
+        }
+        let job_id = &state.source_start.data.job_id;
+        let base = format!("{OBSERVATION_ROOT}/jobs/{job_id}/backups/{backup}");
+        let capture = HeldRecord::<job::CaptureStart>::open(
+            &format!("{base}/capture-start.json"),
+            16384,
+            scan,
+        )?;
+        live()?;
+        validate_capture_start(
+            &state.catalog.data,
+            &state.source_start.data,
+            &state.source_start.digest,
+            &capture.data,
+            backup,
+            &capture.data.capture_nonce,
+            &capture.data.capture_request_id,
+        )?;
+        declared_process_image(
+            &capture.data.capture,
+            image(&state.catalog.data, "Capture")?,
+        )?;
+        live()?;
+        let generation = HeldRecord::<job::GenerationBinding>::open(
+            &format!("{base}/capture/generation-binding.json"),
+            4096,
+            scan,
+        )?;
+        live()?;
+        let data = HeldRecord::<job::CapturedData>::open(
+            &format!("{base}/captured-data.json"),
+            4096,
+            scan,
+        )?;
+        live()?;
+        captured_data_matches_original(
+            &data.data,
+            job_id,
+            backup,
+            &state.catalog.data.installed_source.source_group_id,
+            &capture.digest,
+            &generation.digest,
+        )?;
+        if encode_hex(&data.digest) != expected
+            || generation.data.job_id != *job_id
+            || generation.data.backup_id != backup
+            || generation.data.phase != "Capture"
+            || generation.data.capture_start_sha256 != encode_hex(&capture.digest)
+        {
+            return Err(Error::Identity);
+        }
+        Ok(Self {
+            capture,
+            generation,
+            data,
+        })
+    }
+    fn revalidate(
+        &mut self,
+        scan: &SharedJournalBudget,
+        deadline: Option<Instant>,
+        stop: Option<&AtomicBool>,
+        failed: Option<&AtomicBool>,
+    ) -> Result<()> {
+        let live = || original_control_live(deadline, stop, failed);
+        live()?;
+        self.capture.revalidate(scan)?;
+        live()?;
+        self.generation.revalidate(scan)?;
+        live()?;
+        self.data.revalidate(scan)?;
+        live()
+    }
+    fn projection(&self) -> Result<super::B1CapturedInputData> {
+        let d = &self.data.data;
+        Ok(super::B1CapturedInputData {
+            job_id: uuid::Uuid::parse_str(&d.job_id).map_err(|_| Error::Shape)?,
+            backup_id: uuid::Uuid::parse_str(&d.backup_id).map_err(|_| Error::Shape)?,
+            capture_start_sha256: decode_digest_data(&d.capture_start_sha256)?,
+            capture_generation_sha256: decode_digest_data(&d.capture_generation_sha256)?,
+            source_group_id: uuid::Uuid::parse_str(&d.source_group_id).map_err(|_| Error::Shape)?,
+            source_registry_generation_sha256: decode_digest_data(
+                &d.source_registry_generation_sha256,
+            )?,
+            manifest_sha256: decode_digest_data(&d.manifest_sha256)?,
+            captured_roster_sha256: decode_digest_data(&d.captured_roster_sha256)?,
+            snapshot_effects_roster_sha256: decode_digest_data(&d.snapshot_effects_roster_sha256)?,
+            record_sha256: self.data.digest,
+        })
+    }
+}
 struct OriginalState {
     pins: CompilePins,
     catalog: HeldRecord<job::ExecutionCatalog>,
@@ -2377,6 +2611,8 @@ struct OriginalState {
     install_generation: Option<HeldSessionGeneration>,
     capture_generation: Option<HeldSessionGeneration>,
     c11_install: Option<c11::CompletedInstall>,
+    source_captured: Option<SourceCapturedOriginal>,
+    source_settlement: Option<HeldRecord<job::CaptureSettlement>>,
 }
 impl OriginalState {
     fn admin_session_data(&self) -> Result<AdminSessionData> {
@@ -2406,13 +2642,16 @@ impl OriginalState {
         scan: &SharedJournalBudget,
         deadline: Option<Instant>,
     ) -> Result<()> {
-        let live = || {
-            if deadline.is_some_and(|value| Instant::now() >= value) {
-                Err(Error::Deadline)
-            } else {
-                Ok(())
-            }
-        };
+        self.revalidate_bounded(scan, deadline, None, None)
+    }
+    fn revalidate_bounded(
+        &mut self,
+        scan: &SharedJournalBudget,
+        deadline: Option<Instant>,
+        stop: Option<&AtomicBool>,
+        failed: Option<&AtomicBool>,
+    ) -> Result<()> {
+        let live = || original_control_live(deadline, stop, failed);
         live()?;
         // A fork inheritor must fail before any saved-PID, UID or native gate.
         require_same_current_pid(self.own_image.pid, scan)?;
@@ -2489,7 +2728,14 @@ impl OriginalState {
                     &parent_manifest.raw,
                     &parent_manifest.digest,
                 )?;
-                check_job_roster(&self.source_start, &self.control, None, scan)?;
+                check_job_roster(
+                    &self.source_start,
+                    &self.control,
+                    None,
+                    scan,
+                    self.source_captured.as_ref(),
+                    self.source_settlement.as_ref(),
+                )?;
                 live()?;
             }
             OriginalRoleOwner::Capture {
@@ -2518,7 +2764,14 @@ impl OriginalState {
                 live()?;
                 native.join(&self.catalog.data, &capture.data)?;
                 live()?;
-                check_job_roster(&self.source_start, &self.control, Some(backup), scan)?;
+                check_job_roster(
+                    &self.source_start,
+                    &self.control,
+                    Some(backup),
+                    scan,
+                    None,
+                    None,
+                )?;
                 live()?;
             }
         }
@@ -2538,6 +2791,14 @@ impl OriginalState {
                 scan,
                 deadline,
             )?;
+            live()?;
+        }
+        if let Some(captured) = &mut self.source_captured {
+            captured.revalidate(scan, deadline, stop, failed)?;
+            live()?;
+        }
+        if let Some(settlement) = &mut self.source_settlement {
+            settlement.revalidate(scan)?;
             live()?;
         }
         self.native_view.revalidate(scan)?;
@@ -2568,6 +2829,26 @@ pub(super) struct ProcessCustodyCore {
     failed: AtomicBool,
 }
 impl PeerOriginal {
+    pub(super) fn prepay_control_custody(&self) -> Result<std::sync::Arc<ProcessCustodyCore>> {
+        let result = (|| {
+            self.custody.require_original_pid()?;
+            if self.custody.is_failed() {
+                return Err(Error::Poisoned);
+            }
+            // Covers new slots/channels/handle state, Arc clones, bounded path
+            // strings and up to 16KiB typed record allocation/encoding work.
+            // Actual repeated read/hash/metadata/frames remain charged again.
+            self.custody
+                .scan
+                .charge(session::control_storage_prepayment(), 128)
+                .map_err(|_| Error::Capacity)?;
+            Ok(self.custody.clone())
+        })();
+        if result.is_err() {
+            self.custody.poison();
+        }
+        result
+    }
     pub(super) fn custody(&self) -> std::sync::Arc<ProcessCustodyCore> {
         self.custody.clone()
     }
@@ -2585,6 +2866,220 @@ impl PeerOriginal {
     }
 }
 impl ProcessCustodyCore {
+    pub(super) fn try_admit_source_spawn(&self) -> Result<(Instant, Instant)> {
+        if self.is_failed() {
+            return Err(Error::Poisoned);
+        }
+        let state = self.state.try_lock().map_err(|_| Error::Phase)?;
+        if state.pins.role != job::ProcessRole::Source
+            || state.control.phase_data() != 1
+            || state.source_captured.is_some()
+        {
+            return Err(Error::Phase);
+        }
+        let total =
+            root_control_deadline(state.source_start.data.started_monotonic_ns, &self.scan)?;
+        Ok((
+            total,
+            total.min(Instant::now() + std::time::Duration::from_secs(30)),
+        ))
+    }
+    pub(super) fn try_admit_source_settle(&self) -> Result<(Instant, Instant)> {
+        if self.is_failed() {
+            return Err(Error::Poisoned);
+        }
+        let state = self.state.try_lock().map_err(|_| Error::Phase)?;
+        if state.pins.role != job::ProcessRole::Source
+            || state.control.phase_data() != 3
+            || state.source_captured.is_none()
+            || state.source_settlement.is_some()
+        {
+            return Err(Error::Phase);
+        }
+        let request =
+            root_control_deadline(state.source_start.data.started_monotonic_ns, &self.scan)?
+                .min(Instant::now() + std::time::Duration::from_secs(30));
+        Ok((request, request))
+    }
+    pub(super) fn try_admit_capture_report(&self) -> Result<(Instant, Instant)> {
+        if self.is_failed() {
+            return Err(Error::Poisoned);
+        }
+        let state = self.state.try_lock().map_err(|_| Error::Phase)?;
+        if state.pins.role != job::ProcessRole::Capture
+            || state.control.phase_data() != 9
+            || state.c11_install.is_none()
+            || state.capture_generation.is_none()
+        {
+            return Err(Error::Phase);
+        }
+        let total =
+            root_control_deadline(state.source_start.data.started_monotonic_ns, &self.scan)?;
+        Ok((
+            total,
+            total.min(Instant::now() + std::time::Duration::from_secs(30)),
+        ))
+    }
+    pub(super) fn revalidate_control_delivery(&self, deadline: Instant) -> Result<()> {
+        let result = (|| {
+            self.require_original_pid()?;
+            if self.is_failed() {
+                return Err(Error::Poisoned);
+            }
+            let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
+            state.revalidate_bounded(&self.scan, Some(deadline), None, Some(&self.failed))
+        })();
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+    pub(super) fn spawn_capture_and_read_data(
+        &self,
+        stop: &AtomicBool,
+        deadline: Instant,
+        send: Instant,
+    ) -> Result<super::B1CapturedInputData> {
+        let result = (|| {
+            original_control_live(Some(deadline), Some(stop), Some(&self.failed))?;
+            let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
+            state.revalidate_bounded(&self.scan, Some(deadline), Some(stop), Some(&self.failed))?;
+            if state.pins.role != job::ProcessRole::Source || state.source_captured.is_some() {
+                return Err(Error::Phase);
+            }
+            let (backup, digest) = state.control.source_spawn_before(deadline, send, stop)?;
+            original_control_live(Some(deadline), Some(stop), Some(&self.failed))?;
+            let held = SourceCapturedOriginal::open(
+                &state,
+                &backup,
+                &digest,
+                &self.scan,
+                stop,
+                &self.failed,
+                deadline,
+            )?;
+            state.source_captured = Some(held);
+            // The sole expected reply has now been consumed. Restore the full
+            // idle/no-extra and original physical/held checks before returning DATA.
+            state.revalidate_bounded(&self.scan, Some(deadline), Some(stop), Some(&self.failed))?;
+            if stop.load(Ordering::Acquire) || self.is_failed() {
+                return Err(Error::Poisoned);
+            }
+            state
+                .source_captured
+                .as_ref()
+                .ok_or(Error::Phase)?
+                .projection()
+        })();
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+    pub(super) fn request_capture_settlement(
+        &self,
+        stop: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<super::B1CaptureSettlementData> {
+        let result = (|| {
+            original_control_live(Some(deadline), Some(stop), Some(&self.failed))?;
+            let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
+            state.revalidate_bounded(&self.scan, Some(deadline), Some(stop), Some(&self.failed))?;
+            if state.pins.role != job::ProcessRole::Source
+                || state.source_captured.is_none()
+                || state.source_settlement.is_some()
+            {
+                return Err(Error::Phase);
+            }
+            let expected = state.control.source_settle_before(deadline, stop)?;
+            original_control_live(Some(deadline), Some(stop), Some(&self.failed))?;
+            let captured = state.source_captured.as_ref().ok_or(Error::Phase)?;
+            let backup = &captured.data.data.backup_id;
+            let held = HeldRecord::<job::CaptureSettlement>::open(
+                &format!(
+                    "{OBSERVATION_ROOT}/jobs/{}/backups/{backup}/capture-settlement.json",
+                    state.source_start.data.job_id
+                ),
+                4096,
+                &self.scan,
+            )?;
+            let d = &held.data;
+            original_control_live(Some(deadline), Some(stop), Some(&self.failed))?;
+            if encode_hex(&held.digest) != expected {
+                return Err(Error::Identity);
+            }
+            settlement_data_matches_original(
+                d,
+                &captured.data.data,
+                &captured.capture.digest,
+                &captured.data.digest,
+                (
+                    &captured.capture.data.exec_id,
+                    captured.capture.data.capture.start_ticks,
+                ),
+            )?;
+            let data = super::B1CaptureSettlementData {
+                job_id: uuid::Uuid::parse_str(&d.job_id).map_err(|_| Error::Shape)?,
+                backup_id: uuid::Uuid::parse_str(&d.backup_id).map_err(|_| Error::Shape)?,
+                capture_start_sha256: decode_digest_data(&d.capture_start_sha256)?,
+                captured_data_sha256: decode_digest_data(&d.captured_data_sha256)?,
+                exec_id_bytes: decode_digest_data(&d.exec_id)?,
+                child_start_ticks: d.child_start_ticks,
+                stdout_sha256: decode_digest_data(&d.stdout_sha256)?,
+                stderr_sha256: decode_digest_data(&d.stderr_sha256)?,
+                record_sha256: held.digest,
+            };
+            state.source_settlement = Some(held);
+            state.revalidate_bounded(&self.scan, Some(deadline), Some(stop), Some(&self.failed))?;
+            if stop.load(Ordering::Acquire) || self.is_failed() {
+                return Err(Error::Poisoned);
+            }
+            Ok(data)
+        })();
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+    pub(super) fn report_captured_digest_and_wait_for_settle(
+        &self,
+        digest: [u8; 32],
+        stop: &AtomicBool,
+        deadline: Instant,
+        send: Instant,
+    ) -> Result<super::B1CaptureStopRequestedData> {
+        let result = (|| {
+            original_control_live(Some(deadline), Some(stop), Some(&self.failed))?;
+            let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
+            state.revalidate_bounded(&self.scan, Some(deadline), Some(stop), Some(&self.failed))?;
+            if state.pins.role != job::ProcessRole::Capture
+                || state.c11_install.is_none()
+                || state.capture_generation.is_none()
+            {
+                return Err(Error::Phase);
+            }
+            let (backup, reported) =
+                state
+                    .control
+                    .capture_report_before(encode_hex(&digest), deadline, send, stop)?;
+            original_control_live(Some(deadline), Some(stop), Some(&self.failed))?;
+            if decode_digest_data(&reported)? != digest {
+                return Err(Error::Identity);
+            }
+            state.revalidate_bounded(&self.scan, Some(deadline), Some(stop), Some(&self.failed))?;
+            if stop.load(Ordering::Acquire) || self.is_failed() {
+                return Err(Error::Poisoned);
+            }
+            Ok(super::B1CaptureStopRequestedData {
+                backup_id: uuid::Uuid::parse_str(&backup).map_err(|_| Error::Shape)?,
+                captured_data_sha256: digest,
+            })
+        })();
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
     pub(super) fn next_admin_stage(&self) -> Result<session::AdminStage> {
         self.revalidate()?;
         let state = self.state.lock().map_err(|_| Error::Poisoned)?;
@@ -2935,7 +3430,7 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
         start.job_lock_ino,
         &scan,
     )?;
-    check_job_roster(&source_start, &control, None, &scan)?;
+    check_job_roster(&source_start, &control, None, &scan, None, None)?;
     let role = match pins.role {
         job::ProcessRole::Source => {
             let (parent_pid, socket_cookie, parent) = early_source_parent.ok_or(Error::Identity)?;
@@ -3050,6 +3545,8 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
         install_generation: None,
         capture_generation: None,
         c11_install: None,
+        source_captured: None,
+        source_settlement: None,
     };
     state.revalidate(&scan)?;
     let custody = std::sync::Arc::new(ProcessCustodyCore {

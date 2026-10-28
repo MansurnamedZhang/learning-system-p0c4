@@ -2336,6 +2336,263 @@ impl OriginalControlOwner {
     pub(super) fn phase_data(&self) -> usize {
         self.state.phase()
     }
+    pub(super) fn source_spawn_before(
+        &mut self,
+        total: std::time::Instant,
+        send: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+    ) -> Result<(String, String)> {
+        if self.state.role != ProcessRole::Source || self.state.phase() != 1 {
+            self.action_failed.set(true);
+            return Err(Error::Phase);
+        }
+        let request = ControlData::SpawnCapture {
+            schema_version: 1,
+            job_id: self.state.job_id.clone().ok_or(Error::Phase)?,
+            root_cookie: self.state.cookie.clone().ok_or(Error::Phase)?,
+            sequence: self.state.next_send,
+        };
+        self.write_control_frame_before(&request, send, stop)?;
+        match self.read_control_frame_before(total, stop)? {
+            ControlData::CapturedDataReady {
+                backup_id,
+                captured_data_sha256,
+                ..
+            } => Ok((backup_id, captured_data_sha256)),
+            _ => Err(Error::Phase),
+        }
+    }
+    pub(super) fn source_settle_before(
+        &mut self,
+        total: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+    ) -> Result<String> {
+        if self.state.role != ProcessRole::Source || self.state.phase() != 3 {
+            self.action_failed.set(true);
+            return Err(Error::Phase);
+        }
+        let request = ControlData::SettleCapture {
+            schema_version: 1,
+            job_id: self.state.job_id.clone().ok_or(Error::Phase)?,
+            root_cookie: self.state.cookie.clone().ok_or(Error::Phase)?,
+            sequence: self.state.next_send,
+            backup_id: self.state.backup.clone().ok_or(Error::Phase)?,
+            captured_data_sha256: self.state.captured_digest.clone().ok_or(Error::Phase)?,
+        };
+        // One request deadline includes its write, reply and held-record join.
+        self.write_control_frame_before(&request, total, stop)?;
+        match self.read_control_frame_before(total, stop)? {
+            ControlData::CaptureSettled {
+                capture_settlement_sha256,
+                ..
+            } => Ok(capture_settlement_sha256),
+            _ => Err(Error::Phase),
+        }
+    }
+    pub(super) fn capture_report_before(
+        &mut self,
+        digest: String,
+        total: std::time::Instant,
+        send: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+    ) -> Result<(String, String)> {
+        if self.state.role != ProcessRole::Capture || self.state.phase() != 9 || !hex(&digest, 64) {
+            self.action_failed.set(true);
+            return Err(Error::Phase);
+        }
+        let request = ControlData::CapturedDataReady {
+            schema_version: 1,
+            job_id: self.state.job_id.clone().ok_or(Error::Phase)?,
+            root_cookie: self.state.cookie.clone().ok_or(Error::Phase)?,
+            sequence: self.state.next_send,
+            backup_id: self.state.backup.clone().ok_or(Error::Phase)?,
+            captured_data_sha256: digest,
+        };
+        self.write_control_frame_before(&request, send, stop)?;
+        match self.read_control_frame_before(total, stop)? {
+            ControlData::SettleCapture {
+                backup_id,
+                captured_data_sha256,
+                ..
+            } => Ok((backup_id, captured_data_sha256)),
+            _ => Err(Error::Phase),
+        }
+    }
+    fn read_control_frame_before(
+        &mut self,
+        deadline: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+    ) -> Result<ControlData> {
+        let entered = EnteredAction::enter(&self.action_failed)?;
+        let mut prefix = [0; 4];
+        self.state.reserve_prefix(&self.scan)?;
+        Self::read_control_exact(&self.transport, &mut prefix, deadline, stop, &self.scan)?;
+        let length = u32::from_be_bytes(prefix) as usize;
+        self.state.reserve_body(length, &self.scan)?;
+        let mut body = vec![0; length];
+        Self::read_control_exact(&self.transport, &mut body, deadline, stop, &self.scan)?;
+        let parsed = parse::<ControlData>(&body, MAX_MESSAGE)?;
+        self.state.observe(&parsed, Direction::Receive)?;
+        entered.complete();
+        Ok(parsed)
+    }
+    fn write_control_frame_before(
+        &mut self,
+        data: &ControlData,
+        deadline: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+    ) -> Result<()> {
+        let entered = EnteredAction::enter(&self.action_failed)?;
+        // New control slots prepay a fixed serialization/clone upper bound
+        // before this worker starts; the old paths are not retroactively changed.
+        let body = canonical(data)?;
+        self.state.reserve(body.len(), &self.scan)?;
+        self.state.observe(data, Direction::Send)?;
+        self.state.poison();
+        let mut frame = u32::try_from(body.len())
+            .map_err(|_| Error::Capacity)?
+            .to_be_bytes()
+            .to_vec();
+        frame.extend_from_slice(&body);
+        Self::write_control_all(&self.transport, &frame, deadline, stop, &self.scan)?;
+        self.state.failed = false;
+        entered.complete();
+        Ok(())
+    }
+    fn poll_control(
+        fd: std::os::fd::RawFd,
+        events: i16,
+        deadline: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+        scan: &SharedJournalBudget,
+    ) -> Result<()> {
+        loop {
+            if stop.load(std::sync::atomic::Ordering::Acquire) {
+                return Err(Error::Poisoned);
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(Error::Deadline);
+            }
+            scan.charge(0, 1).map_err(|_| Error::Capacity)?;
+            let slice =
+                deadline.min(std::time::Instant::now() + std::time::Duration::from_millis(250));
+            let timeout = slice
+                .saturating_duration_since(std::time::Instant::now())
+                .as_millis()
+                .saturating_add(1)
+                .min(i32::MAX as u128) as i32;
+            let mut item = libc::pollfd {
+                fd,
+                events,
+                revents: 0,
+            };
+            let code = unsafe { libc::poll(&mut item, 1, timeout) };
+            // EINTR returns to this charged outer loop, never an uncharged
+            // native-poll retry hidden inside the legacy helper.
+            if code < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted
+            {
+                continue;
+            }
+            Self::control_boundary(deadline, stop)?;
+            if code < 0 {
+                return Err(Error::Io);
+            }
+            if code == 0 {
+                continue;
+            }
+            if item.revents & libc::POLLNVAL != 0 {
+                return Err(Error::Identity);
+            }
+            if item.revents & events != 0 {
+                return Ok(());
+            }
+            if item.revents & (libc::POLLERR | libc::POLLHUP) != 0 {
+                return Err(Error::Eof);
+            }
+            return Err(Error::Io);
+        }
+    }
+    fn control_boundary(
+        deadline: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+    ) -> Result<()> {
+        if stop.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(Error::Poisoned);
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(Error::Deadline);
+        }
+        Ok(())
+    }
+    fn read_control_exact(
+        transport: &OriginalTransport,
+        mut remaining: &mut [u8],
+        deadline: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+        scan: &SharedJournalBudget,
+    ) -> Result<()> {
+        use std::os::fd::AsRawFd;
+        let fd = match transport {
+            OriginalTransport::Source(s) => s.as_raw_fd(),
+            OriginalTransport::Capture { input, .. } => input.as_raw_fd(),
+        };
+        while !remaining.is_empty() {
+            Self::poll_control(fd, libc::POLLIN, deadline, stop, scan)?;
+            scan.charge(0, 1).map_err(|_| Error::Capacity)?;
+            let count = unsafe { libc::read(fd, remaining.as_mut_ptr().cast(), remaining.len()) };
+            Self::control_boundary(deadline, stop)?;
+            if count == 0 {
+                return Err(Error::Eof);
+            }
+            if count < 0 {
+                if matches!(
+                    std::io::Error::last_os_error().kind(),
+                    std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock
+                ) {
+                    continue;
+                }
+                return Err(Error::Io);
+            }
+            remaining = remaining
+                .get_mut(usize::try_from(count).map_err(|_| Error::Io)?..)
+                .ok_or(Error::Io)?;
+        }
+        Self::control_boundary(deadline, stop)
+    }
+    fn write_control_all(
+        transport: &OriginalTransport,
+        mut remaining: &[u8],
+        deadline: std::time::Instant,
+        stop: &std::sync::atomic::AtomicBool,
+        scan: &SharedJournalBudget,
+    ) -> Result<()> {
+        use std::os::fd::AsRawFd;
+        let fd = match transport {
+            OriginalTransport::Source(s) => s.as_raw_fd(),
+            OriginalTransport::Capture { output, .. } => output.as_raw_fd(),
+        };
+        while !remaining.is_empty() {
+            Self::poll_control(fd, libc::POLLOUT, deadline, stop, scan)?;
+            scan.charge(0, 1).map_err(|_| Error::Capacity)?;
+            let count = unsafe { libc::write(fd, remaining.as_ptr().cast(), remaining.len()) };
+            Self::control_boundary(deadline, stop)?;
+            if count <= 0 {
+                if count < 0
+                    && matches!(
+                        std::io::Error::last_os_error().kind(),
+                        std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock
+                    )
+                {
+                    continue;
+                }
+                return Err(Error::Io);
+            }
+            remaining = remaining
+                .get(usize::try_from(count).map_err(|_| Error::Io)?..)
+                .ok_or(Error::Io)?;
+        }
+        Self::control_boundary(deadline, stop)
+    }
     pub(super) fn request_install_proof(&mut self, request: &str) -> Result<String> {
         if self.state.role != ProcessRole::Capture
             || self.state.phase() != 3
@@ -2582,6 +2839,68 @@ impl OriginalControlOwner {
         }
         Ok(())
     }
+}
+
+// Tests below call the actual finite IO primitive on a local resource only;
+// they never construct OriginalControlOwner, PeerOriginal or a qualified ctx.
+#[cfg(test)]
+pub(super) fn control_read_negative_probe(
+    raw: &[u8],
+    close_peer: bool,
+    expired: bool,
+    cancelled: bool,
+    exhausted: bool,
+) -> Result<(Error, u64, bool)> {
+    use std::{io::Write, os::fd::AsRawFd};
+    if raw.len() > 4096 {
+        return Err(Error::Shape);
+    }
+    let (local, mut peer) = std::os::unix::net::UnixStream::pair().map_err(|_| Error::Io)?;
+    super::process::mark_cloexec_nonblocking(local.as_raw_fd())?;
+    peer.write_all(raw).map_err(|_| Error::Io)?;
+    let peer = (!close_peer).then_some(peer);
+    let scan = SharedJournalBudget::default();
+    if exhausted {
+        assert!(scan.charge(u64::MAX, 1).is_err());
+    }
+    let stop = std::sync::atomic::AtomicBool::new(cancelled);
+    let deadline = if expired {
+        std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(1))
+            .ok_or(Error::Deadline)?
+    } else {
+        std::time::Instant::now() + std::time::Duration::from_secs(30)
+    };
+    let transport = OriginalTransport::Source(local);
+    let mut prefix = [0; 4];
+    let error =
+        OriginalControlOwner::read_control_exact(&transport, &mut prefix, deadline, &stop, &scan)
+            .err()
+            .ok_or(Error::Shape)?;
+    let fd = match &transport {
+        OriginalTransport::Source(s) => s.as_raw_fd(),
+        _ => return Err(Error::Shape),
+    };
+    let mut byte = [0];
+    let remaining = unsafe {
+        libc::recv(
+            fd,
+            byte.as_mut_ptr().cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
+    } > 0;
+    let entries = scan.usage().map(|u| u.charged_entries).unwrap_or(0);
+    drop(peer);
+    Ok((error, entries, remaining))
+}
+#[cfg(test)]
+pub(super) fn control_late_boundary_probe() -> Result<()> {
+    let stop = std::sync::atomic::AtomicBool::new(true);
+    OriginalControlOwner::control_boundary(
+        std::time::Instant::now() + std::time::Duration::from_secs(30),
+        &stop,
+    )
 }
 
 /// Exact old network-side manifest shape. `role=source` cannot select a process

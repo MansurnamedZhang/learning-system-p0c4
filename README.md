@@ -1,5 +1,26 @@
 # 知织 · KnowWeave
 
+## DB3 固定控制动作完成限定普通检查，Root／M3接线继续 · 2026-10-29
+
+已批37叶内，本片6个既有DB源码叶复用同原peer、控制FD、共享预算和期限，增加三个已批窄控制动作、opaque DATA读取及原Book持有的真实阻塞任务。注册未完成时实际RAII保持unknown／cancelled并毒化同原custody；取消借用不detach已开始任务，原close自然join。公共backup runner仍关闭，不能据此产生Root或ACK资格。
+
+DB3六个既有源码叶完成限定普通Linux13门：DB默认62通过／24忽略、peer117通过／26忽略，均0失败／0过滤；peer新增12个独立普通正文通过，配置间重复正文不相加。backup默认与offhost只有依赖check。真实Root发行、M3整个future／finally、M5、C11整链、S5封闭管线与Task9／C4验收仍开放。
+
+13门为fmt check、DB默认／peer严格Clippy、backup默认／offhost cargo check，以及DB两配置各自库no-run、完整名单、ignored名单和普通正文。完整默认名单86、peer143；peer新增12且ignored0／rename0／remove0。新正文不构造genuine context；普通包装入口精确调用两个既有ignored fresh-child helper，因此24／26是各自顶层ignored数，不表示所有ignored函数都没有执行。本轮不执行backup完整库正文或真实Root／PG正向套件。
+
+格式化前45旧测试属性与正文、先前新增11正文raw保持；实际formatter后，独立formatted CODE确认旧45完整属性／正文原raw保持，新12完整属性／正文格式等价，后者不声称raw相同。formatter result a6d0a69cd1d3ab3a666b433c8a591984f9ed7d04d684b46a11af8fc36a0b0b50，FORMAT OTHER e0375d131e59a0b1a6b124fcfad313c8e3c4db696be4cc1a7f829fdf6f7bd6e8；其源包699／产品696／返回6、5个格式变化叶及同CID自然清理按原独审核证；FORMAT自身没有typecheck或库正文信用，完整普通检查信用来自新的2fb批次。
+
+基线63a66327f032f01201eb3c4d6d6d60c0894a81bf／tree06b50c03d0092f9d3391f501114898225c69fe66，产品696、源清单695行，6个路径全已存在、新增路径0。仅新增task9_r2b_db3_fixed_control_ordinary；原45个task* checkpoint深层类型和值保持，总46。source9 S5实际批次、历史DB参考、旧RED／HOLD／未观测字段各归原来源，不并入本轮计数，不重放旧批次。
+
+批次2fb62369-09c1-41fa-8126-9d73b12fe40f，result 1dbfec0f2548f14f601b8898ea2e7dd6d35577570f795328c188a909de5a33bc；evidence ZIP 0f6eb27597aeaf456764c47771dfa77323dce89e4113c86fb22b9986b7316c6b。源CI 546f0cded8c37a685e914874610cfbd80aa0f7e02400562804caac8aa2d018a9／MF 922ebbee717c11ba9256a4f617b47c205412fc166bb90bc4d477ed20b41758e1／TEST 5882ad2f4be6eeff7e30c7d9e35f362dbf25d751f4aba7d4a4635966e0531cb5，Root CODE b45411a2b78eff8448a77456c5b37e15e8f17818b27374654c41d39ddd64f651。最终checks CONTROL 0c97cc470c8e51a20bb24812a9fbca6436d13214087df8b509f63e8ab1be39ab；独立完整原件OTHER 296108a050d5e17956f511b342c0f5df9fccd7d2e333ffbfecdcdbbcb117ad6c／INDEX bdd755139f3112a3d9d6501c4d86ecbbef2ab2176841b39eae125cc92a370322。实际13门全exit0、完整86／143名单与24／26顶层ignored、共享历史资源和新12正文，按该独审有限范围核证；源码原件未变、精确CID自然退出及清理、返回证据链已核。不是独立远程亲见、连续OS cap或全链资源计费证明。
+
+C3历史标签纠正：按既有docs/p0c3-verification.md第3、7至10行，将误写9823的C3受测源码标签恢复为3342c0554c18787749d0f06a772743f867c18720；full原结果c939cc71与独核c22f9485保持原批次。这里只纠正既有标签，不新增、重放或重新核发C3验收信用；当前DB3源基线由sourceCommit=63a66327f032f01201eb3c4d6d6d60c0894a81bf单列。
+
+真实Root持有者、全host before枚举、实际genesis／after、持久leaf与ACK生产者仍待实现；M3整个actor future／finally、Source首S与Publication阶段／capture-only admission差异、M5保持仍开放。S5下游sealed／fs等读链的完整有界计费及cap inventory未闭合，缺口清单仍不完整。37叶是本轮补充编码的范围，并不把范围外实现概括为未授权；需要扩大本轮施工范围时应逐项列明。现场密钥／信任／launcher安装、PG／安全权限、源隔离／恢复和真实整链按具体方案办理。
+本次有限普通检查不授source_READY、Root／M3整体／M5／C11／S5整链、封闭总计费、cap inventory、CompleteBackup、Task9／C4、main合并或生产部署信用。
+
+---
+
 ## S5 消费端与 C11 DATA 完成限定普通检查，Root／M3 接线继续 · 2026-10-28
 
 已批 37 个产品源码叶内，本轮 9 叶 S5 消费端与 source_launch DATA 候选完成限定 backup 普通 Linux 检查。这里的 S5 消费端检查不表示 S5 封闭管线、M3 实际 actor、Root 真实发行或 C11 整链完成；Task9／C4 仍开放。

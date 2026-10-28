@@ -6,6 +6,237 @@ use super::{
 use learning_assets::root_journal::SharedJournalBudget;
 use std::{ffi::CString, os::fd::AsRawFd};
 
+#[test]
+fn fixed_control_original_monotonic_deadline_never_rebases_or_overflows() {
+    assert_eq!(
+        process::root_control_remaining(1_000_000_000, 1_200_000_000_000)
+            .unwrap()
+            .as_nanos(),
+        1_000_000_000
+    );
+    assert!(process::root_control_remaining(1_000_000_000, 1_201_000_000_000).is_err());
+    assert!(process::root_control_remaining(2, 1).is_err());
+    assert!(process::root_control_remaining(u64::MAX, u64::MAX).is_err());
+    assert!(process::root_control_remaining(0, 1).is_err());
+}
+
+#[test]
+fn fixed_control_source_roster_requires_held_current_records_and_final_phase() {
+    assert!(!process::role_roster_leaf(
+        false,
+        1,
+        false,
+        false,
+        "capture-start.json",
+        false
+    ));
+    assert!(process::role_roster_leaf(
+        false,
+        2,
+        false,
+        false,
+        "capture-start.json",
+        false
+    ));
+    for leaf in ["install", "capture"] {
+        assert!(!process::role_roster_leaf(
+            false, 3, false, false, leaf, true
+        ));
+        assert!(process::role_roster_leaf(false, 3, true, false, leaf, true));
+    }
+    assert!(!process::role_roster_leaf(
+        false,
+        3,
+        false,
+        false,
+        "captured-data.json",
+        false
+    ));
+    assert!(process::role_roster_leaf(
+        false,
+        3,
+        true,
+        false,
+        "captured-data.json",
+        false
+    ));
+    assert!(!process::role_roster_leaf(
+        false,
+        4,
+        true,
+        true,
+        "capture-settlement.json",
+        false
+    ));
+    assert!(!process::role_roster_leaf(
+        false,
+        5,
+        true,
+        false,
+        "capture-settlement.json",
+        false
+    ));
+    assert!(process::role_roster_leaf(
+        false,
+        5,
+        true,
+        true,
+        "capture-settlement.json",
+        false
+    ));
+    for leaf in ["hold.json", "partial", "unknown.json", "captured-data.json"] {
+        assert!(!process::role_roster_leaf(false, 5, true, true, leaf, true));
+    }
+}
+
+#[test]
+fn fixed_control_capture_roster_keeps_original_thresholds_and_no_settlement_ack() {
+    assert!(!process::role_roster_leaf(
+        true, 3, false, false, "install", true
+    ));
+    assert!(process::role_roster_leaf(
+        true, 4, false, false, "install", true
+    ));
+    assert!(!process::role_roster_leaf(
+        true, 7, false, false, "capture", true
+    ));
+    assert!(process::role_roster_leaf(
+        true, 8, false, false, "capture", true
+    ));
+    assert!(!process::role_roster_leaf(
+        true,
+        9,
+        false,
+        false,
+        "captured-data.json",
+        false
+    ));
+    assert!(process::role_roster_leaf(
+        true,
+        10,
+        false,
+        false,
+        "captured-data.json",
+        false
+    ));
+    assert!(!process::role_roster_leaf(
+        true,
+        11,
+        true,
+        true,
+        "capture-settlement.json",
+        false
+    ));
+}
+
+#[test]
+fn fixed_control_digest_projection_decodes_original_bytes_and_rejects_alternate_shape() {
+    assert_eq!(
+        process::decode_digest_data(&"0f".repeat(32)).unwrap(),
+        [15; 32]
+    );
+    for raw in [
+        "F".repeat(64),
+        "f".repeat(63),
+        "g".repeat(64),
+        "é".repeat(32),
+    ] {
+        assert!(process::decode_digest_data(&raw).is_err());
+    }
+}
+
+#[test]
+fn fixed_control_actual_local_eof_and_partial_read_charge_native_entries() {
+    let (empty, entries, _) =
+        job::control_read_negative_probe(b"", true, false, false, false).unwrap();
+    assert!(empty == Error::Eof && entries >= 1);
+    let (partial, entries, _) =
+        job::control_read_negative_probe(b"abc", true, false, false, false).unwrap();
+    assert!(partial == Error::Eof && entries >= 3);
+}
+
+#[test]
+fn fixed_control_expired_cancelled_and_exhausted_io_leave_preloaded_bytes_unread() {
+    let (cancelled, _, remaining) =
+        job::control_read_negative_probe(b"abcd", false, false, true, false).unwrap();
+    assert!(cancelled == Error::Poisoned && remaining);
+    let (expired, _, remaining) =
+        job::control_read_negative_probe(b"abcd", false, true, false, false).unwrap();
+    assert!(expired == Error::Deadline && remaining);
+    let (exhausted, _, remaining) =
+        job::control_read_negative_probe(b"abcd", false, false, false, true).unwrap();
+    assert!(exhausted == Error::Capacity && remaining);
+    assert!(job::control_late_boundary_probe() == Err(Error::Poisoned));
+}
+
+fn fixed_captured_record_data() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version":1,"capability":"b1_captured_input_data_only_v1",
+        "job_id":JOB,"backup_id":BACKUP,"capture_start_sha256":"a".repeat(64),
+        "capture_generation_sha256":"b".repeat(64),"source_group_id":REQUEST,
+        "source_registry_generation_sha256":"c".repeat(64),"manifest_sha256":"d".repeat(64),
+        "captured_roster_sha256":"e".repeat(64),"snapshot_effects_roster_sha256":"f".repeat(64)
+    })
+}
+
+#[test]
+fn fixed_control_captured_record_rejects_crossed_original_identity_and_raw_digest_domains() {
+    let good = fixed_captured_record_data();
+    let check = |value: &serde_json::Value| {
+        let d: job::CapturedData = job::parse(&job::canonical(value).unwrap(), 4096).unwrap();
+        process::captured_data_matches_original(&d, JOB, BACKUP, REQUEST, &[0xaa; 32], &[0xbb; 32])
+    };
+    assert!(check(&good).is_ok()); // DATA association only, no process constructor.
+    for (key, wrong) in [
+        ("job_id", BACKUP.to_owned()),
+        ("backup_id", REQUEST.to_owned()),
+        ("source_group_id", JOB.to_owned()),
+        ("capture_start_sha256", "b".repeat(64)),
+        ("capture_generation_sha256", "a".repeat(64)),
+    ] {
+        let mut changed = good.clone();
+        changed[key] = wrong.into();
+        assert!(check(&changed).is_err());
+    }
+}
+
+#[test]
+fn fixed_control_settlement_data_rejects_crossed_exec_start_and_incomplete_observation() {
+    let captured: job::CapturedData = serde_json::from_value(fixed_captured_record_data()).unwrap();
+    let good = serde_json::json!({
+        "schema_version":1,"capability":"b1_capture_natural_settlement_observation_v1",
+        "job_id":JOB,"backup_id":BACKUP,"capture_start_sha256":"a".repeat(64),
+        "captured_data_sha256":"d".repeat(64),"exec_id":"e".repeat(64),"child_start_ticks":12,
+        "natural_exit_code":0,"stdout_eof":true,"stderr_eof":true,"extra_bytes":false,
+        "owner_settled":true,"stdout_sha256":"1".repeat(64),"stderr_sha256":"2".repeat(64)
+    });
+    let check = |value: &serde_json::Value| {
+        let d: job::CaptureSettlement = serde_json::from_value(value.clone()).unwrap();
+        process::settlement_data_matches_original(
+            &d,
+            &captured,
+            &[0xaa; 32],
+            &[0xdd; 32],
+            (&"e".repeat(64), 12),
+        )
+    };
+    assert!(check(&good).is_ok()); // Root-record fields, not DB witnessing wait/EOF.
+    for (key, wrong) in [
+        ("exec_id", serde_json::json!("f".repeat(64))),
+        ("child_start_ticks", serde_json::json!(13)),
+        ("captured_data_sha256", serde_json::json!("a".repeat(64))),
+        ("natural_exit_code", serde_json::json!(1)),
+        ("stdout_eof", serde_json::json!(false)),
+        ("stderr_eof", serde_json::json!(false)),
+        ("extra_bytes", serde_json::json!(true)),
+        ("owner_settled", serde_json::json!(false)),
+    ] {
+        let mut changed = good.clone();
+        changed[key] = wrong;
+        assert!(check(&changed).is_err());
+    }
+}
+
 const JOB: &str = "11111111-1111-4111-8111-111111111111";
 const BACKUP: &str = "22222222-2222-4222-8222-222222222222";
 const REQUEST: &str = "33333333-3333-4333-8333-333333333333";

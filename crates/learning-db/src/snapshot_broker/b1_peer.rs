@@ -30,6 +30,40 @@ type Result<T> = std::result::Result<T, Error>;
 /// caller-owned constructor or conversion from checked DATA exists.
 pub struct B1InstalledSourceProcess(std::sync::Arc<process::PeerOriginal>);
 impl B1InstalledSourceProcess {
+    /// Fixed Source action only. Returned Root DATA is not a publication S.
+    pub async fn spawn_capture_and_read_data(
+        &self,
+    ) -> std::result::Result<B1CapturedInputData, super::ObservationError> {
+        session::spawn_capture_and_read_data(
+            self.0.prepay_control_custody().map_err(observation_error)?,
+        )
+        .await
+        .map_err(observation_error)
+    }
+    /// Called by the original M6 Source only after its authenticated D Ready.
+    /// This request does not itself establish Ready or observe kernel settlement.
+    pub async fn request_capture_settlement(
+        &self,
+    ) -> std::result::Result<B1CaptureSettlementData, super::ObservationError> {
+        session::request_capture_settlement(
+            self.0.prepay_control_custody().map_err(observation_error)?,
+        )
+        .await
+        .map_err(observation_error)
+    }
+    /// Capture reports only its fixed output DATA digest and waits for the
+    /// original Root stop request. Notification is not cut release or exit proof.
+    pub async fn report_captured_digest_and_wait_for_settle(
+        &self,
+        captured_data_sha256: [u8; 32],
+    ) -> std::result::Result<B1CaptureStopRequestedData, super::ObservationError> {
+        session::report_captured_digest_and_wait_for_settle(
+            self.0.prepay_control_custody().map_err(observation_error)?,
+            captured_data_sha256,
+        )
+        .await
+        .map_err(observation_error)
+    }
     pub async fn acquire_fixed_admin(
         &self,
     ) -> std::result::Result<OwnedB1AdminSession, super::ObservationError> {
@@ -60,6 +94,104 @@ impl B1InstalledSourceProcess {
         &self,
     ) -> std::result::Result<uuid::Uuid, super::ObservationError> {
         self.0.capture_backup_id_data().map_err(observation_error)
+    }
+}
+/// Read-only projections of already joined Root records. None owns a ctx,
+/// connection, descriptor, cut, permission or signer; there are no constructors.
+pub struct B1CapturedInputData {
+    job_id: uuid::Uuid,
+    backup_id: uuid::Uuid,
+    capture_start_sha256: [u8; 32],
+    capture_generation_sha256: [u8; 32],
+    source_group_id: uuid::Uuid,
+    source_registry_generation_sha256: [u8; 32],
+    manifest_sha256: [u8; 32],
+    captured_roster_sha256: [u8; 32],
+    snapshot_effects_roster_sha256: [u8; 32],
+    record_sha256: [u8; 32],
+}
+impl B1CapturedInputData {
+    pub fn job_id(&self) -> uuid::Uuid {
+        self.job_id
+    }
+    pub fn backup_id(&self) -> uuid::Uuid {
+        self.backup_id
+    }
+    pub fn capture_start_sha256(&self) -> [u8; 32] {
+        self.capture_start_sha256
+    }
+    pub fn capture_generation_sha256(&self) -> [u8; 32] {
+        self.capture_generation_sha256
+    }
+    pub fn source_group_id(&self) -> uuid::Uuid {
+        self.source_group_id
+    }
+    pub fn source_registry_generation_sha256(&self) -> [u8; 32] {
+        self.source_registry_generation_sha256
+    }
+    pub fn manifest_sha256(&self) -> [u8; 32] {
+        self.manifest_sha256
+    }
+    pub fn captured_roster_sha256(&self) -> [u8; 32] {
+        self.captured_roster_sha256
+    }
+    pub fn snapshot_effects_roster_sha256(&self) -> [u8; 32] {
+        self.snapshot_effects_roster_sha256
+    }
+    pub fn record_sha256(&self) -> [u8; 32] {
+        self.record_sha256
+    }
+}
+pub struct B1CaptureSettlementData {
+    job_id: uuid::Uuid,
+    backup_id: uuid::Uuid,
+    capture_start_sha256: [u8; 32],
+    captured_data_sha256: [u8; 32],
+    exec_id_bytes: [u8; 32],
+    child_start_ticks: u64,
+    stdout_sha256: [u8; 32],
+    stderr_sha256: [u8; 32],
+    record_sha256: [u8; 32],
+}
+impl B1CaptureSettlementData {
+    pub fn job_id(&self) -> uuid::Uuid {
+        self.job_id
+    }
+    pub fn backup_id(&self) -> uuid::Uuid {
+        self.backup_id
+    }
+    pub fn capture_start_sha256(&self) -> [u8; 32] {
+        self.capture_start_sha256
+    }
+    pub fn captured_data_sha256(&self) -> [u8; 32] {
+        self.captured_data_sha256
+    }
+    pub fn exec_id_bytes(&self) -> [u8; 32] {
+        self.exec_id_bytes
+    }
+    pub fn child_start_ticks(&self) -> u64 {
+        self.child_start_ticks
+    }
+    pub fn stdout_sha256(&self) -> [u8; 32] {
+        self.stdout_sha256
+    }
+    pub fn stderr_sha256(&self) -> [u8; 32] {
+        self.stderr_sha256
+    }
+    pub fn record_sha256(&self) -> [u8; 32] {
+        self.record_sha256
+    }
+}
+pub struct B1CaptureStopRequestedData {
+    backup_id: uuid::Uuid,
+    captured_data_sha256: [u8; 32],
+}
+impl B1CaptureStopRequestedData {
+    pub fn backup_id(&self) -> uuid::Uuid {
+        self.backup_id
+    }
+    pub fn captured_data_sha256(&self) -> [u8; 32] {
+        self.captured_data_sha256
     }
 }
 pub(super) async fn install_fresh(
