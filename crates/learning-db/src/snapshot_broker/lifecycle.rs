@@ -37,6 +37,29 @@ use uuid::Uuid;
 
 pub const STORAGE_ENCODING: &str = "root_frame_v1";
 
+async fn close_bootstrap_connection<T>(
+    connection: Option<sqlx::pool::PoolConnection<sqlx::Postgres>>,
+    outcome: Result<T>,
+    #[cfg(feature = "b1-source-peer")] fixed: Option<&super::b1_peer::FixedWorkPools>,
+) -> Result<T> {
+    let closed = match connection {
+        Some(connection) => connection
+            .close()
+            .await
+            .map_err(super::ObservationError::from),
+        None => Ok(()),
+    };
+    #[cfg(feature = "b1-source-peer")]
+    if closed.is_err()
+        && let Some(fixed) = fixed
+    {
+        fixed.mark_work_unknown();
+    }
+    let value = outcome?;
+    closed?;
+    Ok(value)
+}
+
 /// Descriptions are never registry enrollment or proof of deployment cutover.
 /// The source capture independently matches these against its retained inputs.
 pub struct BrokerSourceDescription {
@@ -224,6 +247,10 @@ struct InstalledRootMarker {
 /// Owns the installed fresh OS binding and all original operation supervision.
 /// No constructor accepts arbitrary SQL, caller JSON, a JobLease or old bytes.
 pub struct RootSnapshotBroker {
+    #[cfg(feature = "b1-source-peer")]
+    b1_lifetime: Mutex<Option<super::b1_peer::WorkLifetime>>,
+    #[cfg(feature = "b1-source-peer")]
+    pub(super) b1_original: Mutex<Option<Arc<super::B1InstalledSourceProcess>>>,
     work: Mutex<Option<EpochWork>>,
     installed: Arc<InstalledSnapshotBinding>,
     runtime: PgPool,
@@ -430,6 +457,15 @@ impl RootSnapshotBroker {
         if work.as_ref().is_none_or(|work| work.owner().is_held()) {
             return Err(history::rejected("broker original lifecycle HOLD"));
         }
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = &work
+            .as_ref()
+            .expect("checked original work")
+            .owner()
+            .b1_work
+        {
+            fixed.revalidate()?;
+        }
         Ok(())
     }
     pub async fn accept_signal(&self, stream: UnixStream) -> Result<BrokerSignalResult> {
@@ -618,15 +654,22 @@ impl RootSnapshotBroker {
                         // Selection is itself supervised by the original owner,
                         // registered before its first SQL/await and under the same
                         // absolute deadline as claim, append and publication.
+                        let mut connection = owner.acquire_runtime(&slot).await?;
                         let ids = super::history::runtime::settle(&slot, async {
-                            crate::JobStore::new(runtime_pool.clone())
-                                .runnable_snapshot_ids(1)
-                                .await
-                                .map_err(|_| {
-                                    history::rejected("broker actual runnable scan failed")
-                                })
+                            match connection.as_mut() {
+                                Some(connection) => {
+                                    crate::JobStore::runnable_snapshot_ids_on(connection, 1).await
+                                }
+                                None => {
+                                    crate::JobStore::new(runtime_pool.clone())
+                                        .runnable_snapshot_ids(1)
+                                        .await
+                                }
+                            }
+                            .map_err(|_| history::rejected("broker actual runnable scan failed"))
                         })
-                        .await?;
+                        .await;
+                        let ids = owner.close_connection(&slot, connection, ids).await?;
                         let Some(job) = ids.into_iter().next() else {
                             return Ok(BrokerSignalResult::NoWork);
                         };
@@ -637,17 +680,28 @@ impl RootSnapshotBroker {
                             .budget
                             .charge(4096, 1)
                             .map_err(|_| super::ObservationError::Capacity)?;
-                        let selected: attempts::BusinessRequest =
-                            super::history::runtime::settle(&slot, async {
-                                sqlx::query_as(attempts::BUSINESS_REQUEST)
-                                    .bind(job)
-                                    .fetch_optional(&runtime_pool)
-                                    .await?
-                                    .ok_or_else(|| {
-                                        history::rejected("actual business request missing")
-                                    })
-                            })
-                            .await?;
+                        let mut connection = owner.acquire_runtime(&slot).await?;
+                        let selected = super::history::runtime::settle(&slot, async {
+                            let selected: Option<attempts::BusinessRequest> =
+                                match connection.as_mut() {
+                                    Some(connection) => {
+                                        sqlx::query_as(attempts::BUSINESS_REQUEST)
+                                            .bind(job)
+                                            .fetch_optional(&mut **connection)
+                                            .await?
+                                    }
+                                    None => {
+                                        sqlx::query_as(attempts::BUSINESS_REQUEST)
+                                            .bind(job)
+                                            .fetch_optional(&runtime_pool)
+                                            .await?
+                                    }
+                                };
+                            selected
+                                .ok_or_else(|| history::rejected("actual business request missing"))
+                        })
+                        .await;
+                        let selected = owner.close_connection(&slot, connection, selected).await?;
                         let expected = {
                             let ledger = jobs
                                 .lock()
@@ -787,19 +841,33 @@ impl RootSnapshotBroker {
                                 BrokerSignalResult::RevokedBeforeWrite,
                             )
                         } else {
-                            let mut tx = attempts::begin(&owner, &slot).await?;
-                            let observed = super::history::runtime::settle(
-                                &slot,
-                                super::transaction::read_locked(&mut tx, &owner.observation, job),
-                            )
+                            let mut connection = owner.acquire_broker(&slot).await?;
+                            let observed = async {
+                                let mut tx =
+                                    attempts::begin(&owner, &slot, &mut connection).await?;
+                                let observed = super::history::runtime::settle(
+                                    &slot,
+                                    super::transaction::read_locked(
+                                        &mut tx,
+                                        &owner.observation,
+                                        job,
+                                    ),
+                                )
+                                .await;
+                                let rollback =
+                                    super::history::runtime::settle_started(&slot, async {
+                                        Ok(tx.rollback().await?)
+                                    })
+                                    .await;
+                                let observed = observed?.ok_or_else(|| {
+                                    history::rejected("published source job missing")
+                                })?;
+                                rollback?;
+                                Ok(observed)
+                            }
                             .await;
-                            let rollback = super::history::runtime::settle_started(&slot, async {
-                                Ok(tx.rollback().await?)
-                            })
-                            .await;
-                            let observed = observed?
-                                .ok_or_else(|| history::rejected("published source job missing"))?;
-                            rollback?;
+                            let observed =
+                                owner.close_connection(&slot, connection, observed).await?;
                             slot.live()?;
                             let rows: history::Rows = observed.into();
                             let digest = attempts::rows_digest(&rows, &owner)?;
@@ -891,12 +959,26 @@ impl RootSnapshotBroker {
             .map_err(|_| history::rejected("broker lifecycle poisoned"))?
             .take()
             .ok_or_else(|| history::rejected("broker already consumed"))?;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = &work.owner().b1_work {
+            let fixed = fixed.clone();
+            let original = self
+                .b1_original
+                .lock()
+                .map_err(|_| history::rejected("B1 original process owner poisoned"))?
+                .take()
+                .ok_or_else(|| history::rejected("B1 original process owner missing"))?;
+            let mut view =
+                super::b1_peer::quiesce_b1(self, work, fixed, backup_id, capture_id).await?;
+            view.b1_original = Some(original);
+            return Ok(view);
+        }
         let pending = work.start_quiesce(move |work, owner, slot| {
             self.quiesce_owned(work, owner, slot, backup_id, capture_id)
         })?;
         pending.await
     }
-    async fn quiesce_owned(
+    pub(super) async fn quiesce_owned(
         self,
         mut work: EpochWork,
         owner: Arc<Original>,
@@ -910,16 +992,32 @@ impl RootSnapshotBroker {
                 "broker unknown original operation cannot capture",
             ));
         }
-        super::history::runtime::settle_started(&slot, async {
-            owner.pool.close().await;
-            Ok(())
-        })
-        .await?;
-        super::history::runtime::settle_started(&slot, async {
-            self.runtime.close().await;
-            Ok(())
-        })
-        .await?;
+        #[cfg(feature = "b1-source-peer")]
+        let lifetime = self
+            .b1_lifetime
+            .lock()
+            .map_err(|_| history::rejected("B1 pool owner poisoned"))?
+            .take();
+        #[cfg(feature = "b1-source-peer")]
+        let fixed_pools = lifetime.is_some();
+        #[cfg(not(feature = "b1-source-peer"))]
+        let fixed_pools = false;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(mut lifetime) = lifetime {
+            super::history::runtime::settle_started(&slot, lifetime.close_pools()).await?;
+        }
+        if !fixed_pools {
+            super::history::runtime::settle_started(&slot, async {
+                owner.pool.close().await;
+                Ok(())
+            })
+            .await?;
+            super::history::runtime::settle_started(&slot, async {
+                self.runtime.close().await;
+                Ok(())
+            })
+            .await?;
+        }
         slot.live()?;
         let ledger = {
             let jobs = self
@@ -1024,6 +1122,11 @@ impl RootSnapshotBroker {
             socket.recheck()?;
         }
         let view = QuiescedSnapshotEpochV2 {
+            #[cfg(feature = "b1-source-peer")]
+            b1_original: self
+                .b1_original
+                .into_inner()
+                .map_err(|_| history::rejected("B1 original process owner poisoned"))?,
             _work: work,
             owner,
             installed: self.installed,
@@ -1035,6 +1138,10 @@ impl RootSnapshotBroker {
             _sockets: self.sockets,
         };
         view.revalidate()?;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = &view.owner.b1_work {
+            fixed.bind_capture_generation()?;
+        }
         Ok(view)
     }
     /// Fixed writer implementation description, not registry enrollment.
@@ -1054,13 +1161,68 @@ impl RootSnapshotBroker {
     /// consumed and closed before this object can perform any business work.
     /// The running broker retains only its original C0/runtime pools.
     pub async fn install_fresh(
-        mut installed: InstalledSnapshotBinding,
+        installed: InstalledSnapshotBinding,
         admin_install: PgPool,
         broker: PgPool,
         runtime: PgPool,
         source: BrokerSourceDescription,
         sockets: (&UnixListener, &UnixListener),
     ) -> Result<Self> {
+        Self::install_with_originals(
+            installed,
+            admin_install,
+            broker,
+            runtime,
+            source,
+            sockets,
+            #[cfg(feature = "b1-source-peer")]
+            (None, None),
+        )
+        .await
+    }
+    #[cfg(feature = "b1-source-peer")]
+    pub async fn install_fresh_b1_peer(
+        original: Arc<super::B1InstalledSourceProcess>,
+        installed: InstalledSnapshotBinding,
+        source: BrokerSourceDescription,
+        sockets: (&UnixListener, &UnixListener),
+    ) -> Result<Self> {
+        super::b1_peer::install_fresh(original, installed, source, sockets).await
+    }
+    #[cfg(feature = "b1-source-peer")]
+    pub(super) async fn install_b1_owned(
+        installed: InstalledSnapshotBinding,
+        fixed: Arc<super::b1_peer::FixedWorkPools>,
+        source: BrokerSourceDescription,
+        sockets: [UnixListener; 2],
+        lifetime: super::b1_peer::WorkLifetime,
+    ) -> Result<Self> {
+        let admin = fixed.admin_pool()?;
+        Self::install_with_originals(
+            installed,
+            admin,
+            fixed.broker_pool(),
+            fixed.runtime_pool(),
+            source,
+            (&sockets[0], &sockets[1]),
+            (Some(fixed), Some(lifetime)),
+        )
+        .await
+    }
+    async fn install_with_originals(
+        mut installed: InstalledSnapshotBinding,
+        admin_install: PgPool,
+        broker: PgPool,
+        runtime: PgPool,
+        source: BrokerSourceDescription,
+        sockets: (&UnixListener, &UnixListener),
+        #[cfg(feature = "b1-source-peer")] b1_originals: (
+            Option<Arc<super::b1_peer::FixedWorkPools>>,
+            Option<super::b1_peer::WorkLifetime>,
+        ),
+    ) -> Result<Self> {
+        #[cfg(feature = "b1-source-peer")]
+        let (fixed, b1_lifetime) = b1_originals;
         let result = Self::install_inner(
             &mut installed,
             &admin_install,
@@ -1068,12 +1230,27 @@ impl RootSnapshotBroker {
             &runtime,
             &source,
             sockets,
+            #[cfg(feature = "b1-source-peer")]
+            fixed.as_deref(),
         )
         .await;
         // No success or error adopts an in-flight install session. Closing the
         // original dedicated pool waits for every returned install connection.
-        admin_install.close().await;
+        #[cfg(feature = "b1-source-peer")]
+        let admin_closed = match &fixed {
+            Some(fixed) => fixed.close_install_admin_pool().await,
+            None => {
+                admin_install.close().await;
+                Ok(())
+            }
+        };
+        #[cfg(not(feature = "b1-source-peer"))]
+        let admin_closed: Result<()> = {
+            admin_install.close().await;
+            Ok(())
+        };
         let (descriptor, budget, journal) = result?;
+        admin_closed?;
         let socket_bindings = vec![
             SocketBinding::observe(sockets.0, 65532, 0o660)?,
             SocketBinding::observe(sockets.1, 0, 0o600)?,
@@ -1086,6 +1263,11 @@ impl RootSnapshotBroker {
             budget,
             source.source_build_sha256,
         )?;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = &fixed {
+            work.attach_b1(fixed.clone())?;
+            fixed.retain_epoch(work.owner())?;
+        }
         let owner = work.owner();
         let descriptor_bytes = history::encode(&descriptor, &owner.budget)?;
         let initial_bytes = history::encode(&descriptor, &owner.budget)?;
@@ -1107,7 +1289,15 @@ impl RootSnapshotBroker {
             },
         )?;
         pending.await?;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = &fixed {
+            fixed.installed()?;
+        }
         Ok(Self {
+            #[cfg(feature = "b1-source-peer")]
+            b1_lifetime: Mutex::new(b1_lifetime),
+            #[cfg(feature = "b1-source-peer")]
+            b1_original: Mutex::new(None),
             work: Mutex::new(Some(work)),
             installed,
             runtime,
@@ -1127,11 +1317,22 @@ impl RootSnapshotBroker {
         runtime: &PgPool,
         source: &BrokerSourceDescription,
         sockets: (&UnixListener, &UnixListener),
+        #[cfg(feature = "b1-source-peer")] fixed: Option<&super::b1_peer::FixedWorkPools>,
     ) -> Result<(
         EpochDescriptor,
         SharedJournalBudget,
         learning_assets::root_journal::RootJournalBytes,
     )> {
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = fixed {
+            fixed.revalidate()?;
+            fixed.match_source_description(source)?;
+            if installed.shared_budget().shares_meter_with(&fixed.scan()) {
+                return Err(history::rejected(
+                    "B1 installed journal shares scan accounting",
+                ));
+            }
+        }
         installed
             .revalidate()
             .map_err(|_| history::rejected("fresh installed binding rejected"))?;
@@ -1194,7 +1395,17 @@ impl RootSnapshotBroker {
         {
             return Err(history::rejected("installed export marker binding differs"));
         }
-        let mut tx = admin.begin().await?;
+        let mut connection: Option<sqlx::pool::PoolConnection<sqlx::Postgres>> = None;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = fixed {
+            connection = Some(fixed.acquire_admin().await?);
+        }
+        let observed = async {
+        use sqlx::Acquire;
+        let mut tx = match connection.as_mut() {
+            Some(connection) => (&mut *connection).begin().await?,
+            None => admin.begin().await?,
+        };
         let observed:Result<(String,i64,String,DateTime<Utc>)>=async {
             let row:(String,String,bool,String,i64,String,DateTime<Utc>)=sqlx::query_as(
                 "SELECT session_user::text,current_user::text,d.datdba=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname=session_user),current_database()::text,d.oid::bigint,(pg_catalog.pg_control_system()).system_identifier::text,pg_catalog.pg_postmaster_start_time() FROM pg_catalog.pg_database d WHERE d.datname=current_database()")
@@ -1206,29 +1417,83 @@ impl RootSnapshotBroker {
         let rollback = tx.rollback().await;
         let database = observed?;
         rollback?;
-        let mut tx = super::transaction::begin_owned(broker).await?;
-        let observed = super::transition::identity(&mut tx).await;
-        let rollback = tx.rollback().await;
-        let actual = observed?;
-        rollback?;
+        Ok(database)
+        }.await;
+        let database = close_bootstrap_connection(
+            connection,
+            observed,
+            #[cfg(feature = "b1-source-peer")]
+            fixed,
+        )
+        .await?;
+        let mut connection: Option<sqlx::pool::PoolConnection<sqlx::Postgres>> = None;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = fixed {
+            connection = Some(fixed.acquire_broker().await?);
+        }
+        let observed = async {
+            let mut tx = match connection.as_mut() {
+                Some(connection) => super::transaction::begin_borrowed(connection).await?,
+                None => super::transaction::begin_owned(broker).await?,
+            };
+            let observed = super::transition::identity(&mut tx).await;
+            let rollback = tx.rollback().await;
+            let actual = observed?;
+            rollback?;
+            Ok(actual)
+        }
+        .await;
+        let actual = close_bootstrap_connection(
+            connection,
+            observed,
+            #[cfg(feature = "b1-source-peer")]
+            fixed,
+        )
+        .await?;
         if actual.database != database.0
             || actual.oid != database.1
             || actual.postmaster != database.3
         {
             return Err(history::rejected("broker bootstrap database changed"));
         }
-        let mut tx = runtime.begin().await?;
+        let mut connection: Option<sqlx::pool::PoolConnection<sqlx::Postgres>> = None;
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = fixed {
+            connection = Some(fixed.acquire_runtime().await?);
+        }
+        let observed = async {
+        use sqlx::Acquire;
+        let mut tx = match connection.as_mut() {
+            Some(connection) => (&mut *connection).begin().await?,
+            None => runtime.begin().await?,
+        };
         let observed:Result<()>=async {
             let r:(String,String,String,i64,DateTime<Utc>,Option<String>)=sqlx::query_as("SELECT session_user::text,current_user::text,current_database()::text,(SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname=current_database()),pg_catalog.pg_postmaster_start_time(),system_user")
                 .fetch_one(&mut *tx).await?;
+            let legacy_authenticated = r.5.as_deref().and_then(|s|s.split_once(':'))
+                .is_some_and(|(method,user)|!method.is_empty() && user=="learning_runtime");
+            #[cfg(feature = "b1-source-peer")]
+            let authenticated = if fixed.is_some() { r.5.as_deref() == Some("peer:root") }
+                else { legacy_authenticated };
+            #[cfg(not(feature = "b1-source-peer"))]
+            let authenticated = legacy_authenticated;
             if r.0!="learning_runtime" || r.1!="learning_runtime" || r.2!=database.0 || r.3!=database.1 || r.4!=database.3
-                || !r.5.as_deref().and_then(|s|s.split_once(':')).is_some_and(|(method,user)|!method.is_empty() && user=="learning_runtime")
+                || !authenticated
             {return Err(history::rejected("broker actual runtime LOGIN differs"));}
             super::writer::validate_publication_observation(&mut tx).await
         }.await;
         let rollback = tx.rollback().await;
         observed?;
         rollback?;
+        Ok(())
+        }.await;
+        close_bootstrap_connection(
+            connection,
+            observed,
+            #[cfg(feature = "b1-source-peer")]
+            fixed,
+        )
+        .await?;
         let work = SocketBinding::observe(sockets.0, 65532, 0o660)?;
         let management = SocketBinding::observe(sockets.1, 0, 0o600)?;
         let identities = installed
@@ -1371,6 +1636,8 @@ impl RootSnapshotBroker {
 /// known byte owner, settled owner registry and installed Root binding. No
 /// public constructor, Clone, serde, From or new writer method is provided.
 pub struct QuiescedSnapshotEpochV2 {
+    #[cfg(feature = "b1-source-peer")]
+    b1_original: Option<Arc<super::B1InstalledSourceProcess>>,
     _work: EpochWork,
     owner: Arc<Original>,
     installed: Arc<InstalledSnapshotBinding>,
@@ -1416,6 +1683,10 @@ impl QuiescedSnapshotEpochV2 {
     pub fn revalidate(&self) -> Result<()> {
         if self.owner.is_held() {
             return Err(history::rejected("quiesced original epoch HOLD"));
+        }
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(fixed) = &self.owner.b1_work {
+            fixed.revalidate_process()?;
         }
         self.installed
             .revalidate()

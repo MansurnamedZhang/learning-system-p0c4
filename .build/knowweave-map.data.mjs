@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "事务借用接缝限定验证，真实会话继续接入",
-    "detail": "本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。",
-    "evidence": "普通Linux13门全部exit0：格式、DB默认/peer严格Clippy、backup默认/offhost编译检查，以及DB库默认62通过/24忽略、peer97通过/26忽略。名单与旧c3原件逐名相同，新增测试正文0；两配置不相加，backup未重跑完整测试。"
+    "statusLabel": "DB候选普通检查通过，C11接入中",
+    "detail": "已批37文件内DB14源码叶完成原会话／pool／结算接缝的普通Linux检查；C11新增回应与持久观察记录继续接入，Task9五门仍开放。",
+    "evidence": "本轮13门exit0；默认62通过／24忽略、peer100通过／26忽略，新增3资源正文通过，旧名单与原件独核。C11消费者／安装后DATA仅有限源码独审，尚无C11整链或真实Root／PG正向资格。"
   }
 ];
 
@@ -1638,32 +1638,32 @@ export const diagrams = [
 
 export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
-  "date": "2026-10-27",
-  "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-  "state": "C4实施中 · Task8限定完成 · Task9 M2b事务借用接缝已验证",
-  "progressSummary": "本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 普通Linux13门全部exit0：格式、DB默认/peer严格Clippy、backup默认/offhost编译检查，以及DB库默认62通过/24忽略、peer97通过/26忽略。名单与旧c3原件逐名相同，新增测试正文0；两配置不相加，backup未重跑完整测试。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。",
-  "progressEvidence": "全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。",
-  "pendingSummary": "下一步继续真实原会话资源owner、固定连接/三pool与完整消费者、自然关闭/安装/排空结算。密钥/信任/launcher安装、PG与安全权限、真实目标整链、源隔离和恢复仍未获本轮许可；不合并main或部署。",
+  "date": "2026-10-28",
+  "baseline": "9a31b62480422e302f558f5b7771213bbb13fd84",
+  "sourceCommit": "9a31b62480422e302f558f5b7771213bbb13fd84",
+  "state": "C4实施中 · Task8限定完成 · Task9 DB原会话通过普通检查，C11接入中",
+  "progressSummary": "DB14源码叶的原会话／pool／任务结算接缝完成普通Linux13门：默认62通过／24忽略，peer100通过／26忽略，新增3项资源正文通过；两配置不相加。C11消费者与安装后DATA组件完成有限源码独审，DB15回应接线仍在私有候选继续；真实Root／PG正向准入与Task9整链未验收。",
+  "progressEvidence": "df2fc491批次result 544827f8e87ad3c652ec26f57e3e840652f4533e1b3a8398c6cd7fc8bf59da47；完整包、名单、原始正文、源码前后、精确ID收尾与返回证据独核。backup默认／offhost仅编译检查，Root／PG忽略用例未执行；旧失败与HOLD保留。",
+  "pendingSummary": "继续已批C11的I0回应／持久观察记录接线及限定检查，闭合Root发行者、原入口整体finally和封存内部计费。其后Source／D、fence与正常异机首签整链继续；安装、PG／安全权限、源隔离与恢复按原定准确审批。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · M2b借用事务接缝限定完成，真实准入仍HOLD",
-  "taskPlanScope": "本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。 这只关闭借用事务接缝片，未实现或证明完整M2b会话/pool消费者。五字段只读DATA细化已按独审采纳，实际会话及消费者仍待实现；C/M4真实发行与Root-PG-capture join、M5/M6和全局64FD仍HOLD，Task9/C4未验收。",
+  "roadmapHeadline": "当前进度 · DB候选普通编译与回归通过，C11接入继续",
+  "taskPlanScope": "准确产品源码范围37文件、主动作13个；C11增三项安装DATA、一个回应及一个一次性持久记录。DB14候选的普通检查完成，有限DATA／消费者代码审查不等C11整链、genuine准入或Task9验收。",
   "nextSteps": [
     [
-      "01 · 已采纳语义，规范定稿与独审",
-      "已明确原S最终核对与持久保护、D一次消费、许可/自然完成两点及历史读取分账；Task9五门和旧失败不改，规范定稿不授实现权限。"
+      "01 · 继续C11安装观察接线",
+      "按已批三项DATA、15消息和一次性观察记录，闭合真实genesis后回应与第一work之前的I0／消费者核验；未知保持HOLD。"
     ],
     [
-      "02 · 按已批准准确范围逐任务实现R2b",
-      "37文件补充范围已批准；M2b六叶14处私有借用参数完成普通限定检查。真实owned会话/完整pool消费者继续，genuine C/M4及M5/M6仍HOLD；旧检查点分账。"
+      "02 · 闭合原SourceActor调用链",
+      "完成真实Root发行者、原入口整体finally、封存内部预算，再接Source／D、fence及一次消费发布；普通资源单测不补证真实主体。"
     ],
     [
-      "03 · 准确审批安装与真实整链",
-      "key/trust/registry/构建pin与管理身份分项批准；D1正常恢复、D2源隔离另设停止点，保留原件，不合并main或部署生产。"
+      "03 · 准确审批安装与真实异机整链",
+      "密钥托管、信任与launcher／PG权限按具体安装方案审批；源隔离和恢复保留原停止点。Task9／C4保持开放，不合main、不部署生产。"
     ]
   ]
 };
@@ -1938,3 +1938,4 @@ export const stages = [
     "link": "docs/数据库选型实验审阅与首版决策.md"
   }
 ];
+

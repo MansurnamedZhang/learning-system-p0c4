@@ -12,7 +12,7 @@
 )]
 mod b1_peer;
 #[cfg(all(target_os = "linux", feature = "b1-source-peer"))]
-pub use b1_peer::B1InstalledSourceProcess;
+pub use b1_peer::{B1InstalledSourceProcess, B1SourceIsolationInputData, OwnedB1AdminSession};
 #[cfg(target_os = "linux")]
 mod attempts;
 mod catalog;

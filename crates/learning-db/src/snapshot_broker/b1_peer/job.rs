@@ -2009,6 +2009,68 @@ impl OriginalControlOwner {
     pub(super) fn phase_data(&self) -> usize {
         self.state.phase()
     }
+    pub(super) fn request_install_proof(&mut self, request: &str) -> Result<String> {
+        if self.state.role != ProcessRole::Capture
+            || self.state.phase() != 3
+            || !uuid(request, true)
+        {
+            return Err(Error::Phase);
+        }
+        let message = ControlData::RequestInstallProof {
+            schema_version: 1,
+            job_id: self.state.job_id.clone().ok_or(Error::Phase)?,
+            root_cookie: self.state.cookie.clone().ok_or(Error::Phase)?,
+            sequence: self.state.next_send,
+            backup_id: self.state.backup.clone().ok_or(Error::Phase)?,
+            request_id: request.to_owned(),
+        };
+        self.write_frame(&message)?;
+        match self.read_frame()? {
+            ControlData::InstallProofBound {
+                generation_binding_sha256,
+                ..
+            } => Ok(generation_binding_sha256),
+            _ => Err(Error::Phase),
+        }
+    }
+    pub(super) fn broker_installed(&mut self) -> Result<()> {
+        if self.state.role != ProcessRole::Capture || self.state.phase() != 5 {
+            return Err(Error::Phase);
+        }
+        let message = ControlData::BrokerInstalled {
+            schema_version: 1,
+            job_id: self.state.job_id.clone().ok_or(Error::Phase)?,
+            root_cookie: self.state.cookie.clone().ok_or(Error::Phase)?,
+            sequence: self.state.next_send,
+            backup_id: self.state.backup.clone().ok_or(Error::Phase)?,
+            request_id: self.state.request.clone().ok_or(Error::Phase)?,
+        };
+        self.write_frame(&message)
+    }
+    pub(super) fn request_capture_proof(&mut self, request: &str) -> Result<String> {
+        if self.state.role != ProcessRole::Capture
+            || self.state.phase() != 6
+            || !uuid(request, true)
+        {
+            return Err(Error::Phase);
+        }
+        let message = ControlData::RequestCaptureProof {
+            schema_version: 1,
+            job_id: self.state.job_id.clone().ok_or(Error::Phase)?,
+            root_cookie: self.state.cookie.clone().ok_or(Error::Phase)?,
+            sequence: self.state.next_send,
+            backup_id: self.state.backup.clone().ok_or(Error::Phase)?,
+            request_id: request.to_owned(),
+        };
+        self.write_frame(&message)?;
+        match self.read_frame()? {
+            ControlData::CaptureProofBound {
+                generation_binding_sha256,
+                ..
+            } => Ok(generation_binding_sha256),
+            _ => Err(Error::Phase),
+        }
+    }
     pub(super) fn require_idle_no_extra(&self) -> Result<()> {
         use std::os::fd::AsRawFd;
         self.revalidate_transport()?;

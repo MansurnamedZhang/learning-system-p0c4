@@ -162,6 +162,20 @@ pub(super) async fn begin_owned(
     }
     Ok(tx)
 }
+/// The actual connection remains in the caller's original lexical owner. Only
+/// SQLx's public Acquire implementation is used; the transaction cannot outlive
+/// that connection. Initializer failure settles this same transaction first.
+pub(super) async fn begin_borrowed(
+    connection: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+) -> Result<Transaction<'_, Postgres>, ObservationError> {
+    use sqlx::Acquire;
+    let mut tx = (&mut *connection).begin().await?;
+    if let Err(error) = initialize_owned(&mut tx).await {
+        let _rollback = tx.rollback().await;
+        return Err(error);
+    }
+    Ok(tx)
+}
 pub(super) async fn initialize_owned(
     tx: &mut Transaction<'_, Postgres>,
 ) -> Result<(), ObservationError> {

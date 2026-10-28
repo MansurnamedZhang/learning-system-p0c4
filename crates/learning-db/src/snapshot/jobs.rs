@@ -614,6 +614,43 @@ async fn checked_publication(
     })
 }
 
+// Both pool-backed preparation and the fixed original-connection broker
+// consume these exact job predicates. Current SQL/decoding stays in JobStore.
+fn prepare_export_request(
+    job: crate::JobRecord,
+    lease: &JobLease,
+) -> Result<(Principal, Uuid, SnapshotRequest), ContentError> {
+    if job.status != JobStatus::Running
+        || job.attempt_count != lease.attempt_count
+        || job.processor_version != 1
+    {
+        return Err(ContentError::Invalid("stale_job_lease".into()));
+    }
+    let JobInput::SnapshotExport {
+        actor_id,
+        space_id,
+        request,
+    } = job.input
+    else {
+        return Err(ContentError::Invalid("wrong_job_kind".into()));
+    };
+    let actor = Principal { actor_id };
+    Ok((actor, space_id, request))
+}
+
+async fn prepare_export_plan(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: Principal,
+    space_id: Uuid,
+    request: &SnapshotRequest,
+) -> Result<ExportPlan, ContentError> {
+    let layer = model::load_view(tx, actor, request.reading.clone()).await?;
+    if layer.space != space_id {
+        return Err(ContentError::NotFound);
+    }
+    collect_export(tx, actor, request).await
+}
+
 impl SnapshotStore {
     #[cfg(target_os = "linux")]
     pub(crate) async fn broker_begin_publication(
@@ -621,6 +658,15 @@ impl SnapshotStore {
     ) -> Result<Transaction<'static, Postgres>, ContentError> {
         // Transfer the original owned value before any fallible setup SQL.
         self.pool.begin().await.map_err(storage)
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn broker_begin_publication_on<'connection>(
+        connection: &'connection mut sqlx::pool::PoolConnection<Postgres>,
+    ) -> Result<Transaction<'connection, Postgres>, ContentError> {
+        // The caller first retains this borrowed transaction, then runs the
+        // same PreparedSnapshotExport::broker_initialize_publication body.
+        // Its setup errors can therefore await this original rollback.
+        sqlx::Acquire::begin(connection).await.map_err(storage)
     }
     /// Configure a non-public, service-owned 0700 export root, separate from the
     /// original asset and upload roots. Unsupported platforms fail closed on use.
@@ -702,28 +748,64 @@ impl SnapshotStore {
             .get(lease.job_id)
             .await?
             .ok_or(ContentError::NotFound)?;
-        if job.status != JobStatus::Running
-            || job.attempt_count != lease.attempt_count
-            || job.processor_version != 1
-        {
-            return Err(ContentError::Invalid("stale_job_lease".into()));
-        }
-        let JobInput::SnapshotExport {
-            actor_id,
-            space_id,
-            request,
-        } = job.input
-        else {
-            return Err(ContentError::Invalid("wrong_job_kind".into()));
-        };
-        let actor = Principal { actor_id };
+        let (actor, space_id, request) = prepare_export_request(job, lease)?;
         let mut tx = request::begin_read(&self.pool).await?;
-        let layer = model::load_view(&mut tx, actor, request.reading.clone()).await?;
-        if layer.space != space_id {
-            return Err(ContentError::NotFound);
-        }
-        let plan = collect_export(&mut tx, actor, &request).await?;
+        let plan = prepare_export_plan(&mut tx, actor, space_id, &request).await?;
         tx.commit().await.map_err(storage)?;
+        Ok(PreparedSnapshotExport {
+            lease: lease.clone(),
+            actor,
+            space: space_id,
+            request,
+            plan,
+        })
+    }
+
+    /// The fixed broker actor retains this future and its original flagged
+    /// connection through transaction settlement, then closes that connection.
+    /// This helper creates no pool and grants no session qualification.
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn broker_prepare_export_on(
+        &self,
+        connection: &mut sqlx::pool::PoolConnection<Postgres>,
+        lease: &JobLease,
+    ) -> Result<PreparedSnapshotExport, ContentError> {
+        let job = JobStore::get_on(connection, lease.job_id)
+            .await?
+            .ok_or(ContentError::NotFound)?;
+        let (actor, space_id, request) = prepare_export_request(job, lease)?;
+        let mut tx = sqlx::Acquire::begin(&mut *connection)
+            .await
+            .map_err(storage)?;
+        // The enclosing owner already holds the actual transaction. Errors in
+        // either fixed setup statement or the shared collector return an
+        // outcome here; they cannot drop that transaction before rollback.
+        let planned = async {
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                .execute(&mut *tx)
+                .await
+                .map_err(storage)?;
+            sqlx::query("SET LOCAL statement_timeout='15s'")
+                .execute(&mut *tx)
+                .await
+                .map_err(storage)?;
+            prepare_export_plan(&mut tx, actor, space_id, &request).await
+        }
+        .await;
+        let plan = match planned {
+            Ok(plan) => {
+                // Commit consumes this same transaction. A commit error is
+                // returned after natural completion; it is never replayed.
+                tx.commit().await.map_err(storage)?;
+                plan
+            }
+            Err(error) => {
+                // Rollback consumes the still-held transaction. A rollback
+                // failure stays an error; no prepared value can be returned.
+                tx.rollback().await.map_err(storage)?;
+                return Err(error);
+            }
+        };
         Ok(PreparedSnapshotExport {
             lease: lease.clone(),
             actor,

@@ -1,5 +1,19 @@
 # Task9 R2b实施进展
 
+## M2b 原会话与资源结算完成限定 Linux 检查 · 2026-10-28
+
+14 个 DB 源码叶已实现固定 peer 会话、实际连接与三组 pool 的持有、安装／排空的原任务衔接及负向结算接缝；新增一个私有 session 源文件。该候选完成普通 Linux 编译与回归，不等于真实 Root／PG 正向准入或完整 M2b／Task9 验收。
+
+全新批次的 13 道门全部 exit0：格式、DB 默认／peer 严格 Clippy、backup 默认／offhost 编译检查，以及 DB 两套库编译、完整列举、忽略名单与普通正文。默认库 62 passed／24 ignored；peer 库 100 passed／26 ignored。新增 3 个资源生命周期正文实际通过；旧 123 个 peer 名称及两套旧忽略名单保留，两配置不相加。backup 两套只做编译检查，没有重跑其完整测试或执行忽略的 Root／PG 用例。
+
+本轮验证基线为 9a31b62480422e302f558f5b7771213bbb13fd84 加封存候选 f11d886d…；实际批次 df2fc491-b3bd-4fdb-a4f1-8d1c5b92b575，result SHA-256 544827f8e87ad3c652ec26f57e3e840652f4533e1b3a8398c6cd7fc8bf59da47。普通 UID1000、固定 fb91 builder、network none、4CPU／8GiB、只读源码与 rootfs。完整原件单独核对源码前后、精确容器 ID 与返回证据；不声称审查者独立远程亲见、OS 连续日志上限或全局 64FD 证明。先前 fmt／Clippy／缺类型及参数数量失败均保留，未复用失败批次或放宽检查。
+
+C11 新增回应和安装观察记录的准确补充合同已获人类批准，见 [合同](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/docs/task9/c11/CONTRACT.md)及[字段表](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/docs/task9/c11/MACHINE-DELTA.json)。准确产品源码范围仍为 37 文件、13 个主动作。消费者七叶与安装后 DATA／held-genesis 读取组件完成有限源码独审，扫描预算问题已修正；DB 的 15 消息及回应等待在独立私有候选内继续。本次发布并验证的 DB 候选仍是接入前的 14 消息版本，不能把上述有限源码审查算成本轮 C11 类型检查或整链通过。
+
+下一步闭合 C11 的真实 I0 等待与持久记录核验、Root 原发行者、原入口整体 finally 以及封存内部计费，再继续原 Source／D actor、fence 和一次消费发布。真实发行、密钥／信任／launcher 安装、PG／安全权限、独立目标整链、源隔离和恢复仍需原定准确审批。旧失败／HOLD与历史检查点保留；Task9／C4 开放，main 与生产不变。
+
+---
+
 ## M2b 事务借用接缝限定完成 · 2026-10-28
 
 本次五文件补充编码已获直接批准，当前准确源码范围为37文件。六个现有DB文件的14处私有事务参数改用借用生命周期；函数体、SQL、返回语义和公开API不变。

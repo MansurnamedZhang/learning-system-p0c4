@@ -53,12 +53,20 @@ pub(super) fn rows_digest(rows: &Rows, owner: &Original) -> Result<String> {
     let bytes = history::encode(&(&rows.job, &rows.outbox), &owner.budget)?;
     history::digest(&bytes, &owner.budget)
 }
-pub(super) async fn begin(
+pub(super) async fn begin<'connection>(
     owner: &Arc<Original>,
     slot: &Slot,
-) -> Result<Transaction<'static, Postgres>> {
+    connection: &'connection mut Option<sqlx::pool::PoolConnection<Postgres>>,
+) -> Result<Transaction<'connection, Postgres>> {
     // BEGIN returns into its permanent owner before any setup can fail.
-    let mut tx = runtime::settle_started(slot, async { Ok(owner.pool.begin().await?) }).await?;
+    let mut tx = runtime::settle_started(slot, async {
+        use sqlx::Acquire;
+        match connection.as_mut() {
+            Some(connection) => Ok((&mut *connection).begin().await?),
+            None => Ok(owner.pool.begin().await?),
+        }
+    })
+    .await?;
     let initialized = runtime::settle_started(slot, transaction::initialize_owned(&mut tx)).await;
     if let Err(error) = initialized {
         if runtime::settle_started(slot, async { Ok(tx.rollback().await?) })
@@ -233,61 +241,66 @@ pub(super) async fn claim(
     owner
         .observation
         .charge(1024 + catalog::profile()?.len() as u64)?;
-    let mut tx = Some(begin(&owner, &slot).await?);
-    let request = selected.request_id();
-    let result = claim_inner(
-        &owner,
-        &slot,
-        tx.as_mut().expect("owned transaction"),
-        &selected,
-        worker_request_id,
-        lease_ms,
-        expected,
-    )
-    .await;
-    // claim_inner returns the prepared original output; COMMIT ownership stays
-    // here so every error path can explicitly await its original rollback.
-    let result = match result {
-        Ok(prepared) => {
-            let known = commit(tx.take().expect("original claim transaction"), &slot).await?;
-            let reference = owner.append(&slot, prepared.bytes).await?;
-            slot.live()?;
-            match prepared.claim {
-                Some(c) => Ok(ClaimResult::Acquired(Box::new(Claimed::from_versioned(
-                    known,
-                    history::Outcome {
-                        schema: history::OutcomeSchema::V2,
-                        version: 2,
-                        intent: prepared.intent,
-                        after: prepared.after,
-                        claim: c,
-                        sql_before: prepared.low,
-                        sql_after: prepared.high,
-                        identity: prepared.identity,
-                        commit: history::CommitState::OriginalKnown,
-                    },
-                    (prepared.intent, reference),
-                    owner.clone(),
-                    slot.clone(),
-                    request,
-                    lease_ms,
-                )))),
-                None => Ok(ClaimResult::NotAcquired {
-                    after: Box::new(prepared.after),
-                    reference,
-                }),
+    let mut connection = owner.acquire_broker(&slot).await?;
+    let result = async {
+        let mut tx = Some(begin(&owner, &slot, &mut connection).await?);
+        let request = selected.request_id();
+        let result = claim_inner(
+            &owner,
+            &slot,
+            tx.as_mut().expect("owned transaction"),
+            &selected,
+            worker_request_id,
+            lease_ms,
+            expected,
+        )
+        .await;
+        // claim_inner returns the prepared original output; COMMIT ownership stays
+        // here so every error path can explicitly await its original rollback.
+        let result = match result {
+            Ok(prepared) => {
+                let known = commit(tx.take().expect("original claim transaction"), &slot).await?;
+                let reference = owner.append(&slot, prepared.bytes).await?;
+                slot.live()?;
+                match prepared.claim {
+                    Some(c) => Ok(ClaimResult::Acquired(Box::new(Claimed::from_versioned(
+                        known,
+                        history::Outcome {
+                            schema: history::OutcomeSchema::V2,
+                            version: 2,
+                            intent: prepared.intent,
+                            after: prepared.after,
+                            claim: c,
+                            sql_before: prepared.low,
+                            sql_after: prepared.high,
+                            identity: prepared.identity,
+                            commit: history::CommitState::OriginalKnown,
+                        },
+                        (prepared.intent, reference),
+                        owner.clone(),
+                        slot.clone(),
+                        request,
+                        lease_ms,
+                    )))),
+                    None => Ok(ClaimResult::NotAcquired {
+                        after: Box::new(prepared.after),
+                        reference,
+                    }),
+                }
             }
+            Err(error) => Err(error),
+        };
+        if let Some(tx) = tx.take()
+            && runtime::settle_started(&slot, async { Ok(tx.rollback().await?) })
+                .await
+                .is_err()
+        {
+            slot.poison();
         }
-        Err(error) => Err(error),
-    };
-    if let Some(tx) = tx.take()
-        && runtime::settle_started(&slot, async { Ok(tx.rollback().await?) })
-            .await
-            .is_err()
-    {
-        slot.poison();
+        result
     }
-    result
+    .await;
+    owner.close_connection(&slot, connection, result).await
 }
 struct Prepared {
     after: Rows,
@@ -334,37 +347,42 @@ pub(super) async fn transition(
     operation: Transition,
 ) -> Result<(RecordRef, bool)> {
     claimed.check_original(owner, slot)?;
-    let mut tx = Some(begin(owner, slot).await?);
-    let result = transition_inner(
-        owner,
-        slot,
-        claimed,
-        operation,
-        tx.as_mut().expect("owned transition"),
-    )
-    .await;
-    let result = match result {
-        Ok((after, encoded, returned)) => {
-            let _known = commit(tx.take().expect("original transition commit"), slot).await?;
-            let reference = owner.append(slot, encoded).await?;
-            slot.live()?;
-            claimed.apply_known_transition(KnownTransition {
-                after,
-                reference,
-                _private: (),
-            });
-            Ok((reference, returned))
+    let mut connection = owner.acquire_broker(slot).await?;
+    let result = async {
+        let mut tx = Some(begin(owner, slot, &mut connection).await?);
+        let result = transition_inner(
+            owner,
+            slot,
+            claimed,
+            operation,
+            tx.as_mut().expect("owned transition"),
+        )
+        .await;
+        let result = match result {
+            Ok((after, encoded, returned)) => {
+                let _known = commit(tx.take().expect("original transition commit"), slot).await?;
+                let reference = owner.append(slot, encoded).await?;
+                slot.live()?;
+                claimed.apply_known_transition(KnownTransition {
+                    after,
+                    reference,
+                    _private: (),
+                });
+                Ok((reference, returned))
+            }
+            Err(error) => Err(error),
+        };
+        if let Some(tx) = tx.take()
+            && runtime::settle_started(slot, async { Ok(tx.rollback().await?) })
+                .await
+                .is_err()
+        {
+            slot.poison();
         }
-        Err(error) => Err(error),
-    };
-    if let Some(tx) = tx.take()
-        && runtime::settle_started(slot, async { Ok(tx.rollback().await?) })
-            .await
-            .is_err()
-    {
-        slot.poison();
+        result
     }
-    result
+    .await;
+    owner.close_connection(slot, connection, result).await
 }
 async fn transition_inner(
     owner: &Arc<Original>,

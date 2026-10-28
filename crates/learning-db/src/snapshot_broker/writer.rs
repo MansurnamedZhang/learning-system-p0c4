@@ -3,6 +3,14 @@ use super::history::{self, Claim, Result, Rows};
 use chrono::{DateTime, Utc};
 #[cfg(target_os = "linux")]
 mod publication;
+#[cfg(all(target_os = "linux", feature = "b1-source-peer"))]
+pub(super) async fn fixed_work_identity(
+    connection: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+) -> Result<first_write::RuntimeIdentity> {
+    Ok(sqlx::query_as(first_write::RUNTIME_IDENTITY)
+        .fetch_one(&mut **connection)
+        .await?)
+}
 
 #[cfg(target_os = "linux")]
 pub(super) async fn install_publication_observation(
@@ -77,16 +85,16 @@ mod first_write {
     use uuid::Uuid;
 
     #[derive(Serialize, sqlx::FromRow)]
-    pub(super) struct RuntimeIdentity {
-        pub(super) database: String,
-        pub(super) oid: i64,
-        pub(super) postmaster: DateTime<Utc>,
-        pub(super) session_user: String,
-        pub(super) current_user: String,
-        pub(super) original_login: Option<String>,
-        pub(super) restricted_login: bool,
-        pub(super) server_address: Option<String>,
-        pub(super) server_port: Option<i32>,
+    pub(in crate::snapshot_broker) struct RuntimeIdentity {
+        pub(in crate::snapshot_broker) database: String,
+        pub(in crate::snapshot_broker) oid: i64,
+        pub(in crate::snapshot_broker) postmaster: DateTime<Utc>,
+        pub(in crate::snapshot_broker) session_user: String,
+        pub(in crate::snapshot_broker) current_user: String,
+        pub(in crate::snapshot_broker) original_login: Option<String>,
+        pub(in crate::snapshot_broker) restricted_login: bool,
+        pub(in crate::snapshot_broker) server_address: Option<String>,
+        pub(in crate::snapshot_broker) server_port: Option<i32>,
     }
     pub(super) const RUNTIME_IDENTITY: &str = "SELECT current_database()::text AS database,(SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname=current_database()) AS oid,pg_catalog.pg_postmaster_start_time() AS postmaster,session_user::text AS session_user,current_user::text AS current_user,system_user AS original_login,(r.rolcanlogin AND NOT r.rolsuper AND NOT r.rolcreatedb AND NOT r.rolcreaterole AND NOT r.rolreplication AND NOT r.rolbypassrls AND NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=r.oid) AND NOT EXISTS(SELECT FROM pg_catalog.pg_shdepend d WHERE d.refclassid='pg_catalog.pg_authid'::regclass AND d.refobjid=r.oid AND d.deptype='o')) AS restricted_login,pg_catalog.inet_server_addr()::text AS server_address,pg_catalog.inet_server_port() AS server_port FROM pg_catalog.pg_roles r WHERE r.rolname=session_user";
 
@@ -119,6 +127,26 @@ mod first_write {
         }
         Ok(())
     }
+    pub(super) fn restricted_runtime_for_owner(
+        _owner: &Original,
+        actual: &RuntimeIdentity,
+    ) -> Result<()> {
+        #[cfg(feature = "b1-source-peer")]
+        if let Some(work) = &_owner.b1_work {
+            work.revalidate()?;
+            if actual.session_user != "learning_runtime"
+                || actual.current_user != "learning_runtime"
+                || !actual.restricted_login
+                || actual.original_login.as_deref() != Some("peer:root")
+                || actual.server_address.is_some()
+                || actual.server_port.is_some()
+            {
+                return Err(history::rejected("B1 actual fixed runtime peer differs"));
+            }
+            return Ok(());
+        }
+        restricted_runtime(actual)
+    }
     async fn runtime_identity(
         owner: &Original,
         slot: &Slot,
@@ -138,15 +166,26 @@ mod first_write {
             ));
         }
         owner.observation.charge(1024)?;
-        let actual: RuntimeIdentity = runtime::settle(slot, async {
-            Ok(sqlx::query_as(RUNTIME_IDENTITY)
-                .fetch_one(runtime_pool)
-                .await?)
+        let mut connection = owner.acquire_runtime(slot).await?;
+        let result = runtime::settle(slot, async {
+            let actual: RuntimeIdentity = match connection.as_mut() {
+                Some(connection) => {
+                    sqlx::query_as(RUNTIME_IDENTITY)
+                        .fetch_one(&mut **connection)
+                        .await?
+                }
+                None => {
+                    sqlx::query_as(RUNTIME_IDENTITY)
+                        .fetch_one(runtime_pool)
+                        .await?
+                }
+            };
+            restricted_runtime_for_owner(owner, &actual)?;
+            original_database(&actual, expected)?;
+            Ok(actual)
         })
-        .await?;
-        restricted_runtime(&actual)?;
-        original_database(&actual, expected)?;
-        Ok(actual)
+        .await;
+        owner.close_connection(slot, connection, result).await
     }
 
     // New component schema, deliberately separate from P1 and from any future
@@ -241,26 +280,36 @@ mod first_write {
         writer: CustodyWriter,
     ) -> Result<WritePermit> {
         claimed.check_original(owner, slot)?;
-        let mut tx = Some(runtime::settle(slot, transaction::begin_owned(&owner.pool)).await?);
-        let result = issue_locked(
-            owner,
-            slot,
-            &claimed,
-            runtime_identity,
-            tx.as_mut()
-                .ok_or_else(|| history::rejected("C2 missing original issue transaction"))?,
-        )
-        .await;
-        // No job/outbox lock survives into the long blocking package copy. A
-        // late rollback remains settled by the original owner without adoption.
-        if let Some(tx) = tx.take() {
-            runtime::settle_started(slot, async {
-                tx.rollback().await?;
-                Ok(())
-            })
-            .await?;
+        let mut connection = owner.acquire_broker(slot).await?;
+        let result = async {
+            let mut tx = Some(match connection.as_mut() {
+                Some(connection) => {
+                    runtime::settle_started(slot, transaction::begin_borrowed(connection)).await?
+                }
+                None => runtime::settle(slot, transaction::begin_owned(&owner.pool)).await?,
+            });
+            let result = issue_locked(
+                owner,
+                slot,
+                &claimed,
+                runtime_identity,
+                tx.as_mut()
+                    .ok_or_else(|| history::rejected("C2 missing original issue transaction"))?,
+            )
+            .await;
+            // No job/outbox lock survives into the long blocking package copy. A
+            // late rollback remains settled by the original owner without adoption.
+            if let Some(tx) = tx.take() {
+                runtime::settle_started(slot, async {
+                    tx.rollback().await?;
+                    Ok(())
+                })
+                .await?;
+            }
+            result
         }
-        let issue = result?;
+        .await;
+        let issue = owner.close_connection(slot, connection, result).await?;
         slot.live()?;
         Ok(WritePermit {
             claimed,
@@ -506,13 +555,16 @@ mod first_write {
             runtime_identity(&owner, &slot, &runtime_pool, &claimed.output().identity).await?;
         let store = SnapshotStore::new(runtime_pool);
         let lease = claimed.lease();
+        let mut connection = owner.acquire_runtime(&slot).await?;
         let prepared = runtime::settle(&slot, async {
-            store
-                .prepare_export(&lease)
-                .await
-                .map_err(|_| history::rejected("D0 original runtime prepare rejected"))
+            match connection.as_mut() {
+                Some(connection) => store.broker_prepare_export_on(connection, &lease).await,
+                None => store.prepare_export(&lease).await,
+            }
+            .map_err(|_| history::rejected("D0 original runtime prepare rejected"))
         })
-        .await?;
+        .await;
+        let prepared = owner.close_connection(&slot, connection, prepared).await?;
         prepared
             .broker_reading_copy()
             .map_err(|_| history::rejected("D0 prepared reading copy required before issue"))?;

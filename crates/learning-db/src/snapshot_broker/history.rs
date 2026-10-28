@@ -390,8 +390,28 @@ pub(super) mod runtime {
         closing: bool,
     }
     type SettlementHandle = Arc<AsyncMutex<Option<JoinHandle<()>>>>;
+    /// Only a borrowed wait can take the actual handle after it returns. A
+    /// JoinError remains a separate sticky physical receipt after that take.
+    pub(in super::super) async fn join_worker_original(
+        retained: &SettlementHandle,
+        unknown: &AtomicBool,
+    ) -> Result<()> {
+        let mut handle = retained.lock().await;
+        if let Some(task) = handle.as_mut() {
+            if task.await.is_err() {
+                unknown.store(true, Ordering::SeqCst);
+            }
+            handle.take();
+        }
+        if unknown.load(Ordering::SeqCst) {
+            return Err(rejected("original worker settlement unknown"));
+        }
+        Ok(())
+    }
     pub(in super::super) struct Original {
         pub(in super::super) pool: PgPool,
+        #[cfg(feature = "b1-source-peer")]
+        pub(in super::super) b1_work: Option<Arc<super::super::b1_peer::FixedWorkPools>>,
         pub(in super::super) budget: SharedJournalBudget,
         pub(in super::super) observation: ObservationBudget,
         journal: Arc<AsyncMutex<RootJournalBytes>>,
@@ -399,6 +419,9 @@ pub(super) mod runtime {
         handles: Mutex<Vec<SettlementHandle>>,
         control_handle: Mutex<Option<SettlementHandle>>,
         hold: Arc<AtomicBool>,
+        // Physical settlement uncertainty is permanent and distinct from the
+        // qualification HOLD that normal EpochWork Drop also sets.
+        settlement_unknown: AtomicBool,
         pub(in super::super) epoch: Uuid,
         pub(in super::super) binding: Uuid,
         pub(in super::super) source_build: SourceProvenance,
@@ -428,6 +451,8 @@ pub(super) mod runtime {
             Ok(Self {
                 original: Arc::new(Original {
                     pool,
+                    #[cfg(feature = "b1-source-peer")]
+                    b1_work: None,
                     budget,
                     observation,
                     journal: Arc::new(AsyncMutex::new(journal)),
@@ -440,6 +465,7 @@ pub(super) mod runtime {
                     handles: Mutex::new(Vec::new()),
                     control_handle: Mutex::new(None),
                     hold: Arc::new(AtomicBool::new(false)),
+                    settlement_unknown: AtomicBool::new(false),
                     epoch: installation.epoch_id(),
                     binding: installation.binding_id(),
                     // Descriptive build linkage is not source registry enrollment.
@@ -461,6 +487,23 @@ pub(super) mod runtime {
 
         pub(in super::super) fn owner(&self) -> Arc<Original> {
             self.original.clone()
+        }
+        #[cfg(feature = "b1-source-peer")]
+        pub(in super::super) fn attach_b1(
+            &mut self,
+            work: Arc<super::super::b1_peer::FixedWorkPools>,
+        ) -> Result<()> {
+            work.revalidate()?;
+            if self.original.budget.shares_meter_with(&work.scan()) {
+                return Err(rejected("B1 epoch journal must remain independent of scan"));
+            }
+            let original = Arc::get_mut(&mut self.original)
+                .ok_or_else(|| rejected("B1 epoch original already shared"))?;
+            if original.b1_work.is_some() {
+                return Err(rejected("B1 epoch never replaces provenance"));
+            }
+            original.b1_work = Some(work);
+            Ok(())
         }
         pub(in super::super) fn close_admission(&self, duration: Duration) -> Result<Arc<Slot>> {
             if duration.is_zero() || duration > Duration::from_secs(60) || self.original.is_held() {
@@ -737,12 +780,11 @@ pub(super) mod runtime {
             for handle in handles {
                 // Await a borrowed handle in its permanent original slot. If
                 // this drain future is cancelled, the handle remains retained.
-                let mut handle = handle.lock().await;
-                if let Some(task) = handle.as_mut() {
-                    if task.await.is_err() {
-                        failed = true;
-                    }
-                    handle.take(); // only after actual task settlement
+                if join_worker_original(&handle, &self.original.settlement_unknown)
+                    .await
+                    .is_err()
+                {
+                    failed = true;
                 }
             }
             if failed {
@@ -820,6 +862,18 @@ pub(super) mod runtime {
             }
         }
     }
+    #[cfg(feature = "b1-source-peer")]
+    pub(in super::super) fn pending_original<T>(
+        receiver: oneshot::Receiver<Result<T>>,
+        slot: Arc<Slot>,
+    ) -> Pending<T> {
+        Pending {
+            receiver,
+            timer: Box::pin(sleep_until(slot.deadline)),
+            slot,
+            armed: true,
+        }
+    }
     impl<T> Drop for Pending<T> {
         fn drop(&mut self) {
             if self.armed {
@@ -827,7 +881,7 @@ pub(super) mod runtime {
             }
         }
     }
-    fn publish<T>(slot: &Slot, sender: oneshot::Sender<Result<T>>, result: T) {
+    pub(in super::super) fn publish<T>(slot: &Slot, sender: oneshot::Sender<Result<T>>, result: T) {
         if slot.live().is_err() {
             slot.poison();
             let _ = sender.send(Err(rejected("P1 late outcome HOLD")));
@@ -879,6 +933,117 @@ pub(super) mod runtime {
         result
     }
     impl Original {
+        #[cfg(feature = "b1-source-peer")]
+        pub(in super::super) async fn drain_b1(&self, abandon: bool) -> Result<()> {
+            let mut failed = self.settlement_unknown.load(Ordering::SeqCst);
+            {
+                // start_owned holds this same registry lock through handle
+                // insertion. The fence therefore includes every started task.
+                let mut registry = match self.registry.lock() {
+                    Ok(registry) => registry,
+                    Err(poisoned) => {
+                        failed = true;
+                        poisoned.into_inner()
+                    }
+                };
+                registry.closing = true;
+                if abandon || failed {
+                    self.hold.store(true, Ordering::SeqCst);
+                    for slot in registry.jobs.values() {
+                        slot.poison();
+                    }
+                }
+            }
+            // One stored Arc at a time: negative cleanup allocates no snapshot
+            // Vec and never charges/refunds a new budget after the fence.
+            let mut index = 0;
+            loop {
+                let retained = {
+                    let handles = match self.handles.lock() {
+                        Ok(handles) => handles,
+                        Err(poisoned) => {
+                            failed = true;
+                            poisoned.into_inner()
+                        }
+                    };
+                    handles.get(index).cloned()
+                };
+                let Some(retained) = retained else {
+                    break;
+                };
+                if join_worker_original(&retained, &self.settlement_unknown)
+                    .await
+                    .is_err()
+                {
+                    failed = true;
+                }
+                index += 1;
+            }
+            if failed {
+                self.settlement_unknown.store(true, Ordering::SeqCst);
+                self.hold.store(true, Ordering::SeqCst);
+                return Err(rejected("B1 original work settlement unknown"));
+            }
+            Ok(())
+        }
+        /// B1 acquisition starts and flags the actual connection in this same
+        /// retained future. Legacy originals retain their original pool path.
+        pub(in super::super) async fn acquire_broker(
+            &self,
+            slot: &Slot,
+        ) -> Result<Option<sqlx::pool::PoolConnection<sqlx::Postgres>>> {
+            slot.live()?;
+            #[cfg(feature = "b1-source-peer")]
+            if let Some(work) = &self.b1_work {
+                return settle_started(slot, async { work.acquire_broker().await.map(Some) }).await;
+            }
+            Ok(None)
+        }
+        pub(in super::super) async fn acquire_runtime(
+            &self,
+            slot: &Slot,
+        ) -> Result<Option<sqlx::pool::PoolConnection<sqlx::Postgres>>> {
+            slot.live()?;
+            #[cfg(feature = "b1-source-peer")]
+            if let Some(work) = &self.b1_work {
+                return settle_started(slot, async { work.acquire_runtime().await.map(Some) })
+                    .await;
+            }
+            Ok(None)
+        }
+        pub(in super::super) async fn close_connection<T>(
+            &self,
+            slot: &Slot,
+            connection: Option<sqlx::pool::PoolConnection<sqlx::Postgres>>,
+            outcome: Result<T>,
+        ) -> Result<T> {
+            let closed = match connection {
+                Some(connection) => {
+                    settle_started(slot, async {
+                        connection.close().await?;
+                        Ok(())
+                    })
+                    .await
+                }
+                None => Ok(()),
+            };
+            if closed.is_err() {
+                slot.poison();
+                #[cfg(feature = "b1-source-peer")]
+                if let Some(work) = &self.b1_work {
+                    work.mark_work_unknown();
+                }
+            }
+            // Preserve the original business error, but still await close.
+            let value = outcome?;
+            closed?;
+            #[cfg(feature = "b1-source-peer")]
+            if let Some(work) = &self.b1_work {
+                work.revalidate()?;
+            }
+            slot.live()?;
+            Ok(value)
+        }
         #[cfg(test)]
         pub(in super::super) async fn settle_control(&self) -> Result<()> {
             let retained = self
@@ -1161,6 +1326,8 @@ pub(super) mod runtime {
         Ok(EpochWork {
             original: Arc::new(Original {
                 pool,
+                #[cfg(feature = "b1-source-peer")]
+                b1_work: None,
                 budget,
                 observation,
                 journal: Arc::new(AsyncMutex::new(journal)),
@@ -1173,6 +1340,7 @@ pub(super) mod runtime {
                 handles: Mutex::new(Vec::new()),
                 control_handle: Mutex::new(None),
                 hold: Arc::new(AtomicBool::new(false)),
+                settlement_unknown: AtomicBool::new(false),
                 epoch,
                 binding,
                 source_build,

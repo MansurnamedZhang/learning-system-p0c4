@@ -199,16 +199,26 @@ pub(super) async fn claim(
     owner
         .observation
         .charge(512 + catalog::profile()?.len() as u64)?;
-    let mut tx = Some(runtime::settle(&slot, transaction::begin_owned(&owner.pool)).await?);
-    let result = inner(&owner, &slot, &mut tx, job, request).await;
-    if let Some(tx) = tx.take() {
-        // Original owner retains and settles rollback even after authority has
-        // become HOLD; rollback is not a new operation or result adoption.
-        if tx.rollback().await.is_err() {
-            slot.poison();
+    let mut connection = owner.acquire_broker(&slot).await?;
+    let result = async {
+        let mut tx = Some(match connection.as_mut() {
+            Some(connection) => {
+                runtime::settle_started(&slot, transaction::begin_borrowed(connection)).await?
+            }
+            None => runtime::settle(&slot, transaction::begin_owned(&owner.pool)).await?,
+        });
+        let result = inner(&owner, &slot, &mut tx, job, request).await;
+        if let Some(tx) = tx.take() {
+            // Original owner retains and settles rollback even after authority has
+            // become HOLD; rollback is not a new operation or result adoption.
+            if tx.rollback().await.is_err() {
+                slot.poison();
+            }
         }
+        result
     }
-    result
+    .await;
+    owner.close_connection(&slot, connection, result).await
 }
 async fn inner(
     owner: &Arc<Original>,

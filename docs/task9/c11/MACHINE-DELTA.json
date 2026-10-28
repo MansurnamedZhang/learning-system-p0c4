@@ -1,0 +1,640 @@
+{
+  "$defs": {
+    "ActualAssetsMount": {
+      "additionalProperties": false,
+      "properties": {
+        "Destination": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-canonical-absolute-posix-path": true,
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 4096
+        },
+        "Driver": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string",
+              "x-reject-nul": true,
+              "x-utf8-maxBytes": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Mode": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string",
+              "x-reject-nul": true,
+              "x-utf8-maxBytes": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Name": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+              "x-reject-nul": true,
+              "x-utf8-maxBytes": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Propagation": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string",
+              "x-reject-nul": true,
+              "x-utf8-maxBytes": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "RW": {
+          "const": false
+        },
+        "Source": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-canonical-absolute-posix-path": true,
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 4096
+        },
+        "Type": {
+          "enum": [
+            "bind",
+            "volume"
+          ]
+        }
+      },
+      "required": [
+        "Type",
+        "Source",
+        "Destination",
+        "RW"
+      ],
+      "type": "object",
+      "x-preserve-actual-property-presence-and-raw-values": true,
+      "x-unknown-Docker-fields": "Reject/HOLD; never delete unknown fields to fit this schema."
+    },
+    "ContainerProjection": {
+      "additionalProperties": false,
+      "properties": {
+        "container_id": {
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 64
+        },
+        "image_sha256": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 71
+        },
+        "mounts": {
+          "items": {
+            "$ref": "#/$defs/MountProjection"
+          },
+          "maxItems": 100000,
+          "type": "array"
+        },
+        "process_id": {
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "maxLength": 1024,
+              "type": "string",
+              "x-reject-nul": true,
+              "x-utf8-maxBytes": 1024
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restart_count": {
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "service": {
+          "anyOf": [
+            {
+              "maxLength": 1024,
+              "type": "string",
+              "x-reject-nul": true,
+              "x-utf8-maxBytes": 1024
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "started_at": {
+          "maxLength": 128,
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 128
+        }
+      },
+      "required": [
+        "container_id",
+        "image_sha256",
+        "running",
+        "process_id",
+        "started_at",
+        "restart_count",
+        "project",
+        "service",
+        "mounts"
+      ],
+      "type": "object"
+    },
+    "HostCutover": {
+      "additionalProperties": false,
+      "properties": {
+        "assets_mount": {
+          "$ref": "#/$defs/ActualAssetsMount"
+        },
+        "complete_container_projection": {
+          "items": {
+            "$ref": "#/$defs/ContainerProjection"
+          },
+          "maxItems": 1024,
+          "minItems": 1,
+          "type": "array"
+        },
+        "container_id": {
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 64
+        },
+        "daemon_id": {
+          "maxLength": 128,
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 128
+        },
+        "docker_cli_sha256": {
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 64
+        },
+        "export_mount": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-canonical-absolute-posix-path": true,
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 4096
+        },
+        "image_sha256": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 71
+        },
+        "journal_mount": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-canonical-absolute-posix-path": true,
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 4096
+        },
+        "legacy_producers": {
+          "items": {
+            "$ref": "#/$defs/ContainerProjection"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        },
+        "mountinfo_sha256": {
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 64
+        }
+      },
+      "required": [
+        "container_id",
+        "image_sha256",
+        "export_mount",
+        "journal_mount",
+        "assets_mount",
+        "legacy_producers",
+        "complete_container_projection",
+        "daemon_id",
+        "mountinfo_sha256",
+        "docker_cli_sha256"
+      ],
+      "type": "object"
+    },
+    "MountProjection": {
+      "additionalProperties": false,
+      "properties": {
+        "destination": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-canonical-absolute-posix-path": true,
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 4096
+        },
+        "kind": {
+          "maxLength": 64,
+          "type": "string",
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 64
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+              "x-reject-nul": true,
+              "x-utf8-maxBytes": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rw": {
+          "type": "boolean"
+        },
+        "source": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-canonical-absolute-posix-path": true,
+          "x-reject-nul": true,
+          "x-utf8-maxBytes": 4096
+        }
+      },
+      "required": [
+        "source",
+        "destination",
+        "rw",
+        "kind",
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "C4_accepted": false,
+  "Task9_accepted": false,
+  "approved": false,
+  "approved_source_leaf_count_unchanged": 37,
+  "base_commit": "9a31b62480422e302f558f5b7771213bbb13fd84",
+  "draft1_preserved_not_submitted": "Draft1 ACK duplicated guessed cookie32/sequence1..64 and omitted kind. This draft copies exact frozen base instead; draft1 was never reviewed, approved, implemented or executed.",
+  "draft2_refinement": "Clarify no revival of closed Install admin/no new post-close SQL; explicitly preserve original Docker collector1024 smaller cap. No extra field, message, source leaf or permission added beyond draft2.",
+  "existing_BrokerInstalled_additional_fields_only": {
+    "additionalProperties": false,
+    "properties": {
+      "binding_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "descriptor_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "epoch_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      }
+    },
+    "required": [
+      "binding_id",
+      "epoch_id",
+      "descriptor_sha256"
+    ],
+    "type": "object"
+  },
+  "existing_wire_scalar_rules": "Exact deep copy of frozen original BrokerInstalled base constraints, including kind/root_cookie64/contiguous-u64 start0. Revised BrokerInstalled adds only three DATA properties; ACK replaces kind and adds those three plus observation_sha256.",
+  "implemented": false,
+  "installation_authorized": false,
+  "limits": {
+    "actual_all_host_container_collector_cap_unchanged": 1024,
+    "actual_original_collector_smaller_caps_always_apply": true,
+    "all_array_entries_cumulative_scope": "Actual entries debit original 100000-entry meter before allocation/enumeration; nested maxItems is not a fresh allowance for each array.",
+    "all_bytes_cumulative_scope": "Existing original scan/journal/64MiB sublimit; per-object caps do not reset, enlarge, combine or refund cumulative budgets.",
+    "all_control_bytes_unchanged": 262400,
+    "each_control_frame_bytes_unchanged": 4096,
+    "new_record_total_utf8_bytes": 1048576
+  },
+  "main_actions_unchanged": 13,
+  "new_Wire_body": {
+    "additionalProperties": false,
+    "properties": {
+      "backup_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string"
+      },
+      "binding_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "descriptor_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "epoch_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "job_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string"
+      },
+      "kind": {
+        "const": "BrokerInstallObserved"
+      },
+      "observation_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "request_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string"
+      },
+      "root_cookie": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "sequence": {
+        "maximum": 18446744073709551615,
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "schema_version",
+      "job_id",
+      "root_cookie",
+      "sequence",
+      "kind",
+      "backup_id",
+      "request_id",
+      "binding_id",
+      "descriptor_sha256",
+      "epoch_id",
+      "observation_sha256"
+    ],
+    "type": "object"
+  },
+  "new_Wire_kind": "BrokerInstallObserved",
+  "new_Wire_kind_count": 15,
+  "new_message_direction": "original Root -> exact original capture",
+  "new_record_absolute_template": "/var/lib/knowweave-c4/b1-source-observation/jobs/<J>/backups/<B>/install/install-cutover-observation.json",
+  "new_record_relative_path": "install/install-cutover-observation.json",
+  "new_record_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "backup_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "binding_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "capability": {
+        "const": "b1_install_cutover_observation_v1"
+      },
+      "descriptor_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "epoch_header_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "epoch_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "generation_binding_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "genesis_frame_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "host_cutover": {
+        "$ref": "#/$defs/HostCutover"
+      },
+      "job_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "observed_unix_ms": {
+        "maximum": 18446744073709551615,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "phase": {
+        "const": "Install"
+      },
+      "request_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "schema_version": {
+        "const": 1
+      }
+    },
+    "required": [
+      "schema_version",
+      "capability",
+      "job_id",
+      "backup_id",
+      "phase",
+      "request_id",
+      "binding_id",
+      "epoch_id",
+      "generation_binding_sha256",
+      "descriptor_sha256",
+      "epoch_header_sha256",
+      "genesis_frame_sha256",
+      "observed_unix_ms",
+      "host_cutover"
+    ],
+    "type": "object"
+  },
+  "old_Wire_kind_count": 14,
+  "old_unmodified_wire_scalar_constraints_verified": true,
+  "original_machine_schema_sha256": "f7413f400c6b18e83ac2899a8ee5ee86b512116039d02b2f13279674fc695d3f",
+  "revised_BrokerInstalled_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "backup_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string"
+      },
+      "binding_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "descriptor_sha256": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 64
+      },
+      "epoch_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string",
+        "x-reject-nul": true,
+        "x-utf8-maxBytes": 36
+      },
+      "job_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string"
+      },
+      "kind": {
+        "const": "BrokerInstalled"
+      },
+      "request_id": {
+        "maxLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "type": "string"
+      },
+      "root_cookie": {
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "sequence": {
+        "maximum": 18446744073709551615,
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "schema_version",
+      "job_id",
+      "root_cookie",
+      "sequence",
+      "kind",
+      "backup_id",
+      "request_id",
+      "binding_id",
+      "descriptor_sha256",
+      "epoch_id"
+    ],
+    "type": "object"
+  },
+  "schema": 1,
+  "semantic_predicates": [
+    "Root fixed actual observer owns before and after objects; caller JSON/hash/ACK cannot construct a genuine process/session/broker/cut.",
+    "Complete container IDs are unique, exact all-host set, strictly ordered by ID; same before and after set, daemon/current PG/image/process/native/start/restart/network/precise twelve mounts and legacy producers unchanged as required by original predicates.",
+    "Every mounts array uniquely sorted by destination, all complete original projections retained; no sample/truncation/project-only replacement.",
+    "ActualAssetsMount equals the complete actual Docker Mounts object including original absence/null/property values; Type/Name/Source/Destination/RW/Driver/Mode/Propagation are not a five-field replacement. Unknown properties reject rather than disappear.",
+    "Actual dedicated export and companion volumes have distinct nonempty names and actual disjoint canonical host mapped roots; RO assets actual longest-covering mount and no RW alias or running old producer as in original FreshMounts.",
+    "Legacy array equals the exact original project-and-not-current-CID filter of complete_container_projection, not caller-filled or guessed empty.",
+    "Host mount digest retains its independently adopted canonical five-field/twelve-row preimage; complete AssetsMount/ContainerProjection and descriptor/frame/header digests are different domains.",
+    "Root reads exact actual binary header and frame1 at before-held host companion mapping journals/<binding>/epochs/<epoch>; full original format/length/checksum/identity/sequence validation, same held/named metadata, genesis only, payload bytes exact equals original lifecycle descriptor bytes.",
+    "Existing Prefix::check sequence>=2 remains unchanged; new genesis reader returns only DATA, no adoption/repair/writer/RootJournal authority.",
+    "BrokerInstalled retains exact original base fields/limits and adds only three fields; new ACK uses same original correlated operation, no duplicate/caller retry. Root ACK emitted after actual post-genesis observation and durable record only.",
+    "I0 holds actual installed broker/resources/futures until authenticated ACK and exact immutable record validation; S5 fills original companion records with own real Descriptor and true host DATA before first work.",
+    "ACK loss, deadline, residue, unknown sync, data mismatch and cancellation keep original installed resources in negative retained cleanup; no false success, drop-to-retry, fake Q0/capture or late readback proof of original ACK success.",
+    "Original total/request/cutover/freshness clocks are not renewed. New observed_unix_ms is actual Root clock DATA, not caller clock/TTL authority.",
+    "All records/arrays/raw-byte encoding and every repeated stat/read/hash are prepaid against their original meters; no credentials or environment values in the body.",
+    "Original Install admin SQL/native gates finish before actual original close. No new post-close SQL or pool is introduced; closed session is never resurrected. Existing I0 actual broker/runtime bootstrap and genesis have their original owned SQL gates.",
+    "Original cutover Docker::ids MAX_CONTAINERS=1024 remains a hard smaller cap for complete all-host and legacy arrays; cumulative100000/per-array shape cannot enlarge it."
+  ],
+  "status": "DRAFT_C11_EXACT_PROTOCOL_AND_RECORD_DELTA_REQUIRES_OTHER_AND_HUMAN_APPROVAL"
+}

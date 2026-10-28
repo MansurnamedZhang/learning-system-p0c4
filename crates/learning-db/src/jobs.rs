@@ -54,6 +54,36 @@ struct JobRow {
     attempt_count: i32,
 }
 
+const RUNNABLE_SNAPSHOT_IDS: &str = "SELECT id FROM public.job WHERE status='snapshot_queued' OR (status='snapshot_retry_wait' AND next_attempt_at<=clock_timestamp()) OR (status='snapshot_running' AND lease_expires_at<=clock_timestamp()) ORDER BY created_at,id LIMIT $1";
+const CURRENT_JOB: &str = "SELECT j.id,j.outbox_id,j.idempotency_key,o.payload AS input,o.processor_version,j.status,j.attempt_count
+               FROM public.job j JOIN public.job_outbox o ON o.id=j.outbox_id
+              WHERE j.id=$1";
+
+fn decode_current_job(row: JobRow) -> Result<JobRecord, ContentError> {
+    let input = JobInput::from_value(row.input.0)?;
+    if input.business_key() != row.idempotency_key {
+        return Err(ContentError::Invalid("job_input_key_mismatch".into()));
+    }
+    let status = match (&input, row.status.as_str()) {
+        (JobInput::SnapshotExport { .. }, "snapshot_queued") => JobStatus::Queued,
+        (JobInput::SnapshotExport { .. }, "snapshot_running") => JobStatus::Running,
+        (JobInput::SnapshotExport { .. }, "snapshot_retry_wait") => JobStatus::RetryWait,
+        (JobInput::SnapshotExport { .. }, "queued" | "running" | "retry_wait") => {
+            return Err(ContentError::Invalid("wrong_job_state_family".into()));
+        }
+        _ => JobStatus::parse(&row.status)?,
+    };
+    Ok(JobRecord {
+        id: row.id,
+        outbox_id: row.outbox_id,
+        idempotency_key: row.idempotency_key,
+        input,
+        processor_version: row.processor_version,
+        status,
+        attempt_count: row.attempt_count,
+    })
+}
+
 #[derive(sqlx::FromRow)]
 struct PendingEvent {
     id: Uuid,
@@ -94,8 +124,34 @@ impl JobStore {
     /// C3 has a disjoint bounded scan, so no prefix of C3 jobs can fill the
     /// deployed C2 binary's fixed queued/running/retry_wait scan.
     pub async fn runnable_snapshot_ids(&self, limit: usize) -> Result<Vec<Uuid>, ContentError> {
-        sqlx::query_scalar("SELECT id FROM public.job WHERE status='snapshot_queued' OR (status='snapshot_retry_wait' AND next_attempt_at<=clock_timestamp()) OR (status='snapshot_running' AND lease_expires_at<=clock_timestamp()) ORDER BY created_at,id LIMIT $1")
-            .bind(limit.min(256) as i64).fetch_all(&self.pool).await.map_err(|_|ContentError::Storage)
+        sqlx::query_scalar(RUNNABLE_SNAPSHOT_IDS)
+            .bind(limit.min(256) as i64)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)
+    }
+
+    pub(crate) async fn runnable_snapshot_ids_on(
+        connection: &mut sqlx::PgConnection,
+        limit: usize,
+    ) -> Result<Vec<Uuid>, ContentError> {
+        sqlx::query_scalar(RUNNABLE_SNAPSHOT_IDS)
+            .bind(limit.min(256) as i64)
+            .fetch_all(connection)
+            .await
+            .map_err(|_| ContentError::Storage)
+    }
+
+    pub(crate) async fn get_on(
+        connection: &mut sqlx::PgConnection,
+        id: Uuid,
+    ) -> Result<Option<JobRecord>, ContentError> {
+        let row: Option<JobRow> = sqlx::query_as(CURRENT_JOB)
+            .bind(id)
+            .fetch_optional(connection)
+            .await
+            .map_err(|_| ContentError::Storage)?;
+        row.map(decode_current_job).transpose()
     }
 
     /// Atomically claim one known queued, due, or expired job. The database
@@ -270,40 +326,12 @@ impl JobStore {
     }
 
     pub async fn get(&self, id: Uuid) -> Result<Option<JobRecord>, ContentError> {
-        let row: Option<JobRow> = sqlx::query_as(
-            "SELECT j.id,j.outbox_id,j.idempotency_key,o.payload AS input,o.processor_version,j.status,j.attempt_count
-               FROM public.job j JOIN public.job_outbox o ON o.id=j.outbox_id
-              WHERE j.id=$1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|_| ContentError::Storage)?;
-        row.map(|row| {
-            let input = JobInput::from_value(row.input.0)?;
-            if input.business_key() != row.idempotency_key {
-                return Err(ContentError::Invalid("job_input_key_mismatch".into()));
-            }
-            let status = match (&input, row.status.as_str()) {
-                (JobInput::SnapshotExport { .. }, "snapshot_queued") => JobStatus::Queued,
-                (JobInput::SnapshotExport { .. }, "snapshot_running") => JobStatus::Running,
-                (JobInput::SnapshotExport { .. }, "snapshot_retry_wait") => JobStatus::RetryWait,
-                (JobInput::SnapshotExport { .. }, "queued" | "running" | "retry_wait") => {
-                    return Err(ContentError::Invalid("wrong_job_state_family".into()));
-                }
-                _ => JobStatus::parse(&row.status)?,
-            };
-            Ok(JobRecord {
-                id: row.id,
-                outbox_id: row.outbox_id,
-                idempotency_key: row.idempotency_key,
-                input,
-                processor_version: row.processor_version,
-                status,
-                attempt_count: row.attempt_count,
-            })
-        })
-        .transpose()
+        let row: Option<JobRow> = sqlx::query_as(CURRENT_JOB)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| ContentError::Storage)?;
+        row.map(decode_current_job).transpose()
     }
 }
 

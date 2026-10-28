@@ -224,7 +224,7 @@ async fn identity(
             .await?)
     })
     .await?;
-    first_write::restricted_runtime(&actual)?;
+    first_write::restricted_runtime_for_owner(owner, &actual)?;
     first_write::original_database(&actual, &attempt.copied.claimed.output().identity)?;
     if actual.server_address != attempt.runtime_identity.server_address
         || actual.server_port != attempt.runtime_identity.server_port
@@ -536,24 +536,32 @@ async fn transaction(
     store: &SnapshotStore,
     attempt: &mut StagedAttempt,
 ) -> Result<(KnownBusinessCommit, Vec<u8>)> {
-    let mut tx = Some(
-        runtime::settle(slot, async {
-            store
-                .broker_begin_publication()
-                .await
+    let mut connection = owner.acquire_runtime(slot).await?;
+    let result = async {
+        let mut tx = Some(
+            runtime::settle(slot, async {
+                match connection.as_mut() {
+                    Some(connection) => {
+                        SnapshotStore::broker_begin_publication_on(connection).await
+                    }
+                    None => store.broker_begin_publication().await,
+                }
                 .map_err(|_| history::rejected("D1 original runtime begin failed"))
-        })
-        .await?,
-    );
-    let result = transaction_inner(owner, slot, attempt, &mut tx).await;
-    if let Some(tx) = tx.take()
-        && runtime::settle_started(slot, async { Ok(tx.rollback().await?) })
-            .await
-            .is_err()
-    {
-        slot.poison();
+            })
+            .await?,
+        );
+        let result = transaction_inner(owner, slot, attempt, &mut tx).await;
+        if let Some(tx) = tx.take()
+            && runtime::settle_started(slot, async { Ok(tx.rollback().await?) })
+                .await
+                .is_err()
+        {
+            slot.poison();
+        }
+        result
     }
-    result
+    .await;
+    owner.close_connection(slot, connection, result).await
 }
 async fn transaction_inner(
     owner: &Arc<Original>,

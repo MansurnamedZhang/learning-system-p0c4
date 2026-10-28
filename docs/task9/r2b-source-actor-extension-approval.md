@@ -1,5 +1,15 @@
 # Task9 R2b源端补充编码批准记录
 
+## 2026-10-28：C11 准确编码补充已批准
+
+人类直接回复“批准补充编码及原限定检查”，批准 [C11 合同](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/docs/task9/c11/CONTRACT.md)与[封闭字段表](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/feat/task7-attention-recovery/docs/task9/c11/MACHINE-DELTA.json)。原合同 SHA-256 `db6c165aa84dd8bbc9f89b118664ed81114c2286abbefd80406938a5640f1f53`，字段表 SHA-256 `e7547949249886bbf82a6a6ae277b2e32bcbb5801e9c7496ca0c27862a59a1ff`；直接批准记录 SHA-256 `f06536acac579e60bb52fd0885328571c6d1fa2dd03de5de8b1785c62513d129`。这两份公开文件保留获批原字节。
+
+仅在已批 37 个产品源码文件内，BrokerInstalled 增加 binding_id／epoch_id／descriptor_sha256 三项 DATA，Wire 14→15 新增 BrokerInstallObserved，Install generation 只允许一次追加 install-cutover-observation.json。保持真实 genesis、专用安装池自然关闭、Root 完整后置观察、持久记录与原回应、I0／消费者核验、原 companion 输出、第一 work 的顺序。回应丢失或结果不明保持 HOLD，不自动重试或重装；可能保留已安装但不可继续的隔离资源。
+
+批准范围是默认关闭代码与既有普通 Linux 限定检查。批准没有赋予密钥／信任／launcher 安装、PG／安全权限调整、真实 Root／PG 正向运行、目标整链、源断联／隔离、恢复、CompleteBackup、main 合并或生产发布。下方原 32 文件及五文件扩展记录作为历史保留，不倒改旧批准或失败状态。
+
+---
+
 ## 五文件补充已批准，当前准确范围37文件 · 2026-10-28
 
 用户在本原对话直接答复：“批准五文件补充编码及原限定检查”。当前范围为原32文件加以下5个现有DB文件，共37；此前32文件合同/schema及其历史状态保持原字节。本段是编码与原限定普通Linux检查批准，不生成安装、运行期资格或验收信用。

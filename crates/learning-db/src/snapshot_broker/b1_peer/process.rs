@@ -1,5 +1,5 @@
 //! Real Linux observation primitives. None returns a qualified process ctx.
-use super::{Error, Result, job};
+use super::{Error, Result, job, session};
 use learning_assets::root_journal::SharedJournalBudget;
 use sha2::{Digest, Sha256};
 use std::{
@@ -1888,6 +1888,160 @@ impl JobLock {
     }
 }
 
+struct HeldSessionBytes {
+    held: HeldNamed,
+    raw: Vec<u8>,
+    digest: [u8; 32],
+}
+impl HeldSessionBytes {
+    fn open(path: &str, maximum: u64, scan: &SharedJournalBudget) -> Result<Self> {
+        let mut held = HeldNamed::open(path, scan)?;
+        if held.stamp.mode & 0o7777 != 0o600
+            || held.parents.last().ok_or(Error::Identity)?.1.mode & 0o7777 != 0o700
+        {
+            return Err(Error::Identity);
+        }
+        let (raw, digest) = held.full_read_and_hash(maximum, scan)?;
+        Ok(Self { held, raw, digest })
+    }
+    fn revalidate(&mut self, scan: &SharedJournalBudget) -> Result<()> {
+        let (raw, digest) = self.held.full_read_and_hash(self.raw.len() as u64, scan)?;
+        if raw != self.raw || digest != self.digest {
+            return Err(Error::Identity);
+        }
+        Ok(())
+    }
+}
+
+struct HeldSessionGeneration {
+    binding: HeldRecord<job::GenerationBinding>,
+    proof: HeldSessionBytes,
+    inspection: HeldSessionBytes,
+    lock: JobLock,
+}
+impl HeldSessionGeneration {
+    fn open_install(
+        job_id: &str,
+        backup: &str,
+        request: &str,
+        capture_start: &[u8; 32],
+        expected_digest: &str,
+        scan: &SharedJournalBudget,
+    ) -> Result<Self> {
+        Self::open(
+            job_id,
+            backup,
+            request,
+            capture_start,
+            expected_digest,
+            ("install", "Install"),
+            scan,
+        )
+    }
+    fn open_capture(
+        job_id: &str,
+        backup: &str,
+        request: &str,
+        capture_start: &[u8; 32],
+        expected_digest: &str,
+        scan: &SharedJournalBudget,
+    ) -> Result<Self> {
+        Self::open(
+            job_id,
+            backup,
+            request,
+            capture_start,
+            expected_digest,
+            ("capture", "Capture"),
+            scan,
+        )
+    }
+    fn open(
+        job_id: &str,
+        backup: &str,
+        request: &str,
+        capture_start: &[u8; 32],
+        expected_digest: &str,
+        profile: (&'static str, &'static str),
+        scan: &SharedJournalBudget,
+    ) -> Result<Self> {
+        let (directory_leaf, phase) = profile;
+        let directory =
+            format!("{OBSERVATION_ROOT}/jobs/{job_id}/backups/{backup}/{directory_leaf}");
+        let binding = HeldRecord::<job::GenerationBinding>::open(
+            &format!("{directory}/generation-binding.json"),
+            4096,
+            scan,
+        )?;
+        let data = &binding.data;
+        if encode_hex(&binding.digest) != expected_digest
+            || data.job_id != job_id
+            || data.backup_id != backup
+            || data.request_id != request
+            || data.phase != phase
+            || data.capture_start_sha256 != encode_hex(capture_start)
+        {
+            return Err(Error::Identity);
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| Error::Identity)?;
+        let now = u64::try_from(now.as_millis()).map_err(|_| Error::Identity)?;
+        if data.observed_unix_ms > now || now - data.observed_unix_ms > 30_000 {
+            return Err(Error::Identity);
+        }
+        let proof =
+            HeldSessionBytes::open(&format!("{directory}/isolation-{backup}.json"), 4096, scan)?;
+        let inspection = HeldSessionBytes::open(
+            &format!("{directory}/inspection-{backup}.json"),
+            1024 * 1024,
+            scan,
+        )?;
+        if proof.raw.len() as u64 != data.isolation_bytes
+            || encode_hex(&proof.digest) != data.isolation_sha256
+            || inspection.raw.len() as u64 != data.inspection_bytes
+            || encode_hex(&inspection.digest) != data.inspection_sha256
+        {
+            return Err(Error::Identity);
+        }
+        let lock = JobLock::open(
+            &format!("{directory}/isolation-{backup}.lock"),
+            data.lock_dev,
+            data.lock_ino,
+            scan,
+        )?;
+        let mut generation = Self {
+            binding,
+            proof,
+            inspection,
+            lock,
+        };
+        generation.revalidate(scan)?;
+        Ok(generation)
+    }
+    fn revalidate(&mut self, scan: &SharedJournalBudget) -> Result<()> {
+        self.binding.revalidate(scan)?;
+        self.proof.revalidate(scan)?;
+        self.inspection.revalidate(scan)?;
+        self.lock.revalidate(scan)
+    }
+}
+
+pub(super) struct FixedOptionsInput {
+    pub(super) database: String,
+    pub(super) directory: &'static str,
+    pub(super) application_name: &'static str,
+}
+pub(super) struct AdminSessionData {
+    pub(super) database: String,
+    pub(super) database_oid: u64,
+    pub(super) system_identifier: String,
+    pub(super) job_id: uuid::Uuid,
+    pub(super) backup_id: uuid::Uuid,
+    pub(super) generation_digest: [u8; 32],
+    pub(super) catalog_digest: [u8; 32],
+}
+
 struct CaptureNative {
     postmaster_start: u64,
     data: (u64, u64),
@@ -2215,8 +2369,29 @@ struct OriginalState {
     native_view: SupportedNativeView,
     control: job::OriginalControlOwner,
     role: OriginalRoleOwner,
+    install_generation: Option<HeldSessionGeneration>,
+    capture_generation: Option<HeldSessionGeneration>,
 }
 impl OriginalState {
+    fn admin_session_data(&self) -> Result<AdminSessionData> {
+        let generation = self
+            .capture_generation
+            .as_ref()
+            .or(self.install_generation.as_ref())
+            .ok_or(Error::Phase)?;
+        let source = &self.catalog.data.installed_source;
+        Ok(AdminSessionData {
+            database: source.database.clone(),
+            database_oid: source.database_oid,
+            system_identifier: source.system_identifier.clone(),
+            job_id: uuid::Uuid::parse_str(&generation.binding.data.job_id)
+                .map_err(|_| Error::Identity)?,
+            backup_id: uuid::Uuid::parse_str(&generation.binding.data.backup_id)
+                .map_err(|_| Error::Identity)?,
+            generation_digest: generation.binding.digest,
+            catalog_digest: self.catalog.digest,
+        })
+    }
     fn revalidate(&mut self, scan: &SharedJournalBudget) -> Result<()> {
         // A fork inheritor must fail before any saved-PID, UID or native gate.
         require_same_current_pid(self.own_image.pid, scan)?;
@@ -2302,6 +2477,12 @@ impl OriginalState {
             }
         }
         source_endpoint(&self.catalog.data, self.pins.role, scan)?;
+        if let Some(generation) = &mut self.install_generation {
+            generation.revalidate(scan)?;
+        }
+        if let Some(generation) = &mut self.capture_generation {
+            generation.revalidate(scan)?;
+        }
         self.native_view.revalidate(scan)?;
         Ok(())
     }
@@ -2310,11 +2491,255 @@ impl OriginalState {
 /// Sole qualified owner, not serializable/Clone/Default/Debug and not a SQL or S
 /// authority. Actual install/SQL/native-session gates remain M2b's responsibility.
 pub(super) struct PeerOriginal {
+    custody: std::sync::Arc<ProcessCustodyCore>,
+}
+impl Drop for PeerOriginal {
+    fn drop(&mut self) {
+        // The last public original-process wrapper disappears. Its already
+        // started resource owners still strongly hold custody and their book
+        // handles stay rooted; this only requests negative cleanup.
+        session::abandon_original(&self.custody);
+    }
+}
+/// Actual original process custody, deliberately without any handle book.
+/// Session drivers strongly retain these same held originals until settlement.
+pub(super) struct ProcessCustodyCore {
+    original_pid: u32,
     scan: SharedJournalBudget,
     state: std::sync::Mutex<OriginalState>,
     failed: AtomicBool,
 }
 impl PeerOriginal {
+    pub(super) fn custody(&self) -> std::sync::Arc<ProcessCustodyCore> {
+        self.custody.clone()
+    }
+    pub(super) async fn close_original(&self) -> Result<()> {
+        session::drain_original(&self.custody).await
+    }
+    pub(super) fn revalidate(&self) -> Result<()> {
+        self.custody.revalidate()
+    }
+    pub(super) fn scan(&self) -> SharedJournalBudget {
+        self.custody.scan()
+    }
+    pub(super) fn capture_backup_id_data(&self) -> Result<uuid::Uuid> {
+        self.custody.capture_backup_id_data()
+    }
+}
+impl ProcessCustodyCore {
+    pub(super) fn next_admin_stage(&self) -> Result<session::AdminStage> {
+        self.revalidate()?;
+        let state = self.state.lock().map_err(|_| Error::Poisoned)?;
+        match (state.pins.role, state.control.phase_data()) {
+            (job::ProcessRole::Capture, 3) => Ok(session::AdminStage::Install),
+            (job::ProcessRole::Capture, 8) if state.capture_generation.is_some() => {
+                Ok(session::AdminStage::Capture)
+            }
+            (job::ProcessRole::Source, 1) => Ok(session::AdminStage::Publication),
+            _ => Err(Error::Phase),
+        }
+    }
+    pub(super) fn prepare_admin(
+        &self,
+        stage: session::AdminStage,
+    ) -> Result<Option<AdminSessionData>> {
+        if self.next_admin_stage()? != stage {
+            return Err(Error::Phase);
+        }
+        match stage {
+            session::AdminStage::Install => self.prepare_install_admin().map(Some),
+            session::AdminStage::Capture => self
+                .state
+                .lock()
+                .map_err(|_| Error::Poisoned)?
+                .admin_session_data()
+                .map(Some),
+            session::AdminStage::Publication => Ok(None),
+        }
+    }
+    pub(super) fn match_admin_database(&self, database: &str, oid: i64, sid: &str) -> Result<()> {
+        self.revalidate()?;
+        let state = self.state.lock().map_err(|_| Error::Poisoned)?;
+        let source = &state.catalog.data.installed_source;
+        if database != source.database
+            || u64::try_from(oid).ok() != Some(source.database_oid)
+            || sid != source.system_identifier
+        {
+            return Err(Error::Identity);
+        }
+        Ok(())
+    }
+    pub(super) fn match_source_description(
+        &self,
+        source: &super::super::lifecycle::BrokerSourceDescription,
+    ) -> Result<()> {
+        self.revalidate()?;
+        let state = self.state.lock().map_err(|_| Error::Poisoned)?;
+        let actual = &state.catalog.data.installed_source;
+        if source.deployment_id.to_string() != actual.deployment_id
+            || source.source_group_id.to_string() != actual.source_group_id
+            || source.source_application_commit != actual.application_commit
+            || source.source_build_sha256 != actual.application_build_sha256
+        {
+            return Err(Error::Identity);
+        }
+        Ok(())
+    }
+    pub(super) fn broker_installed(&self) -> Result<()> {
+        self.revalidate()?;
+        let result = self
+            .state
+            .lock()
+            .map_err(|_| Error::Poisoned)?
+            .control
+            .broker_installed();
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+    pub(super) fn bind_capture_generation(&self) -> Result<()> {
+        self.revalidate()?;
+        let result = (|| {
+            let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
+            if state.capture_generation.is_some() || state.control.phase_data() != 6 {
+                return Err(Error::Phase);
+            }
+            let (backup, capture_digest) = match &state.role {
+                OriginalRoleOwner::Capture {
+                    backup, capture, ..
+                } => (backup.clone(), capture.digest),
+                _ => return Err(Error::Phase),
+            };
+            self.scan.charge(16, 1).map_err(|_| Error::Capacity)?;
+            let request = uuid::Uuid::new_v4().to_string();
+            let install = state.install_generation.as_ref().ok_or(Error::Phase)?;
+            if request == backup
+                || request == state.source_start.data.job_id
+                || request == install.binding.data.request_id
+            {
+                return Err(Error::Identity);
+            }
+            let digest = state.control.request_capture_proof(&request)?;
+            let generation = HeldSessionGeneration::open_capture(
+                &state.source_start.data.job_id,
+                &backup,
+                &request,
+                &capture_digest,
+                &digest,
+                &self.scan,
+            )?;
+            state.capture_generation = Some(generation);
+            state.revalidate(&self.scan)
+        })();
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+    pub(super) fn require_original_pid(&self) -> Result<()> {
+        // Negative ownership only. No environment/Root liveness revalidation may
+        // prevent cleanup of the same already-held original process resources.
+        if unsafe { libc::getpid() } != self.original_pid as i32 {
+            return Err(Error::Identity);
+        }
+        Ok(())
+    }
+    pub(super) fn poison(&self) {
+        self.failed.store(true, Ordering::Release);
+    }
+    pub(super) fn is_failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+    pub(super) fn process_role_data(&self) -> Result<job::ProcessRole> {
+        if self.is_failed() {
+            return Err(Error::Poisoned);
+        }
+        let state = self.state.lock().map_err(|_| Error::Poisoned)?;
+        Ok(state.pins.role)
+    }
+    pub(super) fn current_admin_binding_matches(&self, expected: &AdminSessionData) -> Result<()> {
+        self.revalidate()?;
+        let state = self.state.lock().map_err(|_| Error::Poisoned)?;
+        let current = state.admin_session_data()?;
+        if current.job_id != expected.job_id
+            || current.backup_id != expected.backup_id
+            || current.generation_digest != expected.generation_digest
+            || current.catalog_digest != expected.catalog_digest
+            || current.database != expected.database
+            || current.database_oid != expected.database_oid
+            || current.system_identifier != expected.system_identifier
+        {
+            self.poison();
+            return Err(Error::Identity);
+        }
+        Ok(())
+    }
+    pub(super) fn prepare_install_admin(&self) -> Result<AdminSessionData> {
+        self.revalidate()?;
+        let result = self
+            .state
+            .lock()
+            .map_err(|_| Error::Poisoned)
+            .and_then(|mut state| {
+                if state.pins.role != job::ProcessRole::Capture
+                    || state.install_generation.is_some()
+                    || state.control.phase_data() != 3
+                {
+                    return Err(Error::Phase);
+                }
+                let (backup, capture_digest, capture_request) = match &state.role {
+                    OriginalRoleOwner::Capture {
+                        backup,
+                        capture,
+                        request,
+                        ..
+                    } => (backup.clone(), capture.digest, request.clone()),
+                    _ => return Err(Error::Phase),
+                };
+                self.scan.charge(16, 1).map_err(|_| Error::Capacity)?;
+                let request = uuid::Uuid::new_v4().to_string();
+                if request == backup
+                    || request == state.source_start.data.job_id
+                    || request == capture_request
+                {
+                    return Err(Error::Identity);
+                }
+                let digest = state.control.request_install_proof(&request)?;
+                let generation = HeldSessionGeneration::open_install(
+                    &state.source_start.data.job_id,
+                    &backup,
+                    &request,
+                    &capture_digest,
+                    &digest,
+                    &self.scan,
+                )?;
+                state.install_generation = Some(generation);
+                state.revalidate(&self.scan)?;
+                state.admin_session_data()
+            });
+        if result.is_err() {
+            self.poison();
+        }
+        result
+    }
+    pub(super) fn fixed_options_input(&self) -> Result<FixedOptionsInput> {
+        self.revalidate()?;
+        let state = self.state.lock().map_err(|_| Error::Poisoned)?;
+        let database = &state.catalog.data.installed_source.database;
+        precharge_fixed_options_environment(state.pins.role, database, &self.scan)?;
+        Ok(FixedOptionsInput {
+            database: database.clone(),
+            directory: match state.pins.role {
+                job::ProcessRole::Source => "/run/knowweave-c4-source-pg",
+                job::ProcessRole::Capture => "/var/run/postgresql",
+            },
+            application_name: match state.pins.role {
+                job::ProcessRole::Source => "knowweave-c4-b1-source",
+                job::ProcessRole::Capture => "knowweave-c4-b1-capture",
+            },
+        })
+    }
     pub(super) fn revalidate(&self) -> Result<()> {
         if self.failed.load(Ordering::Acquire) {
             return Err(Error::Poisoned);
@@ -2545,11 +2970,16 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
         native_view,
         control,
         role,
+        install_generation: None,
+        capture_generation: None,
     };
     state.revalidate(&scan)?;
-    Ok(PeerOriginal {
+    let custody = std::sync::Arc::new(ProcessCustodyCore {
+        original_pid: state.own_image.pid,
         scan,
         state: std::sync::Mutex::new(state),
         failed: AtomicBool::new(false),
-    })
+    });
+    session::register_original_book(&custody)?;
+    Ok(PeerOriginal { custody })
 }
