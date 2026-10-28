@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "C11 DB消费者普通检查返回通过，Root接线中",
-    "detail": "C11 DB消费者15源码叶的普通Linux13门返回通过：default62／24、peer105／26，新增5个DATA正文与原3个资源正文通过；2个原协议名称适配、忽略集合不变，两配置不相加。完整原件独核通过；真实Root发行者、M3整体finally、S5封闭计费及C11整链仍未闭合，Task9／C4开放。",
-    "evidence": "eeca0765批次result f816b881868f7b585eb4a0a82ef08f28ae21d8a03f52bd5bbea321d683933da3；43e基线+f93bd823候选／dae15e70清单，13门exit0、源码原件未变／精确CID清理返回；完整原件独核通过（INDEX a6771c08a79abf2231e973f1e087c31dcdc55fef7e8b2d181ddf5b4cad20b96b）。02f0单Clippy失败保留，单if等价修复后新UUID全检查；backup仅check，无真实Root／PG正向信用。"
+    "statusLabel": "S5消费端与C11 DATA普通检查通过，Root／M3接线中",
+    "detail": "S5消费端与C11 DATA的9源码叶完成限定backup普通Linux13门：default450通过／106忽略、offhost554通过／106忽略，均0过滤；12个新独立DATA与有界目录正文通过，两配置重复正文不相加。DB仅依赖编译。真实Root发行、M3整体finally、S5封闭管线与C11整链仍开放，Task9／C4未验收。",
+    "evidence": "15741a1e批次result 4e6456910163ab2c274d00e0f104fc157699f528cb83b4064b85790ddef17f51；9823d820基线＋90dec313候选／75157472清单，13门全exit0，源码原件未变／精确CID清理；完整原件独立核验通过，独审 INDEX 8f64b9e1475b4a094680983b78ccc8ed179c98e7c404d879e5ce843d03e9af5b／REVIEW f3b0d2f41f661d63835e49339647ba3069489aa19313f0fb102df1fdf7eeafdf。43b与7e两个RED原件保留，修复后全新UUID完整重跑；没有DB正文新执行或真实Root／PG正向信用。"
   }
 ];
 
@@ -1639,31 +1639,31 @@ export const diagrams = [
 export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
   "date": "2026-10-28",
-  "baseline": "43e212665083e4c0a8dc0a58adc1ba413e14b1fb",
-  "sourceCommit": "43e212665083e4c0a8dc0a58adc1ba413e14b1fb",
-  "state": "C4实施中 · C11 DB消费者普通检查返回通过，Root接线继续",
-  "progressSummary": "C11 DB消费者15源码叶的普通Linux13门返回通过：default62／24、peer105／26，新增5个DATA正文与原3个资源正文通过；2个原协议名称适配、忽略集合不变，两配置不相加。完整原件独核通过；真实Root发行者、M3整体finally、S5封闭计费及C11整链仍未闭合，Task9／C4开放。",
-  "progressEvidence": "eeca0765批次result f816b881868f7b585eb4a0a82ef08f28ae21d8a03f52bd5bbea321d683933da3；43e基线+f93bd823候选／dae15e70清单，13门exit0、源码原件未变／精确CID清理返回；完整原件独核通过（INDEX a6771c08a79abf2231e973f1e087c31dcdc55fef7e8b2d181ddf5b4cad20b96b）。02f0单Clippy失败保留，单if等价修复后新UUID全检查；backup仅check，无真实Root／PG正向信用。",
-  "pendingSummary": "继续真实Root发行者、M3整个future/finally与S5封闭计费，再推进Source／D、fence和同原操作发布。现场安装、PG／安全权限、源隔离及恢复保留准确审批停止点；本轮DB消费者普通检查及原件独核已完成。",
+  "baseline": "9823d820982a7b452fab87ffe3fef9d060745009",
+  "sourceCommit": "9823d820982a7b452fab87ffe3fef9d060745009",
+  "state": "C4实施中 · S5消费端与C11 DATA普通检查通过，Root／M3接线继续",
+  "progressSummary": "S5消费端与C11 DATA的9源码叶完成限定backup普通Linux13门：default450通过／106忽略、offhost554通过／106忽略，均0过滤；12个新独立DATA与有界目录正文通过，两配置重复正文不相加。DB仅依赖编译。真实Root发行、M3整体finally、S5封闭管线与C11整链仍开放，Task9／C4未验收。",
+  "progressEvidence": "15741a1e批次result 4e6456910163ab2c274d00e0f104fc157699f528cb83b4064b85790ddef17f51；9823d820基线＋90dec313候选／75157472清单，13门全exit0，源码原件未变／精确CID清理；完整原件独立核验通过，独审 INDEX 8f64b9e1475b4a094680983b78ccc8ed179c98e7c404d879e5ce843d03e9af5b／REVIEW f3b0d2f41f661d63835e49339647ba3069489aa19313f0fb102df1fdf7eeafdf。43b与7e两个RED原件保留，修复后全新UUID完整重跑；没有DB正文新执行或真实Root／PG正向信用。",
+  "pendingSummary": "真实Root owner、安装观察与持久ACK，M3整个actor future／finally及M5保持仍待接线；S5封闭预算尚有sealed／catalog／assets／protection／lifecycle等下游读链待清点。当前缺口清单不完整，已批37叶尚未闭合，最小扩范围方案及审批材料仍待完整审计。继续Source／D、fence和同原操作发布；cap-scope、closed source、receiver及genuine链保持开放。安装、密钥／信任／launcher、PG／安全权限、源隔离与恢复仍按准确审批停止点办理。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "当前进度 · C11 DB消费者普通检查返回通过，Root接线继续",
-  "taskPlanScope": "已批37源码叶、13主动作；当前DB15消费端完成普通回归，2原协议名适配+5新DATA体+3原资源体分账。完整原件独核已完成，完整Root／M3／S5／Source-D／fence及genuine链继续。",
+  "roadmapHeadline": "当前进度 · S5消费端与C11 DATA普通检查通过，Root／M3接线继续",
+  "taskPlanScope": "已批37源码叶、13主动作；本轮source9／backup默认与offhost完整普通库回归，12新独立正文。历史DB消费者结果分账；Root／M3／S5封闭管线、Source-D／fence、cap-scope与genuine链继续。",
   "nextSteps": [
     [
-      "01 · 接通真实Root安装观察",
-      "在已批范围内闭合原Root发行、安装后完整观察与持久回应；普通DATA测试不能替代真实发行。"
+      "01 · 接通真实Root与M3原入口",
+      "闭合原始Root发行、安装后观察和M3整个actor future／finally；普通DATA与依赖编译不替代真实原入口。"
     ],
     [
-      "02 · 闭合原主体与发布调用链",
-      "完成M3整个future/finally和S5封闭计费，继续Source／D、fence与同原操作的一次消费发布。"
+      "02 · 闭合S5与同原操作消费链",
+      "完成封闭计费和cap-scope，继续Source／D、fence与receiver，同原操作持有和一次消费发布继续核对。"
     ],
     [
       "03 · 准确审批现场整链",
-      "安装、密钥／信任／launcher和PG／安全权限按具体方案审批；再完成真实RA／RB及异机整链，Task9／C4继续开放。"
+      "密钥／信任／launcher安装、PG／安全权限、源隔离／恢复按具体方案审批；真实RA／RB及异机整链仍待完成。"
     ]
   ]
 };

@@ -23,6 +23,239 @@ const MAX_CONTAINERS: usize = 1024;
 // No Config.Env, command, labels outside this allowlist, or secret contents.
 const INSPECT: &str = r#"{"Id":{{json .Id}},"Image":{{json .Image}},"State":{"Running":{{json .State.Running}},"Pid":{{json .State.Pid}},"StartedAt":{{json .State.StartedAt}}},"RestartCount":{{json .RestartCount}},"Config":{"Labels":{"com.docker.compose.project":{{json (index .Config.Labels "com.docker.compose.project")}},"com.docker.compose.service":{{json (index .Config.Labels "com.docker.compose.service")}}}},"Mounts":{{json .Mounts}}}"#;
 
+/// Actual capture-namespace observations only. The original Root issuer owns
+/// the host all-container before/after object and C11's authenticated record.
+/// No Docker invocation, caller CID, host process path or hash-as-observation
+/// is used by this independent local half.
+#[cfg(feature = "offhost-b1")]
+pub(super) struct B1LocalMounts {
+    mountinfo: Vec<u8>,
+    roots: Vec<(
+        std::path::PathBuf,
+        learning_assets::backup_fs::BackupDir,
+        (u64, u64),
+    )>,
+    companion: std::fs::File,
+    export: std::fs::File,
+    companion_identity: (u64, u64),
+    export_identity: (u64, u64),
+    deadline: Option<Instant>,
+}
+
+#[cfg(feature = "offhost-b1")]
+impl B1LocalMounts {
+    fn observe_mountinfo(budget: &Budget) -> Result<Vec<u8>, BackupError> {
+        const CAP: usize = 1024 * 1024;
+        let mut scan = budget.lock().map_err(|_| invalid())?;
+        scan.entries(8)?;
+        // The fixed buffer allocation and the complete bounded read allowance
+        // are separate work; reserve both before opening the actual proc file.
+        scan.charge(2 * (CAP as u64 + 1))?;
+        drop(scan);
+        let mut raw = vec![0u8; CAP + 1];
+        let mut input = std::fs::File::open("/proc/self/mountinfo")?;
+        let mut used = 0;
+        loop {
+            if used == raw.len() {
+                return Err(invalid());
+            }
+            let count = input.read(&mut raw[used..])?;
+            if count == 0 {
+                break;
+            }
+            used += count;
+        }
+        if used > CAP {
+            return Err(invalid());
+        }
+        raw.truncate(used);
+        Ok(raw)
+    }
+    fn require_twelve(raw: &[u8]) -> Result<(), BackupError> {
+        let text = std::str::from_utf8(raw).map_err(|_| invalid())?;
+        let topology = [
+            ("/var/lib/postgresql", true),
+            ("/var/lib/knowweave-source", true),
+            ("/var/lib/knowweave-source/assets", false),
+            ("/var/lib/knowweave-c4/registry", true),
+            ("/var/lib/knowweave-c4/snapshot-effects-v2", true),
+            ("/var/lib/knowweave-c4/snapshot-export-v2", true),
+            ("/run/kwc4/sfx", true),
+            ("/var/lib/knowweave-c4/b1-source-observation", false),
+            ("/opt/knowweave-c4/b1-capture", false),
+            ("/usr/bin/docker", false),
+            ("/var/run/docker.sock", false),
+            ("/var/run/postgresql", true),
+        ];
+        let mut counts = [0usize; 12];
+        for line in text.lines() {
+            let mut fields = line.split_ascii_whitespace();
+            let target = fields.nth(4).ok_or_else(invalid)?;
+            let options = fields.next().ok_or_else(invalid)?;
+            if fields.clone().count() < 4 {
+                return Err(invalid());
+            }
+            if let Some((index, (_, rw))) = topology
+                .iter()
+                .enumerate()
+                .find(|(_, (path, _))| *path == target)
+            {
+                counts[index] += 1;
+                if options.split(',').any(|o| o == "rw") != *rw
+                    || options.split(',').any(|o| o == "ro") == *rw
+                {
+                    return Err(invalid());
+                }
+            } else if topology.iter().any(|(root, _)| {
+                target
+                    .strip_prefix(root)
+                    .is_some_and(|s| s.starts_with('/'))
+            }) {
+                // The assets child is the sole allowed parent/child member.
+                // Any other overlay under the twelve fixed targets rejects.
+                return Err(invalid());
+            }
+        }
+        if counts != [1; 12] {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub(super) fn open(
+        roots: &BTreeMap<String, RootRecord>,
+        budget: &Budget,
+        deadline: Instant,
+    ) -> Result<(Self, std::fs::File, std::fs::File), BackupError> {
+        use std::os::unix::fs::OpenOptionsExt;
+        if Instant::now() >= deadline {
+            return Err(invalid());
+        }
+        let raw = Self::observe_mountinfo(budget)?;
+        budget
+            .lock()
+            .map_err(|_| invalid())?
+            .charge((raw.len() as u64) * 3)?;
+        Self::require_twelve(&raw)?;
+        assets_readonly(
+            std::str::from_utf8(&raw).map_err(|_| invalid())?,
+            &roots["assets"].path,
+        )?;
+        let mut held = Vec::new();
+        for record in roots.values() {
+            budget
+                .lock()
+                .map_err(|_| invalid())?
+                .entries(std::path::Path::new(&record.path).components().count() * 4 + 6)?;
+            let path = std::path::PathBuf::from(&record.path);
+            let root = learning_assets::backup_fs::BackupDir::open_trusted_private_root(&path)?;
+            crate::registry::validate_root_identity(record, &path, root.identity()?)?;
+            held.push((path, root, (record.dev, record.ino)));
+        }
+        budget.lock().map_err(|_| invalid())?.entries(24)?;
+        let open = |path: &str| {
+            std::fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(path)
+        };
+        let companion = open(learning_assets::InstalledSnapshotBinding::COMPANION_PATH)?;
+        let export = open(learning_assets::InstalledSnapshotBinding::EXPORT_PATH)?;
+        let a = companion.metadata()?;
+        let b = export.metadata()?;
+        let companion_named = learning_assets::backup_fs::BackupDir::open_trusted_private_root(
+            std::path::Path::new(learning_assets::InstalledSnapshotBinding::COMPANION_PATH),
+        )?;
+        let export_named = learning_assets::backup_fs::BackupDir::open_trusted_private_root(
+            std::path::Path::new(learning_assets::InstalledSnapshotBinding::EXPORT_PATH),
+        )?;
+        if !a.is_dir()
+            || !b.is_dir()
+            || a.uid() != 0
+            || b.uid() != 0
+            || a.mode() & 0o7777 != 0o700
+            || b.mode() & 0o7777 != 0o700
+            || (a.dev(), a.ino()) == (b.dev(), b.ino())
+            || companion_named.identity()? != (a.dev(), a.ino())
+            || export_named.identity()? != (b.dev(), b.ino())
+        {
+            return Err(invalid());
+        }
+        // The normal OS binding constructor still independently checks empty
+        // and distinct actual original FDs before making its actual journal.
+        let result = Self {
+            mountinfo: raw,
+            roots: held,
+            companion,
+            export,
+            companion_identity: (a.dev(), a.ino()),
+            export_identity: (b.dev(), b.ino()),
+            deadline: Some(deadline),
+        };
+        let (companion, export) = (result.companion.try_clone()?, result.export.try_clone()?);
+        Ok((result, companion, export))
+    }
+    pub(super) fn recheck(&self, budget: &Budget) -> Result<(), BackupError> {
+        if self
+            .deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            return Err(invalid());
+        }
+        let raw = Self::observe_mountinfo(budget)?;
+        budget
+            .lock()
+            .map_err(|_| invalid())?
+            .charge((raw.len() + self.mountinfo.len()) as u64)?;
+        if raw != self.mountinfo {
+            return Err(invalid());
+        }
+        Self::require_twelve(&raw)?;
+        for (path, held, expected) in &self.roots {
+            budget
+                .lock()
+                .map_err(|_| invalid())?
+                .entries(path.components().count() * 4 + 6)?;
+            if held.identity()? != *expected
+                || learning_assets::backup_fs::BackupDir::open_trusted_private_root(path)?
+                    .identity()?
+                    != *expected
+            {
+                return Err(invalid());
+            }
+        }
+        budget.lock().map_err(|_| invalid())?.entries(8)?;
+        let a = self.companion.metadata()?;
+        let b = self.export.metadata()?;
+        let named_companion = learning_assets::backup_fs::BackupDir::open_trusted_private_root(
+            std::path::Path::new(learning_assets::InstalledSnapshotBinding::COMPANION_PATH),
+        )?;
+        let named_export = learning_assets::backup_fs::BackupDir::open_trusted_private_root(
+            std::path::Path::new(learning_assets::InstalledSnapshotBinding::EXPORT_PATH),
+        )?;
+        if (a.dev(), a.ino()) != self.companion_identity
+            || (b.dev(), b.ino()) != self.export_identity
+            || named_companion.identity()? != self.companion_identity
+            || named_export.identity()? != self.export_identity
+            || !a.is_dir()
+            || !b.is_dir()
+            || a.uid() != 0
+            || b.uid() != 0
+            || a.mode() & 0o7777 != 0o700
+            || b.mode() & 0o7777 != 0o700
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub(super) fn finish_install(&mut self, budget: &Budget) -> Result<(), BackupError> {
+        self.recheck(budget)?;
+        // The original120s gate ends at actual installation completion. No
+        // new epoch freshness clock or TTL is minted for later work/capture.
+        self.deadline = None;
+        Ok(())
+    }
+}
+
 // The executable is management installation input, not stored journal bytes.
 // This counter is local to this one pinned-file verification and never exposed
 // as an authority, caller-selected allowance or a reusable/resettable meter.

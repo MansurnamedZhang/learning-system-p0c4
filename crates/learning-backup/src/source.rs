@@ -216,12 +216,89 @@ async fn prepare_linux(
     prepare_linux_with_effects(admin, assets, config, None).await
 }
 
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+#[allow(
+    dead_code,
+    reason = "S5 original B1 prepare awaits its pending original M3 consumer; no runtime wiring or settlement credit"
+)]
+pub(super) async fn prepare_b1_with_effects(
+    assets: &FsAssetStore,
+    input: &mut snapshot_effects::CaptureInput,
+) -> Result<SourceLocalPin, BackupError> {
+    input.prepare_b1_with_original_close(assets).await
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+async fn prepare_b1_original(
+    assets: &FsAssetStore,
+    input: &mut snapshot_effects::CaptureInput,
+) -> Result<SourceLocalPin, BackupError> {
+    let peer = input.b1_peer()?;
+    let mut admission = SourceAdmission::try_acquire_b1(std::sync::Arc::clone(&peer)).await?;
+    let registry = crate::ManagementRegistry::open_installed_b1(&admission)?;
+    let lease = registry.try_lock()?;
+    let enrolled = lease.lookup_source_group_b1(&mut admission, assets).await?;
+    let configuration = admission.b1_configuration(&enrolled)?;
+    let config = &configuration;
+    input.require_b1_admission(&admission, &lease, &enrolled, config)?;
+    let effects = Some(input);
+    if config.backup_id.is_nil()
+        || config.drain_timeout.is_zero()
+        || config.drain_timeout > Duration::from_secs(60)
+        || config.control_root == config.local_pin_root
+    {
+        return Err(BackupError::Invalid("source backup configuration"));
+    }
+    let database = admission.database().to_owned();
+    if database != config.expected_database {
+        return Err(BackupError::Invalid("source database identity mismatch"));
+    }
+    let control = binding::admit_control_root(&mut admission, &config.control_root).await?;
+    // Binding and unfinished evidence are authoritative before an attestation
+    // is needed. No ACL, attempt journal, or dump mutation has occurred.
+    ensure_no_unfinished_journal(&control, &config.control_root)?;
+    let profile = prepare_source_preflight(&mut admission, effects.as_deref()).await?;
+    admission.require_b1_enrollment(&lease, &enrolled)?;
+    let pin_root = enrolled.handle("local_pins").try_clone()?;
+    if control.identity()? == pin_root.identity()? {
+        return Err(BackupError::Invalid("source control and pin root alias"));
+    }
+    let attestation_parent = config
+        .isolation_attestation
+        .parent()
+        .ok_or(BackupError::Invalid("isolation attestation path"))?;
+    BackupDir::open_trusted_private_root(attestation_parent)?;
+    #[cfg(test)]
+    endpoint_tests::observe_admitted_source(&mut admission, config).await?;
+    let isolation = admission.b1_isolation(config, true)?;
+    // Fixed options/provenance were created and checked by the actual same
+    // DB OwnedAdmin owner. No caller pool/options/DSN or post-close admin is
+    // accepted; endpoint rechecks use this exact Capture connection.
+    admission.revalidate()?;
+    prepare_admitted_source(
+        AdmittedSourcePipeline {
+            admission,
+            control,
+            enrolled,
+            lease,
+            isolation,
+            profile,
+            database,
+            pin_root,
+        },
+        assets,
+        config,
+        effects,
+    )
+    .await
+}
+
 #[cfg(target_os = "linux")]
 pub(super) async fn prepare_linux_with_effects(
     admin: &PgPool,
     assets: &FsAssetStore,
     config: &SourceBackupConfig,
-    mut effects: Option<&mut snapshot_effects::CaptureInput>,
+    effects: Option<&mut snapshot_effects::CaptureInput>,
 ) -> Result<SourceLocalPin, BackupError> {
     if config.backup_id.is_nil()
         || config.drain_timeout.is_zero()
@@ -239,6 +316,55 @@ pub(super) async fn prepare_linux_with_effects(
     // Binding and unfinished evidence are authoritative before an attestation
     // is needed. No ACL, attempt journal, or dump mutation has occurred.
     ensure_no_unfinished_journal(&control, &config.control_root)?;
+    let profile = prepare_source_preflight(&mut admission, effects.as_deref()).await?;
+    let registry = crate::ManagementRegistry::open_installed()?;
+    let lease = registry.try_lock()?;
+    let enrolled = lease.admit_source(&control, assets, config)?;
+    let pin_root = enrolled.handle("local_pins").try_clone()?;
+    if control.identity()? == pin_root.identity()? {
+        return Err(BackupError::Invalid("source control and pin root alias"));
+    }
+    let attestation_parent = config
+        .isolation_attestation
+        .parent()
+        .ok_or(BackupError::Invalid("isolation attestation path"))?;
+    BackupDir::open_trusted_private_root(attestation_parent)?;
+    #[cfg(test)]
+    endpoint_tests::observe_admitted_source(&mut admission, config).await?;
+    let isolation = verify_isolation_attestation_metered(config, true, Some(&lease.budget))?;
+    let options = admin.connect_options();
+    if options.get_username() != "learning_admin"
+        || options.get_host() != config.pg_host
+        || options.get_port() != config.pg_port
+        || options.get_database() != Some(database.as_str())
+    {
+        return Err(BackupError::Invalid(
+            "pg_dump and SQLx source endpoints differ",
+        ));
+    }
+    prepare_admitted_source(
+        AdmittedSourcePipeline {
+            admission,
+            control,
+            enrolled,
+            lease,
+            isolation,
+            profile,
+            database,
+            pin_root,
+        },
+        assets,
+        config,
+        effects,
+    )
+    .await
+}
+
+#[cfg(target_os = "linux")]
+async fn prepare_source_preflight(
+    admission: &mut SourceAdmission,
+    effects: Option<&snapshot_effects::CaptureInput>,
+) -> Result<c0_d1::SourceProfile, BackupError> {
     // This inspection is read-only on the already admitted session. Reject
     // unsafe prepared work/roles before requiring any orchestration evidence;
     // isolation remains mandatory before every journal, ACL, and dump mutation.
@@ -268,36 +394,45 @@ pub(super) async fn prepare_linux_with_effects(
     {
         return Err(BackupError::Invalid("source role preflight"));
     }
-    let registry = crate::ManagementRegistry::open_installed()?;
-    let lease = registry.try_lock()?;
-    let enrolled = lease.admit_source(&control, assets, config)?;
-    let pin_root = enrolled.handle("local_pins").try_clone()?;
-    if control.identity()? == pin_root.identity()? {
-        return Err(BackupError::Invalid("source control and pin root alias"));
-    }
-    let attestation_parent = config
-        .isolation_attestation
-        .parent()
-        .ok_or(BackupError::Invalid("isolation attestation path"))?;
-    BackupDir::open_trusted_private_root(attestation_parent)?;
-    #[cfg(test)]
-    endpoint_tests::observe_admitted_source(&mut admission, config).await?;
-    let isolation = verify_isolation_attestation_metered(config, true, Some(&lease.budget))?;
-    let options = admin.connect_options();
-    if options.get_username() != "learning_admin"
-        || options.get_host() != config.pg_host
-        || options.get_port() != config.pg_port
-        || options.get_database() != Some(database.as_str())
-    {
-        return Err(BackupError::Invalid(
-            "pg_dump and SQLx source endpoints differ",
-        ));
-    }
+    Ok(profile)
+}
+
+#[cfg(target_os = "linux")]
+struct AdmittedSourcePipeline {
+    admission: SourceAdmission,
+    control: BackupDir,
+    enrolled: crate::registry::EnrolledSource,
+    lease: crate::registry::RegistryLease,
+    isolation: endpoint::VerifiedSourceIsolation,
+    profile: c0_d1::SourceProfile,
+    database: String,
+    pin_root: BackupDir,
+}
+
+#[cfg(target_os = "linux")]
+async fn prepare_admitted_source(
+    original: AdmittedSourcePipeline,
+    assets: &FsAssetStore,
+    config: &SourceBackupConfig,
+    mut effects: Option<&mut snapshot_effects::CaptureInput>,
+) -> Result<SourceLocalPin, BackupError> {
+    let AdmittedSourcePipeline {
+        admission,
+        control,
+        enrolled,
+        lease,
+        isolation,
+        profile,
+        database,
+        pin_root,
+    } = original;
     let mut endpoint =
         endpoint::admit_source_endpoint(admission, &enrolled, &lease, isolation, config).await?;
     // Repeat the original role/prepared preflight after orchestration proof;
     // the earlier read-only rejection does not authorize a later mutation.
+    endpoint.b1_pipeline_fence().await?;
     let repeated = c0_d1::SourceProfile::admit(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
     if repeated != profile {
         return Err(BackupError::Invalid(
             "source profile changed after admission",
@@ -307,7 +442,9 @@ pub(super) async fn prepare_linux_with_effects(
         require_base_snapshot_claim_schema(endpoint.connection()).await?;
         require_base_snapshot_observation_schema(endpoint.connection()).await?;
     }
+    endpoint.b1_pipeline_fence().await?;
     let mut before = inspect_gate(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
     if profile.broker_oid().is_some() {
         before.other_login_writers = before
             .other_login_writers
@@ -333,12 +470,16 @@ pub(super) async fn prepare_linux_with_effects(
     let source = control.create_dir(&format!("{}.source", config.backup_id))?;
     let revoke = profile.revoke_statement(&database);
     endpoint = endpoint.recheck().await?;
+    endpoint.b1_pipeline_fence().await?;
     sqlx::query(&revoke).execute(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
     journal.advance(GatePhase::Closed, None)?;
-    wait_for_runtime_connect_probe(config, endpoint.budget()).await?;
+    wait_for_runtime_connect_probe_for_endpoint(config, &mut endpoint).await?;
     let deadline = Instant::now() + config.drain_timeout;
     loop {
+        endpoint.b1_pipeline_fence().await?;
         let facts = inspect_gate(endpoint.connection()).await?;
+        endpoint.b1_pipeline_fence().await?;
         if !facts.runtime_can_connect && facts.other_sessions == 0 {
             profile.recheck(endpoint.connection(), false).await?;
             facts.validate()?;
@@ -358,9 +499,12 @@ pub(super) async fn prepare_linux_with_effects(
             .await?;
     }
 
+    endpoint.b1_pipeline_fence().await?;
     let plan = crate::catalog::plan_assets_on(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
     endpoint.protection()?.bind_catalog(&plan)?;
     let identity = collect_source_identity(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
     let role_bytes = match profile {
         c0_d1::SourceProfile::BaseV1 => role_recipe(endpoint.connection()).await?,
         c0_d1::SourceProfile::C0D1 { .. } => c0_d1::role_recipe(endpoint.connection()).await?,
@@ -374,12 +518,15 @@ pub(super) async fn prepare_linux_with_effects(
         ),
     )
     .await?;
+    endpoint.b1_pipeline_fence().await?;
+    endpoint.prepay_source_io(role_bytes.len() as u64, 5)?;
     let mut roles_write = source.create_file("roles.json")?;
     roles_write.write_all(&role_bytes)?;
     roles_write.sync_all()?;
     drop(roles_write);
     let mut roles = source.open_file("roles.json")?;
-    let role_record = record_file("roles.json", &mut roles)?;
+    let role_record = record_file_for_endpoint("roles.json", &mut roles, &endpoint)?;
+    endpoint.prepay_source_io(0, 2)?;
     let mut dump_write = source.create_file("database.dump")?;
     let (held, dump_observation) = endpoint.dump_to(&mut dump_write).await?;
     endpoint = held;
@@ -387,11 +534,12 @@ pub(super) async fn prepare_linux_with_effects(
     source.sync()?;
     let mut dump = source.open_file("database.dump")?;
     let mut magic = [0_u8; 5];
+    endpoint.prepay_source_io(5, 1)?;
     dump.read_exact(&mut magic)?;
     if &magic != b"PGDMP" {
         return Err(BackupError::Invalid("pg_dump custom format magic"));
     }
-    let dump_record = record_file("database.dump", &mut dump)?;
+    let dump_record = record_file_for_endpoint("database.dump", &mut dump, &endpoint)?;
     if dump_record.size != dump_observation.bytes
         || dump_record.sha256 != dump_observation.sha256
         || dump_observation.source_database != database
@@ -405,12 +553,15 @@ pub(super) async fn prepare_linux_with_effects(
     {
         return Err(BackupError::Invalid("source dump observation differs"));
     }
+    endpoint.prepay_source_io(plan.asset_index_bytes().len() as u64, 4)?;
     write_bytes(&source, "asset-index.json", plan.asset_index_bytes())?;
     let manifest =
         BackupManifestV1::from_plan(config.backup_id, identity, &plan, dump_record, role_record)?;
     let manifest_sha256 = manifest.canonical_sha256()?;
     write_bytes(&source, "manifest.json", &manifest.canonical_bytes()?)?;
+    endpoint.b1_pipeline_fence().await?;
     inspect_gate(endpoint.connection()).await?.validate()?;
+    endpoint.b1_pipeline_fence().await?;
     profile.recheck(endpoint.connection(), false).await?;
     journal.advance(GatePhase::DumpAndIndexDurable, Some(&manifest_sha256))?;
     #[cfg(test)]
@@ -429,7 +580,9 @@ pub(super) async fn prepare_linux_with_effects(
     }
     #[cfg(test)]
     lifecycle_tests::hook("capture_pins_durable")?;
+    endpoint.b1_pipeline_fence().await?;
     inspect_gate(endpoint.connection()).await?.validate()?;
+    endpoint.b1_pipeline_fence().await?;
     profile.recheck(endpoint.connection(), false).await?;
     endpoint.protection()?.recheck_before_release()?;
     endpoint = endpoint.recheck().await?;
@@ -726,6 +879,76 @@ struct RuntimeConnectProbe {
 }
 
 #[cfg(target_os = "linux")]
+async fn wait_for_runtime_connect_probe_for_endpoint(
+    config: &SourceBackupConfig,
+    endpoint: &mut endpoint::BoundSourceEndpoint,
+) -> Result<(), BackupError> {
+    #[cfg(feature = "offhost-b1")]
+    if endpoint.is_b1() {
+        return wait_for_runtime_connect_probe_b1(config, endpoint).await;
+    }
+    wait_for_runtime_connect_probe(config, endpoint.budget()).await
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+async fn wait_for_runtime_connect_probe_b1(
+    config: &SourceBackupConfig,
+    endpoint: &mut endpoint::BoundSourceEndpoint,
+) -> Result<(), BackupError> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    endpoint.recheck_original().await?;
+    let budget = std::sync::Arc::clone(endpoint.budget());
+    budget
+        .lock()
+        .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+        .entries(32)?;
+    let parent = config
+        .isolation_attestation
+        .parent()
+        .ok_or(BackupError::Invalid("driver proof path"))?;
+    let root = BackupDir::open_private_root(parent)?;
+    let deadline = Instant::now() + config.drain_timeout;
+    let name = format!("runtime-connect-denied-{}.json", config.backup_id);
+    loop {
+        endpoint.recheck_original().await?;
+        budget
+            .lock()
+            .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+            .entries(3)?;
+        match root.open_file(&name) {
+            Ok(mut file) => {
+                let meta = file.metadata()?;
+                if meta.uid() != 0
+                    || meta.permissions().mode() & 0o777 != 0o600
+                    || meta.len() > 1024
+                {
+                    return Err(BackupError::Invalid("runtime probe evidence permissions"));
+                }
+                let bytes = crate::registry::read_metadata(&mut file, meta.len(), &budget)?;
+                let probe: RuntimeConnectProbe = serde_json::from_slice(&bytes)?;
+                if probe.backup_id != config.backup_id
+                    || probe.database != config.expected_database
+                    || probe.result != "runtime_connect_denied"
+                {
+                    return Err(BackupError::Invalid("runtime probe evidence mismatch"));
+                }
+                endpoint.recheck_b1_isolation(config, false)?;
+                endpoint.recheck_original().await?;
+                return Ok(());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        if Instant::now() >= deadline {
+            return Err(BackupError::Invalid(
+                "runtime connect denial probe timed out",
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+#[cfg(target_os = "linux")]
 async fn wait_for_runtime_connect_probe(
     config: &SourceBackupConfig,
     budget: &std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
@@ -944,7 +1167,7 @@ fn write_bytes(dir: &BackupDir, name: &str, bytes: &[u8]) -> Result<(), BackupEr
 }
 
 #[cfg(target_os = "linux")]
-fn record_file(path: &str, file: &mut File) -> Result<FileRecord, BackupError> {
+fn record_file(path: &str, file: &mut (impl Read + Seek)) -> Result<FileRecord, BackupError> {
     file.seek(SeekFrom::Start(0))?;
     let mut hash = Sha256::new();
     let mut size = 0_u64;
@@ -963,6 +1186,72 @@ fn record_file(path: &str, file: &mut File) -> Result<FileRecord, BackupError> {
         size,
         sha256: format!("{:x}", hash.finalize()),
     })
+}
+
+#[cfg(target_os = "linux")]
+fn record_file_for_endpoint(
+    path: &str,
+    file: &mut File,
+    _endpoint: &endpoint::BoundSourceEndpoint,
+) -> Result<FileRecord, BackupError> {
+    #[cfg(feature = "offhost-b1")]
+    if _endpoint.is_b1() {
+        // The original recording/hash algorithm is shared. Its reader pays
+        // the requested bytes before each actual read, including EOF probes;
+        // appended/replaced bytes cannot acquire an unreserved free tail.
+        _endpoint.prepay_source_io(64 * 1024 + 64, 2)?;
+        let mut metered = MeteredSourceFile {
+            file,
+            endpoint: _endpoint,
+            failure: None,
+        };
+        let observed = record_file(path, &mut metered);
+        return match metered.failure {
+            Some(error) => Err(error),
+            None => observed,
+        };
+    }
+    record_file(path, file)
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+struct MeteredSourceFile<'a> {
+    file: &'a mut File,
+    endpoint: &'a endpoint::BoundSourceEndpoint,
+    failure: Option<BackupError>,
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+impl MeteredSourceFile<'_> {
+    fn prepay(&mut self, bytes: u64) -> std::io::Result<()> {
+        if self.failure.is_some() {
+            return Err(std::io::Error::other("B1 source read stopped"));
+        }
+        if let Err(error) = self.endpoint.prepay_source_io(bytes, 1) {
+            self.failure = Some(error);
+            return Err(std::io::Error::other(
+                "B1 source read budget or current owner",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+impl Read for MeteredSourceFile<'_> {
+    fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+        // One requested read and the hash of at most that many returned bytes.
+        self.prepay((output.len() as u64).saturating_mul(2))?;
+        self.file.read(output)
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+impl Seek for MeteredSourceFile<'_> {
+    fn seek(&mut self, position: SeekFrom) -> std::io::Result<u64> {
+        self.prepay(0)?;
+        self.file.seek(position)
+    }
 }
 
 #[cfg(target_os = "linux")]

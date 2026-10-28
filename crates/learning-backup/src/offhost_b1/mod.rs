@@ -23,6 +23,15 @@ mod profile;
 )]
 mod wire;
 
+// C11's bounded typed DATA and held-genesis reader are compiled and tested here.
+// The original Root job, actual observer and authenticated ACK producer are
+// separate consumers; including this module does not activate those owners.
+#[allow(
+    dead_code,
+    reason = "C11 DATA component has no installed Root producer yet"
+)]
+mod source_launch;
+
 use crate::{BackupError, valid_digest, valid_hex};
 use serde::{Deserialize, Serialize};
 

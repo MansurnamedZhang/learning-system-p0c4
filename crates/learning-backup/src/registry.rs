@@ -30,6 +30,50 @@ pub(crate) fn require_shared_scan_budget(
     Ok(())
 }
 
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) fn require_fresh_b1_wrapper_same_backing(
+    install: &Arc<Mutex<ScanBudget>>,
+    capture: &Arc<Mutex<ScanBudget>>,
+) -> Result<(), BackupError> {
+    if Arc::ptr_eq(install, capture) {
+        return Err(BackupError::Invalid(
+            "B1 Capture requires a fresh lease wrapper",
+        ));
+    }
+    let original = install
+        .lock()
+        .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+        .b1_scan
+        .as_ref()
+        .ok_or(BackupError::Invalid("B1 original scan backing"))?
+        .clone();
+    let current = capture
+        .lock()
+        .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+        .b1_scan
+        .as_ref()
+        .ok_or(BackupError::Invalid("B1 current scan backing"))?
+        .clone();
+    if !original.shares_meter_with(&current) {
+        return Err(BackupError::Invalid("B1 Capture scan backing changed"));
+    }
+    Ok(())
+}
+
+/// Private bounded DATA listing; the caller still owns its actual admission
+/// and wrapper. This helper supplies no registry or process qualification.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) fn prepaid_b1_roster(
+    dir: &BackupDir,
+    budget: &Arc<Mutex<ScanBudget>>,
+    maximum: usize,
+) -> Result<Vec<String>, BackupError> {
+    if maximum > MAX_ENTRIES {
+        return Err(BackupError::Capacity("registry entries"));
+    }
+    linux::prepaid_bounded_names(dir, budget, maximum)
+}
+
 #[test]
 fn capture_evidence_requires_original_shared_operation_budget() {
     let original = Arc::new(Mutex::new(ScanBudget::default()));
@@ -41,14 +85,36 @@ fn capture_evidence_requires_original_shared_operation_budget() {
     assert_eq!(unrelated.lock().unwrap().bytes, 0);
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub(crate) struct ScanBudget {
     pub(crate) bytes: u64,
     entries: usize,
     keys: BTreeSet<String>,
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    b1_scan: Option<learning_assets::root_journal::SharedJournalBudget>,
+}
+impl std::fmt::Debug for ScanBudget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScanBudget")
+            .field("bytes", &self.bytes)
+            .field("entries", &self.entries)
+            .field("keys", &self.keys)
+            .finish()
+    }
 }
 impl ScanBudget {
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn from_b1_scan(scan: learning_assets::root_journal::SharedJournalBudget) -> Self {
+        Self {
+            b1_scan: Some(scan),
+            ..Self::default()
+        }
+    }
     pub(crate) fn charge(&mut self, bytes: u64) -> Result<(), BackupError> {
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        if let Some(scan) = &self.b1_scan {
+            scan.charge(bytes, 0)?;
+        }
         let next = self
             .bytes
             .checked_add(bytes)
@@ -60,6 +126,13 @@ impl ScanBudget {
         Ok(())
     }
     pub(crate) fn entries(&mut self, count: usize) -> Result<(), BackupError> {
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        if let Some(scan) = &self.b1_scan {
+            scan.charge(
+                0,
+                u64::try_from(count).map_err(|_| BackupError::Capacity("registry entries"))?,
+            )?;
+        }
         self.entries = self
             .entries
             .checked_add(count)
@@ -70,6 +143,21 @@ impl ScanBudget {
         Ok(())
     }
     pub(crate) fn remaining_entries(&self) -> usize {
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        if let Some(scan) = &self.b1_scan {
+            // A fresh lease wrapper does not regain entries already consumed
+            // by the factory or a previous Install/Capture wrapper.
+            return scan
+                .usage()
+                .ok()
+                .filter(|usage| !usage.exhausted)
+                .map_or(0, |usage| {
+                    let shared = usize::try_from(usage.charged_entries).unwrap_or(MAX_ENTRIES);
+                    MAX_ENTRIES
+                        .saturating_sub(self.entries)
+                        .min(MAX_ENTRIES.saturating_sub(shared))
+                });
+        }
         MAX_ENTRIES.saturating_sub(self.entries)
     }
     pub(crate) fn protect(&mut self, key: &str) -> Result<(), BackupError> {
@@ -78,6 +166,11 @@ impl ScanBudget {
         }
         if !self.keys.contains(key) && self.keys.len() == MAX_ENTRIES {
             return Err(BackupError::Capacity("registry protected digests"));
+        }
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        if self.b1_scan.is_some() && !self.keys.contains(key) {
+            self.charge(key.len() as u64)?;
+            self.entries(1)?;
         }
         self.keys.insert(key.to_owned());
         Ok(())
@@ -369,11 +462,28 @@ pub(crate) fn validate_generation_chain(
     Ok(())
 }
 
-#[derive(Debug)]
 pub struct ManagementRegistry {
     pub(crate) root: BackupDir,
     path: PathBuf,
     budget: Arc<Mutex<ScanBudget>>,
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    b1_scope: Option<B1RegistryScope>,
+}
+
+impl std::fmt::Debug for ManagementRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ManagementRegistry")
+            .field("root", &self.root)
+            .field("path", &self.path)
+            .field("budget", &self.budget)
+            .finish()
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+struct B1RegistryScope {
+    admission_failed: Arc<std::sync::atomic::AtomicBool>,
+    lease_attempted: std::sync::atomic::AtomicBool,
 }
 #[derive(Debug)]
 pub struct RegistryLease {
@@ -435,6 +545,39 @@ impl ManagementRegistry {
     pub fn open_installed() -> Result<Self, BackupError> {
         Self::open(Path::new(REGISTRY_PATH))
     }
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn open_installed_b1(
+        admission: &crate::source::SourceAdmission,
+    ) -> Result<Self, BackupError> {
+        admission.revalidate()?;
+        // One fresh wrapper was created by this exact admission before its
+        // Catalog IO. Burn its sole registry-open attempt before any Root IO.
+        let (budget, admission_failed) = admission.take_b1_registry_scope()?;
+        let observed = (|| {
+            let path = Path::new(REGISTRY_PATH);
+            {
+                let mut scan = budget
+                    .lock()
+                    .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+                scan.entries(path.components().count().saturating_mul(4) + 4)?;
+                scan.charge(4096)?;
+            }
+            let root = BackupDir::open_trusted_private_root(path)?;
+            let registry = Self {
+                root,
+                path: path.to_owned(),
+                budget,
+                b1_scope: Some(B1RegistryScope {
+                    admission_failed,
+                    lease_attempted: std::sync::atomic::AtomicBool::new(false),
+                }),
+            };
+            linux::read_snapshot(&registry.root, &registry.path, &registry.budget)?;
+            admission.revalidate()?;
+            Ok(registry)
+        })();
+        admission.record_result(observed)
+    }
     fn open(path: &Path) -> Result<Self, BackupError> {
         let root = BackupDir::open_trusted_private_root(path)?;
         #[allow(unused_mut)]
@@ -442,6 +585,8 @@ impl ManagementRegistry {
             root,
             path: path.to_owned(),
             budget: Arc::new(Mutex::new(ScanBudget::default())),
+            #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+            b1_scope: None,
         };
         // Full authority is validated on open too, without taking/waiting for a lock.
         #[cfg(target_os = "linux")]
@@ -451,6 +596,25 @@ impl ManagementRegistry {
         Ok(registry)
     }
     pub fn try_lock(&self) -> Result<RegistryLease, BackupError> {
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        if let Some(scope) = &self.b1_scope {
+            use std::sync::atomic::Ordering;
+            if scope.admission_failed.load(Ordering::Acquire)
+                || scope.lease_attempted.swap(true, Ordering::AcqRel)
+            {
+                scope.admission_failed.store(true, Ordering::Release);
+                return Err(BackupError::Invalid(
+                    "B1 original registry lease already attempted or failed",
+                ));
+            }
+            // No retry/new wrapper follows Busy/error. Held clones below are
+            // references to this original operation, not fresh acquisitions.
+            let observed = linux::try_lock(self);
+            if observed.is_err() {
+                scope.admission_failed.store(true, Ordering::Release);
+            }
+            return observed;
+        }
         #[cfg(target_os = "linux")]
         {
             linux::try_lock(self)
@@ -540,6 +704,27 @@ impl RegistryLease {
         let _ = assets;
         Ok(source)
     }
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    #[allow(
+        dead_code,
+        reason = "S5 original B1 enrollment awaits the pending actual M3/SourceActor entry; no runtime integration credit"
+    )]
+    pub(crate) fn admit_source_b1(
+        &self,
+        admission: &crate::source::SourceAdmission,
+        control: &BackupDir,
+        assets: &FsAssetStore,
+        config: &crate::SourceBackupConfig,
+    ) -> Result<EnrolledSource, BackupError> {
+        admission.revalidate()?;
+        require_shared_scan_budget(&self.budget, admission.b1_budget()?)?;
+        // The existing application build/source-binding guard remains first.
+        // The Catalog joins the real manager context after that old guard.
+        let source = self.admit_source(control, assets, config)?;
+        admission.require_b1_enrollment(self, &source)?;
+        admission.revalidate()?;
+        Ok(source)
+    }
     #[cfg(target_os = "linux")]
     pub(crate) async fn lookup_source_group(
         &self,
@@ -547,6 +732,19 @@ impl RegistryLease {
         assets: &FsAssetStore,
     ) -> Result<EnrolledSource, BackupError> {
         linux::lookup(self, admission, assets).await
+    }
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) async fn lookup_source_group_b1(
+        &self,
+        admission: &mut crate::source::SourceAdmission,
+        assets: &FsAssetStore,
+    ) -> Result<EnrolledSource, BackupError> {
+        admission.revalidate()?;
+        require_shared_scan_budget(&self.budget, admission.b1_budget()?)?;
+        let source = self.lookup_source_group(admission, assets).await?;
+        admission.require_b1_enrollment(self, &source)?;
+        admission.revalidate()?;
+        Ok(source)
     }
     pub fn admit_destination(
         &self,
@@ -576,6 +774,16 @@ mod linux {
         lease: &RegistryLease,
         cap: usize,
     ) -> Result<Vec<String>, BackupError> {
+        #[cfg(feature = "offhost-b1")]
+        if lease
+            .budget
+            .lock()
+            .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+            .b1_scan
+            .is_some()
+        {
+            return prepaid_bounded_names(dir, &lease.budget, cap);
+        }
         let remaining = lease
             .budget
             .lock()
@@ -595,6 +803,150 @@ mod linux {
             .entries(names.len())?;
         names.sort();
         Ok(names)
+    }
+    /// BackupDir::list_bounded opens an independent iterator each time and
+    /// stops after cap+1 non-dot entries. Prepay every attempted traversal,
+    /// including failed finite probes; only a final actual EOF yields names.
+    /// This is bounded DATA IO, never a registry/ctx qualification fallback.
+    #[cfg(feature = "offhost-b1")]
+    pub(super) fn prepaid_bounded_names(
+        dir: &BackupDir,
+        budget: &Arc<Mutex<ScanBudget>>,
+        maximum: usize,
+    ) -> Result<Vec<String>, BackupError> {
+        let mut cap = maximum.min(4);
+        loop {
+            let observed = cap.checked_add(1).ok_or(BackupError::Overflow)?;
+            let entries = observed.checked_add(7).ok_or(BackupError::Overflow)?;
+            // Linux NAME_MAX bytes, temporary name/UTF8 storage, geometric
+            // Vec<String> slots/copies, iterator/dot/EOF and FD bookkeeping.
+            // No refund if the real list is shorter or FileTooLarge occurs.
+            let capacity = cap
+                .max(4)
+                .checked_next_power_of_two()
+                .ok_or(BackupError::Overflow)?;
+            let names = observed.checked_mul(255 * 2).ok_or(BackupError::Overflow)?;
+            let vectors = capacity
+                .checked_mul(std::mem::size_of::<String>())
+                .and_then(|n| n.checked_mul(3))
+                .ok_or(BackupError::Overflow)?;
+            let bytes = names
+                .checked_add(vectors)
+                .and_then(|n| n.checked_add(64 * 1024))
+                .ok_or(BackupError::Overflow)?;
+            {
+                let mut original = budget
+                    .lock()
+                    .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+                original.charge(u64::try_from(bytes).map_err(|_| BackupError::Overflow)?)?;
+                original.entries(entries)?;
+            }
+            match dir.list_bounded(cap) {
+                Ok(mut names) => {
+                    names.sort();
+                    return Ok(names);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::FileTooLarge && cap < maximum => {
+                    cap = cap
+                        .checked_mul(2)
+                        .map(|n| n.max(1).min(maximum))
+                        .ok_or(BackupError::Overflow)?;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::FileTooLarge => {
+                    return Err(BackupError::Capacity("registry entries"));
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+    }
+
+    #[cfg(all(test, feature = "offhost-b1"))]
+    mod prepaid_listing_tests {
+        use super::*;
+        use std::os::unix::fs::DirBuilderExt;
+
+        struct Fixture {
+            path: PathBuf,
+            count: usize,
+        }
+        impl Fixture {
+            fn new(count: usize) -> (Self, BackupDir) {
+                let path = std::env::temp_dir()
+                    .join(format!("knowweave-b1-prepaid-list-{}", Uuid::new_v4()));
+                std::fs::DirBuilder::new()
+                    .mode(0o700)
+                    .create(&path)
+                    .unwrap();
+                for n in 0..count {
+                    std::fs::File::create(path.join(format!("entry-{n:03}"))).unwrap();
+                }
+                let dir = BackupDir::open_private_root(&path).unwrap();
+                (Self { path, count }, dir)
+            }
+        }
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                for n in 0..self.count {
+                    let _ = std::fs::remove_file(self.path.join(format!("entry-{n:03}")));
+                }
+                let _ = std::fs::remove_dir(&self.path);
+            }
+        }
+        #[test]
+        fn empty_listing_uses_small_prepaid_probe() {
+            let (_fixture, dir) = Fixture::new(0);
+            let budget = Arc::new(Mutex::new(ScanBudget::default()));
+            assert!(
+                prepaid_bounded_names(&dir, &budget, MAX_ENTRIES)
+                    .unwrap()
+                    .is_empty()
+            );
+            let paid = budget.lock().unwrap();
+            assert!(paid.entries > 0 && paid.entries < 100);
+            assert!(paid.bytes > 0 && paid.bytes < 1024 * 1024);
+        }
+        #[test]
+        fn bounded_retries_return_complete_sorted_directory() {
+            let (_fixture, dir) = Fixture::new(11);
+            let budget = Arc::new(Mutex::new(ScanBudget::default()));
+            let names = prepaid_bounded_names(&dir, &budget, 32).unwrap();
+            assert_eq!(
+                names,
+                (0..11).map(|n| format!("entry-{n:03}")).collect::<Vec<_>>()
+            );
+            assert!(budget.lock().unwrap().entries > names.len());
+        }
+        #[test]
+        fn caller_limit_never_adopts_partial_roster() {
+            let (_fixture, dir) = Fixture::new(11);
+            let budget = Arc::new(Mutex::new(ScanBudget::default()));
+            assert!(matches!(
+                prepaid_bounded_names(&dir, &budget, 8),
+                Err(BackupError::Capacity("registry entries"))
+            ));
+            let first = budget.lock().unwrap().bytes;
+            assert!(prepaid_bounded_names(&dir, &budget, 8).is_err());
+            assert!(budget.lock().unwrap().bytes > first);
+        }
+        #[test]
+        fn shared_exhaustion_refuses_probe_without_new_meter() {
+            let (_fixture, dir) = Fixture::new(1);
+            let scan = learning_assets::root_journal::SharedJournalBudget::default();
+            let independent_journal = learning_assets::root_journal::SharedJournalBudget::default();
+            let budget = Arc::new(Mutex::new(ScanBudget::from_b1_scan(scan.clone())));
+            scan.charge(0, 7).unwrap();
+            assert_eq!(budget.lock().unwrap().remaining_entries(), MAX_ENTRIES - 7);
+            assert_eq!(
+                ScanBudget::from_b1_scan(scan.clone()).remaining_entries(),
+                MAX_ENTRIES - 7
+            );
+            scan.charge(MAX_SCAN_BYTES, 0).unwrap();
+            assert!(prepaid_bounded_names(&dir, &budget, 8).is_err());
+            assert!(scan.usage().unwrap().exhausted);
+            assert!(prepaid_bounded_names(&dir, &budget, 8).is_err());
+            assert_eq!(independent_journal.usage().unwrap().charged_bytes, 0);
+            assert_eq!(independent_journal.usage().unwrap().charged_entries, 0);
+        }
     }
     pub(crate) fn read(
         dir: &BackupDir,
@@ -618,16 +970,37 @@ mod linux {
         }
         Ok((raw, (m.dev(), m.ino())))
     }
-    pub(super) fn read_snapshot(
+    fn root_roster(
         root: &BackupDir,
-        path: &Path,
         budget: &Arc<Mutex<ScanBudget>>,
-    ) -> Result<RegistryLease, BackupError> {
+    ) -> Result<Vec<String>, BackupError> {
+        #[cfg(feature = "offhost-b1")]
+        if budget
+            .lock()
+            .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+            .b1_scan
+            .is_some()
+        {
+            budget
+                .lock()
+                .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+                .entries(1)?;
+            root.require_private_directory()?;
+            return prepaid_bounded_names(root, budget, 7);
+        }
         root.require_private_directory()?;
         let remaining = budget.lock().expect("scan budget").remaining_entries();
         let mut names = root.list_bounded(7.min(remaining))?;
         budget.lock().expect("scan budget").entries(names.len())?;
         names.sort();
+        Ok(names)
+    }
+    pub(super) fn read_snapshot(
+        root: &BackupDir,
+        path: &Path,
+        budget: &Arc<Mutex<ScanBudget>>,
+    ) -> Result<RegistryLease, BackupError> {
+        let names = root_roster(root, budget)?;
         if names
             != [
                 "authority.json",

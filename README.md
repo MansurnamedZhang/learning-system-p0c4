@@ -1,5 +1,25 @@
 # 知织 · KnowWeave
 
+## S5 消费端与 C11 DATA 完成限定普通检查，Root／M3 接线继续 · 2026-10-28
+
+已批 37 个产品源码叶内，本轮 9 叶 S5 消费端与 source_launch DATA 候选完成限定 backup 普通 Linux 检查。这里的 S5 消费端检查不表示 S5 封闭管线、M3 实际 actor、Root 真实发行或 C11 整链完成；Task9／C4 仍开放。
+
+新批次 15741a1e-f2c4-4244-b7d4-4edd3fd70438 的 13 道门全部 exit0：格式检查；backup 默认／offhost 严格 Clippy；两配置 cargo check；默认库编译 no-run、完整名单、ignored 名单与普通正文；offhost 库同样四项。默认库 450 passed／106 ignored／0 filtered；offhost 库 554 passed／106 ignored／0 filtered。两配置重复正文不相加，106 是各自顶层 libtest ignored 数。原完整旧名单保留，offhost 增加 12 个独立普通正文：source_launch 的 6 个 DATA 正文、4 个原共享预算下的有界目录正文、2 个结构预扣与预算耗尽正文；没有新增 ignored 或删除旧正文。
+
+本轮 learning-db 只作为依赖编译，没有新执行 DB 测试正文。此前普通 UID 包装入口精确调用两个既有 ignored child helper 的执行信用仍属于对应历史 DB 批次；不概括为“所有 ignored 函数均未执行”。本轮 backup 的普通 SIGKILL 子进程沿用原受审 profile，未运行真实 Root／PG 正向、安装或恢复套件，也未重跑无关 Task8。
+
+源基线 9823d820982a7b452fab87ffe3fef9d060745009／tree cce0f805b6609fa4762268c8ab61bc7ab7dd2389，原 695 个产品文件叠加 8 个既有路径与 1 个新增 source_launch.rs，计划发表后产品 696、源清单 695 行；数量须由实际发表 PLAN 再核。实际检查源 INDEX 90dec313a42a7325747e48ee0750cd78271de40088ba30f39ae857bf0915477e，MF 75157472ed32586df300ee029cc3d031287f3b17aa8b1cccd56a5167b615f780；TEST-DELTA d5208afa6ae53837b9e995f2f8e89e735d68df7c6d819f27450075db5b568f48 固定 12 个新名称。当前 CODE gate 556fd1da85a55c6cb2f101f8bd6ab074b6428d7a64857d92d5f57f6381360f7a 与最终 CONTROL 适配报告 249cad8c2534915f726fa242642b1ce10c0128ca8f18f1edd5f33973ba0c9fac 绑定同一 source9。
+
+实际 result SHA-256 4e6456910163ab2c274d00e0f104fc157699f528cb83b4064b85790ddef17f51；返回证据包 c91ac50157f6986149324aed80d340c22cd1cbb91de1c92b906e544431873839。结果记录源码原件未变和精确容器清理。完整原件独立核验通过，独审 INDEX 8f64b9e1475b4a094680983b78ccc8ed179c98e7c404d879e5ce843d03e9af5b／REVIEW f3b0d2f41f661d63835e49339647ba3069489aa19313f0fb102df1fdf7eeafdf。原始有限日志的完整退出码、名单与正文按各自原件核验，不据此声称独立远程亲见或全链资源计费已经闭合。
+
+首个 43b63e46 批次因默认配置的 endpoint 未使用诊断保持 RED；第二个 7e22250d 批次格式及默认 Clippy 通过、offhost Clippy 的 7 条 lint 保持 RED，其余 10 门未执行。两个原件和失败证据保留、不重放。前一修复只改同一函数绑定名与引用；后一修复将原借用 DATA／原流资源参数分组后立即拆包，保留原字段、Arc、预算、None、判断与清理次序，并等价折叠一次发送的失败分支。两个尚未接入的根入口只标注准确 pending M3／SourceActor 的 dead_code 原因；没有抑制 correctness 或 too_many_arguments，没有跳用例或放宽检查。新 formatter 与 CODE／CONTROL 后，以新 UUID 完整重跑 13 门。
+
+原 44 个 checkpoint 保留深层类型和值，新增的第 45 个仅为 task9_r2b_s5_consumer_c11_data_ordinary。历史 DB 消费端普通结果、旧版本数量、失败、HOLD 与未观测字段各归原批次，不并入本轮计数。两份已批 C11 合同原 bytes 已在基线中并继续保留；没有新增第 38 个批准源码叶。
+
+真实Root owner、安装观察与持久ACK，M3整个actor future／finally及M5保持仍待接线；S5封闭预算尚有sealed／catalog／assets／protection／lifecycle等下游读链待清点。当前缺口清单不完整，已批37叶尚未闭合，最小扩范围方案及审批材料仍待完整审计。继续Source／D、fence和同原操作发布；cap-scope、closed source、receiver及genuine链保持开放。安装、密钥／信任／launcher、PG／安全权限、源隔离与恢复仍按准确审批停止点办理。 本轮不授 C11 整链、S5 完整、M3／Root 实装、Task9／C4 验收、CompleteBackup、公开恢复、main 合并或生产部署信用。
+
+---
+
 ## C11 DB消费者完成普通 Linux 检查，Root 接线继续 · 2026-10-28
 
 已批 37 个产品源码文件内的 15 个 DB 源码叶，完成 C11 新 DATA、15 消息与安装观察回应消费端的普通 Linux 编译和回归。当前仅形成 DB 消费端普通检查结果，尚未闭合真实 Root 发行者、M3 原入口整体 finally、S5 封闭内部计费或完整 C11 管线；Task9／C4 仍开放。
