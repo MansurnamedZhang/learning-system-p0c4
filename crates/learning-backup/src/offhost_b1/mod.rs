@@ -1,8 +1,8 @@
 //! Default-off off-host foundation. Parsed configuration never grants authority.
 //!
-//! Task1a intentionally stops before installed filesystem admission, capture,
-//! actors, transport, fence creation or publication. In particular it cannot
-//! reconstruct a source admission or original destination success from bytes.
+//! Fixed process dispatch is a compile-time selection only. Each implemented
+//! role still admits its actual installed original before runtime or helpers.
+//! Source publication and the receiver remain closed until M6 is implemented.
 
 // These private data-only seams are not invoked by the closed runners yet.
 // Remove these dead-code allowances as their reviewed runtime consumers land;
@@ -23,14 +23,20 @@ mod profile;
 )]
 mod wire;
 
-// C11's bounded typed DATA and held-genesis reader are compiled and tested here.
-// The original Root job, actual observer and authenticated ACK producer are
-// separate consumers; including this module does not activate those owners.
+// Root remains a default-off independently admitted producer. Ordinary
+// component tests do not establish installed admission or a genuine operation.
 #[allow(
     dead_code,
-    reason = "C11 DATA component has no installed Root producer yet"
+    reason = "Default-off Root producer is reached only by the fixed compiled role"
 )]
 mod source_launch;
+
+#[cfg(target_os = "linux")]
+mod capture_child;
+#[cfg(target_os = "linux")]
+mod capture_export;
+#[cfg(target_os = "linux")]
+mod capture_job;
 
 use crate::{BackupError, valid_digest, valid_hex};
 use serde::{Deserialize, Serialize};
@@ -120,9 +126,22 @@ fn refuse_unwired(input: BuildInputs<'_>, role: Role) -> Result<(), BackupError>
     Err(BackupError::Invalid("offhost B1 integration incomplete"))
 }
 
-/// Fixed installed source entry; no caller paths, credentials, IDs or permits.
-/// The foundation always refuses, including correctly pinned builds.
+/// Existing sole public fixed entry. No runtime role, path, credential, ID or
+/// callback is accepted. A missing compile role retains the old closed runner.
 pub fn run_installed_offhost_b1_source() -> Result<(), BackupError> {
+    #[cfg(target_os = "linux")]
+    match option_env!("KNOWWEAVE_C4_B1_SOURCE_PROCESS_ROLE") {
+        // No fallible backup work precedes the genuine once-factory. Its own
+        // compile pins and actual ELF/native/Root gates decide qualification.
+        Some("capture") => return capture_child::run_fixed_capture_entry(),
+        // Root is its separate original producer; it never borrows the DB
+        // factory or a parsed Source policy as qualification.
+        Some("root-launcher") => return source_launch::run_fixed_root_launcher(),
+        Some("publication-source") | None => {}
+        Some(_) => return Err(BackupError::Invalid("offhost B1 fixed process role")),
+    }
+    // M6/D Ready/auth/fence is not implemented. Keep this boundary before all
+    // side effects; do not start a capture and then unconditionally reject it.
     refuse_unwired(fixed_build_inputs(), Role::Source)
 }
 

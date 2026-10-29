@@ -248,6 +248,8 @@ struct InstalledRootMarker {
 /// No constructor accepts arbitrary SQL, caller JSON, a JobLease or old bytes.
 pub struct RootSnapshotBroker {
     #[cfg(feature = "b1-source-peer")]
+    pub(super) b1_ingress_original: Option<Arc<super::B1InstalledSourceProcess>>,
+    #[cfg(feature = "b1-source-peer")]
     b1_lifetime: Mutex<Option<super::b1_peer::WorkLifetime>>,
     #[cfg(feature = "b1-source-peer")]
     pub(super) b1_original: Mutex<Option<Arc<super::B1InstalledSourceProcess>>>,
@@ -260,6 +262,475 @@ pub struct RootSnapshotBroker {
     quiescing: Arc<AtomicBool>,
     sockets: Vec<SocketBinding>,
     peers: Mutex<Vec<PeerObservation>>,
+}
+
+/// Private actual I0 resources. The DB Book allocates this cell at genuine
+/// process admission, before any install parameter is consumed or work starts.
+#[cfg(feature = "b1-source-peer")]
+pub(super) struct B1InstallPhase {
+    pub(super) original: Option<Arc<super::B1InstalledSourceProcess>>,
+    pub(super) installed: Option<InstalledSnapshotBinding>,
+    pub(super) source: Option<BrokerSourceDescription>,
+    pub(super) sockets: [Option<UnixListener>; 2],
+    pub(super) broker_pool: Option<PgPool>,
+    pub(super) runtime_pool: Option<PgPool>,
+    bootstrap: Option<(
+        EpochDescriptor,
+        SharedJournalBudget,
+        learning_assets::root_journal::RootJournalBytes,
+    )>,
+    installed_arc: Option<Arc<InstalledSnapshotBinding>>,
+    work: Option<EpochWork>,
+    lifetime: Option<super::b1_peer::WorkLifetime>,
+    socket_bindings: Option<Vec<SocketBinding>>,
+    descriptor: Option<Vec<u8>>,
+    pub(super) output: Option<RootSnapshotBroker>,
+}
+#[cfg(feature = "b1-source-peer")]
+impl B1InstallPhase {
+    pub(super) fn empty() -> Self {
+        Self {
+            original: None,
+            installed: None,
+            source: None,
+            sockets: [None, None],
+            broker_pool: None,
+            runtime_pool: None,
+            bootstrap: None,
+            installed_arc: None,
+            work: None,
+            lifetime: None,
+            socket_bindings: None,
+            descriptor: None,
+            output: None,
+        }
+    }
+    pub(super) fn empty_ingress(&self) -> bool {
+        self.original.is_none() && self.installed.is_none() && self.output.is_none()
+    }
+    pub(super) async fn close_partial_pools(&self) {
+        if let Some(pool) = &self.broker_pool {
+            pool.close().await;
+        }
+        if let Some(pool) = &self.runtime_pool {
+            pool.close().await;
+        }
+    }
+    pub(super) async fn drive(
+        &mut self,
+        fixed: Arc<super::b1_peer::FixedWorkPools>,
+        lifetime: super::b1_peer::WorkLifetime,
+    ) -> Result<()> {
+        self.lifetime = Some(lifetime);
+        let admin = fixed.admin_pool()?;
+        let runtime = fixed.runtime_pool();
+        let broker = fixed.broker_pool();
+        let left = self.sockets[0]
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained I0 work socket missing"))?;
+        let right = self.sockets[1]
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained I0 management socket missing"))?;
+        let result = RootSnapshotBroker::install_inner(
+            self.installed
+                .as_mut()
+                .ok_or_else(|| history::rejected("retained I0 installed input missing"))?,
+            &admin,
+            &broker,
+            &runtime,
+            self.source
+                .as_ref()
+                .ok_or_else(|| history::rejected("retained I0 source input missing"))?,
+            (left, right),
+            Some(fixed.as_ref()),
+        )
+        .await;
+        let error = match result {
+            Ok(actual) => {
+                self.bootstrap = Some(actual);
+                None
+            }
+            Err(error) => Some(error),
+        };
+        let admin_closed = fixed.close_install_admin_pool().await;
+        if let Some(error) = error {
+            return Err(error);
+        }
+        admin_closed?;
+        self.socket_bindings = Some(Vec::with_capacity(2));
+        self.socket_bindings
+            .as_mut()
+            .expect("retained sockets")
+            .push(SocketBinding::observe(left, 65532, 0o660)?);
+        self.socket_bindings
+            .as_mut()
+            .expect("retained sockets")
+            .push(SocketBinding::observe(right, 0, 0o600)?);
+        let build = self
+            .source
+            .as_ref()
+            .expect("retained source")
+            .source_build_sha256
+            .clone();
+        let observation = super::ObservationBudget::with_shared(
+            64 * 1024 * 1024,
+            self.bootstrap
+                .as_ref()
+                .ok_or_else(|| history::rejected("retained original bootstrap missing"))?
+                .1
+                .clone(),
+        )?;
+        self.installed_arc = Some(Arc::new(
+            self.installed
+                .take()
+                .expect("validated original installed input"),
+        ));
+        let installed = self
+            .installed_arc
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained actual installed Arc missing"))?
+            .clone();
+        let Some((descriptor, budget, journal)) = self.bootstrap.take() else {
+            return Err(history::rejected("retained original bootstrap missing"));
+        };
+        // No Result, unwrap, IO or await follows journal removal until the
+        // same actual original is stored in the retained work phase.
+        self.work = Some(EpochWork::installed_with_observation(
+            broker,
+            installed,
+            journal,
+            budget,
+            build,
+            observation,
+        ));
+        let work = self.work.as_mut().expect("retained original epoch work");
+        work.attach_b1(fixed.clone())?;
+        fixed.retain_epoch(work.owner())?;
+        let owner = work.owner();
+        self.descriptor = Some(history::encode(&descriptor, &owner.budget)?);
+        let initial_bytes = history::encode(&descriptor, &owner.budget)?;
+        let epoch = owner.epoch;
+        let pending = work.start_continuation(
+            epoch,
+            epoch,
+            Duration::from_secs(60),
+            None,
+            move |owner, slot| async move {
+                let previous = owner.head(&slot).await?;
+                if previous.head().sequence != 0 {
+                    return Err(history::rejected("installed epoch already started"));
+                }
+                owner.append(&slot, initial_bytes).await?;
+                slot.live()
+            },
+        )?;
+        pending.await?;
+        fixed.installed(
+            self.installed_arc
+                .as_ref()
+                .expect("retained installed Arc")
+                .clone(),
+            self.descriptor.as_ref().expect("retained descriptor"),
+            owner.observation.clone(),
+        )?;
+        let original = self
+            .original
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained I0 original process missing"))?
+            .clone();
+        let jobs = Arc::new(Mutex::new(BTreeMap::new()));
+        let settled = Arc::new(Mutex::new(BTreeMap::new()));
+        let quiescing = Arc::new(AtomicBool::new(false));
+        // All fallible gates precede the actual ownership transfer. The
+        // complete output is retained here before notifying its borrower.
+        self.output = Some(RootSnapshotBroker {
+            b1_ingress_original: Some(original.clone()),
+            b1_original: Mutex::new(Some(original)),
+            b1_lifetime: Mutex::new(self.lifetime.take()),
+            work: Mutex::new(self.work.take()),
+            installed: self
+                .installed_arc
+                .as_ref()
+                .expect("validated installed Arc")
+                .clone(),
+            runtime,
+            descriptor: self.descriptor.take().expect("validated descriptor"),
+            jobs,
+            settled,
+            quiescing,
+            sockets: self
+                .socket_bindings
+                .take()
+                .expect("validated actual sockets"),
+            peers: Mutex::new(Vec::new()),
+        });
+        Ok(())
+    }
+}
+
+#[cfg(feature = "b1-source-peer")]
+pub(super) struct B1QuiescePhase {
+    pub(super) broker: Option<RootSnapshotBroker>,
+    pub(super) work: Option<EpochWork>,
+    pub(super) fixed: Option<Arc<super::b1_peer::FixedWorkPools>>,
+    pub(super) owner: Option<Arc<Original>>,
+    pub(super) slot: Option<Arc<super::history::runtime::Slot>>,
+    pub(super) backup: Option<Uuid>,
+    pub(super) capture: Option<Uuid>,
+    lifetime: Option<super::b1_peer::WorkLifetime>,
+    custody: Option<CustodyCaptureGuard>,
+    peers: Option<Vec<PeerObservation>>,
+    pub(super) output: Option<QuiescedSnapshotEpochV2>,
+}
+#[cfg(feature = "b1-source-peer")]
+impl B1QuiescePhase {
+    pub(super) fn empty() -> Self {
+        Self {
+            broker: None,
+            work: None,
+            fixed: None,
+            owner: None,
+            slot: None,
+            backup: None,
+            capture: None,
+            lifetime: None,
+            custody: None,
+            peers: None,
+            output: None,
+        }
+    }
+    pub(super) fn retain_broker(
+        &mut self,
+        broker: RootSnapshotBroker,
+        backup: Uuid,
+        capture: Uuid,
+    ) {
+        self.broker = Some(broker);
+        self.backup = Some(backup);
+        self.capture = Some(capture);
+    }
+    pub(super) fn empty_ingress(&self) -> bool {
+        self.broker.is_none() && self.work.is_none() && self.output.is_none()
+    }
+    pub(super) fn prepare(&mut self) -> Result<()> {
+        let backup = self
+            .backup
+            .ok_or_else(|| history::rejected("original Q0 backup missing"))?;
+        let capture = self
+            .capture
+            .ok_or_else(|| history::rejected("original Q0 capture missing"))?;
+        if backup.get_version_num() != 4 || capture.get_version_num() != 4 {
+            return Err(history::rejected("capture identity"));
+        }
+        let broker = self
+            .broker
+            .as_mut()
+            .ok_or_else(|| history::rejected("original Q0 broker missing"))?;
+        broker.request_quiesce()?;
+        self.work = Some(
+            broker
+                .work
+                .lock()
+                .map_err(|_| history::rejected("broker lifecycle poisoned"))?
+                .take()
+                .ok_or_else(|| history::rejected("broker already consumed"))?,
+        );
+        self.owner = Some(self.work.as_ref().expect("retained original work").owner());
+        self.fixed = Some(
+            self.owner
+                .as_ref()
+                .expect("retained original epoch")
+                .b1_work
+                .as_ref()
+                .ok_or_else(|| history::rejected("original Q0 fixed pools missing"))?
+                .clone(),
+        );
+        self.slot = Some(
+            self.work
+                .as_ref()
+                .expect("retained original work")
+                .close_admission(Duration::from_secs(60))?,
+        );
+        Ok(())
+    }
+    pub(super) async fn drive(&mut self) -> Result<()> {
+        self.work
+            .as_mut()
+            .ok_or_else(|| history::rejected("retained Q0 work missing"))?
+            .drain()
+            .await?;
+        let owner = self
+            .owner
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained Q0 original missing"))?;
+        let slot = self
+            .slot
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained Q0 slot missing"))?;
+        if owner.is_held() {
+            return Err(history::rejected(
+                "broker unknown original operation cannot capture",
+            ));
+        }
+        let broker = self
+            .broker
+            .as_mut()
+            .ok_or_else(|| history::rejected("retained Q0 broker missing"))?;
+        self.lifetime = broker
+            .b1_lifetime
+            .lock()
+            .map_err(|_| history::rejected("B1 pool owner poisoned"))?
+            .take();
+        let lifetime = self
+            .lifetime
+            .as_mut()
+            .ok_or_else(|| history::rejected("B1 original pool lifetime missing"))?;
+        super::history::runtime::settle_started(slot, lifetime.close_pools()).await?;
+        slot.live()?;
+        let ledger = {
+            let jobs = broker
+                .jobs
+                .lock()
+                .map_err(|_| history::rejected("broker known ledger poisoned"))?;
+            owner
+                .budget
+                .charge((jobs.len() * std::mem::size_of::<&JobSummary>()) as u64, 0)
+                .map_err(|_| super::ObservationError::Capacity)?;
+            for known in jobs.values() {
+                let original = match &known._proof {
+                    ClosedProof::Revoked(reference) | ClosedProof::NotAcquired(reference) => {
+                        *reference
+                    }
+                    ClosedProof::Committed(component) => component.references().3,
+                };
+                if known.summary.last_event.sequence != original.head().sequence {
+                    return Err(history::rejected("known ledger proof differs"));
+                }
+            }
+            history::encode(
+                &LedgerView {
+                    format_version: 2,
+                    capability: "snapshot_effect_known_ledger_v2",
+                    storage_encoding: STORAGE_ENCODING,
+                    epoch_id: owner.epoch,
+                    binding_id: owner.binding,
+                    jobs: jobs.values().map(|known| &known.summary).collect(),
+                },
+                &owner.budget,
+            )?
+        };
+        #[derive(Serialize)]
+        struct CutRecord {
+            capture_id: Uuid,
+            source_backup_id: Uuid,
+            previous_head_sequence: u64,
+            previous_head_sha256: String,
+            descriptor_sha256: String,
+            ledger_sha256: String,
+            active_writers: u64,
+            active_operations: u64,
+            pools_closed: bool,
+            observed_work_peers_sha256: String,
+        }
+        let previous = owner.head(slot).await?;
+        let descriptor_sha256 = history::digest(&broker.descriptor, &owner.budget)?;
+        let ledger_sha256 = history::digest(&ledger, &owner.budget)?;
+        self.peers = Some(std::mem::take(
+            &mut *broker
+                .peers
+                .lock()
+                .map_err(|_| history::rejected("work peers poisoned"))?,
+        ));
+        let encoded_peers = history::encode(
+            self.peers.as_ref().expect("retained original peers"),
+            &owner.budget,
+        )?;
+        let peers_sha256 = history::digest(&encoded_peers, &owner.budget)?;
+        let backup = self
+            .backup
+            .ok_or_else(|| history::rejected("retained Q0 backup missing"))?;
+        let capture = self
+            .capture
+            .ok_or_else(|| history::rejected("retained Q0 capture missing"))?;
+        let encoded = super::attempts::event(
+            owner,
+            slot,
+            "CAPTURE_CUT",
+            &CutRecord {
+                capture_id: capture,
+                source_backup_id: backup,
+                previous_head_sequence: previous.head().sequence,
+                previous_head_sha256: Reference::from_record(previous).sha256,
+                descriptor_sha256: descriptor_sha256.clone(),
+                ledger_sha256: ledger_sha256.clone(),
+                active_writers: 0,
+                active_operations: 0,
+                pools_closed: true,
+                observed_work_peers_sha256: peers_sha256,
+            },
+        )
+        .await?;
+        let head = owner.append(slot, encoded).await?;
+        slot.live()?;
+        self.custody = Some(
+            broker
+                .installed
+                .custody()
+                .try_capture()
+                .map_err(|_| history::rejected("capture same-inode EX busy"))?,
+        );
+        let cut = history::encode(
+            &CutView {
+                format_version: 2,
+                capability: "snapshot_effect_capture_cut_v2",
+                storage_encoding: STORAGE_ENCODING,
+                backup_id: backup,
+                capture_id: capture,
+                epoch_id: owner.epoch,
+                binding_id: owner.binding,
+                previous_head: Reference::from_record(previous),
+                cut_record: Reference::from_record(head),
+                descriptor_sha256,
+                ledger_sha256,
+                active_writers: 0,
+                active_operations: 0,
+                pools_closed: true,
+                observed_work_peers: self.peers.take().expect("retained original peers"),
+            },
+            &owner.budget,
+        )?;
+        for socket in &broker.sockets {
+            socket.recheck()?;
+        }
+        let original = broker
+            .b1_ingress_original
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained Q0 process original missing"))?
+            .clone();
+        // The original cut guard/work are moved only after every prior fallible
+        // operation, directly into this Book's complete retained output.
+        self.output = Some(QuiescedSnapshotEpochV2 {
+            _b1_original: Some(original),
+            _work: self.work.take().expect("validated retained work"),
+            owner: owner.clone(),
+            installed: broker.installed.clone(),
+            custody: self.custody.take().expect("validated actual cut guard"),
+            descriptor: std::mem::take(&mut broker.descriptor),
+            ledger,
+            cut,
+            head,
+            _sockets: std::mem::take(&mut broker.sockets),
+        });
+        let view = self
+            .output
+            .as_ref()
+            .expect("retained complete original cut");
+        view.revalidate()?;
+        self.fixed
+            .as_ref()
+            .ok_or_else(|| history::rejected("retained Q0 fixed owner missing"))?
+            .bind_capture_generation()
+    }
 }
 
 struct SocketBinding {
@@ -949,6 +1420,12 @@ impl RootSnapshotBroker {
         backup_id: Uuid,
         capture_id: Uuid,
     ) -> Result<QuiescedSnapshotEpochV2> {
+        #[cfg(feature = "b1-source-peer")]
+        if self.b1_ingress_original.is_some() {
+            // The original Book takes this actual broker before UUID checks,
+            // work extraction, qualification, accounting or a first await.
+            return super::b1_peer::quiesce_b1(self, backup_id, capture_id).await;
+        }
         if backup_id.get_version_num() != 4 || capture_id.get_version_num() != 4 {
             return Err(history::rejected("capture identity"));
         }
@@ -959,20 +1436,6 @@ impl RootSnapshotBroker {
             .map_err(|_| history::rejected("broker lifecycle poisoned"))?
             .take()
             .ok_or_else(|| history::rejected("broker already consumed"))?;
-        #[cfg(feature = "b1-source-peer")]
-        if let Some(fixed) = &work.owner().b1_work {
-            let fixed = fixed.clone();
-            let original = self
-                .b1_original
-                .lock()
-                .map_err(|_| history::rejected("B1 original process owner poisoned"))?
-                .take()
-                .ok_or_else(|| history::rejected("B1 original process owner missing"))?;
-            let mut view =
-                super::b1_peer::quiesce_b1(self, work, fixed, backup_id, capture_id).await?;
-            view.b1_original = Some(original);
-            return Ok(view);
-        }
         let pending = work.start_quiesce(move |work, owner, slot| {
             self.quiesce_owned(work, owner, slot, backup_id, capture_id)
         })?;
@@ -1123,7 +1586,7 @@ impl RootSnapshotBroker {
         }
         let view = QuiescedSnapshotEpochV2 {
             #[cfg(feature = "b1-source-peer")]
-            b1_original: self
+            _b1_original: self
                 .b1_original
                 .into_inner()
                 .map_err(|_| history::rejected("B1 original process owner poisoned"))?,
@@ -1188,26 +1651,6 @@ impl RootSnapshotBroker {
         sockets: (&UnixListener, &UnixListener),
     ) -> Result<Self> {
         super::b1_peer::install_fresh(original, installed, source, sockets).await
-    }
-    #[cfg(feature = "b1-source-peer")]
-    pub(super) async fn install_b1_owned(
-        installed: InstalledSnapshotBinding,
-        fixed: Arc<super::b1_peer::FixedWorkPools>,
-        source: BrokerSourceDescription,
-        sockets: [UnixListener; 2],
-        lifetime: super::b1_peer::WorkLifetime,
-    ) -> Result<Self> {
-        let admin = fixed.admin_pool()?;
-        Self::install_with_originals(
-            installed,
-            admin,
-            fixed.broker_pool(),
-            fixed.runtime_pool(),
-            source,
-            (&sockets[0], &sockets[1]),
-            (Some(fixed), Some(lifetime)),
-        )
-        .await
     }
     async fn install_with_originals(
         mut installed: InstalledSnapshotBinding,
@@ -1301,6 +1744,8 @@ impl RootSnapshotBroker {
             )?;
         }
         Ok(Self {
+            #[cfg(feature = "b1-source-peer")]
+            b1_ingress_original: None,
             #[cfg(feature = "b1-source-peer")]
             b1_lifetime: Mutex::new(b1_lifetime),
             #[cfg(feature = "b1-source-peer")]
@@ -1644,7 +2089,7 @@ impl RootSnapshotBroker {
 /// public constructor, Clone, serde, From or new writer method is provided.
 pub struct QuiescedSnapshotEpochV2 {
     #[cfg(feature = "b1-source-peer")]
-    b1_original: Option<Arc<super::B1InstalledSourceProcess>>,
+    _b1_original: Option<Arc<super::B1InstalledSourceProcess>>,
     _work: EpochWork,
     owner: Arc<Original>,
     installed: Arc<InstalledSnapshotBinding>,

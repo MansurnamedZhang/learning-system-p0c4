@@ -947,6 +947,382 @@ mod linux {
         bounded_process::execute_stream(&mut command, output, endpoint, deadline, cap, 8192).await
     }
 
+    /// Real helper resources live in the original M3 phase state. These fields
+    /// are never moved into a spawned or polled owning future.
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) struct B1OriginalHelper {
+        child: Option<tokio::process::Child>,
+        stdout: Option<tokio::process::ChildStdout>,
+        stderr: Option<tokio::process::ChildStderr>,
+        output: Option<File>,
+        pidfd: Option<std::sync::Arc<File>>,
+        budget: Option<std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>>,
+        failed: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+        killed: std::sync::atomic::AtomicBool,
+        out: B1RetainedRead,
+        err: B1RetainedRead,
+        waited: bool,
+        exit_ok: bool,
+        deadline: Option<Instant>,
+        cap: u64,
+    }
+    #[cfg(feature = "offhost-b1")]
+    struct B1RetainedRead {
+        eof: bool,
+        unknown: bool,
+        negative_remaining: usize,
+        size: u64,
+        hash: Sha256,
+        prefix: Vec<u8>,
+        memory: Vec<u8>,
+    }
+    #[cfg(feature = "offhost-b1")]
+    impl B1RetainedRead {
+        fn empty(reserve: usize) -> Self {
+            Self {
+                eof: false,
+                unknown: false,
+                negative_remaining: reserve,
+                size: 0,
+                hash: Sha256::new(),
+                prefix: Vec::new(),
+                memory: Vec::new(),
+            }
+        }
+    }
+    #[cfg(feature = "offhost-b1")]
+    impl B1OriginalHelper {
+        pub(in crate::source) fn empty() -> Self {
+            Self {
+                child: None,
+                stdout: None,
+                stderr: None,
+                output: None,
+                pidfd: None,
+                budget: None,
+                failed: None,
+                killed: std::sync::atomic::AtomicBool::new(false),
+                out: B1RetainedRead::empty(65536),
+                err: B1RetainedRead::empty(4096),
+                waited: false,
+                exit_ok: false,
+                deadline: None,
+                cap: 0,
+            }
+        }
+        pub(in crate::source) async fn settle_negative(&mut self) -> Result<(), BackupError> {
+            if self.child.is_none() {
+                return Ok(());
+            }
+            let failed = self.failed.as_ref().ok_or(BackupError::Invalid(
+                "B1 retained helper missing failure owner",
+            ))?;
+            b1_stop_child(self.pidfd.as_deref(), &self.killed, failed);
+            self.drive(None)
+                .await
+                .map_err(|_| BackupError::Invalid("B1 retained helper settlement unknown"))?;
+            if !self.waited || !self.out.eof || !self.err.eof {
+                return Err(BackupError::Invalid(
+                    "B1 retained helper settlement unknown",
+                ));
+            }
+            Ok(())
+        }
+        async fn drive(
+            &mut self,
+            mut endpoint: Option<&mut BoundSourceEndpoint>,
+        ) -> Result<(), ChildFailure> {
+            let Self {
+                child,
+                stdout,
+                stderr,
+                output,
+                pidfd,
+                budget,
+                failed,
+                killed,
+                out,
+                err,
+                waited,
+                exit_ok,
+                deadline,
+                cap,
+            } = self;
+            let budget = budget.as_ref().ok_or(ChildFailure::Identity)?;
+            let failed = failed.as_ref().ok_or(ChildFailure::Identity)?;
+            let child = child.as_mut().ok_or(ChildFailure::Identity)?;
+            let stdout = stdout.as_mut().ok_or(ChildFailure::Io)?;
+            let stderr = stderr.as_mut().ok_or(ChildFailure::Io)?;
+            let out_read = read_b1_retained::<65536>(
+                stdout,
+                output.as_mut(),
+                out,
+                *cap,
+                false,
+                B1RetainedReadResources {
+                    budget,
+                    failed,
+                    pidfd: pidfd.as_deref(),
+                    killed,
+                },
+            );
+            let err_read = read_b1_retained::<4096>(
+                stderr,
+                None,
+                err,
+                4096,
+                true,
+                B1RetainedReadResources {
+                    budget,
+                    failed,
+                    pidfd: pidfd.as_deref(),
+                    killed,
+                },
+            );
+            tokio::pin!(out_read, err_read);
+            let wait = child.wait();
+            tokio::pin!(wait);
+            let (mut out_done, mut err_done, mut wait_done) = (false, false, *waited);
+            let mut expired = false;
+            let end = deadline.ok_or(ChildFailure::Identity)?;
+            let mut interval = tokio::time::interval(Duration::from_millis(250));
+            while !out_done || !err_done || !wait_done {
+                tokio::select! {
+                    biased;
+                    _ = &mut out_read, if !out_done => { out_done = true; }
+                    _ = &mut err_read, if !err_done => { err_done = true; }
+                    result = &mut wait, if !wait_done => {
+                        match result { Ok(status) => { *waited = true; *exit_ok = status.success(); }, Err(_) => { *waited = false; } }
+                        wait_done = true;
+                        if !*exit_ok { b1_stop_child(pidfd.as_deref(), killed, failed); }
+                    }
+                    _ = tokio::time::sleep_until(end.into()), if !expired => {
+                        expired = true; b1_stop_child(pidfd.as_deref(), killed, failed);
+                    }
+                    _ = interval.tick(), if endpoint.is_some() && !failed.load(std::sync::atomic::Ordering::Acquire) => {
+                        let checking = endpoint.as_deref_mut().expect("present original endpoint").recheck_session();
+                        tokio::pin!(checking);
+                        loop {
+                            tokio::select! {
+                                biased;
+                                _ = &mut out_read, if !out_done => { out_done = true; }
+                                _ = &mut err_read, if !err_done => { err_done = true; }
+                                result = &mut wait, if !wait_done => {
+                                    match result { Ok(status) => { *waited = true; *exit_ok = status.success(); }, Err(_) => { *waited = false; } }
+                                    wait_done = true;
+                                    if !*exit_ok { b1_stop_child(pidfd.as_deref(), killed, failed); }
+                                }
+                                _ = tokio::time::sleep_until(end.into()), if !expired => { expired = true; b1_stop_child(pidfd.as_deref(), killed, failed); }
+                                result = &mut checking => { if result.is_err() { b1_stop_child(pidfd.as_deref(), killed, failed); } break; }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        async fn execute(
+            &mut self,
+            mut command: tokio::process::Command,
+            endpoint: &mut BoundSourceEndpoint,
+            output: Option<File>,
+            deadline: Instant,
+            cap: u64,
+        ) -> Result<bounded_process::StreamObservation, ChildFailure> {
+            use std::{
+                io::Write,
+                os::fd::FromRawFd,
+                process::Stdio,
+                sync::{Arc, atomic::Ordering},
+            };
+            if self.child.is_some() {
+                return Err(ChildFailure::Unusable);
+            }
+            self.output = output;
+            endpoint
+                .admission
+                .revalidate()
+                .map_err(|_| ChildFailure::Identity)?;
+            let budget = Arc::clone(
+                endpoint
+                    .admission
+                    .b1_budget()
+                    .map_err(|_| ChildFailure::Identity)?,
+            );
+            let failed = endpoint
+                .admission
+                .b1_failure_flag()
+                .map_err(|_| ChildFailure::Identity)?;
+            if failed.load(Ordering::Acquire) || (self.output.is_none() && cap > 8192) {
+                return Err(ChildFailure::Unusable);
+            }
+            {
+                let mut scan = budget.lock().map_err(|_| ChildFailure::Identity)?;
+                scan.charge((65536 + 4096) * 2 + if self.output.is_none() { cap } else { 0 } + 69)
+                    .map_err(|_| ChildFailure::StdoutLimit)?;
+                scan.entries(12).map_err(|_| ChildFailure::StdoutLimit)?;
+            }
+            self.budget = Some(budget);
+            self.failed = Some(failed);
+            self.out = B1RetainedRead::empty(65536);
+            self.err = B1RetainedRead::empty(4096);
+            self.out.prefix = Vec::with_capacity(5);
+            if self.output.is_none() {
+                self.out.memory = Vec::with_capacity(cap as usize);
+            }
+            self.killed = std::sync::atomic::AtomicBool::new(false);
+            self.waited = false;
+            self.exit_ok = false;
+            self.deadline = Some(deadline);
+            self.cap = cap;
+            command
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .kill_on_drop(true);
+            self.child = Some(command.spawn().map_err(|_| ChildFailure::Io)?);
+            let child = self.child.as_mut().ok_or(ChildFailure::Io)?;
+            self.stdout = child.stdout.take();
+            self.stderr = child.stderr.take();
+            self.pidfd = child.id().and_then(|pid| {
+                let raw = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
+                (raw >= 0).then(|| Arc::new(unsafe { File::from_raw_fd(raw as i32) }))
+            });
+            if self.pidfd.is_none() || self.stdout.is_none() || self.stderr.is_none() {
+                self.failed
+                    .as_ref()
+                    .ok_or(ChildFailure::Identity)?
+                    .store(true, Ordering::Release);
+                let _ = child.start_kill();
+            }
+            self.drive(Some(endpoint)).await?;
+            let known = self.waited
+                && self.out.eof
+                && self.err.eof
+                && !self.out.unknown
+                && !self.err.unknown;
+            if !known {
+                return Err(ChildFailure::Unusable);
+            }
+            let success = self.exit_ok
+                && !self
+                    .failed
+                    .as_ref()
+                    .ok_or(ChildFailure::Identity)?
+                    .load(Ordering::Acquire);
+            if let Some(file) = self.output.as_mut() {
+                file.flush().map_err(|_| ChildFailure::Io)?;
+                if success {
+                    file.sync_all().map_err(|_| ChildFailure::Io)?;
+                }
+            }
+            let observation = bounded_process::StreamObservation {
+                bytes: self.out.size,
+                sha256: format!("{:x}", self.out.hash.clone().finalize()),
+                prefix: std::mem::take(&mut self.out.prefix),
+                memory: std::mem::take(&mut self.out.memory),
+            };
+            // Only actual exit/wait plus both real EOFs allows releasing these
+            // exact helper resources; all failure facts remain in admission.
+            *self = Self::empty();
+            if success {
+                Ok(observation)
+            } else {
+                Err(ChildFailure::Unusable)
+            }
+        }
+    }
+
+    #[cfg(feature = "offhost-b1")]
+    struct B1RetainedReadResources<'a> {
+        budget: &'a std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
+        failed: &'a std::sync::atomic::AtomicBool,
+        pidfd: Option<&'a File>,
+        killed: &'a std::sync::atomic::AtomicBool,
+    }
+    #[cfg(feature = "offhost-b1")]
+    async fn read_b1_retained<const N: usize>(
+        input: &mut (impl tokio::io::AsyncRead + Unpin),
+        mut output: Option<&mut File>,
+        state: &mut B1RetainedRead,
+        cap: u64,
+        stderr: bool,
+        resources: B1RetainedReadResources<'_>,
+    ) {
+        use std::{io::Write, sync::atomic::Ordering};
+        use tokio::io::AsyncReadExt;
+        let B1RetainedReadResources {
+            budget,
+            failed,
+            pidfd,
+            killed,
+        } = resources;
+        let mut buffer = [0u8; N];
+        while !state.eof && !state.unknown {
+            let negative = failed.load(Ordering::Acquire);
+            let request = if negative {
+                if state.negative_remaining == 0 {
+                    state.unknown = true;
+                    break;
+                }
+                buffer.len().min(state.negative_remaining)
+            } else {
+                buffer
+                    .len()
+                    .min(cap.saturating_sub(state.size).saturating_add(1) as usize)
+            };
+            if !negative
+                && budget
+                    .lock()
+                    .map_err(|_| ())
+                    .and_then(|mut scan| scan.charge(request as u64 * 3).map_err(|_| ()))
+                    .is_err()
+            {
+                b1_stop_child(pidfd, killed, failed);
+                continue;
+            }
+            let count = match input.read(&mut buffer[..request]).await {
+                Ok(count) => count,
+                Err(_) => {
+                    state.unknown = true;
+                    b1_stop_child(pidfd, killed, failed);
+                    break;
+                }
+            };
+            if count == 0 {
+                state.eof = true;
+                break;
+            }
+            if negative {
+                state.negative_remaining -= count;
+                continue;
+            }
+            if failed.load(Ordering::Acquire) {
+                // This read was already prepaid/started before the other
+                // original owner failed. Discard it without a new positive
+                // hash/write and continue only the finite negative drain.
+                continue;
+            }
+            if stderr || count as u64 > cap.saturating_sub(state.size) {
+                b1_stop_child(pidfd, killed, failed);
+                continue;
+            }
+            state
+                .prefix
+                .extend_from_slice(&buffer[..count.min(5 - state.prefix.len())]);
+            state.hash.update(&buffer[..count]);
+            if let Some(file) = output.as_mut() {
+                if file.write_all(&buffer[..count]).is_err() {
+                    b1_stop_child(pidfd, killed, failed);
+                    continue;
+                }
+            } else {
+                state.memory.extend_from_slice(&buffer[..count]);
+            }
+            state.size += count as u64;
+        }
+    }
+
     pub(in crate::source) struct BoundSourceEndpoint {
         admission: SourceAdmission,
         lease: RegistryLease,
@@ -1073,6 +1449,191 @@ mod linux {
         Ok(())
     }
     impl BoundSourceEndpoint {
+        #[cfg(feature = "offhost-b1")]
+        pub(in crate::source) async fn recheck_retained(
+            &mut self,
+            helper: &mut B1OriginalHelper,
+        ) -> Result<(), BackupError> {
+            self.recheck_session().await?;
+            let args = [
+                "-XAt".into(),
+                "--no-password".into(),
+                "--host=/var/run/postgresql".into(),
+                "--port=5432".into(),
+                "--username=learning_admin".into(),
+                format!("--dbname={}", self.admission.database()),
+                "-q".into(),
+                "-v".into(),
+                "ON_ERROR_STOP=1".into(),
+                "-c".into(),
+                format!(
+                    "SELECT pg_catalog.pg_backend_pid()::text||'|'||backend_start::text FROM pg_catalog.pg_stat_activity WHERE pid=pg_catalog.pg_backend_pid();{}",
+                    child_attestation::socket_sql(self.keys)
+                ),
+            ];
+            let _ = tool_hash_for(&self.admission, PSQL)?;
+            let mut command = tokio::process::Command::new(PSQL);
+            command
+                .args(args)
+                .env_clear()
+                .env("LC_ALL", "C")
+                .env("PGCONNECT_TIMEOUT", "5");
+            self.admission.prepare_fixed_tool(&mut command)?;
+            let observation = helper
+                .execute(
+                    command,
+                    self,
+                    None,
+                    Instant::now() + Duration::from_secs(10),
+                    8192,
+                )
+                .await
+                .map_err(|_| BackupError::Invalid("source retained observer failed"))?;
+            let output = String::from_utf8(observation.memory)
+                .map_err(|_| BackupError::Invalid("source observer UTF-8"))?;
+            let (observer, proof) = output
+                .split_once('\n')
+                .ok_or(BackupError::Invalid("source observer backend receipt"))?;
+            let (pid, start) = observer
+                .split_once('|')
+                .ok_or(BackupError::Invalid("source observer backend receipt"))?;
+            let pid: i32 = pid
+                .parse()
+                .map_err(|_| BackupError::Invalid("source observer backend receipt"))?;
+            if pid <= 0 || pid == self.backend || start.is_empty() || start.len() > 64 {
+                return Err(BackupError::Invalid("source observer backend receipt"));
+            }
+            validate_socket_observation(
+                self.admission.database(),
+                self.oid,
+                &self.system,
+                self.backend,
+                self.keys,
+                proof,
+            )?;
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE pid=$1 AND backend_start::text=$2")
+                    .bind(pid).bind(start).fetch_one(self.admission.connection()).await?;
+                if remaining == 0 {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    return Err(BackupError::Invalid(
+                        "source observer backend did not drain",
+                    ));
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            self.recheck_session().await
+        }
+        #[cfg(feature = "offhost-b1")]
+        pub(in crate::source) fn attach_capture_retained(
+            &mut self,
+            capture: crate::CaptureProtection,
+        ) -> Result<(), BackupError> {
+            if self.capture.is_some() {
+                return Err(BackupError::Invalid(
+                    "source capture protection already attached",
+                ));
+            }
+            self.capture = Some(capture);
+            self.capture
+                .as_ref()
+                .expect("stored capture protection")
+                .recheck_capture(&self.group, self.backup_id)
+        }
+        #[cfg(feature = "offhost-b1")]
+        pub(in crate::source) async fn dump_retained(
+            &mut self,
+            output: &mut File,
+            helper: &mut B1OriginalHelper,
+        ) -> Result<DumpObservation, BackupError> {
+            self.capture
+                .as_ref()
+                .ok_or(BackupError::Invalid(
+                    "source dump capture protection missing",
+                ))?
+                .recheck_capture(&self.group, self.backup_id)?;
+            self.recheck_retained(helper).await?;
+            if tool_hash_for(&self.admission, PG_DUMP)? != self.claim.pg_dump_sha256 {
+                return Err(BackupError::Invalid("source PG dump tool changed"));
+            }
+            let mut version = tokio::process::Command::new(PG_DUMP);
+            version.arg("--version").env_clear().env("LC_ALL", "C");
+            self.admission.prepare_fixed_tool(&mut version)?;
+            let observed = helper
+                .execute(
+                    version,
+                    self,
+                    None,
+                    Instant::now() + Duration::from_secs(10),
+                    128,
+                )
+                .await
+                .map_err(|_| BackupError::Invalid("source dump version failed"))?;
+            if String::from_utf8(observed.memory)
+                .map_err(|_| BackupError::Invalid("source dump version UTF-8"))?
+                != format!("{}\n", self.claim.pg_dump_version)
+            {
+                return Err(BackupError::Invalid("source dump version differs"));
+            }
+            if output.metadata()?.len() != 0 || output.stream_position()? != 0 {
+                return Err(BackupError::Invalid("source dump output must be empty"));
+            }
+            let mut command = tokio::process::Command::new(PG_DUMP);
+            command
+                .args(dump_args(self.admission.database())?)
+                .env_clear()
+                .env("LC_ALL", "C")
+                .env("PGCONNECT_TIMEOUT", "5");
+            self.admission.prepare_fixed_tool(&mut command)?;
+            let observed = helper
+                .execute(
+                    command,
+                    self,
+                    Some(output.try_clone()?),
+                    Instant::now() + Duration::from_secs(900),
+                    1024 * 1024 * 1024,
+                )
+                .await
+                .map_err(|_| BackupError::Invalid("source dump failed; gate remains closed"))?;
+            self.recheck_retained(helper).await?;
+            if observed.prefix != b"PGDMP" {
+                return Err(BackupError::Invalid("source dump custom format magic"));
+            }
+            Ok(DumpObservation {
+                bytes: observed.bytes,
+                sha256: observed.sha256,
+                client_sha256: self.claim.pg_dump_sha256.clone(),
+                source_container_id: self.claim.container_id.clone(),
+                source_backend: self.backend,
+                source_database: self.admission.database().to_owned(),
+                source_database_oid: self.oid,
+                source_system_identifier: self.system.clone(),
+                source_epoch: self.claim.epoch,
+                exit_code: 0,
+            })
+        }
+        #[cfg(feature = "offhost-b1")]
+        pub(in crate::source) async fn close_capture_retained(
+            &mut self,
+        ) -> Result<(), BackupError> {
+            self.admission.close_capture_in_place().await?;
+            self.admission.validate_closed_inputs()
+        }
+        #[cfg(feature = "offhost-b1")]
+        pub(in crate::source) async fn close_for_cleanup_retained(
+            &mut self,
+        ) -> Result<(), BackupError> {
+            self.admission.close_for_cleanup_in_place().await
+        }
+        #[cfg(feature = "offhost-b1")]
+        pub(in crate::source) fn transfer_closed_capture(
+            self,
+        ) -> super::super::admission::B1RetainedCaptureInputs {
+            self.admission.transfer_closed_capture()
+        }
         pub(in crate::source) fn budget(
             &self,
         ) -> &std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>> {
@@ -1479,6 +2040,85 @@ mod linux {
             .recheck()
             .await
     }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) async fn admit_source_endpoint_retained(
+        admission: &mut Option<SourceAdmission>,
+        enrolled: &EnrolledSource,
+        lease: &RegistryLease,
+        isolation: &mut Option<VerifiedSourceIsolation>,
+        config: &SourceBackupConfig,
+        output: &mut Option<BoundSourceEndpoint>,
+        helper: &mut B1OriginalHelper,
+    ) -> Result<(), BackupError> {
+        if output.is_some() {
+            return Err(BackupError::Invalid("original endpoint already retained"));
+        }
+        let original = admission
+            .as_mut()
+            .ok_or(BackupError::Invalid("original admission missing"))?;
+        original.revalidate()?;
+        let claim = isolation
+            .as_ref()
+            .ok_or(BackupError::Invalid("original isolation missing"))?
+            .read_claim(config, original)?;
+        original.record_result(claim.native.require_same(&native_identity_for(original)?))?;
+        let (backend, oid, system): (i32, i64, String) = sqlx::query_as("SELECT pg_catalog.pg_backend_pid(),d.oid::bigint,pcs.system_identifier::text FROM pg_catalog.pg_database d CROSS JOIN pg_catalog.pg_control_system() pcs WHERE d.datname=pg_catalog.current_database()")
+            .fetch_one(original.connection()).await?;
+        original.revalidate()?;
+        if original.database() != enrolled.group.database
+            || config.expected_database != enrolled.group.database
+            || oid <= 0
+            || oid as u32 != enrolled.group.database_oid
+            || system != enrolled.group.system_identifier
+        {
+            return Err(BackupError::Invalid("source endpoint enrollment identity"));
+        }
+        let keys = ChallengeKeys::random()?;
+        for key in keys.values() {
+            let acquired: bool =
+                sqlx::query_scalar("SELECT pg_catalog.pg_try_advisory_lock($1::bigint)")
+                    .bind(key)
+                    .fetch_one(original.connection())
+                    .await?;
+            original.revalidate()?;
+            if !acquired {
+                return Err(BackupError::Invalid("source endpoint challenge busy"));
+            }
+        }
+        let mut roots = Vec::new();
+        for (name, handle) in &enrolled.handles {
+            roots.push((
+                PathBuf::from(&enrolled.roots[name].path),
+                handle.try_clone()?,
+                handle.identity()?,
+            ));
+        }
+        let held_lease = lease.clone_held()?;
+        let group = enrolled.group_id().to_owned();
+        // Everything fallible has finished. Transfer the actual originals into
+        // the retained endpoint with only field moves, then borrow for recheck.
+        *output = Some(BoundSourceEndpoint {
+            admission: admission.take().expect("validated original admission"),
+            lease: held_lease,
+            roots,
+            isolation: isolation.take().expect("validated original isolation"),
+            claim,
+            keys,
+            backend,
+            oid: oid as u64,
+            system,
+            group,
+            backup_id: config.backup_id,
+            capture: None,
+            #[cfg(test)]
+            test_control: crate::source::endpoint_tests::faults::current_control(),
+        });
+        output
+            .as_mut()
+            .expect("stored original endpoint")
+            .recheck_retained(helper)
+            .await
+    }
     pub(in crate::source) async fn admit_recovery_endpoint(
         admission: SourceAdmission,
         enrolled: &EnrolledSource,
@@ -1494,6 +2134,8 @@ mod linux {
             .await
     }
 }
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(in crate::source) use linux::{B1OriginalHelper, admit_source_endpoint_retained};
 #[cfg(target_os = "linux")]
 pub(super) use linux::{
     BoundSourceEndpoint, ReleaseWitness, VerifiedSourceIsolation, admit_recovery_endpoint,

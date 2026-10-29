@@ -1,5 +1,21 @@
 # Task9 R2b实施进展
 
+## Root生产者与M3内部片段完成两组普通回归，Source整链仍开放 · 2026-10-29
+
+默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。
+
+Root侧增加实际子进程／pidfd、固定工具和库身份闭包、持续监督、原始IO计费与期限、异常保留清理的内部实现；M3保留原始future及资源所有者直到自然结束，取消、panic或完成校验失败不能提前把资源当作settled。C11既有15类消息和durable后确认组件保留；本轮普通UID检查不执行真实Root／PG／C11正向整链，也不证明已安装或可用的生产权限。
+
+旧68个受影响测试正文及ignore属性按真实字节保留，本轮无新增ignored、改名或删测。此前DB批次875be4e3在peer Clippy因一个未用私有函数退出101；删除339字节私有死代码经独审后，以本轮全新格式／Backup／DB批次从头验证。旧失败、HOLD及旧快照PASS全部保留，未重放或借作新源码信用。
+
+受测源码基线a3a209711f5441c25093aeb5052fe538537d03b0／treef7915076d0d613d08a1443383e18c25be26c4122，最终701源索引SHA256 fceee5c0aeb439f989051d257e039ff4c5b14724225761edd48118866d81aeb6。本轮格式批次c58ae018-b231-492d-b6b2-5d17980febff、Backup批次5283b8f9-ed50-4de5-95e7-c8daadbefcba、DB批次61f3279a-85df-45fa-8e7d-69ab8ed23400分别独核原始证据；结果SHA256依次为fa2925c2a3f3da3eefb2d52b70a0383d9d432817906b5f721dafe3ffe065b5cb、ecb047f13f0c724ee5d7b6df2f115e32ed3c00f11e3eb90c76464d217a98d917、33982f824c41782590561810f8d80ab7120cad329f22c8d4ac8dafd196221ad8。实际格式导出17项与受审源逐字相同；两组完整名单、既有ignored、源704项前后原始快照、同一容器自然退出0与精确清理均核对。这是收集回件的独立核对，不是额外远程亲见；输出限制为退出后读取校验，未声称连续OS输出上限。
+
+仍未接通正常Source入口：当前入口继续明确拒绝未接线执行，source_actor.rs尚未形成。下一步在已批准文件范围内接Source原操作、共享原始预算的preflight与先关持有者再取lease、唯一Capture生成的CapturedInputData，以及重新取得的首次Source会话；不能把capture-only会话转为Publication权限。Source首S、D/Ready、fence和最终settlement的M6闭环，以及S5封闭计费与全局64资源实证仍开放；whole M3／C11与Task9正式验收均未完成。真实密钥／信任／launcher安装、PG／安全权限、目标整链、源断联和恢复仍须按具体目标与影响另行确认。
+
+本次仅追加task9_r2b_root_m3_original_owners_ordinary检查点；既有47个task*键的深层JSON类型和值保持原样，总48。源文件701／manifest行700，17个产品路径为5新＋12既有，其余684原始文件不变。功能默认关闭；source_READY、CompleteBackup、Task9／C4正式验收、main合并与生产部署均为false。
+
+---
+
 ## Root／C11控制与持久记录组件完成普通检查，实际Root／M3接线继续 · 2026-10-29
 
 一个既有backup源码叶增加两端共用wire15／64帧／262400字节预算、严格关联与原期限、native IO永久负向，以及C11的0600独占持久对象和durable后单次ACK。新隔离Linux完整13门全通过：backup默认450通过／106忽略、offhost568通过／106忽略，均0失败／0过滤；offhost新增14个普通正文通过，配置间重复正文不相加。入口与部署门保持默认关闭；这不代表实际Root持有者、M3整体或C11正向整链已完成。

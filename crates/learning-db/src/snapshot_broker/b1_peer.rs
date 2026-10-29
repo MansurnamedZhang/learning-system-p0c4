@@ -203,13 +203,10 @@ pub(super) async fn install_fresh(
         &std::os::unix::net::UnixListener,
     ),
 ) -> super::history::Result<super::lifecycle::RootSnapshotBroker> {
-    let broker =
-        session::install_fresh_b1(original.0.custody(), installed, source, sockets).await?;
-    *broker
-        .b1_original
-        .lock()
-        .map_err(|_| observation_error(Error::Poisoned))? = Some(original);
-    Ok(broker)
+    // The genuine original and every by-value input enter the preallocated
+    // DB ingress before any qualification, clone, charge or await. The phase
+    // builds its retained broker with this same original already attached.
+    session::install_fresh_b1(original, installed, source, sockets).await
 }
 
 /// The actual session's retained connection owner; no external constructor.

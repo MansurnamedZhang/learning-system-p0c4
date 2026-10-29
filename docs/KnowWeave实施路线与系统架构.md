@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-29。当前状态：C4实施中 · Root／C11组件普通检查通过，Task9仍未完成，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`983de1f2f0072c646d2cd6147b15f9ea82ab9c63`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-10-29。当前状态：C4实施中 · 两组普通回归通过，Task9仍未完成，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`a3a209711f5441c25093aeb5052fe538537d03b0`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。一个既有backup源码叶增加两端共用wire15／64帧／262400字节预算、严格关联与原期限、native IO永久负向，以及C11的0600独占持久对象和durable后单次ACK。新隔离Linux完整13门全通过：backup默认450通过／106忽略、offhost568通过／106忽略，均0失败／0过滤；offhost新增14个普通正文通过，配置间重复正文不相加。入口与部署门保持默认关闭；这不代表实际Root持有者、M3整体或C11正向整链已完成。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,21 +61,21 @@ flowchart LR
 
 ## 下一步
 
-仍需实现once-burn实际Root job、source child／pidfd／wait、自己创建的Docker exec／attached mux、全host before/after与两generation issuer、原产物独立CapturedData及settlement生产者。M3整个future／finally、Source首S与preflight／Publication实际会话接入、M5保留完整cut／enrollment仍开放；不得放宽capture-only getter或转旧None路径。这些是已批叶内实现缺口，不概括为缺权限。S5下游封闭计费和cap inventory尚未闭合；现场密钥／信任／launcher、PG／安全权限、目标整链、断联与恢复仍按具体方案批准。
+仍未接通正常Source入口：当前入口继续明确拒绝未接线执行，source_actor.rs尚未形成。下一步在已批准文件范围内接Source原操作、共享原始预算的preflight与先关持有者再取lease、唯一Capture生成的CapturedInputData，以及重新取得的首次Source会话；不能把capture-only会话转为Publication权限。Source首S、D/Ready、fence和最终settlement的M6闭环，以及S5封闭计费与全局64资源实证仍开放；whole M3／C11与Task9正式验收均未完成。真实密钥／信任／launcher安装、PG／安全权限、目标整链、源断联和恢复仍须按具体目标与影响另行确认。
 
-- **01 · 实现真实Root原操作持有者**：补固定native／child／exec／all-host before-after／generation与原产物观察，不用DATA代替资格。
-- **02 · 接M3原future与首个Source会话**：先预检自然关闭与lease释放，再Capture、重新首S及M5完整保留；不放宽capture-only谓词。
-- **03 · 完成封闭计费与现场准入**：逐项补S5/cap inventory；安装、密钥／信任、真实目标与断联／恢复按具体方案审批。
+- **01 · 接通Source原操作前段**：同一原始预算下完成preflight、释放检查持有者再取lease、唯一Capture产物与首次Source会话；入口未闭合前继续拒绝执行。
+- **02 · 闭合Source／M6与发布顺序**：接首次S、D/Ready、fence及settlement；完成S5累计计费与全局64资源实证，保持默认关闭和原权限边界。
+- **03 · 准备真实目标正式验收**：独立目标、密钥托管与安装状态需实核；安装、安全权限、目标整链、断联和恢复另按具体方案批准。
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-一个既有backup源码叶增加两端共用wire15／64帧／262400字节预算、严格关联与原期限、native IO永久负向，以及C11的0600独占持久对象和durable后单次ACK。新隔离Linux完整13门全通过：backup默认450通过／106忽略、offhost568通过／106忽略，均0失败／0过滤；offhost新增14个普通正文通过，配置间重复正文不相加。入口与部署门保持默认关闭；这不代表实际Root持有者、M3整体或C11正向整链已完成。
+默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。
 
-仍需实现once-burn实际Root job、source child／pidfd／wait、自己创建的Docker exec／attached mux、全host before/after与两generation issuer、原产物独立CapturedData及settlement生产者。M3整个future／finally、Source首S与preflight／Publication实际会话接入、M5保留完整cut／enrollment仍开放；不得放宽capture-only getter或转旧None路径。这些是已批叶内实现缺口，不概括为缺权限。S5下游封闭计费和cap inventory尚未闭合；现场密钥／信任／launcher、PG／安全权限、目标整链、断联与恢复仍按具体方案批准。
+仍未接通正常Source入口：当前入口继续明确拒绝未接线执行，source_actor.rs尚未形成。下一步在已批准文件范围内接Source原操作、共享原始预算的preflight与先关持有者再取lease、唯一Capture生成的CapturedInputData，以及重新取得的首次Source会话；不能把capture-only会话转为Publication权限。Source首S、D/Ready、fence和最终settlement的M6闭环，以及S5封闭计费与全局64资源实证仍开放；whole M3／C11与Task9正式验收均未完成。真实密钥／信任／launcher安装、PG／安全权限、目标整链、源断联和恢复仍须按具体目标与影响另行确认。
 
-本片受测基线983de1f2f0072c646d2cd6147b15f9ea82ab9c63／treecc3c309bc562f7044db61fbbd58aa9990a2f3532；唯一产品叶source_launch.rs SHA256 93d93b4fbfbe307dbf4ba77a9378d5ab204a6fee52130bc1662d7ad03b671fa7。批次a46a5ea3-4d7e-450e-852d-f88b4b1d6fc5，result da27cda980bdac1299888b296f3c17d3ef51eaf6fe61f0c9970762235e54a67b，完整evidence ZIP d97cb0a0d45d099f14a10e102eaa86efcdb8b4c50201289e6072954ef1a66d82；13门exit0、完整556／674名单与各106顶层ignored、精确CID自然退出和清理、699包内文件未变。原始回件独核9b2dab82f244f3407f734366ba9591205800d89ae36b276b2c6437fc39b4d913／INDEX2fd0a1f2ff010947c065cddc407798b3a8c5ae64e6690b24ca9f0eb6a2aed28f；不是独立远程亲见或连续OS输出cap证明。
+受测源码基线a3a209711f5441c25093aeb5052fe538537d03b0／treef7915076d0d613d08a1443383e18c25be26c4122，最终701源索引SHA256 fceee5c0aeb439f989051d257e039ff4c5b14724225761edd48118866d81aeb6。本轮格式批次c58ae018-b231-492d-b6b2-5d17980febff、Backup批次5283b8f9-ed50-4de5-95e7-c8daadbefcba、DB批次61f3279a-85df-45fa-8e7d-69ab8ed23400分别独核原始证据；结果SHA256依次为fa2925c2a3f3da3eefb2d52b70a0383d9d432817906b5f721dafe3ffe065b5cb、ecb047f13f0c724ee5d7b6df2f115e32ed3c00f11e3eb90c76464d217a98d917、33982f824c41782590561810f8d80ab7120cad329f22c8d4ac8dafd196221ad8。实际格式导出17项与受审源逐字相同；两组完整名单、既有ignored、源704项前后原始快照、同一容器自然退出0与精确清理均核对。这是收集回件的独立核对，不是额外远程亲见；输出限制为退出后读取校验，未声称连续OS输出上限。
 
 ```mermaid
 flowchart LR
@@ -87,7 +87,7 @@ flowchart LR
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>私有单机范围限定验收"]
-    C4T9["Task 9<br/>真实独立故障域闭合<br/>Root／C11组件普通检查通过，Root／M3接线中"]
+    C4T9["Task 9<br/>真实独立故障域闭合<br/>Root／M3片段普通回归通过，Source整链待接"]
     C4T1 --> C4T2
     C4T2 --> C4T3
     C4T3 --> C4T4
@@ -113,7 +113,7 @@ flowchart LR
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
 | Task 8 · 当前回归、旧版升级与审查 | 私有单机范围限定验收 | Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。 169 ignored已具名处置，不等于169全部运行；65 extra与3 measurement未执行披露。 |
-| Task 9 · 真实独立故障域闭合 | Root／C11组件普通检查通过，Root／M3接线中 | 一个既有backup源码叶增加两端共用wire15／64帧／262400字节预算、严格关联与原期限、native IO永久负向，以及C11的0600独占持久对象和durable后单次ACK。新隔离Linux完整13门全通过：backup默认450通过／106忽略、offhost568通过／106忽略，均0失败／0过滤；offhost新增14个普通正文通过，配置间重复正文不相加。入口与部署门保持默认关闭；这不代表实际Root持有者、M3整体或C11正向整链已完成。 本片受测基线983de1f2f0072c646d2cd6147b15f9ea82ab9c63／treecc3c309bc562f7044db61fbbd58aa9990a2f3532；唯一产品叶source_launch.rs SHA256 93d93b4fbfbe307dbf4ba77a9378d5ab204a6fee52130bc1662d7ad03b671fa7。批次a46a5ea3-4d7e-450e-852d-f88b4b1d6fc5，result da27cda980bdac1299888b296f3c17d3ef51eaf6fe61f0c9970762235e54a67b，完整evidence ZIP d97cb0a0d45d099f14a10e102eaa86efcdb8b4c50201289e6072954ef1a66d82；13门exit0、完整556／674名单与各106顶层ignored、精确CID自然退出和清理、699包内文件未变。原始回件独核9b2dab82f244f3407f734366ba9591205800d89ae36b276b2c6437fc39b4d913／INDEX2fd0a1f2ff010947c065cddc407798b3a8c5ae64e6690b24ca9f0eb6a2aed28f；不是独立远程亲见或连续OS输出cap证明。 |
+| Task 9 · 真实独立故障域闭合 | Root／M3片段普通回归通过，Source整链待接 | 默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。 受测源码基线a3a209711f5441c25093aeb5052fe538537d03b0／treef7915076d0d613d08a1443383e18c25be26c4122，最终701源索引SHA256 fceee5c0aeb439f989051d257e039ff4c5b14724225761edd48118866d81aeb6。本轮格式批次c58ae018-b231-492d-b6b2-5d17980febff、Backup批次5283b8f9-ed50-4de5-95e7-c8daadbefcba、DB批次61f3279a-85df-45fa-8e7d-69ab8ed23400分别独核原始证据；结果SHA256依次为fa2925c2a3f3da3eefb2d52b70a0383d9d432817906b5f721dafe3ffe065b5cb、ecb047f13f0c724ee5d7b6df2f115e32ed3c00f11e3eb90c76464d217a98d917、33982f824c41782590561810f8d80ab7120cad329f22c8d4ac8dafd196221ad8。实际格式导出17项与受审源逐字相同；两组完整名单、既有ignored、源704项前后原始快照、同一容器自然退出0与精确清理均核对。这是收集回件的独立核对，不是额外远程亲见；输出限制为退出后读取校验，未声称连续OS输出上限。 |
 
 ### 原五任务父里程碑（保留原编号）
 

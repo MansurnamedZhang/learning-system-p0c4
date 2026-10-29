@@ -448,7 +448,28 @@ pub(super) mod runtime {
             build_sha256: String,
         ) -> Result<Self> {
             let observation = ObservationBudget::with_shared(64 * 1024 * 1024, budget.clone())?;
-            Ok(Self {
+            Ok(Self::installed_with_observation(
+                pool,
+                installation,
+                journal,
+                budget,
+                build_sha256,
+                observation,
+            ))
+        }
+
+        /// Private field transfer only. Both callers construct the same fixed
+        /// observation before moving an actual original journal out of custody.
+        /// This is not a factory from DATA or an alternate admission path.
+        pub(in super::super) fn installed_with_observation(
+            pool: PgPool,
+            installation: Arc<learning_assets::InstalledSnapshotBinding>,
+            journal: RootJournalBytes,
+            budget: SharedJournalBudget,
+            build_sha256: String,
+            observation: ObservationBudget,
+        ) -> Self {
+            Self {
                 original: Arc::new(Original {
                     pool,
                     #[cfg(feature = "b1-source-peer")]
@@ -482,7 +503,7 @@ pub(super) mod runtime {
                     #[cfg(test)]
                     hooks: None,
                 }),
-            })
+            }
         }
 
         pub(in super::super) fn owner(&self) -> Arc<Original> {
@@ -860,18 +881,6 @@ pub(super) mod runtime {
                 }
                 Poll::Pending => Poll::Pending,
             }
-        }
-    }
-    #[cfg(feature = "b1-source-peer")]
-    pub(in super::super) fn pending_original<T>(
-        receiver: oneshot::Receiver<Result<T>>,
-        slot: Arc<Slot>,
-    ) -> Pending<T> {
-        Pending {
-            receiver,
-            timer: Box::pin(sleep_until(slot.deadline)),
-            slot,
-            armed: true,
         }
     }
     impl<T> Drop for Pending<T> {

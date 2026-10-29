@@ -217,80 +217,376 @@ async fn prepare_linux(
 }
 
 #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
-#[allow(
-    dead_code,
-    reason = "S5 original B1 prepare awaits its pending original M3 consumer; no runtime wiring or settlement credit"
-)]
-pub(super) async fn prepare_b1_with_effects(
-    assets: &FsAssetStore,
-    input: &mut snapshot_effects::CaptureInput,
-) -> Result<SourceLocalPin, BackupError> {
-    input.prepare_b1_with_original_close(assets).await
+pub(crate) struct B1PrepareOwners {
+    acquisition: admission::B1AdmissionAcquisition,
+    admission: Option<SourceAdmission>,
+    registry: Option<crate::ManagementRegistry>,
+    lease: Option<crate::registry::RegistryLease>,
+    enrolled: Option<crate::registry::EnrolledSource>,
+    configuration: Option<SourceBackupConfig>,
+    control: Option<BackupDir>,
+    pin_root: Option<BackupDir>,
+    isolation: Option<endpoint::VerifiedSourceIsolation>,
+    endpoint: Option<endpoint::BoundSourceEndpoint>,
+    helper: endpoint::B1OriginalHelper,
+    journal: Option<SourceGateJournal>,
+    source: Option<BackupDir>,
+    roles_write: Option<File>,
+    roles: Option<File>,
+    dump_write: Option<File>,
+    dump: Option<File>,
+    snapshot: Option<crate::ProtectionSnapshot>,
+    evidence: Option<std::collections::BTreeMap<String, Vec<u8>>>,
+    cleanup_close_negative: bool,
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+impl B1PrepareOwners {
+    pub(crate) fn empty() -> Self {
+        Self {
+            acquisition: admission::B1AdmissionAcquisition::empty(),
+            admission: None,
+            registry: None,
+            lease: None,
+            enrolled: None,
+            configuration: None,
+            control: None,
+            pin_root: None,
+            isolation: None,
+            endpoint: None,
+            helper: endpoint::B1OriginalHelper::empty(),
+            journal: None,
+            source: None,
+            roles_write: None,
+            roles: None,
+            dump_write: None,
+            dump: None,
+            snapshot: None,
+            evidence: None,
+            cleanup_close_negative: false,
+        }
+    }
+    pub(crate) async fn settle_helpers_negative(&mut self) -> Result<(), BackupError> {
+        let helpers = self.helper.settle_negative().await;
+        if self.acquisition.close_for_cleanup().await.is_err() {
+            self.cleanup_close_negative = true;
+        }
+        if let Some(admission) = self.admission.as_mut()
+            && admission.close_for_cleanup_in_place().await.is_err()
+        {
+            self.cleanup_close_negative = true;
+        }
+        if let Some(endpoint) = self.endpoint.as_mut()
+            && endpoint.close_for_cleanup_retained().await.is_err()
+        {
+            self.cleanup_close_negative = true;
+        }
+        // Qualifier errors are recorded above. Only the DB's separate actual
+        // close_original resource audit can establish SQL/pool/task settlement.
+        helpers
+    }
 }
 
 #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
-async fn prepare_b1_original(
+pub(crate) async fn prepare_b1_retained(
     assets: &FsAssetStore,
     input: &mut snapshot_effects::CaptureInput,
-) -> Result<SourceLocalPin, BackupError> {
+    original: &mut B1PrepareOwners,
+    pin: &mut Option<SourceLocalPin>,
+) -> Result<(), BackupError> {
+    if original.admission.is_some() || original.endpoint.is_some() || pin.is_some() {
+        return Err(BackupError::Invalid("B1 original prepare already entered"));
+    }
     let peer = input.b1_peer()?;
-    let mut admission = SourceAdmission::try_acquire_b1(std::sync::Arc::clone(&peer)).await?;
-    let registry = crate::ManagementRegistry::open_installed_b1(&admission)?;
-    let lease = registry.try_lock()?;
-    let enrolled = lease.lookup_source_group_b1(&mut admission, assets).await?;
-    let configuration = admission.b1_configuration(&enrolled)?;
-    let config = &configuration;
-    input.require_b1_admission(&admission, &lease, &enrolled, config)?;
-    let effects = Some(input);
+    original.acquisition.acquire(peer).await?;
+    original.acquisition.validate_transfer()?;
+    original.admission = Some(original.acquisition.transfer_validated());
+    original.registry = Some(crate::ManagementRegistry::open_installed_b1(
+        original.admission.as_ref().expect("stored admission"),
+    )?);
+    original.lease = Some(
+        original
+            .registry
+            .as_ref()
+            .expect("stored registry")
+            .try_lock()?,
+    );
+    original.enrolled = Some(
+        original
+            .lease
+            .as_ref()
+            .expect("stored lease")
+            .lookup_source_group_b1(
+                original.admission.as_mut().expect("stored admission"),
+                assets,
+            )
+            .await?,
+    );
+    original.configuration = Some(
+        original
+            .admission
+            .as_ref()
+            .expect("stored admission")
+            .b1_configuration(original.enrolled.as_ref().expect("stored source"))?,
+    );
+    let config = original
+        .configuration
+        .as_ref()
+        .expect("stored configuration");
+    let enrolled = original.enrolled.as_ref().expect("stored source");
+    let lease = original.lease.as_ref().expect("stored lease");
+    let admission = original.admission.as_mut().expect("stored admission");
+    input.require_b1_admission(admission, lease, enrolled, config)?;
     if config.backup_id.is_nil()
         || config.drain_timeout.is_zero()
         || config.drain_timeout > Duration::from_secs(60)
         || config.control_root == config.local_pin_root
+        || admission.database() != config.expected_database
     {
         return Err(BackupError::Invalid("source backup configuration"));
     }
-    let database = admission.database().to_owned();
-    if database != config.expected_database {
-        return Err(BackupError::Invalid("source database identity mismatch"));
-    }
-    let control = binding::admit_control_root(&mut admission, &config.control_root).await?;
-    // Binding and unfinished evidence are authoritative before an attestation
-    // is needed. No ACL, attempt journal, or dump mutation has occurred.
-    ensure_no_unfinished_journal(&control, &config.control_root)?;
-    let profile = prepare_source_preflight(&mut admission, effects.as_deref()).await?;
-    admission.require_b1_enrollment(&lease, &enrolled)?;
-    let pin_root = enrolled.handle("local_pins").try_clone()?;
-    if control.identity()? == pin_root.identity()? {
+    original.control = Some(binding::admit_control_root(admission, &config.control_root).await?);
+    ensure_no_unfinished_journal(
+        original.control.as_ref().expect("stored control"),
+        &config.control_root,
+    )?;
+    let profile = prepare_source_preflight(admission, Some(input)).await?;
+    admission.require_b1_enrollment(lease, enrolled)?;
+    original.pin_root = Some(enrolled.handle("local_pins").try_clone()?);
+    if original
+        .control
+        .as_ref()
+        .expect("stored control")
+        .identity()?
+        == original
+            .pin_root
+            .as_ref()
+            .expect("stored pins")
+            .identity()?
+    {
         return Err(BackupError::Invalid("source control and pin root alias"));
     }
-    let attestation_parent = config
-        .isolation_attestation
-        .parent()
-        .ok_or(BackupError::Invalid("isolation attestation path"))?;
-    BackupDir::open_trusted_private_root(attestation_parent)?;
-    #[cfg(test)]
-    endpoint_tests::observe_admitted_source(&mut admission, config).await?;
-    let isolation = admission.b1_isolation(config, true)?;
-    // Fixed options/provenance were created and checked by the actual same
-    // DB OwnedAdmin owner. No caller pool/options/DSN or post-close admin is
-    // accepted; endpoint rechecks use this exact Capture connection.
+    BackupDir::open_trusted_private_root(
+        config
+            .isolation_attestation
+            .parent()
+            .ok_or(BackupError::Invalid("isolation attestation path"))?,
+    )?;
+    original.isolation = Some(admission.b1_isolation(config, true)?);
     admission.revalidate()?;
-    prepare_admitted_source(
-        AdmittedSourcePipeline {
-            admission,
-            control,
-            enrolled,
-            lease,
-            isolation,
-            profile,
-            database,
-            pin_root,
-        },
-        assets,
+    endpoint::admit_source_endpoint_retained(
+        &mut original.admission,
+        enrolled,
+        lease,
+        &mut original.isolation,
         config,
-        effects,
+        &mut original.endpoint,
+        &mut original.helper,
     )
-    .await
+    .await?;
+    let endpoint = original
+        .endpoint
+        .as_mut()
+        .expect("stored original endpoint");
+    let helper = &mut original.helper;
+    let control = original.control.as_ref().expect("stored control");
+    let pin_root = original.pin_root.as_ref().expect("stored pins");
+    let database = config.expected_database.as_str();
+    endpoint.b1_pipeline_fence().await?;
+    let repeated = c0_d1::SourceProfile::admit(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
+    if repeated != profile {
+        return Err(BackupError::Invalid(
+            "source profile changed after admission",
+        ));
+    }
+    if profile == c0_d1::SourceProfile::BaseV1 {
+        require_base_snapshot_claim_schema(endpoint.connection()).await?;
+        require_base_snapshot_observation_schema(endpoint.connection()).await?;
+    }
+    endpoint.b1_pipeline_fence().await?;
+    let mut before = inspect_gate(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
+    if profile.broker_oid().is_some() {
+        before.other_login_writers = before
+            .other_login_writers
+            .checked_sub(1)
+            .ok_or(BackupError::Invalid("full-C broker writer count"))?;
+    }
+    if !before.admin_is_database_owner
+        || !before.runtime_can_connect
+        || before.public_can_connect
+        || before.runtime_can_inherit_admin
+        || before.runtime_is_privileged
+        || before.other_login_writers != 0
+    {
+        return Err(BackupError::Invalid("source role preflight"));
+    }
+    endpoint.recheck_retained(helper).await?;
+    endpoint.attach_capture_retained(crate::begin_capture_protection(
+        lease,
+        enrolled,
+        config.backup_id,
+    )?)?;
+    original.journal = Some(match profile.broker_oid() {
+        None => SourceGateJournal::start_in(control, config.backup_id)?,
+        Some(oid) => SourceGateJournal::start_full_c_in(control, config.backup_id, oid)?,
+    });
+    original.source = Some(control.create_dir(&format!("{}.source", config.backup_id))?);
+    let journal = original.journal.as_mut().expect("stored source journal");
+    let source = original.source.as_ref().expect("stored source directory");
+    let revoke = profile.revoke_statement(database);
+    endpoint.recheck_retained(helper).await?;
+    endpoint.b1_pipeline_fence().await?;
+    sqlx::query(&revoke).execute(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
+    journal.advance(GatePhase::Closed, None)?;
+    wait_for_runtime_connect_probe_for_endpoint(config, endpoint).await?;
+    let deadline = Instant::now() + config.drain_timeout;
+    loop {
+        endpoint.b1_pipeline_fence().await?;
+        let facts = inspect_gate(endpoint.connection()).await?;
+        endpoint.b1_pipeline_fence().await?;
+        if !facts.runtime_can_connect && facts.other_sessions == 0 {
+            profile.recheck(endpoint.connection(), false).await?;
+            facts.validate()?;
+            break;
+        }
+        if facts.runtime_can_connect || facts.other_login_writers != 0 || Instant::now() >= deadline
+        {
+            return Err(BackupError::Invalid("database sessions did not drain"));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    journal.advance(GatePhase::Drained, None)?;
+    input
+        .capture_closed(endpoint.connection(), config, enrolled, lease)
+        .await?;
+    endpoint.b1_pipeline_fence().await?;
+    let plan = crate::catalog::plan_assets_on(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
+    endpoint.protection()?.bind_catalog(&plan)?;
+    let identity = collect_source_identity(endpoint.connection()).await?;
+    endpoint.b1_pipeline_fence().await?;
+    let role_bytes = match profile {
+        c0_d1::SourceProfile::BaseV1 => role_recipe(endpoint.connection()).await?,
+        c0_d1::SourceProfile::C0D1 { .. } => c0_d1::role_recipe(endpoint.connection()).await?,
+    };
+    endpoint.b1_pipeline_fence().await?;
+    endpoint.prepay_source_io(role_bytes.len() as u64, 5)?;
+    original.roles_write = Some(source.create_file("roles.json")?);
+    original
+        .roles_write
+        .as_mut()
+        .expect("stored roles writer")
+        .write_all(&role_bytes)?;
+    original
+        .roles_write
+        .as_ref()
+        .expect("stored roles writer")
+        .sync_all()?;
+    original.roles = Some(source.open_file("roles.json")?);
+    let roles = original.roles.as_mut().expect("stored roles reader");
+    let role_record = record_file_for_endpoint("roles.json", roles, endpoint)?;
+    endpoint.prepay_source_io(0, 2)?;
+    original.dump_write = Some(source.create_file("database.dump")?);
+    let dump_observation = endpoint
+        .dump_retained(
+            original.dump_write.as_mut().expect("stored dump writer"),
+            helper,
+        )
+        .await?;
+    source.sync()?;
+    original.dump = Some(source.open_file("database.dump")?);
+    let dump = original.dump.as_mut().expect("stored dump reader");
+    let mut magic = [0u8; 5];
+    endpoint.prepay_source_io(5, 1)?;
+    dump.read_exact(&mut magic)?;
+    if &magic != b"PGDMP" {
+        return Err(BackupError::Invalid("pg_dump custom format magic"));
+    }
+    let dump_record = record_file_for_endpoint("database.dump", dump, endpoint)?;
+    if dump_record.size != dump_observation.bytes
+        || dump_record.sha256 != dump_observation.sha256
+        || dump_observation.source_database != database
+        || dump_observation.source_database_oid != u64::from(enrolled.group.database_oid)
+        || dump_observation.source_system_identifier != enrolled.group.system_identifier
+        || dump_observation.source_backend <= 0
+        || !crate::valid_digest(&dump_observation.source_container_id)
+        || !crate::valid_digest(&dump_observation.client_sha256)
+        || dump_observation.source_epoch.get_version_num() != 4
+        || dump_observation.exit_code != 0
+    {
+        return Err(BackupError::Invalid("source dump observation differs"));
+    }
+    endpoint.prepay_source_io(plan.asset_index_bytes().len() as u64, 4)?;
+    write_bytes(source, "asset-index.json", plan.asset_index_bytes())?;
+    let manifest =
+        BackupManifestV1::from_plan(config.backup_id, identity, &plan, dump_record, role_record)?;
+    let manifest_sha256 = manifest.canonical_sha256()?;
+    write_bytes(source, "manifest.json", &manifest.canonical_bytes()?)?;
+    endpoint.b1_pipeline_fence().await?;
+    inspect_gate(endpoint.connection()).await?.validate()?;
+    endpoint.b1_pipeline_fence().await?;
+    profile.recheck(endpoint.connection(), false).await?;
+    journal.advance(GatePhase::DumpAndIndexDurable, Some(&manifest_sha256))?;
+    let sealed = crate::sealed::seal_backup_in(pin_root, &manifest, &plan, assets, dump, roles)?;
+    // Store before the first post-seal fallible check. The pin remains outside
+    // this work future on every later Err or unwind.
+    *pin = Some(SourceLocalPin { sealed, manifest });
+    let held_pin = pin.as_ref().expect("stored original local pin");
+    if held_pin.sealed().manifest_sha256() != manifest_sha256 {
+        return Err(BackupError::Invalid("local pin manifest digest"));
+    }
+    endpoint.protection()?.retain_pin(held_pin)?;
+    journal.advance(GatePhase::PinsDurable, Some(&manifest_sha256))?;
+    input.bind_pin(held_pin).await?;
+    endpoint.b1_pipeline_fence().await?;
+    inspect_gate(endpoint.connection()).await?.validate()?;
+    endpoint.b1_pipeline_fence().await?;
+    profile.recheck(endpoint.connection(), false).await?;
+    endpoint.protection()?.recheck_before_release()?;
+    endpoint.recheck_retained(helper).await?;
+    let (admission, witness) = endpoint.release_parts();
+    release_runtime_connect_inner(admission, database, journal, || Ok(()), witness).await?;
+    endpoint.b1_pipeline_fence().await?;
+    original.snapshot = Some(crate::discover_backup_protection(lease, enrolled)?);
+    original.evidence = Some(
+        original
+            .snapshot
+            .as_ref()
+            .expect("stored original snapshot")
+            .captured_files(config.backup_id)?,
+    );
+    original
+        .snapshot
+        .as_ref()
+        .expect("stored original snapshot")
+        .recheck(lease)?;
+    endpoint.close_capture_retained().await?;
+    input.validate_b1_material_transfer(
+        enrolled,
+        control,
+        pin_root,
+        original.evidence.as_ref().expect("stored evidence"),
+    )?;
+    // Validation above was borrowed. The following is a closed sequence of
+    // field moves into the still-retained CaptureInput, with no fallible work.
+    let retained = original
+        .endpoint
+        .take()
+        .expect("validated closed endpoint")
+        .transfer_closed_capture();
+    input.store_b1_material(
+        retained,
+        original.enrolled.take().expect("validated source"),
+        original.control.take().expect("validated control"),
+        original.pin_root.take().expect("validated pins"),
+        original.evidence.take().expect("validated evidence"),
+    );
+    original.snapshot = None;
+    original.lease = None;
+    original.registry = None;
+    input.validate_stored_b1_material()
 }
 
 #[cfg(target_os = "linux")]

@@ -742,6 +742,21 @@ mod b1 {
         pub(in crate::source) fn phase(&self) -> &'static str {
             self.phase
         }
+        /// DATA projected only from this original Capture issuance. Keeping
+        /// these held records after its actual SQL close does not reopen SQL.
+        pub(in crate::source) fn capture_identity_data(
+            &self,
+        ) -> Result<(Uuid, Uuid, [u8; 32], [u8; 32]), BackupError> {
+            if self.phase != "Capture" {
+                return Err(BackupError::Invalid("B1 original Capture inputs required"));
+            }
+            Ok((
+                self.job_id,
+                self.backup_id,
+                self.capture_start.digest(),
+                self.generation_file.digest(),
+            ))
+        }
         pub(in crate::source) fn install_observation(
             &self,
             descriptor: &[u8],

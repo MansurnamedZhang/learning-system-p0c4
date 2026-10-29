@@ -13,18 +13,172 @@ enum AdmissionConnection {
     Legacy(PoolConnection<Postgres>),
     #[cfg(feature = "offhost-b1")]
     B1 {
-        session: learning_db::snapshot_broker::OwnedB1AdminSession,
+        session: Option<learning_db::snapshot_broker::OwnedB1AdminSession>,
         peer: std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
         input: Box<super::binding::B1SourceInputs>,
         budget: std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
         null_passfile: std::fs::File,
         failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
         registry_opened: std::sync::atomic::AtomicBool,
+        closed: bool,
     },
 }
 
+/// Original pre-admission acquisition storage. The fixed M3 phase owns this
+/// before the actual DB session or any held input descriptors are produced.
+#[cfg(feature = "offhost-b1")]
+pub(in crate::source) struct B1AdmissionAcquisition {
+    peer: Option<std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>>,
+    budget: Option<std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>>,
+    session: Option<learning_db::snapshot_broker::OwnedB1AdminSession>,
+    input: Option<Box<super::binding::B1SourceInputs>>,
+    null_passfile: Option<std::fs::File>,
+    database: Option<String>,
+    failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    attempted: bool,
+}
+#[cfg(feature = "offhost-b1")]
+impl B1AdmissionAcquisition {
+    pub(in crate::source) fn empty() -> Self {
+        Self {
+            peer: None,
+            budget: None,
+            session: None,
+            input: None,
+            null_passfile: None,
+            database: None,
+            failed: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            attempted: false,
+        }
+    }
+    pub(in crate::source) async fn acquire(
+        &mut self,
+        peer: std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
+    ) -> Result<(), BackupError> {
+        if std::mem::replace(&mut self.attempted, true) {
+            return Err(BackupError::Invalid(
+                "B1 original admission acquisition already entered",
+            ));
+        }
+        self.peer = Some(peer);
+        let peer = self.peer.as_ref().expect("stored original peer");
+        peer.revalidate()
+            .map_err(|_| BackupError::Invalid("B1 original source process"))?;
+        self.budget = Some(std::sync::Arc::new(std::sync::Mutex::new(
+            crate::registry::ScanBudget::from_b1_scan(peer.scan_accounting_meter()),
+        )));
+        self.session = Some(
+            peer.acquire_fixed_admin()
+                .await
+                .map_err(|_| BackupError::Invalid("B1 original admin session"))?,
+        );
+        let session = self.session.as_mut().expect("stored original session");
+        let data = session
+            .isolation_input_data()
+            .map_err(|_| BackupError::Invalid("B1 current isolation input"))?;
+        self.input = Some(Box::new(super::binding::B1SourceInputs::read(
+            peer,
+            &data,
+            self.budget.as_ref().expect("stored scan"),
+        )?));
+        let input = self.input.as_ref().expect("stored original inputs");
+        let (current, login, authenticated, database, owner, local): (String, String, Option<String>, String, String, bool) = sqlx::query_as(
+            "SELECT current_user::text, session_user::text, system_user, current_database()::text, pg_get_userbyid(d.datdba)::text, pg_catalog.inet_client_addr() IS NULL AND pg_catalog.inet_server_addr() IS NULL FROM pg_catalog.pg_database d WHERE d.datname=current_database()"
+        ).fetch_one(session.connection_in_original_owner()).await?;
+        if current != "learning_admin"
+            || login != "learning_admin"
+            || owner != "learning_admin"
+            || authenticated.as_deref() != Some("peer:root")
+            || !local
+        {
+            return Err(BackupError::Invalid(
+                "B1 original authenticated management owner",
+            ));
+        }
+        if database != session.database() || database != input.database() {
+            return Err(BackupError::Invalid(
+                "B1 source admission database identity",
+            ));
+        }
+        self.database = Some(database);
+        let acquired: bool = sqlx::query_scalar("SELECT pg_catalog.pg_try_advisory_lock($1, $2)")
+            .bind(0x4b57_4334_i32)
+            .bind(0x5352_4345_i32)
+            .fetch_one(session.connection_in_original_owner())
+            .await?;
+        if !acquired {
+            return Err(BackupError::Invalid("source maintenance admission busy"));
+        }
+        self.null_passfile = Some(SourceAdmission::open_null_passfile(
+            self.budget.as_ref().expect("stored scan"),
+        )?);
+        self.validate_transfer()
+    }
+    pub(in crate::source) fn validate_transfer(&self) -> Result<(), BackupError> {
+        let peer = self
+            .peer
+            .as_ref()
+            .ok_or(BackupError::Invalid("original peer missing"))?;
+        let session = self
+            .session
+            .as_ref()
+            .ok_or(BackupError::Invalid("original session missing"))?;
+        let budget = self
+            .budget
+            .as_ref()
+            .ok_or(BackupError::Invalid("original scan missing"))?;
+        let data = session
+            .isolation_input_data()
+            .map_err(|_| BackupError::Invalid("B1 current isolation input"))?;
+        let input = self
+            .input
+            .as_ref()
+            .ok_or(BackupError::Invalid("original inputs missing"))?;
+        input.recheck(peer, &data, budget)?;
+        SourceAdmission::check_null_passfile(
+            self.null_passfile
+                .as_ref()
+                .ok_or(BackupError::Invalid("original null passfile missing"))?,
+            budget,
+        )?;
+        if self.database.as_deref() != Some(input.database())
+            || self.database.as_deref() != Some(session.database())
+        {
+            return Err(BackupError::Invalid("original database changed"));
+        }
+        Ok(())
+    }
+    pub(in crate::source) fn transfer_validated(&mut self) -> SourceAdmission {
+        SourceAdmission {
+            database: self.database.take().expect("validated original database"),
+            connection: AdmissionConnection::B1 {
+                session: self.session.take(),
+                peer: self.peer.take().expect("validated original peer"),
+                input: self.input.take().expect("validated original inputs"),
+                budget: self.budget.take().expect("validated original scan"),
+                null_passfile: self
+                    .null_passfile
+                    .take()
+                    .expect("validated original null passfile"),
+                failed: std::sync::Arc::clone(&self.failed),
+                registry_opened: std::sync::atomic::AtomicBool::new(false),
+                closed: false,
+            },
+        }
+    }
+    pub(in crate::source) async fn close_for_cleanup(&mut self) -> Result<(), BackupError> {
+        match self.session.take() {
+            Some(session) => session
+                .close()
+                .await
+                .map_err(|_| BackupError::Invalid("B1 original acquisition close negative")),
+            None => Ok(()),
+        }
+    }
+}
+
 /// Live Install custody after the original admin session naturally closed.
-/// Only close_b1_install can construct it. Copied DATA cannot create it, and
+/// Only the actual in-place close and its validated field transfer can construct it. Copied DATA cannot create it, and
 /// it deliberately retains all current original input descriptors and budget.
 #[cfg(feature = "offhost-b1")]
 pub(in crate::source) struct B1RetainedInstallInputs {
@@ -33,6 +187,55 @@ pub(in crate::source) struct B1RetainedInstallInputs {
     budget: std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
     null_passfile: std::fs::File,
     failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// The same Capture session's inputs after that session really closed. It is
+/// never manufactured from the earlier Install issuance or copied Root DATA.
+#[cfg(feature = "offhost-b1")]
+pub(in crate::source) struct B1RetainedCaptureInputs {
+    peer: std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
+    input: Box<super::binding::B1SourceInputs>,
+    budget: std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
+    null_passfile: std::fs::File,
+    failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+#[cfg(feature = "offhost-b1")]
+impl B1RetainedCaptureInputs {
+    pub(in crate::source) fn require_original_peer(
+        &self,
+        peer: &std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
+    ) -> Result<(), BackupError> {
+        if !std::sync::Arc::ptr_eq(peer, &self.peer) {
+            self.failed
+                .store(true, std::sync::atomic::Ordering::Release);
+            return Err(BackupError::Invalid("B1 retained Capture process changed"));
+        }
+        self.recheck()
+    }
+    pub(in crate::source) fn recheck(&self) -> Result<(), BackupError> {
+        use std::sync::atomic::Ordering;
+        if self.failed.load(Ordering::Acquire) {
+            return Err(BackupError::Invalid(
+                "B1 retained Capture inputs permanently failed",
+            ));
+        }
+        let observed = (|| {
+            self.input.capture_identity_data()?;
+            self.input.recheck_retained(&self.peer, &self.budget)?;
+            SourceAdmission::check_null_passfile(&self.null_passfile, &self.budget)
+        })();
+        if observed.is_err() {
+            self.failed.store(true, Ordering::Release);
+        }
+        observed
+    }
+    pub(in crate::source) fn identity_data(
+        &self,
+    ) -> Result<(uuid::Uuid, uuid::Uuid, [u8; 32], [u8; 32]), BackupError> {
+        self.recheck()?;
+        self.input.capture_identity_data()
+    }
 }
 
 #[cfg(feature = "offhost-b1")]
@@ -157,71 +360,6 @@ impl SourceAdmission {
         })
     }
 
-    /// The actual M3 owner calls this constructor. An external session, DATA
-    /// value, database name, path or second process Arc cannot be supplied.
-    #[cfg(feature = "offhost-b1")]
-    pub(crate) async fn try_acquire_b1(
-        peer: std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
-    ) -> Result<Self, BackupError> {
-        peer.revalidate()
-            .map_err(|_| BackupError::Invalid("B1 original source process"))?;
-        // Establish the wrapper before the first Catalog ancestor open/stat.
-        // The journal meter is separate and is never created or reset here.
-        let budget = std::sync::Arc::new(std::sync::Mutex::new(
-            crate::registry::ScanBudget::from_b1_scan(peer.scan_accounting_meter()),
-        ));
-        let mut session = peer
-            .acquire_fixed_admin()
-            .await
-            .map_err(|_| BackupError::Invalid("B1 original admin session"))?;
-        let data = session
-            .isolation_input_data()
-            .map_err(|_| BackupError::Invalid("B1 current isolation input"))?;
-        let input = super::binding::B1SourceInputs::read(&peer, &data, &budget)?;
-        let (current, login, authenticated, database, owner, local):
-            (String, String, Option<String>, String, String, bool) = sqlx::query_as(
-                "SELECT current_user::text, session_user::text, system_user, current_database()::text, pg_get_userbyid(d.datdba)::text, pg_catalog.inet_client_addr() IS NULL AND pg_catalog.inet_server_addr() IS NULL FROM pg_catalog.pg_database d WHERE d.datname=current_database()",
-            ).fetch_one(session.connection_in_original_owner()).await?;
-        if current != "learning_admin"
-            || login != "learning_admin"
-            || owner != "learning_admin"
-            || authenticated.as_deref() != Some("peer:root")
-            || !local
-        {
-            return Err(BackupError::Invalid(
-                "B1 original authenticated management owner",
-            ));
-        }
-        if database != session.database() || database != input.database() {
-            return Err(BackupError::Invalid(
-                "B1 source admission database identity",
-            ));
-        }
-        let acquired: bool = sqlx::query_scalar("SELECT pg_catalog.pg_try_advisory_lock($1, $2)")
-            .bind(0x4b57_4334_i32)
-            .bind(0x5352_4345_i32)
-            .fetch_one(session.connection_in_original_owner())
-            .await?;
-        if !acquired {
-            return Err(BackupError::Invalid("source maintenance admission busy"));
-        }
-        let null_passfile = Self::open_null_passfile(&budget)?;
-        let admission = Self {
-            connection: AdmissionConnection::B1 {
-                session,
-                peer,
-                input: Box::new(input),
-                budget,
-                null_passfile,
-                failed: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
-                registry_opened: std::sync::atomic::AtomicBool::new(false),
-            },
-            database,
-        };
-        admission.revalidate()?;
-        Ok(admission)
-    }
-
     pub(crate) fn revalidate(&self) -> Result<(), BackupError> {
         match &self.connection {
             AdmissionConnection::Legacy(_) => Ok(()),
@@ -245,6 +383,8 @@ impl SourceAdmission {
                     peer.revalidate()
                         .map_err(|_| BackupError::Invalid("B1 original source process"))?;
                     let data = session
+                        .as_ref()
+                        .ok_or(BackupError::Invalid("B1 original session already consumed"))?
                         .isolation_input_data()
                         .map_err(|_| BackupError::Invalid("B1 current isolation input"))?;
                     input.recheck(peer, &data, budget)?;
@@ -522,7 +662,10 @@ impl SourceAdmission {
         match &mut self.connection {
             AdmissionConnection::Legacy(connection) => connection,
             #[cfg(feature = "offhost-b1")]
-            AdmissionConnection::B1 { session, .. } => session.connection_in_original_owner(),
+            AdmissionConnection::B1 { session, .. } => session
+                .as_mut()
+                .expect("active original B1 session")
+                .connection_in_original_owner(),
         }
     }
 
@@ -544,7 +687,10 @@ impl SourceAdmission {
                 // Retain the same failure Arc and every input while close runs;
                 // resource success cannot revive a locally failed admission.
                 let failed_before_close = failed.load(Ordering::Acquire);
-                let closed = session.close().await;
+                let closed = session
+                    .ok_or(BackupError::Invalid("B1 original session already consumed"))?
+                    .close()
+                    .await;
                 let checked = peer.revalidate();
                 let failed_after_close = failed.load(Ordering::Acquire);
                 drop((input, budget, peer, null_passfile));
@@ -560,48 +706,143 @@ impl SourceAdmission {
         Ok(())
     }
 
+    /// Only the DB wrapper moves into its already rooted DB close. All backup
+    /// inputs stay in this externally retained admission through that await.
     #[cfg(feature = "offhost-b1")]
-    pub(in crate::source) async fn close_b1_install(
-        self,
-    ) -> Result<B1RetainedInstallInputs, BackupError> {
+    async fn close_b1_current_in_place(&mut self) -> Result<(), BackupError> {
         self.revalidate()?;
-        match self.connection {
-            AdmissionConnection::Legacy(connection) => {
-                connection.close().await?;
-                Err(BackupError::Invalid(
-                    "B1 original Install admission required",
-                ))
-            }
+        match &mut self.connection {
             AdmissionConnection::B1 {
                 session,
+                failed,
+                closed,
+                ..
+            } => {
+                let actual = session
+                    .take()
+                    .ok_or(BackupError::Invalid("B1 original close already attempted"))?;
+                match actual.close().await {
+                    Ok(()) => {
+                        *closed = true;
+                        Ok(())
+                    }
+                    Err(_) => {
+                        failed.store(true, std::sync::atomic::Ordering::Release);
+                        Err(BackupError::Invalid("B1 original close unknown"))
+                    }
+                }
+            }
+            AdmissionConnection::Legacy(_) => {
+                Err(BackupError::Invalid("B1 original admission required"))
+            }
+        }
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) async fn close_for_cleanup_in_place(
+        &mut self,
+    ) -> Result<(), BackupError> {
+        match &mut self.connection {
+            AdmissionConnection::B1 {
+                session, failed, ..
+            } => {
+                failed.store(true, std::sync::atomic::Ordering::Release);
+                match session.take() {
+                    Some(session) => session
+                        .close()
+                        .await
+                        .map_err(|_| BackupError::Invalid("B1 original cleanup close negative")),
+                    None => Ok(()),
+                }
+            }
+            AdmissionConnection::Legacy(_) => {
+                Err(BackupError::Invalid("B1 original cleanup required"))
+            }
+        }
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) async fn close_install_in_place(&mut self) -> Result<(), BackupError> {
+        self.checked_b1(|input, _| {
+            if input.phase() == "Install" {
+                Ok(())
+            } else {
+                Err(BackupError::Invalid("B1 original Install phase required"))
+            }
+        })?;
+        self.close_b1_current_in_place().await
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) async fn close_capture_in_place(&mut self) -> Result<(), BackupError> {
+        self.checked_b1(|input, _| {
+            if input.phase() == "Capture" {
+                Ok(())
+            } else {
+                Err(BackupError::Invalid("B1 original Capture phase required"))
+            }
+        })?;
+        self.close_b1_current_in_place().await
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) fn validate_closed_inputs(&self) -> Result<(), BackupError> {
+        match &self.connection {
+            AdmissionConnection::B1 {
+                session,
+                closed,
                 peer,
                 input,
                 budget,
                 null_passfile,
                 failed,
                 ..
-            } => {
-                if input.phase() != "Install" {
-                    failed.store(true, std::sync::atomic::Ordering::Release);
-                    return Err(BackupError::Invalid("B1 original Install phase required"));
-                }
-                // This future remains in the fixed original M3 owner. Keep
-                // all input custody through the true DB close; no Drop/ACK
-                // is interpreted as completion or permission to install.
-                if session.close().await.is_err() {
-                    failed.store(true, std::sync::atomic::Ordering::Release);
-                    return Err(BackupError::Invalid("B1 original Install admin close"));
-                }
-                let retained = B1RetainedInstallInputs {
-                    peer,
-                    input,
-                    budget,
-                    null_passfile,
-                    failed,
-                };
-                retained.recheck()?;
-                Ok(retained)
+            } if *closed
+                && session.is_none()
+                && !failed.load(std::sync::atomic::Ordering::Acquire) =>
+            {
+                input.recheck_retained(peer, budget)?;
+                Self::check_null_passfile(null_passfile, budget)
             }
+            _ => Err(BackupError::Invalid(
+                "B1 original inputs not naturally closed",
+            )),
+        }
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) fn transfer_closed_install(self) -> B1RetainedInstallInputs {
+        match self.connection {
+            AdmissionConnection::B1 {
+                peer,
+                input,
+                budget,
+                null_passfile,
+                failed,
+                ..
+            } => B1RetainedInstallInputs {
+                peer,
+                input,
+                budget,
+                null_passfile,
+                failed,
+            },
+            AdmissionConnection::Legacy(_) => unreachable!("validated original Install admission"),
+        }
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) fn transfer_closed_capture(self) -> B1RetainedCaptureInputs {
+        match self.connection {
+            AdmissionConnection::B1 {
+                peer,
+                input,
+                budget,
+                null_passfile,
+                failed,
+                ..
+            } => B1RetainedCaptureInputs {
+                peer,
+                input,
+                budget,
+                null_passfile,
+                failed,
+            },
+            AdmissionConnection::Legacy(_) => unreachable!("validated original Capture admission"),
         }
     }
 
@@ -621,7 +862,10 @@ impl SourceAdmission {
                 ..
             } => {
                 failed.store(true, std::sync::atomic::Ordering::Release);
-                let closed = session.close().await;
+                let closed = session
+                    .ok_or(BackupError::Invalid("B1 original session already consumed"))?
+                    .close()
+                    .await;
                 drop((peer, input, budget, null_passfile));
                 closed.map_err(|_| BackupError::Invalid("B1 original negative admin close"))?;
             }

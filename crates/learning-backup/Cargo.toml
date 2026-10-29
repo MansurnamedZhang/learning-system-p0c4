@@ -8,13 +8,23 @@ license.workspace = true
 # Deliberate deployment gate. `--all-features` alone is insufficient: the
 # reviewed build must also embed KNOWWEAVE_C4_VERIFIER_KEY_SHA256.
 independent-verifier = []
-# Default-off foundation only. Role/profile/key build pins are additional gates;
-# the installed runners remain closed until the original-operation path exists.
+# Default-off original process roles. Role/profile/key pins and actual installed
+# admission remain additional gates; Source publication and receiver are closed.
 offhost-b1 = ["independent-verifier", "learning-db/b1-source-peer"]
 
 [[bin]]
 name = "knowweave-c4-b1-source"
 path = "src/bin/knowweave-c4-b1-source.rs"
+required-features = ["offhost-b1"]
+
+[[bin]]
+name = "knowweave-c4-b1-capture"
+path = "src/bin/knowweave-c4-b1-capture.rs"
+required-features = ["offhost-b1"]
+
+[[bin]]
+name = "knowweave-c4-b1-source-launcher"
+path = "src/bin/knowweave-c4-b1-source-launcher.rs"
 required-features = ["offhost-b1"]
 
 [[bin]]

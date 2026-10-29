@@ -92,41 +92,131 @@ pub struct EnrolledSnapshotBroker {
     _socket_root: BackupDir,
 }
 
+#[cfg(feature = "offhost-b1")]
+pub(crate) struct B1InstallOwners {
+    acquisition: super::admission::B1AdmissionAcquisition,
+    admission: Option<super::SourceAdmission>,
+    registry: Option<ManagementRegistry>,
+    lease: Option<RegistryLease>,
+    enrolled: Option<EnrolledSource>,
+    config: Option<SourceBackupConfig>,
+    isolation: Option<super::endpoint::VerifiedSourceIsolation>,
+    retained: Option<super::admission::B1RetainedInstallInputs>,
+    sockets: Option<(BackupDir, UnixListener, UnixListener, PathBuf, PathBuf)>,
+    local: Option<cutover::B1LocalMounts>,
+    mounts: Option<(std::fs::File, std::fs::File)>,
+    installed: Option<InstalledSnapshotBinding>,
+    broker: Option<RootSnapshotBroker>,
+    observation: Option<super::binding::B1InstallCutoverObservation>,
+    enrollment: Option<Enrollment>,
+    cleanup_close_negative: bool,
+}
+#[cfg(feature = "offhost-b1")]
+impl B1InstallOwners {
+    pub(crate) fn empty() -> Self {
+        Self {
+            acquisition: super::admission::B1AdmissionAcquisition::empty(),
+            admission: None,
+            registry: None,
+            lease: None,
+            enrolled: None,
+            config: None,
+            isolation: None,
+            retained: None,
+            sockets: None,
+            local: None,
+            mounts: None,
+            installed: None,
+            broker: None,
+            observation: None,
+            enrollment: None,
+            cleanup_close_negative: false,
+        }
+    }
+    pub(crate) async fn close_admissions_negative(&mut self) {
+        if self.acquisition.close_for_cleanup().await.is_err() {
+            self.cleanup_close_negative = true;
+        }
+        if let Some(admission) = self.admission.as_mut()
+            && admission.close_for_cleanup_in_place().await.is_err()
+        {
+            self.cleanup_close_negative = true;
+        }
+    }
+    pub(crate) fn validate_wrapper_transfer(&self) -> Result<(), BackupError> {
+        self.enrollment
+            .as_ref()
+            .ok_or_else(invalid)?
+            .recheck_records()?;
+        self.broker
+            .as_ref()
+            .ok_or_else(invalid)?
+            .revalidate()
+            .map_err(|_| invalid())?;
+        if self.sockets.is_none() {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub(crate) fn transfer_validated(&mut self) -> EnrolledSnapshotBroker {
+        let (root, work, management, work_path, management_path) =
+            self.sockets.take().expect("validated original sockets");
+        EnrolledSnapshotBroker {
+            broker: self.broker.take().expect("validated original broker"),
+            enrollment: self
+                .enrollment
+                .take()
+                .expect("validated original enrollment"),
+            work_listener: work,
+            _management_listener: management,
+            work_path,
+            management_path,
+            _socket_root: root,
+        }
+    }
+}
+
 impl EnrolledSnapshotBroker {
-    /// Only the fixed crate-private M3 actor calls this original-operation
-    /// branch. It supplies its actual process Arc and already held asset store,
-    /// never pools, config, paths, DATA or a caller-selected auth mode.
+    /// The fixed original Book owns `original`; all fallible work borrows it.
     #[cfg(feature = "offhost-b1")]
-    #[allow(
-        dead_code,
-        reason = "S5 original B1 install awaits its pending original M3 consumer; no runtime wiring or settlement credit"
-    )]
     pub(crate) async fn install_fresh_b1(
         peer: std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
         assets: &FsAssetStore,
-    ) -> Result<Self, BackupError> {
-        let observed = Self::install_fresh_b1_original(std::sync::Arc::clone(&peer), assets).await;
-        if observed.is_err() {
-            // This is outside every DB owner Book slot. The actual M3 entry
-            // also retains/joins this future on cancellation before ending its
-            // runtime; an Err is never a drop-to-reinstall acknowledgement.
-            let _ = peer.close_original().await;
-        }
-        observed
-    }
-
-    #[cfg(feature = "offhost-b1")]
-    async fn install_fresh_b1_original(
-        peer: std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
-        assets: &FsAssetStore,
-    ) -> Result<Self, BackupError> {
-        let mut admission =
-            super::admission::SourceAdmission::try_acquire_b1(std::sync::Arc::clone(&peer)).await?;
-        let registry = ManagementRegistry::open_installed_b1(&admission)?;
-        let lease = registry.try_lock()?;
-        let enrolled = lease.lookup_source_group_b1(&mut admission, assets).await?;
-        let config = admission.b1_configuration(&enrolled)?;
-        let isolation = admission.b1_isolation(&config, true)?;
+        original: &mut B1InstallOwners,
+    ) -> Result<(), BackupError> {
+        original
+            .acquisition
+            .acquire(std::sync::Arc::clone(&peer))
+            .await?;
+        original.acquisition.validate_transfer()?;
+        original.admission = Some(original.acquisition.transfer_validated());
+        original.registry = Some(ManagementRegistry::open_installed_b1(
+            original.admission.as_ref().expect("stored admission"),
+        )?);
+        original.lease = Some(
+            original
+                .registry
+                .as_ref()
+                .expect("stored registry")
+                .try_lock()?,
+        );
+        original.enrolled = Some(
+            original
+                .lease
+                .as_ref()
+                .expect("stored lease")
+                .lookup_source_group_b1(
+                    original.admission.as_mut().expect("stored admission"),
+                    assets,
+                )
+                .await?,
+        );
+        let admission = original.admission.as_ref().expect("stored admission");
+        let enrolled = original.enrolled.as_ref().expect("stored source");
+        let lease = original.lease.as_ref().expect("stored lease");
+        original.config = Some(admission.b1_configuration(enrolled)?);
+        let config = original.config.as_ref().expect("stored configuration");
+        original.isolation = Some(admission.b1_isolation(config, true)?);
         admission.revalidate()?;
         lease.recheck()?;
         let deployment = Uuid::parse_str(&enrolled.group.deployment_id).map_err(|_| invalid())?;
@@ -165,58 +255,115 @@ impl EnrolledSnapshotBroker {
         budget.lock().map_err(|_| invalid())?.entries(10)?;
         let source_group = enrolled.group.clone();
         let source_roots = enrolled.roots.clone();
-        // The actual admin closes before install and its exact Install inputs
-        // move into this retained owner instead of becoming copied permission.
-        let retained = admission.close_b1_install().await?;
-        retained.recheck_enrollment(&lease, &enrolled)?;
-        drop(lease);
+        original
+            .admission
+            .as_mut()
+            .expect("stored admission")
+            .close_install_in_place()
+            .await?;
+        original
+            .admission
+            .as_ref()
+            .expect("stored closed admission")
+            .validate_closed_inputs()?;
+        original.retained = Some(
+            original
+                .admission
+                .take()
+                .expect("validated closed admission")
+                .transfer_closed_install(),
+        );
+        original
+            .retained
+            .as_ref()
+            .expect("stored closed Install inputs")
+            .recheck_enrollment(lease, enrolled)?;
+        original.lease = None;
         let binding_id = Uuid::new_v4();
         let epoch_id = Uuid::new_v4();
         budget.lock().map_err(|_| invalid())?.charge(4096)?;
         budget.lock().map_err(|_| invalid())?.entries(64)?;
-        let (socket_root, work_listener, management_listener, work_path, management_path) =
-            create_sockets(binding_id, epoch_id)?;
+        original.sockets = Some(create_sockets(binding_id, epoch_id)?);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-        retained.recheck()?;
+        original
+            .retained
+            .as_ref()
+            .expect("stored Install inputs")
+            .recheck()?;
         let (local, companion_fd, export_fd) =
             cutover::B1LocalMounts::open(&source_roots, &budget, deadline)?;
-        retained.recheck()?;
-        let installed = InstalledSnapshotBinding::install_fresh_empty_mounts(
-            companion_fd,
-            export_fd,
-            deployment,
-            epoch_id,
-            binding_id,
-            &RootSnapshotBroker::writer_contract_sha256(),
-            journal_budget.clone(),
-        )
-        .map_err(|_| invalid())?;
-        let broker = RootSnapshotBroker::install_fresh_b1_peer(
-            std::sync::Arc::clone(&peer),
-            installed,
-            BrokerSourceDescription {
-                deployment_id: deployment,
-                source_group_id: group,
-                source_application_commit: source_group.application_commit.clone(),
-                source_build_sha256: source_group.application_build_sha256.clone(),
-            },
-            (&work_listener, &management_listener),
-        )
-        .await
-        .map_err(|_| invalid())?;
-        // The approved C11 DB I0 must have received/authenticated the explicit
-        // ACK and held full observation record before this actual return.
-        // Independently re-read that same fixed record; no new getter mints it.
-        retained.recheck()?;
+        original.local = Some(local);
+        original.mounts = Some((companion_fd, export_fd));
+        original
+            .retained
+            .as_ref()
+            .expect("stored Install inputs")
+            .recheck()?;
+        let (companion_fd, export_fd) = original
+            .mounts
+            .take()
+            .expect("stored original mount handoff");
+        original.installed = Some(
+            InstalledSnapshotBinding::install_fresh_empty_mounts(
+                companion_fd,
+                export_fd,
+                deployment,
+                epoch_id,
+                binding_id,
+                &RootSnapshotBroker::writer_contract_sha256(),
+                journal_budget.clone(),
+            )
+            .map_err(|_| invalid())?,
+        );
+        let source_description = BrokerSourceDescription {
+            deployment_id: deployment,
+            source_group_id: group,
+            source_application_commit: source_group.application_commit.clone(),
+            source_build_sha256: source_group.application_build_sha256.clone(),
+        };
+        let (_, work, management, _, _) = original.sockets.as_ref().expect("stored sockets");
+        original.broker = Some(
+            RootSnapshotBroker::install_fresh_b1_peer(
+                std::sync::Arc::clone(&peer),
+                original
+                    .installed
+                    .take()
+                    .expect("original DB installed handoff"),
+                source_description,
+                (work, management),
+            )
+            .await
+            .map_err(|_| invalid())?,
+        );
+        let broker = original.broker.as_ref().expect("stored original broker");
+        original
+            .retained
+            .as_ref()
+            .expect("stored Install inputs")
+            .recheck()?;
         super::binding::prepay_canonical_data(broker.descriptor_bytes(), &budget)?;
         let descriptor: Descriptor = serde_json::from_slice(broker.descriptor_bytes())?;
         descriptor_matches(&descriptor, &source_group)?;
         if descriptor.binding_id != binding_id || descriptor.epoch_id != epoch_id {
             return Err(invalid());
         }
-        let observation = retained.install_observation(&broker)?;
-        local.recheck(&budget)?;
-        let mut actual = observation.host_data(&budget)?;
+        original.observation = Some(
+            original
+                .retained
+                .as_ref()
+                .expect("stored Install inputs")
+                .install_observation(broker)?,
+        );
+        original
+            .local
+            .as_ref()
+            .expect("stored local mounts")
+            .recheck(&budget)?;
+        let mut actual = original
+            .observation
+            .as_ref()
+            .expect("stored C11 observation")
+            .host_data(&budget)?;
         budget
             .lock()
             .map_err(|_| invalid())?
@@ -236,7 +383,9 @@ impl EnrolledSnapshotBroker {
         let companion = BackupDir::open_trusted_private_root(Path::new(
             InstalledSnapshotBinding::COMPANION_PATH,
         ))?;
-        let mut enrollment = Enrollment {
+        // All operands are already validated; only closed field moves occur
+        // before the complete enrollment is in its original retained slot.
+        original.enrollment = Some(Enrollment {
             backup_id: config.backup_id,
             group: source_group,
             roots: source_roots,
@@ -249,33 +398,34 @@ impl EnrolledSnapshotBroker {
             journal_budget,
             binding_id,
             epoch_id,
-            _isolation: isolation,
+            _isolation: original
+                .isolation
+                .take()
+                .expect("stored original isolation"),
             b1: Some(B1Enrollment {
-                retained,
-                observation,
-                local,
+                retained: original
+                    .retained
+                    .take()
+                    .expect("stored original Install inputs"),
+                observation: original
+                    .observation
+                    .take()
+                    .expect("stored original C11 observation"),
+                local: original.local.take().expect("stored original local mounts"),
             }),
-        };
+        });
+        let enrollment = original
+            .enrollment
+            .as_mut()
+            .expect("stored original enrollment");
         enrollment.install_records(&descriptor, broker.root_marker_bytes(), &actual)?;
-        // The original120s cutover deadline is checked through record sync;
-        // later rechecks retain originals without starting a new TTL.
         enrollment
             .b1
             .as_mut()
-            .expect("actual B1 enrollment")
+            .expect("original B1 enrollment")
             .local
             .finish_install(&enrollment.budget)?;
-        enrollment.recheck_records()?;
-        broker.revalidate().map_err(|_| invalid())?;
-        Ok(Self {
-            broker,
-            enrollment,
-            work_listener,
-            _management_listener: management_listener,
-            work_path,
-            management_path,
-            _socket_root: socket_root,
-        })
+        original.validate_wrapper_transfer()
     }
     /// Fresh installation is deliberately explicit. The original install pool
     /// is consumed/closed by the DB owner before this wrapper can accept work.
@@ -578,6 +728,8 @@ impl EnrolledSnapshotBroker {
             enrollment: self.enrollment,
             pending: None,
             started: false,
+            #[cfg(feature = "offhost-b1")]
+            b1_capture: None,
         })
     }
 }
@@ -855,6 +1007,99 @@ struct Pending {
     prefix: Prefix,
 }
 
+/// Backup-side custody during the DB's original consuming Q0 operation.
+/// The DB Book owns its exact broker/work future; all wrapper originals stay
+/// in this separately rooted state rather than in that awaiting future.
+#[cfg(feature = "offhost-b1")]
+pub(crate) struct B1QuiesceOwners {
+    enrollment: Option<Enrollment>,
+    cut: Option<QuiescedSnapshotEpochV2>,
+    sockets: Option<(UnixListener, UnixListener, BackupDir, PathBuf, PathBuf)>,
+}
+
+#[cfg(feature = "offhost-b1")]
+impl B1QuiesceOwners {
+    pub(crate) fn empty() -> Self {
+        Self {
+            enrollment: None,
+            cut: None,
+            sockets: None,
+        }
+    }
+    pub(crate) fn retain_wrapper(&mut self, wrapper: EnrolledSnapshotBroker) -> RootSnapshotBroker {
+        // The caller checks the empty destination before this infallible move.
+        let EnrolledSnapshotBroker {
+            broker,
+            enrollment,
+            work_listener,
+            _management_listener,
+            work_path,
+            management_path,
+            _socket_root,
+        } = wrapper;
+        self.enrollment = Some(enrollment);
+        self.sockets = Some((
+            work_listener,
+            _management_listener,
+            _socket_root,
+            work_path,
+            management_path,
+        ));
+        broker
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.enrollment.is_none() && self.cut.is_none() && self.sockets.is_none()
+    }
+    pub(crate) async fn quiesce(
+        &mut self,
+        broker: RootSnapshotBroker,
+        backup: Uuid,
+        capture: Uuid,
+    ) -> Result<(), BackupError> {
+        // Before moving the wrapper, the caller validated this destination
+        // and generated both genuine internal IDs. The DB ingress must be
+        // the first operation after receiving its actual by-value broker.
+        // The existing genuine DB Q0 Book retains broker/work/pools once its
+        // consuming API starts. The returned actual cut is stored immediately,
+        // before any subsequent fallible recheck.
+        self.cut = Some(
+            broker
+                .quiesce_for_capture(backup, capture)
+                .await
+                .map_err(|_| invalid())?,
+        );
+        self.cut
+            .as_ref()
+            .ok_or_else(invalid)?
+            .revalidate()
+            .map_err(|_| invalid())?;
+        self.enrollment.as_ref().ok_or_else(invalid)?.b1_fence()
+    }
+    pub(crate) fn validate_input_transfer(&self) -> Result<(), BackupError> {
+        self.enrollment.as_ref().ok_or_else(invalid)?.b1_fence()?;
+        self.cut
+            .as_ref()
+            .ok_or_else(invalid)?
+            .revalidate()
+            .map_err(|_| invalid())
+    }
+    pub(crate) fn transfer_validated(&mut self) -> CaptureInput {
+        // Exclusive borrow plus the preceding complete validation guarantees
+        // presence. No IO, allocation, await or other fallible work follows a
+        // take until the caller stores the complete resulting original.
+        CaptureInput {
+            cut: self.cut.take().expect("validated original Q0 cut"),
+            enrollment: self
+                .enrollment
+                .take()
+                .expect("validated original Q0 enrollment"),
+            pending: None,
+            started: false,
+            b1_capture: None,
+        }
+    }
+}
+
 /// The source hook accepts this owned original cut, never caller-supplied
 /// records. Failed capture attempts are not reusable because their staging
 /// identity remains and because capture_closed may run only once.
@@ -863,6 +1108,61 @@ pub struct CaptureInput {
     enrollment: Enrollment,
     pending: Option<Pending>,
     started: bool,
+    #[cfg(feature = "offhost-b1")]
+    b1_capture: Option<B1CaptureMaterial>,
+}
+
+/// Original Capture inputs and original twelve-file evidence. This owns no
+/// registry lease or SQL connection: Source must obtain its own first S later.
+/// Its only constructor is the consuming original source pipeline below.
+#[cfg(feature = "offhost-b1")]
+pub(crate) struct B1CaptureMaterial {
+    retained: super::admission::B1RetainedCaptureInputs,
+    source: EnrolledSource,
+    control: BackupDir,
+    pin_root: BackupDir,
+    evidence: BTreeMap<String, Vec<u8>>,
+}
+
+#[cfg(feature = "offhost-b1")]
+impl B1CaptureMaterial {
+    pub(crate) fn require_original_peer(
+        &self,
+        peer: &std::sync::Arc<learning_db::snapshot_broker::B1InstalledSourceProcess>,
+    ) -> Result<(), BackupError> {
+        self.retained.require_original_peer(peer)
+    }
+    pub(crate) fn identity_data(&self) -> Result<(Uuid, Uuid, [u8; 32], [u8; 32]), BackupError> {
+        self.retained.identity_data()
+    }
+    pub(crate) fn group_id_data(&self) -> Result<Uuid, BackupError> {
+        Uuid::parse_str(&self.source.group.group_id).map_err(|_| invalid())
+    }
+    pub(crate) fn evidence(&self) -> &BTreeMap<String, Vec<u8>> {
+        &self.evidence
+    }
+    pub(crate) fn control(&self) -> &BackupDir {
+        &self.control
+    }
+    pub(crate) fn pin_root(&self) -> &BackupDir {
+        &self.pin_root
+    }
+    fn recheck(&self, budget: &Budget) -> Result<(), BackupError> {
+        self.retained.recheck()?;
+        for (kind, root) in &self.source.roots {
+            budget
+                .lock()
+                .map_err(|_| invalid())?
+                .entries(Path::new(&root.path).components().count() * 4 + 6)?;
+            crate::registry::matches_root(root, Path::new(&root.path), self.source.handle(kind))?;
+        }
+        if self.source.handle("control").identity()? != self.control.identity()?
+            || self.source.handle("local_pins").identity()? != self.pin_root.identity()?
+        {
+            return Err(invalid());
+        }
+        self.retained.recheck()
+    }
 }
 
 /// A genuine source adjunct tied to the same sealed local pin. It retains the
@@ -883,31 +1183,78 @@ pub struct CapturedSnapshotEffectsV2 {
     pub(crate) journal_budget: SharedJournalBudget,
     _cut: QuiescedSnapshotEpochV2,
     _enrollment: Enrollment,
+    #[cfg(feature = "offhost-b1")]
+    b1_capture: Option<B1CaptureMaterial>,
+}
+
+struct ValidatedCaptureFinish {
+    capture: Capture,
+    source_identity: Value,
+    budget: Budget,
+    journal_budget: SharedJournalBudget,
+}
+
+#[cfg(feature = "offhost-b1")]
+impl CapturedSnapshotEffectsV2 {
+    pub(crate) fn b1_export_material(&self) -> Result<&B1CaptureMaterial, BackupError> {
+        self._cut.revalidate().map_err(|_| invalid())?;
+        self._enrollment.recheck_records()?;
+        let material = self.b1_capture.as_ref().ok_or_else(invalid)?;
+        material.recheck(&self.budget)?;
+        let (_, backup, _, _) = material.identity_data()?;
+        if backup != self.record.backup_id
+            || material.group_id_data()? != self.record.source_group_id
+        {
+            return Err(invalid());
+        }
+        Ok(material)
+    }
 }
 
 impl CaptureInput {
-    /// Keep the actual original peer across the entire consuming prepare
-    /// future. Negative cleanup never first asks a poisoned peer to qualify.
-    /// M3 still must retain this future through caller cancellation and await
-    /// its own original finally before ending the runtime.
     #[cfg(feature = "offhost-b1")]
-    pub(in crate::source) async fn prepare_b1_with_original_close(
-        &mut self,
-        assets: &FsAssetStore,
-    ) -> Result<SourceLocalPin, BackupError> {
-        let original = self.enrollment.b1.as_ref().ok_or_else(invalid)?;
-        let peer = std::sync::Arc::clone(original.retained.peer());
-        let observed = super::prepare_b1_original(assets, self).await;
-        if observed.is_err() {
-            // Preserve the primary operation error. close_original's actual
-            // Book keeps unknown settlement permanently negative; an ignored
-            // close result here cannot turn that error into business success
-            // or a retry permission, and Drop is not a settlement proof.
-            let _ = peer.close_original().await;
+    pub(in crate::source) fn validate_b1_material_transfer(
+        &self,
+        source: &EnrolledSource,
+        control: &BackupDir,
+        pins: &BackupDir,
+        evidence: &BTreeMap<String, Vec<u8>>,
+    ) -> Result<(), BackupError> {
+        if self.b1_capture.is_some()
+            || source.group != self.enrollment.group
+            || source.roots != self.enrollment.roots
+            || evidence.len() != 12
+            || control.identity()? != source.handle("control").identity()?
+            || pins.identity()? != source.handle("local_pins").identity()?
+        {
+            return Err(invalid());
         }
-        observed
+        self.cut.revalidate().map_err(|_| invalid())
     }
-
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) fn store_b1_material(
+        &mut self,
+        retained: super::admission::B1RetainedCaptureInputs,
+        source: EnrolledSource,
+        control: BackupDir,
+        pin_root: BackupDir,
+        evidence: BTreeMap<String, Vec<u8>>,
+    ) {
+        self.b1_capture = Some(B1CaptureMaterial {
+            retained,
+            source,
+            control,
+            pin_root,
+            evidence,
+        });
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(in crate::source) fn validate_stored_b1_material(&self) -> Result<(), BackupError> {
+        self.b1_capture
+            .as_ref()
+            .ok_or_else(invalid)?
+            .recheck(&self.enrollment.budget)
+    }
     #[cfg(feature = "offhost-b1")]
     pub(in crate::source) fn b1_peer(
         &self,
@@ -1229,10 +1576,10 @@ impl CaptureInput {
         Ok(())
     }
 
-    fn finish(self, pin: &SourceLocalPin) -> Result<CapturedSnapshotEffectsV2, BackupError> {
+    fn validate_finish(&self, pin: &SourceLocalPin) -> Result<ValidatedCaptureFinish, BackupError> {
         self.cut.revalidate().map_err(|_| invalid())?;
         self.enrollment.recheck_records()?;
-        let pending = self.pending.ok_or_else(invalid)?;
+        let pending = self.pending.as_ref().ok_or_else(invalid)?;
         if pending.parent.list_bounded(wire::MAX_FILES)?
             != vec![pin.manifest().backup_id.to_string()]
         {
@@ -1264,20 +1611,54 @@ impl CaptureInput {
         if capture.manifest_sha256 != pin.sealed().manifest_sha256() {
             return Err(invalid());
         }
-        Ok(CapturedSnapshotEffectsV2 {
+        Ok(ValidatedCaptureFinish {
+            capture,
+            source_identity: serde_json::to_value(&pin.manifest().source)?,
+            budget: self.enrollment.budget.clone(),
+            journal_budget: self.cut.shared_budget().clone(),
+        })
+    }
+
+    fn finish_validated(self, checked: ValidatedCaptureFinish) -> CapturedSnapshotEffectsV2 {
+        let pending = self.pending.expect("validated original capture pending");
+        CapturedSnapshotEffectsV2 {
             directory: pending.directory,
-            record: capture,
+            record: checked.capture,
             inventory: pending.inventory,
             namespace: pending.namespace,
             prefix: pending.prefix,
             ledger: pending.ledger,
-            source_identity: serde_json::to_value(&pin.manifest().source)?,
-            budget: self.enrollment.budget.clone(),
-            journal_budget: self.cut.shared_budget().clone(),
+            source_identity: checked.source_identity,
+            budget: checked.budget,
+            journal_budget: checked.journal_budget,
             _cut: self.cut,
             _enrollment: self.enrollment,
-        })
+            #[cfg(feature = "offhost-b1")]
+            b1_capture: self.b1_capture,
+        }
     }
+
+    fn finish(self, pin: &SourceLocalPin) -> Result<CapturedSnapshotEffectsV2, BackupError> {
+        let checked = self.validate_finish(pin)?;
+        Ok(self.finish_validated(checked))
+    }
+}
+
+/// All real Capture inputs remain in the original Book's phase state while
+/// every fallible finish check runs. Err never consumes the original cut.
+#[cfg(feature = "offhost-b1")]
+pub(crate) fn finish_b1_in_place(
+    input: &mut Option<CaptureInput>,
+    pin: &SourceLocalPin,
+    captured: &mut Option<CapturedSnapshotEffectsV2>,
+) -> Result<(), BackupError> {
+    if captured.is_some() {
+        return Err(invalid());
+    }
+    let checked = input.as_ref().ok_or_else(invalid)?.validate_finish(pin)?;
+    let original = input.take().expect("validated original Capture input");
+    *captured = Some(original.finish_validated(checked));
+    Ok(())
 }
 
 /// Same source pipeline and original Pin; the ordinary path continues to pass
@@ -1294,36 +1675,17 @@ pub async fn prepare_source_backup_with_snapshot_effects(
 }
 
 #[cfg(feature = "offhost-b1")]
-#[allow(
-    dead_code,
-    reason = "S5 original B1 capture awaits the pending actual M3/SourceActor entry; no runtime integration credit"
-)]
 pub(crate) async fn prepare_source_backup_with_snapshot_effects_b1(
     assets: &FsAssetStore,
-    mut input: CaptureInput,
-) -> Result<(SourceLocalPin, CapturedSnapshotEffectsV2), BackupError> {
-    // Negative ownership is available from the actual retained input even
-    // when the first positive cut/ctx recheck fails. It issues no permission.
-    let peer = std::sync::Arc::clone(
-        input
-            .enrollment
-            .b1
-            .as_ref()
-            .ok_or_else(invalid)?
-            .retained
-            .peer(),
-    );
-    let observed = async {
-        input.b1_peer()?;
-        let pin = super::prepare_b1_with_effects(assets, &mut input).await?;
-        let captured = input.finish(&pin)?;
-        Ok((pin, captured))
-    }
-    .await;
-    if observed.is_err() {
-        let _ = peer.close_original().await;
-    }
-    observed
+    input: &mut Option<CaptureInput>,
+    original: &mut super::B1PrepareOwners,
+    pin: &mut Option<SourceLocalPin>,
+    captured: &mut Option<CapturedSnapshotEffectsV2>,
+) -> Result<(), BackupError> {
+    // All operands are in the original Book. Neither prepare nor finish owns
+    // the complete input by value while doing fallible/panic-capable work.
+    super::prepare_b1_retained(assets, input.as_mut().ok_or_else(invalid)?, original, pin).await?;
+    finish_b1_in_place(input, pin.as_ref().ok_or_else(invalid)?, captured)
 }
 
 #[cfg(test)]

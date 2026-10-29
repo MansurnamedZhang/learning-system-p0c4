@@ -17,6 +17,64 @@ use tokio::{
 
 static ORIGINAL_BOOK: OnceLock<HandleBook> = OnceLock::new();
 
+struct OriginalIngress<T> {
+    entered: bool,
+    delivered: bool,
+    negative: bool,
+    pending: Vec<T>,
+}
+impl<T> OriginalIngress<T> {
+    fn empty() -> Self {
+        Self {
+            entered: false,
+            delivered: false,
+            negative: false,
+            pending: Vec::with_capacity(2),
+        }
+    }
+    fn retain(&mut self, actual: T) -> bool {
+        let first = !self.entered;
+        self.entered = true;
+        if !first {
+            self.negative = true;
+        }
+        // The original and a negative duplicate have prepaid storage. No
+        // rejected actual value is overwritten or returned into a drop path.
+        self.pending.push(actual);
+        first
+    }
+    fn transfer(&mut self) -> Result<T> {
+        if self.negative || self.delivered || self.pending.len() != 1 {
+            return Err(Error::Poisoned);
+        }
+        self.delivered = true;
+        Ok(self.pending.pop().expect("one retained original ingress"))
+    }
+    fn clear_after_natural_settlement(&mut self) {
+        self.pending.clear();
+    }
+}
+fn retain_original_ingress<T>(cell: &Mutex<OriginalIngress<T>>, actual: T) -> bool {
+    let (mut original, poisoned) = match cell.lock() {
+        Ok(original) => (original, false),
+        Err(poisoned) => (poisoned.into_inner(), true),
+    };
+    if poisoned {
+        original.negative = true;
+    }
+    original.retain(actual) && !poisoned
+}
+struct InstallIngress {
+    original: Arc<super::B1InstalledSourceProcess>,
+    installed: learning_assets::InstalledSnapshotBinding,
+    source: super::super::lifecycle::BrokerSourceDescription,
+}
+struct QuiesceIngress {
+    broker: super::super::lifecycle::RootSnapshotBroker,
+    backup: uuid::Uuid,
+    capture: uuid::Uuid,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AdminStage {
     Install,
@@ -474,6 +532,10 @@ pub(super) struct HandleBook {
     role: ProcessRole,
     scheduler: OnceLock<Handle>,
     slots: Mutex<BookState>,
+    install_ingress: Mutex<OriginalIngress<InstallIngress>>,
+    install_phase: AsyncMutex<super::super::lifecycle::B1InstallPhase>,
+    quiesce_ingress: Mutex<OriginalIngress<QuiesceIngress>>,
+    quiesce_phase: AsyncMutex<super::super::lifecycle::B1QuiescePhase>,
 }
 struct BookState {
     positive_closed: bool,
@@ -533,10 +595,13 @@ pub(super) fn register_original_book(
     // with conservative per-allocation storage padding; inline book size alone
     // is not the complete reservation. This charges the original scan, no refund.
     let book_storage = std::mem::size_of::<HandleBook>()
-        + 7 * (std::mem::size_of::<AsyncMutex<HandleState>>() + 1024);
+        + 7 * (std::mem::size_of::<AsyncMutex<HandleState>>() + 1024)
+        + 2 * std::mem::size_of::<InstallIngress>()
+        + 2 * std::mem::size_of::<QuiesceIngress>()
+        + 8192;
     custody
         .scan()
-        .charge(book_storage as u64, 7)
+        .charge(book_storage as u64, 11)
         .map_err(|_| Error::Capacity)?;
     let role = custody.process_role_data()?;
     let book = HandleBook {
@@ -548,6 +613,10 @@ pub(super) fn register_original_book(
             admin_entering: false,
             slots: std::array::from_fn(|_| SlotRecord::unused()),
         }),
+        install_ingress: Mutex::new(OriginalIngress::empty()),
+        install_phase: AsyncMutex::new(super::super::lifecycle::B1InstallPhase::empty()),
+        quiesce_ingress: Mutex::new(OriginalIngress::empty()),
+        quiesce_phase: AsyncMutex::new(super::super::lifecycle::B1QuiescePhase::empty()),
     };
     if ORIGINAL_BOOK.set(book).is_err() {
         custody.poison();
@@ -880,6 +949,22 @@ impl HandleBook {
             ) {
                 resource_outcome = Err(Error::Poisoned);
             }
+        }
+        // Pre-task errors and in-task unwinds retain the exact ingress/phase
+        // objects. Close any same actual partially created pools too, then
+        // clear objects only after the independent real resource audit passed.
+        self.install_phase.lock().await.close_partial_pools().await;
+        if resource_outcome.is_ok() {
+            *self.install_phase.lock().await = super::super::lifecycle::B1InstallPhase::empty();
+            *self.quiesce_phase.lock().await = super::super::lifecycle::B1QuiescePhase::empty();
+            self.install_ingress
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .clear_after_natural_settlement();
+            self.quiesce_ingress
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .clear_after_natural_settlement();
         }
         let _qualification_outcome = outcome;
         resource_outcome
@@ -1415,24 +1500,39 @@ impl FixedWorkPools {
     async fn create(
         resources: &Arc<SessionResourceCore>,
         install: Arc<SessionResourceCore>,
+        phase: &mut super::super::lifecycle::B1InstallPhase,
     ) -> std::result::Result<Self, WorkCreationError> {
         let custody = resources.custody.clone();
         custody
             .revalidate()
             .map_err(WorkCreationError::NoPoolsCreated)?;
-        let broker = fixed_broker_pool(&custody).map_err(WorkCreationError::NoPoolsCreated)?;
-        let runtime = match fixed_runtime_pool(&custody) {
+        phase.broker_pool =
+            Some(fixed_broker_pool(&custody).map_err(WorkCreationError::NoPoolsCreated)?);
+        phase.runtime_pool = Some(match fixed_runtime_pool(&custody) {
             Ok(runtime) => runtime,
             Err(error) => {
-                broker.close().await;
+                phase
+                    .broker_pool
+                    .as_ref()
+                    .expect("retained original broker pool")
+                    .close()
+                    .await;
                 return Err(WorkCreationError::BrokerNaturallyClosed(error));
             }
-        };
+        });
         Ok(Self {
             custody,
             install,
-            broker,
-            runtime,
+            broker: phase
+                .broker_pool
+                .as_ref()
+                .expect("retained original broker pool")
+                .clone(),
+            runtime: phase
+                .runtime_pool
+                .as_ref()
+                .expect("retained original runtime pool")
+                .clone(),
             owner: Arc::downgrade(resources),
             c11_original: OnceLock::new(),
         })
@@ -1685,7 +1785,7 @@ impl Drop for WorkLifetime {
 }
 
 pub(in crate::snapshot_broker) async fn install_fresh_b1(
-    custody: Arc<ProcessCustodyCore>,
+    original: Arc<super::B1InstalledSourceProcess>,
     installed: learning_assets::InstalledSnapshotBinding,
     source: super::super::lifecycle::BrokerSourceDescription,
     sockets: (
@@ -1693,9 +1793,43 @@ pub(in crate::snapshot_broker) async fn install_fresh_b1(
         &std::os::unix::net::UnixListener,
     ),
 ) -> super::super::history::Result<super::super::lifecycle::RootSnapshotBroker> {
+    // A genuine factory cannot return before this original Book exists.
+    // Recovering a poisoned ingress mutex is negative retention, not proof.
     let book = ORIGINAL_BOOK
         .get()
+        .expect("genuine factory registered original DB Book");
+    let first = retain_original_ingress(
+        &book.install_ingress,
+        InstallIngress {
+            original,
+            installed,
+            source,
+        },
+    );
+    let custody = book
+        .custody_identity
+        .upgrade()
         .ok_or_else(|| super::observation_error(Error::Poisoned))?;
+    if !first {
+        custody.poison();
+        return Err(super::observation_error(Error::Phase));
+    }
+    {
+        let mut phase = book.install_phase.lock().await;
+        if !phase.empty_ingress() {
+            custody.poison();
+            return Err(super::observation_error(Error::Phase));
+        }
+        let actual = book
+            .install_ingress
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .transfer()
+            .map_err(super::observation_error)?;
+        phase.original = Some(actual.original);
+        phase.installed = Some(actual.installed);
+        phase.source = Some(actual.source);
+    }
     book.require_original(&custody)
         .map_err(super::observation_error)?;
     book.join_original(SlotKey::CaptureInstallAdmin)
@@ -1708,15 +1842,25 @@ pub(in crate::snapshot_broker) async fn install_fresh_b1(
             3,
         )
         .map_err(|_| super::super::ObservationError::Capacity)?;
-    let owned_sockets = [sockets.0.try_clone(), sockets.1.try_clone()];
-    let [left, right] = owned_sockets;
-    let sockets = [
-        left.map_err(|_| super::observation_error(Error::Io))?,
-        right.map_err(|_| super::observation_error(Error::Io))?,
-    ];
+    {
+        let mut phase = book.install_phase.lock().await;
+        phase.sockets[0] = Some(
+            sockets
+                .0
+                .try_clone()
+                .map_err(|_| super::observation_error(Error::Io))?,
+        );
+        phase.sockets[1] = Some(
+            sockets
+                .1
+                .try_clone()
+                .map_err(|_| super::observation_error(Error::Io))?,
+        );
+    }
     let scheduler = book.scheduler().map_err(super::observation_error)?;
     let resources = Arc::new(SessionResourceCore::new(custody, AdminStage::Install));
     let (sender, receiver) = oneshot::channel();
+    let (start, barrier) = oneshot::channel();
     {
         let mut slots = book
             .slots
@@ -1747,14 +1891,7 @@ pub(in crate::snapshot_broker) async fn install_fresh_b1(
         let mut cell = cell
             .try_lock()
             .map_err(|_| super::observation_error(Error::Poisoned))?;
-        let future = drive_broker_install(
-            resources.clone(),
-            install,
-            installed,
-            source,
-            sockets,
-            sender,
-        );
+        let future = drive_broker_install(book, resources.clone(), install, sender, barrier);
         resources
             .custody
             .scan()
@@ -1769,28 +1906,46 @@ pub(in crate::snapshot_broker) async fn install_fresh_b1(
         cell.task = Some(scheduler.spawn(future));
         spawning.complete = true;
     }
-    let mut waiting = WaitPublication::new(resources);
-    let result = receiver
-        .await
-        .map_err(|_| super::observation_error(Error::Io))?;
-    if result.is_ok() {
-        waiting.complete();
+    if start.send(()).is_err() {
+        resources.request(RequestedClose::Abandon);
+        return Err(super::observation_error(Error::Poisoned));
     }
-    result
+    let mut waiting = WaitPublication::new(resources.clone());
+    receiver
+        .await
+        .map_err(|_| super::observation_error(Error::Io))??;
+    let mut phase = book.install_phase.lock().await;
+    resources
+        .custody
+        .revalidate()
+        .map_err(super::observation_error)?;
+    // The channel carried only notification. Cancellation never owns/drops the
+    // actual output. Every fallible gate precedes this final closed transfer.
+    let output = phase
+        .output
+        .take()
+        .ok_or_else(|| super::observation_error(Error::Poisoned))?;
+    waiting.complete();
+    Ok(output)
 }
 
 async fn drive_broker_install(
+    book: &'static HandleBook,
     resources: Arc<SessionResourceCore>,
     install: Arc<SessionResourceCore>,
-    installed: learning_assets::InstalledSnapshotBinding,
-    source: super::super::lifecycle::BrokerSourceDescription,
-    sockets: [std::os::unix::net::UnixListener; 2],
-    sender: oneshot::Sender<
-        super::super::history::Result<super::super::lifecycle::RootSnapshotBroker>,
-    >,
+    sender: oneshot::Sender<super::super::history::Result<()>>,
+    barrier: oneshot::Receiver<()>,
 ) -> Result<()> {
     let mut status = TaskStatus::enter(&resources);
-    let work = match FixedWorkPools::create(&resources, install.clone()).await {
+    if barrier.await.is_err() {
+        fail_uncreated_pool(&resources);
+        resources.request(RequestedClose::Abandon);
+        let _ = sender.send(Err(super::observation_error(Error::Poisoned)));
+        status.returned();
+        return Err(Error::Poisoned);
+    }
+    let mut phase = book.install_phase.lock().await;
+    let work = match FixedWorkPools::create(&resources, install.clone(), &mut phase).await {
         Ok(work) => Arc::new(work),
         Err(creation) => {
             let error = match creation {
@@ -1799,21 +1954,18 @@ async fn drive_broker_install(
                     error
                 }
                 WorkCreationError::BrokerNaturallyClosed(error) => {
-                    // Explicit creator outcome after the only constructed
-                    // work pool's actual close; not an inferred absence.
                     resources.pool_creation.store(3, Ordering::Release);
                     resources.pool_notify.notify_one();
                     error
                 }
             };
             resources.request(RequestedClose::Abandon);
-            let _ = close_install_pool(&install).await;
+            let _admin_closed = close_install_pool(&install).await;
             let _ = sender.send(Err(super::observation_error(error)));
             status.returned();
             return Err(error);
         }
     };
-    // Actual pools now exist in this original owner before any fallible install.
     let published = install
         .pool
         .get()
@@ -1835,16 +1987,7 @@ async fn drive_broker_install(
         armed: true,
     };
     let result = match published {
-        Ok(()) => {
-            super::super::lifecycle::RootSnapshotBroker::install_b1_owned(
-                installed,
-                work.clone(),
-                source,
-                sockets,
-                lifetime,
-            )
-            .await
-        }
+        Ok(()) => phase.drive(work.clone(), lifetime).await,
         Err(error) => {
             drop(lifetime);
             Err(super::observation_error(error))
@@ -1854,10 +1997,10 @@ async fn drive_broker_install(
     if !installed_ok {
         let _admin_closed = close_install_pool(&install).await;
     }
-    if let Err(payload) = sender.send(result) {
-        drop(payload);
-    }
-    if !installed_ok {
+    // Drop only a phase borrow. The complete output/partial installed objects
+    // remain in the original Book through notification loss, error or unwind.
+    drop(phase);
+    if sender.send(result).is_err() || !installed_ok {
         resources.request(RequestedClose::Abandon);
     }
     let requested = resources.wait_close_request().await;
@@ -1867,7 +2010,7 @@ async fn drive_broker_install(
                 .drain_b1(requested != Ok(RequestedClose::Normal))
                 .await
         }
-        None if !installed_ok => Ok(()), // install returned before any work task registration
+        None if !installed_ok => Ok(()),
         None => Err(super::super::history::rejected(
             "B1 installed epoch owner missing",
         )),
@@ -1877,7 +2020,6 @@ async fn drive_broker_install(
         resources.custody.poison();
     }
     work.close_work_pools().await;
-    // This scalar records all original pools, not an inferred missing handle.
     let pool_closed = resources.record_pool_closed();
     let qualification = requested
         .and(pool_closed)
@@ -1888,17 +2030,55 @@ async fn drive_broker_install(
 
 pub(in crate::snapshot_broker) async fn quiesce_b1(
     broker: super::super::lifecycle::RootSnapshotBroker,
-    work: super::super::history::runtime::EpochWork,
-    fixed: Arc<FixedWorkPools>,
     backup: uuid::Uuid,
     capture: uuid::Uuid,
 ) -> super::super::history::Result<super::super::lifecycle::QuiescedSnapshotEpochV2> {
     let book = ORIGINAL_BOOK
         .get()
+        .expect("genuine fixed broker has original DB Book");
+    let first = retain_original_ingress(
+        &book.quiesce_ingress,
+        QuiesceIngress {
+            broker,
+            backup,
+            capture,
+        },
+    );
+    let custody = book
+        .custody_identity
+        .upgrade()
         .ok_or_else(|| super::observation_error(Error::Poisoned))?;
-    book.require_original(&fixed.custody)
+    if !first {
+        custody.poison();
+        return Err(super::observation_error(Error::Phase));
+    }
+    {
+        let mut phase = book.quiesce_phase.lock().await;
+        if !phase.empty_ingress() {
+            custody.poison();
+            return Err(super::observation_error(Error::Phase));
+        }
+        let actual = book
+            .quiesce_ingress
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .transfer()
+            .map_err(super::observation_error)?;
+        phase.retain_broker(actual.broker, actual.backup, actual.capture);
+    }
+    book.require_original(&custody)
         .map_err(super::observation_error)?;
-    fixed.revalidate()?;
+    let fixed = {
+        let mut phase = book.quiesce_phase.lock().await;
+        phase.prepare()?;
+        let fixed = phase
+            .fixed
+            .as_ref()
+            .ok_or_else(|| super::observation_error(Error::Phase))?
+            .clone();
+        fixed.revalidate()?;
+        fixed
+    };
     fixed
         .custody
         .scan()
@@ -1907,17 +2087,14 @@ pub(in crate::snapshot_broker) async fn quiesce_b1(
             2,
         )
         .map_err(|_| super::super::ObservationError::Capacity)?;
-    let original = work.owner();
-    let slot = work.close_admission(std::time::Duration::from_secs(60))?;
     let resources = Arc::new(SessionResourceCore::new(
         fixed.custody.clone(),
         AdminStage::Capture,
     ));
-    // Q0 itself constructs no pool or SQL connection. I0 remains their sole
-    // owner and is joined by quiesce_owned after all original work handles.
     resources.pool_creation.store(2, Ordering::Release);
     let scheduler = book.scheduler().map_err(super::observation_error)?;
     let (sender, receiver) = oneshot::channel();
+    let (start, barrier) = oneshot::channel();
     {
         let mut slots = book
             .slots
@@ -1931,15 +2108,7 @@ pub(in crate::snapshot_broker) async fn quiesce_b1(
         let mut cell = cell
             .try_lock()
             .map_err(|_| super::observation_error(Error::Poisoned))?;
-        let future = drive_quiesce(
-            resources.clone(),
-            broker,
-            work,
-            original,
-            slot.clone(),
-            (backup, capture),
-            sender,
-        );
+        let future = drive_quiesce(book, resources.clone(), sender, barrier);
         resources
             .custody
             .scan()
@@ -1954,43 +2123,135 @@ pub(in crate::snapshot_broker) async fn quiesce_b1(
         cell.task = Some(scheduler.spawn(future));
         spawning.complete = true;
     }
-    let mut waiting = WaitPublication::new(resources);
-    let result = super::super::history::runtime::pending_original(receiver, slot).await;
-    if result.is_ok() {
-        waiting.complete();
+    if start.send(()).is_err() {
+        resources.request(RequestedClose::Abandon);
+        return Err(super::observation_error(Error::Poisoned));
     }
-    result
+    let mut waiting = WaitPublication::new(resources.clone());
+    receiver
+        .await
+        .map_err(|_| super::observation_error(Error::Io))??;
+    // Q0 itself returns naturally before the caller may take its real output.
+    book.join_original(SlotKey::CaptureQuiesce)
+        .await
+        .map_err(super::observation_error)?;
+    let mut phase = book.quiesce_phase.lock().await;
+    resources
+        .custody
+        .revalidate()
+        .map_err(super::observation_error)?;
+    let output = phase
+        .output
+        .take()
+        .ok_or_else(|| super::observation_error(Error::Poisoned))?;
+    waiting.complete();
+    Ok(output)
 }
 async fn drive_quiesce(
+    book: &'static HandleBook,
     resources: Arc<SessionResourceCore>,
-    broker: super::super::lifecycle::RootSnapshotBroker,
-    work: super::super::history::runtime::EpochWork,
-    original: Arc<super::super::history::runtime::Original>,
-    slot: Arc<super::super::history::runtime::Slot>,
-    identities: (uuid::Uuid, uuid::Uuid),
-    sender: oneshot::Sender<
-        super::super::history::Result<super::super::lifecycle::QuiescedSnapshotEpochV2>,
-    >,
+    sender: oneshot::Sender<super::super::history::Result<()>>,
+    barrier: oneshot::Receiver<()>,
 ) -> Result<()> {
-    let (backup, capture) = identities;
     let mut status = TaskStatus::enter(&resources);
-    let result = broker
-        .quiesce_owned(work, original, slot.clone(), backup, capture)
-        .await;
-    let qualified = match result {
-        Ok(view) => {
-            super::super::history::runtime::publish(&slot, sender, view);
-            resources.custody.revalidate()
-        }
-        Err(error) => {
-            slot.poison();
-            resources.request(RequestedClose::Abandon);
-            let _ = sender.send(Err(error));
-            Err(Error::Poisoned)
-        }
+    if barrier.await.is_err() {
+        resources.request(RequestedClose::Abandon);
+        let _ = sender.send(Err(super::observation_error(Error::Poisoned)));
+        status.returned();
+        return Err(Error::Poisoned);
+    }
+    let mut phase = book.quiesce_phase.lock().await;
+    let result = phase.drive().await;
+    let qualified = if result.is_ok() {
+        resources.custody.revalidate()
+    } else {
+        resources.request(RequestedClose::Abandon);
+        Err(Error::Poisoned)
     };
+    drop(phase);
+    if sender.send(result).is_err() {
+        resources.request(RequestedClose::Abandon);
+    }
     status.returned();
     qualified
+}
+
+#[cfg(test)]
+mod ingress_owner_tests {
+    use super::*;
+    struct OriginalSentinel(Arc<AtomicBool>);
+    impl Drop for OriginalSentinel {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Release);
+        }
+    }
+    #[test]
+    fn retained_ingress_survives_a_first_fallible_qualification_gate() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        let mut ingress = OriginalIngress::empty();
+        assert!(ingress.retain(OriginalSentinel(dropped.clone())));
+        let gate: Result<()> = Err(Error::Identity);
+        assert!(gate.is_err());
+        assert_eq!(ingress.pending.len(), 1);
+        assert!(!dropped.load(Ordering::Acquire));
+        ingress.clear_after_natural_settlement();
+        assert!(dropped.load(Ordering::Acquire));
+        assert!(
+            ingress.entered,
+            "natural cleanup cannot restore once eligibility"
+        );
+        let poisoned = Mutex::new(OriginalIngress::empty());
+        let unwind = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _held = poisoned.lock().unwrap();
+            panic!("ordinary ingress mutex poison before qualification");
+        }));
+        assert!(unwind.is_err());
+        let actual = Arc::new(AtomicBool::new(false));
+        assert!(!retain_original_ingress(
+            &poisoned,
+            OriginalSentinel(actual.clone())
+        ));
+        let retained = match poisoned.lock() {
+            Err(poisoned) => poisoned.into_inner(),
+            Ok(_) => panic!("expected original poisoned ingress"),
+        };
+        assert!(retained.negative && retained.pending.len() == 1);
+        assert!(!actual.load(Ordering::Acquire));
+    }
+    #[test]
+    fn actual_phase_borrow_unwind_keeps_the_transferred_ingress_owner() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        let mut ingress = OriginalIngress::empty();
+        assert!(ingress.retain(OriginalSentinel(dropped.clone())));
+        let mut phase = Some(ingress.transfer().unwrap());
+        assert!(ingress.delivered);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _actual = phase.as_mut().unwrap();
+            panic!("ordinary original DB phase borrower unwind");
+        }));
+        assert!(result.is_err());
+        assert!(phase.is_some());
+        assert!(!dropped.load(Ordering::Acquire));
+        drop(phase.take());
+        assert!(dropped.load(Ordering::Acquire));
+    }
+    #[test]
+    fn negative_duplicate_retains_both_inputs_and_never_reopens_the_cell() {
+        let first = Arc::new(AtomicBool::new(false));
+        let second = Arc::new(AtomicBool::new(false));
+        let mut ingress = OriginalIngress::empty();
+        assert!(ingress.retain(OriginalSentinel(first.clone())));
+        assert!(!ingress.retain(OriginalSentinel(second.clone())));
+        assert!(ingress.transfer().is_err());
+        assert_eq!(ingress.pending.len(), 2);
+        assert!(!first.load(Ordering::Acquire) && !second.load(Ordering::Acquire));
+        ingress.clear_after_natural_settlement();
+        assert!(first.load(Ordering::Acquire) && second.load(Ordering::Acquire));
+        let third = Arc::new(AtomicBool::new(false));
+        assert!(!ingress.retain(OriginalSentinel(third.clone())));
+        assert!(ingress.transfer().is_err());
+        assert!(!third.load(Ordering::Acquire));
+    }
 }
 
 async fn validate_admin_connection(
