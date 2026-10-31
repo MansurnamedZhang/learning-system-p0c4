@@ -20,7 +20,11 @@ pub(super) struct B1ClaimRefs<'a> {
 }
 
 #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
-pub(super) use b1::{B1InstallCutoverObservation, B1SourceInputs, prepay_canonical_data};
+pub(crate) use b1::prepay_canonical_data;
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(super) use b1::{B1InstallCutoverObservation, B1SourceInputs};
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) use b1::{B1PublicationInputs, B1PublicationPinView};
 
 /// These are consumers of a currently held original session, never a second
 /// qualification factory. The Root issuer's physical cutover observations
@@ -107,10 +111,7 @@ mod b1 {
             .charge(64)?;
         Ok(hex::encode(writer.hash.finalize()))
     }
-    pub(in crate::source) fn prepay_canonical_data(
-        raw: &[u8],
-        budget: &Budget,
-    ) -> Result<(), BackupError> {
+    pub(crate) fn prepay_canonical_data(raw: &[u8], budget: &Budget) -> Result<(), BackupError> {
         // Fixed stack/no heap before typed parsing. Count actual container,
         // field and separator work outside strings conservatively; malformed
         // or excessive nesting is rejected before serde can allocate arrays.
@@ -1494,6 +1495,1401 @@ mod b1 {
             }
             lease.recheck()?;
             Ok(())
+        }
+    }
+
+    /// Read-only views of the original Publication phase. These handles are
+    /// not an isolation capability, Capture cut, SourceLocalPin, or S factory.
+    /// Only the genuine Book passes its own non-Clone opaque captured object.
+    pub(crate) struct B1PublicationInputs {
+        catalog_file: HeldRecord,
+        catalog: Catalog,
+        source_start: HeldRecord,
+        capture_start: HeldRecord,
+        generation_file: HeldRecord,
+        captured_file: HeldRecord,
+        source_started_ns: u64,
+        captured: PublicationCapturedData,
+        control: Mutex<Option<HeldRecord>>,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct PublicationCapturedData {
+        schema_version: u64,
+        capability: String,
+        job_id: Uuid,
+        backup_id: Uuid,
+        capture_start_sha256: String,
+        capture_generation_sha256: String,
+        source_group_id: Uuid,
+        source_registry_generation_sha256: String,
+        manifest_sha256: String,
+        captured_roster_sha256: String,
+        snapshot_effects_roster_sha256: String,
+    }
+
+    impl B1PublicationInputs {
+        pub(crate) fn read_original(
+            peer: &B1InstalledSourceProcess,
+            data: &learning_db::snapshot_broker::B1CapturedInputData,
+            budget: &Budget,
+        ) -> Result<Self, BackupError> {
+            peer.revalidate().map_err(|_| publication_refused())?;
+            if option_env!("KNOWWEAVE_C4_B1_SOURCE_PROCESS_ROLE") != Some("publication-source")
+                || !crate::registry::v4(&data.job_id().to_string())
+                || !crate::registry::v4(&data.backup_id().to_string())
+            {
+                return Err(publication_refused());
+            }
+            publication_charge(budget, 4096, 8)?;
+            let job_root = PathBuf::from(format!("{OBSERVATION_ROOT}/jobs/{}", data.job_id()));
+            let backup_root = job_root.join(format!("backups/{}", data.backup_id()));
+            let catalog_file = HeldRecord::open(
+                Path::new("/var/lib/knowweave-c4/b1"),
+                "source-peer-execution.json".into(),
+                16384,
+                budget,
+            )?;
+            prepay_canonical_data(&catalog_file.raw, budget)?;
+            let catalog: Catalog = crate::registry::canonical_record(&catalog_file.raw, 16384)?;
+            let source_start =
+                HeldRecord::open(&job_root, "source-start.json".into(), 4096, budget)?;
+            let capture_start =
+                HeldRecord::open(&backup_root, "capture-start.json".into(), 16384, budget)?;
+            let generation_file = HeldRecord::open(
+                &backup_root.join("capture"),
+                "generation-binding.json".into(),
+                4096,
+                budget,
+            )?;
+            let captured_file =
+                HeldRecord::open(&backup_root, "captured-data.json".into(), 4096, budget)?;
+            for record in [
+                &source_start,
+                &capture_start,
+                &generation_file,
+                &captured_file,
+            ] {
+                prepay_canonical_data(&record.raw, budget)?;
+            }
+            // The genuine peer revalidates the complete Root schemas. These
+            // canonical projections add joins, never replace that validator.
+            let source: serde_json::Value =
+                crate::registry::canonical_record(&source_start.raw, 4096)?;
+            let capture: serde_json::Value =
+                crate::registry::canonical_record(&capture_start.raw, 16384)?;
+            let generation: Generation =
+                crate::registry::canonical_record(&generation_file.raw, 4096)?;
+            let captured: PublicationCapturedData =
+                crate::registry::canonical_record(&captured_file.raw, 4096)?;
+            let source_started_ns = source["started_monotonic_ns"]
+                .as_u64()
+                .filter(|n| *n != 0)
+                .ok_or_else(publication_refused)?;
+            if catalog.schema_version != 1
+                || catalog.capability != "b1_source_peer_execution_v1"
+                || catalog.profile != "task9-b1-limited-v1"
+                || !crate::registry::v4(&catalog.launch_id)
+                || !valid_c4_database(&catalog.installed_source.database)
+                || source["job_id"] != data.job_id().to_string()
+                || source["launch_id"] != catalog.launch_id
+                || source["catalog_sha256"] != hex::encode(catalog_file.digest())
+                || capture["job_id"] != data.job_id().to_string()
+                || capture["backup_id"] != data.backup_id().to_string()
+                || capture["source_start_sha256"] != hex::encode(source_start.digest())
+                || capture["catalog_sha256"] != hex::encode(catalog_file.digest())
+                || capture["mount_recipe_sha256"] != catalog.capture_recipe_sha256
+                || capture["mount_recipe_sha256"]
+                    != catalog.installed_runtime.capture_mount_recipe_sha256
+                || capture["capture_exec_recipe_sha256"]
+                    != hash_canonical_value(&catalog.capture_exec_recipe, budget)?
+                || generation.schema_version != 1
+                || generation.capability != "b1_immutable_isolation_generation_v1"
+                || generation.job_id != data.job_id().to_string()
+                || generation.backup_id != data.backup_id().to_string()
+                || generation.phase != "Capture"
+                || !crate::registry::v4(&generation.request_id)
+                || generation.capture_start_sha256 != hex::encode(capture_start.digest())
+                || captured.source_group_id.to_string() != catalog.installed_source.source_group_id
+            {
+                return Err(publication_refused());
+            }
+            let held = Self {
+                catalog_file,
+                catalog,
+                source_start,
+                capture_start,
+                generation_file,
+                captured_file,
+                source_started_ns,
+                captured,
+                control: Mutex::new(None),
+            };
+            held.recheck_original(peer, data, budget)?;
+            Ok(held)
+        }
+
+        pub(crate) fn recheck_original(
+            &self,
+            peer: &B1InstalledSourceProcess,
+            data: &learning_db::snapshot_broker::B1CapturedInputData,
+            budget: &Budget,
+        ) -> Result<(), BackupError> {
+            peer.revalidate().map_err(|_| publication_refused())?;
+            for held in [
+                &self.catalog_file,
+                &self.source_start,
+                &self.capture_start,
+                &self.generation_file,
+                &self.captured_file,
+            ] {
+                held.recheck(budget)?;
+            }
+            let d = &self.captured;
+            if d.schema_version != 1
+                || d.capability != "b1_captured_input_data_only_v1"
+                || d.job_id != data.job_id()
+                || d.backup_id != data.backup_id()
+                || self.captured_file.digest() != data.record_sha256()
+                || self.capture_start.digest() != data.capture_start_sha256()
+                || self.generation_file.digest() != data.capture_generation_sha256()
+                || d.capture_start_sha256 != hex::encode(data.capture_start_sha256())
+                || d.capture_generation_sha256 != hex::encode(data.capture_generation_sha256())
+                || d.source_group_id != data.source_group_id()
+                || d.source_registry_generation_sha256
+                    != hex::encode(data.source_registry_generation_sha256())
+                || d.manifest_sha256 != hex::encode(data.manifest_sha256())
+                || d.captured_roster_sha256 != hex::encode(data.captured_roster_sha256())
+                || d.snapshot_effects_roster_sha256
+                    != hex::encode(data.snapshot_effects_roster_sha256())
+            {
+                return Err(publication_refused());
+            }
+            peer.revalidate().map_err(|_| publication_refused())
+        }
+
+        pub(crate) fn database(&self) -> &str {
+            &self.catalog.installed_source.database
+        }
+        pub(crate) fn group_id(&self) -> &str {
+            &self.catalog.installed_source.source_group_id
+        }
+        pub(crate) fn backup_id(&self) -> Uuid {
+            self.captured.backup_id
+        }
+        pub(crate) fn require_database(
+            &self,
+            database: &str,
+            oid: i64,
+            system: &str,
+        ) -> Result<(), BackupError> {
+            if database != self.database()
+                || u64::try_from(oid).ok() != Some(self.catalog.installed_source.database_oid)
+                || system != self.catalog.installed_source.system_identifier
+            {
+                return Err(publication_refused());
+            }
+            Ok(())
+        }
+        pub(crate) fn require_policy_group(
+            &self,
+            policy_group: &str,
+            database: &str,
+            binding: &str,
+            auth: &str,
+            launch: &str,
+        ) -> Result<(), BackupError> {
+            let source = &self.catalog.installed_source;
+            if policy_group != source.source_group_id
+                || database != source.database
+                || binding != source.source_control_binding_sha256
+                || auth != source.source_auth_public_key_sha256
+                || launch != self.catalog.launch_id
+            {
+                return Err(publication_refused());
+            }
+            Ok(())
+        }
+        pub(crate) fn require_enrollment(
+            &self,
+            lease: &RegistryLease,
+            enrolled: &EnrolledSource,
+        ) -> Result<(), BackupError> {
+            require_catalog_enrollment(&self.catalog, lease, enrolled)
+        }
+        pub(crate) fn require_control(
+            &self,
+            lease: &RegistryLease,
+            source: &EnrolledSource,
+        ) -> Result<(), BackupError> {
+            let record = &source.roots["control"];
+            let mut control = self.control.lock().map_err(|_| publication_refused())?;
+            if control.is_none() {
+                *control = Some(HeldRecord::open(
+                    Path::new(&record.path),
+                    "source-binding.json".into(),
+                    MAX_BINDING_BYTES as u64,
+                    &lease.budget,
+                )?);
+            }
+            let held = control.as_ref().ok_or_else(publication_refused)?;
+            if held.parent != Path::new(&record.path) {
+                return Err(publication_refused());
+            }
+            let binding = parse_pinned(
+                &held.raw,
+                option_env!("KNOWWEAVE_C4_SOURCE_CONTROL_BINDING_SHA256"),
+            )?;
+            super::verify_root_identity(
+                &binding,
+                Path::new(&record.path),
+                source.handle("control"),
+            )?;
+            self.require_database(
+                &binding.database,
+                i64::try_from(binding.database_oid).map_err(|_| publication_refused())?,
+                &binding.system_identifier,
+            )?;
+            if hex::encode(held.digest())
+                != self.catalog.installed_source.source_control_binding_sha256
+                || held.root.identity()? != source.handle("control").identity()?
+            {
+                return Err(publication_refused());
+            }
+            held.recheck(&lease.budget)
+        }
+        pub(crate) fn conservative_root_deadline(
+            &self,
+            budget: &Budget,
+        ) -> Result<std::time::Instant, BackupError> {
+            // Same boot and Root SourceStart were checked in the original ctx.
+            // Anchor before native clock IO, never after, so scheduling cannot
+            // extend the actual Root 1200-second bound.
+            let anchor = std::time::Instant::now();
+            publication_charge(budget, 32, 1)?;
+            let mut time: libc::timespec = unsafe { std::mem::zeroed() };
+            if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut time) } != 0 {
+                return Err(std::io::Error::last_os_error().into());
+            }
+            let now = u64::try_from(time.tv_sec)
+                .ok()
+                .and_then(|n| n.checked_mul(1_000_000_000))
+                .and_then(|n| {
+                    u64::try_from(time.tv_nsec)
+                        .ok()
+                        .and_then(|v| n.checked_add(v))
+                })
+                .ok_or_else(publication_refused)?;
+            let remaining = publication_root_remaining(self.source_started_ns, now)?;
+            anchor
+                .checked_add(std::time::Duration::from_nanos(remaining))
+                .ok_or(BackupError::Overflow)
+        }
+    }
+
+    fn publication_refused() -> BackupError {
+        BackupError::Invalid("B1 original Publication source view")
+    }
+    fn publication_charge(budget: &Budget, bytes: u64, entries: usize) -> Result<(), BackupError> {
+        let mut scan = budget.lock().map_err(|_| publication_refused())?;
+        scan.charge(bytes)?;
+        scan.entries(entries)
+    }
+    fn publication_root_remaining(start: u64, now: u64) -> Result<u64, BackupError> {
+        let end = start
+            .checked_add(1_200_000_000_000)
+            .ok_or(BackupError::Overflow)?;
+        if start == 0 || now < start || now >= end {
+            return Err(publication_refused());
+        }
+        Ok(end - now)
+    }
+
+    // Shared fixed Catalog/current-lease join. Kept inside this existing child
+    // module so neither the old Capture fields nor their parser are exposed.
+    fn require_catalog_enrollment(
+        catalog: &Catalog,
+        lease: &RegistryLease,
+        enrolled: &EnrolledSource,
+    ) -> Result<(), BackupError> {
+        let s = &catalog.installed_source;
+        let g = &enrolled.group;
+        lease.recheck()?;
+        if !matches!(lease.groups.get(&g.group_id), Some(crate::registry::Group::Source(actual)) if actual == g)
+        {
+            return Err(publication_refused());
+        }
+        publication_charge(&lease.budget, 4096, 8)?;
+        let authority_raw = &lease
+            .metadata
+            .get("authority.json")
+            .ok_or_else(publication_refused)?
+            .0;
+        let group_raw = &lease
+            .metadata
+            .get(&format!("groups/{}.json", g.group_id))
+            .ok_or_else(publication_refused)?
+            .0;
+        publication_charge(
+            &lease.budget,
+            (authority_raw.len() + group_raw.len()) as u64 * 4,
+            0,
+        )?;
+        let authority = crate::registry::canonical(&lease.authority)?;
+        let group = crate::registry::canonical(g)?;
+        if &authority != authority_raw
+            || &group != group_raw
+            || s.deployment_id != lease.authority.deployment_id
+            || s.deployment_id != g.deployment_id
+            || s.source_group_id != g.group_id
+            || s.database != g.database
+            || s.database_oid != u64::from(g.database_oid)
+            || s.system_identifier != g.system_identifier
+            || s.application_commit != g.application_commit
+            || s.application_build_sha256 != g.application_build_sha256
+            || s.source_control_binding_sha256 != g.source_binding_sha256
+            || s.registry_authority_sha256 != crate::digest(&authority)
+            || s.source_group_record_sha256 != crate::digest(&group)
+            || option_env!("KNOWWEAVE_C4_B1_SOURCE_AUTH_KEY_SHA256")
+                != Some(s.source_auth_public_key_sha256.as_str())
+            || enrolled.roots.keys().map(String::as_str).ne([
+                "assets",
+                "control",
+                "local_pins",
+                "staging",
+            ])
+        {
+            return Err(publication_refused());
+        }
+        let mut expected = 2usize;
+        for (i, (label, record)) in enrolled.roots.iter().enumerate() {
+            if lease.roots.get(&record.enrollment_id) != Some(record) {
+                return Err(publication_refused());
+            }
+            let raw = &lease
+                .metadata
+                .get(&format!("roots/{}.json", record.enrollment_id))
+                .ok_or_else(publication_refused)?
+                .0;
+            expected = expected
+                .checked_add(label.len() + 3 + usize::from(i != 0))
+                .and_then(|n| n.checked_add(raw.len()))
+                .ok_or(BackupError::Overflow)?;
+        }
+        publication_charge(
+            &lease.budget,
+            (expected as u64)
+                .checked_mul(4)
+                .ok_or(BackupError::Overflow)?,
+            0,
+        )?;
+        let roots = crate::registry::canonical(&enrolled.roots)?;
+        if roots.len() != expected
+            || crate::digest(&roots) != catalog.installed_runtime.source_root_records_sha256
+        {
+            return Err(publication_refused());
+        }
+        lease.recheck()
+    }
+
+    /// Held read-only package + source mirror + v2 adjunct. It deliberately
+    /// cannot be converted into the Capture owner's cut or sealed capability.
+    pub(crate) struct B1PublicationPinView {
+        pin: BackupDir,
+        mirror: BackupDir,
+        effects: BackupDir,
+        companion: BackupDir,
+        manifest_file: File,
+        manifest_stamp: Stamp,
+        manifest_raw: Vec<u8>,
+        index_file: File,
+        index_stamp: Stamp,
+        index_raw: Vec<u8>,
+        manifest: crate::BackupManifestV1,
+        source_records: Vec<crate::FileRecord>,
+        source_bytes: std::collections::BTreeMap<String, Vec<u8>>,
+        current_snapshot_raw: Vec<u8>,
+        current_snapshot: crate::destination::SnapshotRecord,
+        effects_records: Vec<crate::FileRecord>,
+        capture: crate::source::snapshot_effects::wire::Capture,
+        descriptor: crate::source::snapshot_effects::wire::Descriptor,
+    }
+    impl B1PublicationPinView {
+        pub(crate) fn open_original(
+            input: &B1PublicationInputs,
+            lease: &RegistryLease,
+            source: &EnrolledSource,
+            protection: &crate::ProtectionSnapshot,
+        ) -> Result<Self, BackupError> {
+            use crate::source::snapshot_effects::{files, wire};
+            input.require_enrollment(lease, source)?;
+            protection.require_same_operation(lease)?;
+            publication_charge(&lease.budget, 16384, 32)?;
+            let backup = input.backup_id();
+            let pin = source
+                .handle("local_pins")
+                .open_dir(&format!("{backup}.sealed"))?;
+            let mirror = source
+                .handle("control")
+                .open_dir(&format!("{backup}.b1-captured"))?;
+            let companion = BackupDir::open_trusted_private_root(Path::new(
+                learning_assets::InstalledSnapshotBinding::COMPANION_PATH,
+            ))?;
+            let effects = companion
+                .open_dir("captures")?
+                .open_dir(&backup.to_string())?;
+            let mut manifest_file = pin.open_file("manifest.json")?;
+            let manifest_meta = manifest_file.metadata()?;
+            if !manifest_meta.is_file()
+                || manifest_meta.uid() != 0
+                || manifest_meta.gid() != 0
+                || manifest_meta.mode() & 0o7777 != 0o400
+                || manifest_meta.nlink() != 1
+                || manifest_meta.len() == 0
+                || manifest_meta.len() > 64 * 1024 * 1024
+            {
+                return Err(publication_refused());
+            }
+            let manifest_stamp = Stamp::read(&manifest_meta);
+            // Prepay this new caller's legacy typed manifest/index validation
+            // before its parser/canonical tree can allocate. Streaming member
+            // byte verification keeps the existing per-read charges as well.
+            publication_charge(
+                &lease.budget,
+                manifest_meta
+                    .len()
+                    .checked_mul(64)
+                    .ok_or(BackupError::Overflow)?,
+                512,
+            )?;
+            let manifest_raw =
+                read_held_bytes(&mut manifest_file, manifest_meta.len(), &lease.budget)?;
+            let declared: crate::BackupManifestV1 = serde_json::from_slice(&manifest_raw)?;
+            publication_charge(&lease.budget, manifest_raw.len() as u64 * 4, 2)?;
+            if declared.canonical_bytes()? != manifest_raw
+                || crate::digest(&manifest_raw) != input.captured.manifest_sha256
+                || Stamp::read(&manifest_file.metadata()?) != manifest_stamp
+            {
+                return Err(publication_refused());
+            }
+            publication_charge(&lease.budget, 4096, 4)?;
+            let index_file = pin.open_file("asset-index.json")?;
+            let index_meta = index_file.metadata()?;
+            let index_stamp = Stamp::read(&index_meta);
+            let declared_index = declared
+                .files
+                .iter()
+                .find(|r| r.path == "asset-index.json")
+                .ok_or_else(publication_refused)?;
+            if !index_meta.is_file()
+                || index_meta.uid() != 0
+                || index_meta.gid() != 0
+                || index_meta.mode() & 0o7777 != 0o400
+                || index_meta.nlink() != 1
+                || index_meta.len() != declared_index.size
+                || index_meta.len() == 0
+                || index_meta.len() > crate::MAX_ASSET_INDEX_BYTES as u64
+            {
+                return Err(publication_refused());
+            }
+            prepay_publication_package(lease, &declared, &manifest_raw, index_meta.len())?;
+            let (manifest, index_raw) =
+                crate::protection::verify_registered_package(lease, &pin, backup)?;
+            if manifest != declared
+                || index_raw != publication_pread(&index_file, index_raw.len(), &lease.budget)?
+                || Stamp::read(&index_file.metadata()?) != index_stamp
+                || Stamp::read(&pin.open_file("asset-index.json")?.metadata()?) != index_stamp
+            {
+                return Err(publication_refused());
+            }
+            let budget = &lease.budget;
+            // The source mirror has exactly eight fixed files and the exact
+            // current four enrolled RootRecord leaves. List before reading.
+            let mut names = Vec::new();
+            publication_charge(budget, 2048, 16)?;
+            for name in [
+                "protection-catalog.json",
+                "protection-pending.json",
+                "protection-retained.json",
+                "protection-snapshot.json",
+                "source-authority.json",
+                "source-generation.json",
+                "source-group.json",
+                "source-released.json",
+            ] {
+                names.push(name.to_owned());
+            }
+            for root in source.roots.values() {
+                names.push(format!("roots/{}.json", root.enrollment_id));
+            }
+            names.sort_unstable();
+            let mut source_records = Vec::new();
+            let mut source_bytes = std::collections::BTreeMap::new();
+            source_records
+                .try_reserve_exact(12)
+                .map_err(|_| publication_refused())?;
+            let mut captured_snapshot = None;
+            for name in &names {
+                let (raw, _) = publication_sealed_read(
+                    &mirror,
+                    name,
+                    crate::MAX_ASSET_INDEX_BYTES as u64,
+                    budget,
+                )?;
+                publication_charge(budget, raw.len() as u64 * 3, 1)?;
+                if name == "protection-snapshot.json" {
+                    prepay_canonical_data(&raw, budget)?;
+                    captured_snapshot = Some(crate::registry::canonical_record(
+                        &raw,
+                        crate::MAX_ASSET_INDEX_BYTES as u64,
+                    )?);
+                }
+                source_records.push(crate::FileRecord {
+                    path: name.clone(),
+                    size: raw.len() as u64,
+                    sha256: crate::digest(&raw),
+                });
+                source_bytes.insert(name.clone(), raw);
+            }
+            let journal = original_scan_from_budget(lease)?;
+            files::exact_tree(&mirror, &source_records, budget, &journal)?;
+            publication_charge(budget, 4096, 4)?;
+            let (raw, _) =
+                publication_sealed_read(&effects, "capture.json", wire::MAX_FILE, budget)?;
+            prepay_canonical_data(&raw, budget)?;
+            let capture: wire::Capture = crate::registry::canonical_record(&raw, wire::MAX_FILE)?;
+            publication_charge(
+                budget,
+                (raw.len() as u64) * 4 + (capture.files.len() as u64) * 1024,
+                capture.files.len() + 1,
+            )?;
+            let mut effects_records = capture.files.clone();
+            effects_records.push(crate::FileRecord {
+                path: "capture.json".into(),
+                size: raw.len() as u64,
+                sha256: crate::digest(&raw),
+            });
+            effects_records.sort_by(|a, b| a.path.cmp(&b.path));
+            publication_roster(&source_records)?;
+            publication_roster(&effects_records)?;
+            if source_records.len() != 12
+                || effects_records.len() + 12 + manifest.files.len() + 1 > 512
+                || capture.backup_id != backup
+                || capture.source_group_id.to_string() != source.group.group_id
+                || capture.manifest_sha256 != input.captured.manifest_sha256
+                || capture.source_registry_generation_sha256
+                    != input.captured.source_registry_generation_sha256
+                || crate::digest(&crate::registry::canonical(&source_records)?)
+                    != input.captured.captured_roster_sha256
+                || crate::digest(&crate::registry::canonical(&effects_records)?)
+                    != input.captured.snapshot_effects_roster_sha256
+            {
+                return Err(publication_refused());
+            }
+            files::exact_tree(&effects, &effects_records, budget, &journal)?;
+            let descriptor = publication_adjunct(
+                &effects,
+                &capture,
+                &effects_records,
+                input,
+                source,
+                lease,
+                &manifest,
+            )?;
+            if companion.identity()?
+                != (descriptor.companion_root_dev, descriptor.companion_root_ino)
+            {
+                return Err(publication_refused());
+            }
+            let captured_snapshot = captured_snapshot.ok_or_else(publication_refused)?;
+            protection.prepay_publication_views(lease)?;
+            let mut current_files = protection.captured_files(backup)?;
+            let current_snapshot_raw = current_files
+                .remove("protection-snapshot.json")
+                .ok_or_else(publication_refused)?;
+            prepay_canonical_data(&current_snapshot_raw, budget)?;
+            let current_snapshot: crate::destination::SnapshotRecord =
+                crate::registry::canonical_record(
+                    &current_snapshot_raw,
+                    crate::MAX_ASSET_INDEX_BYTES as u64,
+                )?;
+            // This one producer join depends on genuine opaque Capture DATA,
+            // original exclusive create + nonreplace export and exact12 bytes.
+            // It is not the later current-S/fence comparison or an ignore ID API.
+            publication_historical_export_join(
+                input,
+                &captured_snapshot,
+                &current_snapshot,
+                &source_records,
+                budget,
+            )?;
+            let held = Self {
+                pin,
+                mirror,
+                effects,
+                companion,
+                manifest_file,
+                manifest_stamp,
+                manifest_raw,
+                index_file,
+                index_stamp,
+                index_raw,
+                manifest,
+                source_records,
+                source_bytes,
+                current_snapshot_raw,
+                current_snapshot,
+                effects_records,
+                capture,
+                descriptor,
+            };
+            held.recheck(input, lease, source, protection)?;
+            Ok(held)
+        }
+        pub(crate) fn recheck(
+            &self,
+            input: &B1PublicationInputs,
+            lease: &RegistryLease,
+            source: &EnrolledSource,
+            protection: &crate::ProtectionSnapshot,
+        ) -> Result<(), BackupError> {
+            use crate::source::snapshot_effects::files;
+            input.require_enrollment(lease, source)?;
+            protection.require_same_operation(lease)?;
+            publication_charge(
+                &lease.budget,
+                self.manifest_raw.len() as u64 * 4 + 16384,
+                12,
+            )?;
+            if source
+                .handle("local_pins")
+                .open_dir(&format!("{}.sealed", input.backup_id()))?
+                .identity()?
+                != self.pin.identity()?
+                || source
+                    .handle("control")
+                    .open_dir(&format!("{}.b1-captured", input.backup_id()))?
+                    .identity()?
+                    != self.mirror.identity()?
+                || BackupDir::open_trusted_private_root(Path::new(
+                    learning_assets::InstalledSnapshotBinding::COMPANION_PATH,
+                ))?
+                .identity()?
+                    != self.companion.identity()?
+                || self
+                    .companion
+                    .open_dir("captures")?
+                    .open_dir(&input.backup_id().to_string())?
+                    .identity()?
+                    != self.effects.identity()?
+                || Stamp::read(&self.manifest_file.metadata()?) != self.manifest_stamp
+                || Stamp::read(&self.pin.open_file("manifest.json")?.metadata()?)
+                    != self.manifest_stamp
+            {
+                return Err(publication_refused());
+            }
+            if Stamp::read(&self.index_file.metadata()?) != self.index_stamp
+                || Stamp::read(&self.pin.open_file("asset-index.json")?.metadata()?)
+                    != self.index_stamp
+            {
+                return Err(publication_refused());
+            }
+            prepay_publication_package(
+                lease,
+                &self.manifest,
+                &self.manifest_raw,
+                self.index_stamp.bytes,
+            )?;
+            let (manifest, index) =
+                crate::protection::verify_registered_package(lease, &self.pin, input.backup_id())?;
+            if manifest != self.manifest
+                || manifest.canonical_bytes()? != self.manifest_raw
+                || index != self.index_raw
+                || index
+                    != publication_pread(&self.index_file, self.index_raw.len(), &lease.budget)?
+                || Stamp::read(&self.index_file.metadata()?) != self.index_stamp
+            {
+                return Err(publication_refused());
+            }
+            // pread preserves the original shared file description offset;
+            // a future manifest stream must not be rewound by revalidation.
+            let held_raw =
+                publication_pread(&self.manifest_file, self.manifest_raw.len(), &lease.budget)?;
+            if held_raw != self.manifest_raw
+                || Stamp::read(&self.manifest_file.metadata()?) != self.manifest_stamp
+            {
+                return Err(publication_refused());
+            }
+            let journal = original_scan_from_budget(lease)?;
+            files::exact_tree(&self.mirror, &self.source_records, &lease.budget, &journal)?;
+            files::exact_tree(
+                &self.effects,
+                &self.effects_records,
+                &lease.budget,
+                &journal,
+            )?;
+            protection.prepay_publication_views(lease)?;
+            let current = protection.captured_files(input.backup_id())?;
+            for record in &self.source_records {
+                let raw = current.get(&record.path).ok_or_else(publication_refused)?;
+                if record.path == "protection-snapshot.json" {
+                    prepay_canonical_data(raw, &lease.budget)?;
+                    let now: crate::destination::SnapshotRecord =
+                        crate::registry::canonical_record(
+                            raw,
+                            crate::MAX_ASSET_INDEX_BYTES as u64,
+                        )?;
+                    // Full fresh-S records include the mirror and must remain
+                    // exact throughout S; no historical alias filtering here.
+                    publication_snapshot_join(&self.current_snapshot, &now)?;
+                } else if record.size != raw.len() as u64 || record.sha256 != crate::digest(raw) {
+                    return Err(publication_refused());
+                }
+            }
+            protection.prepay_publication_views(lease)?;
+            protection.recheck_held()?;
+            Ok(())
+        }
+        pub(crate) fn require_postmaster(&self, observed: &str) -> Result<(), BackupError> {
+            if self.descriptor.source_postmaster_start != observed {
+                return Err(publication_refused());
+            }
+            Ok(())
+        }
+        pub(crate) fn manifest(&self) -> &crate::BackupManifestV1 {
+            &self.manifest
+        }
+        pub(crate) fn manifest_raw_bytes(&self) -> &[u8] {
+            &self.manifest_raw
+        }
+        pub(crate) fn source_bytes(&self) -> &std::collections::BTreeMap<String, Vec<u8>> {
+            &self.source_bytes
+        }
+        pub(crate) fn current_snapshot_bytes(&self) -> &[u8] {
+            &self.current_snapshot_raw
+        }
+        pub(crate) fn source_records(&self) -> &[crate::FileRecord] {
+            &self.source_records
+        }
+        pub(crate) fn package_roster_sha256(
+            &self,
+            lease: &RegistryLease,
+        ) -> Result<String, BackupError> {
+            publication_charge(
+                &lease.budget,
+                (self.manifest.files.len() as u64)
+                    .checked_mul(2048)
+                    .and_then(|n| n.checked_add(self.manifest_raw.len() as u64))
+                    .ok_or(BackupError::Overflow)?,
+                self.manifest.files.len() + 1,
+            )?;
+            let mut records = self.manifest.files.clone();
+            records.push(crate::FileRecord {
+                path: "manifest.json".into(),
+                size: self.manifest_raw.len() as u64,
+                sha256: crate::digest(&self.manifest_raw),
+            });
+            records.sort_by(|a, b| a.path.cmp(&b.path));
+            Ok(crate::digest(&crate::registry::canonical(&records)?))
+        }
+        pub(crate) fn effects_records(&self) -> &[crate::FileRecord] {
+            &self.effects_records
+        }
+        pub(crate) fn capture_data(&self) -> &crate::source::snapshot_effects::wire::Capture {
+            &self.capture
+        }
+        pub(crate) fn open_package_member_original(
+            &self,
+            index: usize,
+            lease: &RegistryLease,
+        ) -> Result<File, BackupError> {
+            let record = self
+                .manifest
+                .files
+                .get(index)
+                .ok_or_else(publication_refused)?;
+            publication_charge(
+                &lease.budget,
+                record.path.len() as u64,
+                record.path.split('/').count() * 2 + 3,
+            )?;
+            let file = publication_open_package_member(&self.pin, &record.path)?;
+            publication_require_sealed(&file.metadata()?, record.size)?;
+            Ok(file)
+        }
+        pub(crate) fn open_effect_member_original(
+            &self,
+            index: usize,
+            lease: &RegistryLease,
+        ) -> Result<File, BackupError> {
+            let record = self
+                .effects_records
+                .get(index)
+                .ok_or_else(publication_refused)?;
+            publication_charge(
+                &lease.budget,
+                record.path.len() as u64,
+                record.path.split('/').count() * 2 + 3,
+            )?;
+            let file = publication_open_member(&self.effects, &record.path)?;
+            publication_require_sealed(&file.metadata()?, record.size)?;
+            Ok(file)
+        }
+    }
+
+    fn publication_open_package_member(root: &BackupDir, path: &str) -> Result<File, BackupError> {
+        if !crate::source::snapshot_effects::wire::path(path) {
+            return Err(publication_refused());
+        }
+        let mut parts = path.split('/').peekable();
+        let mut parent = root.try_clone()?;
+        parent.require_sealed_directory()?;
+        while let Some(part) = parts.next() {
+            if parts.peek().is_none() {
+                return Ok(parent.open_file(part)?);
+            }
+            parent = parent.open_dir(part)?;
+            parent.require_sealed_directory()?;
+        }
+        Err(publication_refused())
+    }
+    fn publication_open_member(root: &BackupDir, path: &str) -> Result<File, BackupError> {
+        if !crate::source::snapshot_effects::wire::path(path) {
+            return Err(publication_refused());
+        }
+        let mut parts = path.split('/').peekable();
+        let mut parent = root.try_clone()?;
+        while let Some(part) = parts.next() {
+            if parts.peek().is_none() {
+                return Ok(parent.open_file(part)?);
+            }
+            parent = parent.open_dir(part)?;
+            parent.require_private_directory()?;
+        }
+        Err(publication_refused())
+    }
+    fn publication_require_sealed(metadata: &Metadata, bytes: u64) -> Result<(), BackupError> {
+        if !metadata.is_file()
+            || metadata.uid() != 0
+            || metadata.mode() & 0o7777 != 0o400
+            || metadata.nlink() != 1
+            || metadata.len() != bytes
+        {
+            return Err(publication_refused());
+        }
+        Ok(())
+    }
+    fn prepay_publication_package(
+        lease: &RegistryLease,
+        manifest: &crate::BackupManifestV1,
+        raw: &[u8],
+        actual_index_bytes: u64,
+    ) -> Result<(), BackupError> {
+        if manifest.files.len().checked_add(1).is_none_or(|n| n > 512) {
+            return Err(publication_refused());
+        }
+        let bytes = manifest.files.iter().try_fold(raw.len() as u64, |n, r| {
+            n.checked_add(r.size).ok_or(BackupError::Overflow)
+        })?;
+        if bytes > 268_435_456 {
+            return Err(BackupError::Capacity("B1 source package profile"));
+        }
+        let index = manifest
+            .files
+            .iter()
+            .find(|r| r.path == "asset-index.json")
+            .ok_or_else(publication_refused)?;
+        if index.size != actual_index_bytes
+            || actual_index_bytes > crate::MAX_ASSET_INDEX_BYTES as u64
+        {
+            return Err(publication_refused());
+        }
+        let work = bytes
+            .checked_mul(2)
+            .and_then(|n| n.checked_add((raw.len() as u64).checked_mul(64)?))
+            .and_then(|n| n.checked_add(actual_index_bytes.checked_mul(64)?))
+            .ok_or(BackupError::Overflow)?;
+        // The legacy full package verifier streams some sealed files without
+        // a registry meter. Reserve those complete reads/hashes before calling
+        // it; limits do not promise every maximum-size package fits the budget.
+        publication_charge(
+            &lease.budget,
+            work,
+            manifest
+                .files
+                .len()
+                .checked_mul(8)
+                .and_then(|n| n.checked_add(32))
+                .ok_or(BackupError::Overflow)?,
+        )
+    }
+    fn publication_pread(
+        file: &File,
+        bytes: usize,
+        budget: &Budget,
+    ) -> Result<Vec<u8>, BackupError> {
+        use std::os::unix::fs::FileExt;
+        publication_charge(
+            budget,
+            (bytes as u64)
+                .checked_mul(2)
+                .and_then(|n| n.checked_add(1))
+                .ok_or(BackupError::Overflow)?,
+            2,
+        )?;
+        let mut raw = vec![0u8; bytes];
+        let mut offset = 0usize;
+        while offset < bytes {
+            let n = file.read_at(&mut raw[offset..], offset as u64)?;
+            if n == 0 {
+                return Err(publication_refused());
+            }
+            offset = offset.checked_add(n).ok_or(BackupError::Overflow)?;
+        }
+        let mut eof = [0u8];
+        if file.read_at(&mut eof, bytes as u64)? != 0 {
+            return Err(publication_refused());
+        }
+        Ok(raw)
+    }
+
+    fn publication_sealed_read(
+        root: &BackupDir,
+        name: &str,
+        cap: u64,
+        budget: &Budget,
+    ) -> Result<(Vec<u8>, Stamp), BackupError> {
+        if !crate::source::snapshot_effects::wire::path(name) {
+            return Err(publication_refused());
+        }
+        publication_charge(
+            budget,
+            (name.len() as u64) * 2 + 4096,
+            name.split('/').count() * 4 + 4,
+        )?;
+        let mut directory = root.try_clone()?;
+        let mut parts = name.split('/').peekable();
+        let mut leaf = None;
+        while let Some(part) = parts.next() {
+            if parts.peek().is_some() {
+                directory = directory.open_dir(part)?;
+            } else {
+                leaf = Some(part);
+            }
+        }
+        let leaf = leaf.ok_or_else(publication_refused)?;
+        let mut file = directory.open_file(leaf)?;
+        let meta = file.metadata()?;
+        if !meta.is_file()
+            || meta.uid() != 0
+            || meta.gid() != 0
+            || meta.nlink() != 1
+            || meta.mode() & 0o7777 != 0o400
+            || meta.len() == 0
+            || meta.len() > cap
+        {
+            return Err(publication_refused());
+        }
+        let stamp = Stamp::read(&meta);
+        let raw = read_held_bytes(&mut file, meta.len(), budget)?;
+        let mut extra = [0u8];
+        publication_charge(budget, 1, 2)?;
+        if file.read(&mut extra)? != 0
+            || Stamp::read(&file.metadata()?) != stamp
+            || Stamp::read(&directory.open_file(leaf)?.metadata()?) != stamp
+        {
+            return Err(publication_refused());
+        }
+        Ok((raw, stamp))
+    }
+
+    fn publication_adjunct(
+        effects: &BackupDir,
+        capture: &crate::source::snapshot_effects::wire::Capture,
+        records: &[crate::FileRecord],
+        input: &B1PublicationInputs,
+        source: &EnrolledSource,
+        lease: &RegistryLease,
+        manifest: &crate::BackupManifestV1,
+    ) -> Result<crate::source::snapshot_effects::wire::Descriptor, BackupError> {
+        use crate::source::snapshot_effects::{files, verify, wire};
+        let journal = original_scan_from_budget(lease)?;
+        let read = |name: &str| -> Result<Vec<u8>, BackupError> {
+            let record = records
+                .iter()
+                .find(|r| r.path == name)
+                .ok_or_else(publication_refused)?;
+            files::read(effects, record, &lease.budget, &journal)
+        };
+        let descriptor_raw = read("epoch.json")?;
+        let ledger_raw = read("ledger.json")?;
+        let cut_raw = read("cut.json")?;
+        let namespace_raw = read("namespace.json")?;
+        let inventory_raw = read("source-rows.json")?;
+        for raw in [
+            &descriptor_raw,
+            &ledger_raw,
+            &cut_raw,
+            &namespace_raw,
+            &inventory_raw,
+        ] {
+            prepay_canonical_data(raw, &lease.budget)?;
+        }
+        let descriptor: wire::Descriptor = publication_decode(&descriptor_raw)?;
+        let ledger: wire::Ledger = publication_decode(&ledger_raw)?;
+        let cut: wire::Cut = publication_decode(&cut_raw)?;
+        let namespace: Vec<wire::NamespaceEntry> = publication_decode(&namespace_raw)?;
+        let inventory: crate::full_restore::jobs::JobInventory =
+            publication_decode(&inventory_raw)?;
+        let g = &source.group;
+        // This shared checker also hashes the four fixed compiled writer
+        // sources (96,867 bytes in this reviewed baseline) and UUID strings.
+        // Pay its complete static input/work before the call, independently
+        // of Descriptor JSON/read billing. No replacement meter is created.
+        publication_charge(&lease.budget, 1_048_576, 16)?;
+        crate::source::snapshot_effects::descriptor_matches(&descriptor, g)?;
+        if capture.format_version != 2
+            || capture.capability != "snapshot_effect_capture_v2"
+            || capture.storage_encoding != wire::ENCODING
+            || descriptor.format_version != 2
+            || descriptor.capability != "snapshot_effect_epoch_v2"
+            || descriptor.storage_encoding != wire::ENCODING
+            || descriptor.source_group_id.to_string() != g.group_id
+            || descriptor.deployment_id.to_string() != g.deployment_id
+            || descriptor.source_database != g.database
+            || descriptor.source_database_oid != i64::from(g.database_oid)
+            || descriptor.source_system_identifier != g.system_identifier
+            || descriptor.source_application_commit != g.application_commit
+            || descriptor.source_build_sha256 != g.application_build_sha256
+            || manifest.source.application_commit != g.application_commit
+            || manifest.source.application_build_sha256 != g.application_build_sha256
+            || capture.capture_id != cut.capture_id
+            || capture.epoch_sha256 != crate::digest(&descriptor_raw)
+            || capture.rows_sha256 != crate::digest(&inventory_raw)
+            || capture.namespace_sha256 != crate::digest(&namespace_raw)
+            || capture.journal_head_sequence != cut.cut_record.sequence
+            || capture.journal_head_sha256 != cut.cut_record.sha256
+            || capture.cut_event_sha256 != cut.cut_record.sha256
+            || capture.backup_id != input.backup_id()
+        {
+            return Err(publication_refused());
+        }
+        let mut journal_files = std::collections::BTreeMap::new();
+        for record in records.iter().filter(|r| r.path.starts_with("journal/")) {
+            publication_charge(&lease.budget, record.path.len() as u64 + 256, 1)?;
+            journal_files.insert(
+                record.path.clone(),
+                files::read(effects, record, &lease.budget, &journal)?,
+            );
+        }
+        let prefix = wire::Prefix::check(
+            &journal_files,
+            &descriptor_raw,
+            descriptor.epoch_id,
+            descriptor.binding_id,
+            &cut.cut_record,
+        )?;
+        verify::cut(
+            &descriptor,
+            &ledger,
+            &cut,
+            (
+                cut.cut_record.sequence,
+                hex::decode(&cut.cut_record.sha256)
+                    .ok()
+                    .and_then(|v| v.try_into().ok())
+                    .ok_or_else(publication_refused)?,
+            ),
+            &descriptor_raw,
+            &ledger_raw,
+            input.backup_id(),
+        )?;
+        verify::prefix_cut(
+            &prefix,
+            &cut,
+            &descriptor_raw,
+            &ledger_raw,
+            &lease.budget,
+            &journal,
+        )?;
+        verify::inventory(
+            &inventory,
+            &ledger,
+            &prefix,
+            &namespace,
+            &lease.budget,
+            &journal,
+        )?;
+        Ok(descriptor)
+    }
+    fn publication_decode<T: serde::de::DeserializeOwned + Serialize>(
+        raw: &[u8],
+    ) -> Result<T, BackupError> {
+        // Existing exports use either the closed typed field order or sorted
+        // Value encoding. Roundtripping either permitted encoding rejects
+        // duplicate keys at all depths; neither form adds a wire alternative.
+        let value: T = serde_json::from_slice(raw)?;
+        if serde_json::to_vec(&value)? != raw && crate::registry::canonical(&value)? != raw {
+            return Err(publication_refused());
+        }
+        Ok(value)
+    }
+    fn publication_roster(records: &[crate::FileRecord]) -> Result<(), BackupError> {
+        if records.is_empty()
+            || records.len() > 512
+            || records.windows(2).any(|w| w[0].path >= w[1].path)
+            || records.iter().any(|r| {
+                !crate::source::snapshot_effects::wire::path(&r.path)
+                    || r.size == 0
+                    || !crate::valid_digest(&r.sha256)
+            })
+        {
+            return Err(publication_refused());
+        }
+        Ok(())
+    }
+    fn publication_snapshot_shape(
+        snapshot: &crate::destination::SnapshotRecord,
+    ) -> Result<(), BackupError> {
+        if snapshot.format_version != 1
+            || snapshot.capability != "protection_snapshot_v1"
+            || snapshot.scan_bytes > crate::registry::MAX_SCAN_BYTES
+            || snapshot.protected_digest_count > 100000
+            || snapshot.records.len() > crate::registry::MAX_ENTRIES
+            || snapshot.records.windows(2).any(|w| w[0].path >= w[1].path)
+        {
+            return Err(publication_refused());
+        }
+        let mut total = 0u64;
+        for record in &snapshot.records {
+            if record.path.is_empty()
+                || record.path.contains(['\\', '\0', ':'])
+                || record
+                    .path
+                    .split('/')
+                    .any(|p| p.is_empty() || p == "." || p == "..")
+                || !crate::valid_digest(&record.sha256)
+                || record.size > crate::MAX_ASSET_INDEX_BYTES as u64
+            {
+                return Err(publication_refused());
+            }
+            total = total
+                .checked_add(record.size)
+                .ok_or(BackupError::Overflow)?;
+        }
+        if total > snapshot.scan_bytes {
+            return Err(publication_refused());
+        }
+        Ok(())
+    }
+    fn publication_snapshot_join(
+        before: &crate::destination::SnapshotRecord,
+        now: &crate::destination::SnapshotRecord,
+    ) -> Result<(), BackupError> {
+        publication_snapshot_shape(before)?;
+        publication_snapshot_shape(now)?;
+        if before.records != now.records
+            || before.protected_digest_count != now.protected_digest_count
+            || before.source_group_id != now.source_group_id
+            || before.registry_generation_sha256 != now.registry_generation_sha256
+        {
+            return Err(publication_refused());
+        }
+        Ok(())
+    }
+    fn publication_historical_export_join(
+        input: &B1PublicationInputs,
+        before: &crate::destination::SnapshotRecord,
+        now: &crate::destination::SnapshotRecord,
+        source_records: &[crate::FileRecord],
+        budget: &Budget,
+    ) -> Result<(), BackupError> {
+        publication_snapshot_shape(before)?;
+        publication_snapshot_shape(now)?;
+        publication_roster(source_records)?;
+        publication_charge(
+            budget,
+            (source_records.len() as u64) * 2048,
+            source_records.len() * 2,
+        )?;
+        if source_records.len() != 12
+            || crate::digest(&crate::registry::canonical(&source_records)?)
+                != input.captured.captured_roster_sha256
+            || before.source_group_id != input.group_id()
+            || now.source_group_id != input.group_id()
+            || before.registry_generation_sha256 != input.captured.source_registry_generation_sha256
+            || now.registry_generation_sha256 != input.captured.source_registry_generation_sha256
+            || before.protected_digest_count != now.protected_digest_count
+        {
+            return Err(publication_refused());
+        }
+        let prefix = format!("control/{}.b1-captured/", input.backup_id());
+        if before.records.iter().any(|r| r.path.starts_with(&prefix)) {
+            return Err(publication_refused());
+        }
+        publication_charge(
+            budget,
+            (now.records.len() as u64)
+                .checked_mul(4096)
+                .ok_or(BackupError::Overflow)?,
+            now.records.len(),
+        )?;
+        let expected_aliases = source_records
+            .iter()
+            .map(|record| crate::FileRecord {
+                path: format!("{prefix}{}", record.path),
+                size: record.size,
+                sha256: record.sha256.clone(),
+            })
+            .collect::<Vec<_>>();
+        publication_exact_alias_delta(&before.records, &now.records, &expected_aliases)
+    }
+    // Pure order/bytes predicate only. Its caller must already hold genuine
+    // Capture provenance and the fixed exact12 set, so this cannot create S.
+    fn publication_exact_alias_delta(
+        before: &[crate::FileRecord],
+        now: &[crate::FileRecord],
+        expected_aliases: &[crate::FileRecord],
+    ) -> Result<(), BackupError> {
+        let mut old = before.iter();
+        let mut aliases = 0usize;
+        for record in now {
+            // Exact full-path lookup; no prefix-based suppression.
+            if let Some(expected) = expected_aliases.iter().find(|r| r.path == record.path) {
+                if record != expected {
+                    return Err(publication_refused());
+                }
+                aliases = aliases.checked_add(1).ok_or(BackupError::Overflow)?;
+            } else if old.next() != Some(record) {
+                return Err(publication_refused());
+            }
+        }
+        if aliases != expected_aliases.len() || old.next().is_some() {
+            return Err(publication_refused());
+        }
+        Ok(())
+    }
+    fn original_scan_from_budget(
+        lease: &RegistryLease,
+    ) -> Result<learning_assets::root_journal::SharedJournalBudget, BackupError> {
+        lease
+            .budget
+            .lock()
+            .map_err(|_| publication_refused())?
+            .original_b1_scan()
+    }
+
+    #[cfg(test)]
+    mod first_s_view_tests {
+        use super::*;
+
+        #[test]
+        fn root_remaining_uses_original_1200_seconds_and_rejects_clock_reversal() {
+            let start = 7;
+            assert_eq!(
+                publication_root_remaining(start, start).unwrap(),
+                1_200_000_000_000
+            );
+            assert_eq!(
+                publication_root_remaining(start, start + 1_200_000_000_000 - 1).unwrap(),
+                1
+            );
+            assert!(publication_root_remaining(start, start - 1).is_err());
+            assert!(publication_root_remaining(start, start + 1_200_000_000_000).is_err());
+            assert!(publication_root_remaining(0, 1).is_err());
+            assert!(publication_root_remaining(u64::MAX, u64::MAX).is_err());
+        }
+
+        #[test]
+        fn publication_roster_is_closed_sorted_and_duplicate_free_data_only() {
+            let one = crate::FileRecord {
+                path: "source-authority.json".into(),
+                size: 2,
+                sha256: "a".repeat(64),
+            };
+            assert!(publication_roster(std::slice::from_ref(&one)).is_ok());
+            assert!(publication_roster(&[one.clone(), one]).is_err());
+            assert!(
+                publication_roster(&[crate::FileRecord {
+                    path: "../authority.json".into(),
+                    size: 2,
+                    sha256: "a".repeat(64)
+                }])
+                .is_err()
+            );
+            assert!(
+                publication_roster(&[crate::FileRecord {
+                    path: "authority.json".into(),
+                    size: 0,
+                    sha256: "a".repeat(64)
+                }])
+                .is_err()
+            );
+            assert!(publication_roster(&[]).is_err());
+        }
+
+        #[test]
+        fn exact_alias_data_comparison_rejects_extra_prefix_peers_and_changed_hashes() {
+            let record = |path: &str| crate::FileRecord {
+                path: path.into(),
+                size: 2,
+                sha256: "a".repeat(64),
+            };
+            let old = vec![record("registry/authority.json")];
+            let aliases = vec![record("control/id.b1-captured/a.json")];
+            let now = vec![aliases[0].clone(), old[0].clone()];
+            assert!(publication_exact_alias_delta(&old, &now, &aliases).is_ok());
+            let extra = vec![
+                aliases[0].clone(),
+                record("control/id.b1-captured/extra.json"),
+                old[0].clone(),
+            ];
+            assert!(publication_exact_alias_delta(&old, &extra, &aliases).is_err());
+            let mut changed = now.clone();
+            changed[0].sha256 = "b".repeat(64);
+            assert!(publication_exact_alias_delta(&old, &changed, &aliases).is_err());
+            assert!(publication_exact_alias_delta(&old, &old, &aliases).is_err());
+        }
+
+        #[test]
+        fn fresh_snapshot_comparison_keeps_all_records_while_freezing_old_counter_bytes() {
+            let record = crate::FileRecord {
+                path: "control/id.b1-captured/a.json".into(),
+                size: 2,
+                sha256: "a".repeat(64),
+            };
+            let before = crate::destination::SnapshotRecord {
+                format_version: 1,
+                capability: "protection_snapshot_v1".into(),
+                source_group_id: "group".into(),
+                registry_generation_sha256: "b".repeat(64),
+                records: vec![record],
+                protected_digest_count: 1,
+                scan_bytes: 64,
+            };
+            let frozen = crate::registry::canonical(&before).unwrap();
+            let mut now = before.clone();
+            now.scan_bytes = 128;
+            assert!(publication_snapshot_join(&before, &now).is_ok());
+            assert_eq!(crate::registry::canonical(&before).unwrap(), frozen);
+            now.records[0].size = 3;
+            assert!(publication_snapshot_join(&before, &now).is_err());
+        }
+
+        #[test]
+        fn publication_typed_or_sorted_roundtrip_never_accepts_duplicate_json() {
+            #[derive(Serialize, Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Closed {
+                z: u64,
+                a: u64,
+            }
+            assert!(publication_decode::<Closed>(br#"{"z":1,"a":2}"#).is_ok());
+            assert!(publication_decode::<Closed>(br#"{"a":2,"z":1}"#).is_ok());
+            assert!(publication_decode::<Closed>(br#"{"z":1,"a":2,"z":1}"#).is_err());
+            assert!(publication_decode::<Closed>(br#"{"z":1,"a":2,"extra":0}"#).is_err());
+            assert!(publication_decode::<Closed>(br#"{ "z":1,"a":2}"#).is_err());
         }
     }
 

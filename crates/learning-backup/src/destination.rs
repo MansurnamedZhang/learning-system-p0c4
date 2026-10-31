@@ -16,6 +16,15 @@ use crate::{DestinationStatement, DestinationWitness};
 #[cfg(target_os = "linux")]
 pub(crate) use attempt::ErrorFence as PublicationErrorFence;
 pub(crate) use attempt::OperationAuthority;
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) use attempt::remote::Consumption as RemoteConsumption;
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) use b1_signer::B1DestinationSignerOriginal;
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) use remote_finalization::{
+    CommittedRemoteOriginal, OriginalRemoteFinalization, PreparedRemoteDestinationOriginal,
+    RemoteFinalBindingData, prepare_original_remote_destination,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
@@ -78,6 +87,13 @@ fn file_cap(path: &str) -> u64 {
         "source-generation.json" => 524288,
         _ => 16384,
     }
+}
+
+/// Fixed legacy single-file caps only. The receiver supplies an already
+/// derived exact12 logical name; this DATA lookup grants no path or authority.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) fn source_evidence_file_cap_data(path: &str) -> u64 {
+    file_cap(path)
 }
 
 fn validate_envelope(record: &ProofRecord) -> Result<(), BackupError> {
@@ -151,6 +167,64 @@ fn checked_files(
         }
     }
     Ok(())
+}
+
+// Fixed canonical DATA encoder shared by the real Source pin view and the
+// existing D preparation. It constructs no proof capability or operation.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) fn captured_proof_record_bytes_from_files(
+    backup_id: Uuid,
+    manifest: &BackupManifestV1,
+    files: &BTreeMap<String, Vec<u8>>,
+) -> Result<Vec<u8>, BackupError> {
+    let record = proof_record_from_files(backup_id, manifest, files)?;
+    let raw = canonical(&record)?;
+    if raw.len() > 16_384 {
+        return Err(BackupError::Capacity("captured source proof record"));
+    }
+    Ok(raw)
+}
+
+#[cfg(target_os = "linux")]
+fn proof_record_from_files(
+    backup_id: Uuid,
+    manifest: &BackupManifestV1,
+    files: &BTreeMap<String, Vec<u8>>,
+) -> Result<ProofRecord, BackupError> {
+    if !v4(&backup_id.to_string()) || manifest.backup_id != backup_id || files.len() != 12 {
+        return Err(BackupError::Invalid("captured proof DATA input identity"));
+    }
+    for (name, raw) in files {
+        if raw.is_empty() || raw.len() as u64 > file_cap(name) {
+            return Err(BackupError::Capacity("captured proof DATA input bytes"));
+        }
+    }
+    let required = |name: &str| {
+        files.get(name).ok_or(BackupError::Invalid(
+            "captured proof DATA missing fixed file",
+        ))
+    };
+    let group: SourceGroup = canonical_record(required("source-group.json")?, 16_384)?;
+    let record = ProofRecord {
+        format_version: 1,
+        capability: "captured_source_proof_v1".into(),
+        backup_id,
+        manifest_sha256: manifest.canonical_sha256()?,
+        source_control_sha256: digest(required("source-released.json")?),
+        source_group_id: group.group_id,
+        source_registry_generation_sha256: digest(required("source-generation.json")?),
+        protection_snapshot_sha256: digest(required("protection-snapshot.json")?),
+        files: files
+            .iter()
+            .map(|(path, raw)| FileRecord {
+                path: path.clone(),
+                size: raw.len() as u64,
+                sha256: digest(raw),
+            })
+            .collect(),
+    };
+    checked_files(&record, files)?;
+    Ok(record)
 }
 
 enum EvidenceLocation<'a> {
@@ -681,6 +755,285 @@ impl DestinationSigner {
     }
 }
 
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+mod b1_signer {
+    use super::*;
+    use learning_assets::backup_fs::BackupDir;
+    use ring::signature::{ECDSA_P256_SHA256_FIXED_SIGNING, EcdsaKeyPair, KeyPair};
+    use std::{
+        fs::File,
+        io::{Read, Seek, SeekFrom},
+        os::unix::fs::MetadataExt,
+        sync::{Arc, Mutex},
+    };
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    struct Stamp {
+        dev: u64,
+        ino: u64,
+        uid: u32,
+        gid: u32,
+        mode: u32,
+        links: u64,
+        len: u64,
+        mtime: i64,
+        mtime_ns: i64,
+        ctime: i64,
+        ctime_ns: i64,
+    }
+    impl Stamp {
+        fn from(value: &std::fs::Metadata) -> Self {
+            Self {
+                dev: value.dev(),
+                ino: value.ino(),
+                uid: value.uid(),
+                gid: value.gid(),
+                mode: value.mode(),
+                links: value.nlink(),
+                len: value.len(),
+                mtime: value.mtime(),
+                mtime_ns: value.mtime_nsec(),
+                ctime: value.ctime(),
+                ctime_ns: value.ctime_nsec(),
+            }
+        }
+        fn require_record(self) -> Result<(), BackupError> {
+            if self.mode & libc::S_IFMT != libc::S_IFREG
+                || self.mode & 0o7777 != 0o600
+                || self.uid != 0
+                || self.gid != 0
+                || self.links != 1
+                || self.len == 0
+                || self.len > 4096
+            {
+                return Err(BackupError::Invalid(
+                    "B1 first installed signer file custody",
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    struct PrivateBytes(Vec<u8>);
+    impl Drop for PrivateBytes {
+        fn drop(&mut self) {
+            self.0.fill(0);
+        }
+    }
+
+    pub(crate) struct B1DestinationSignerOriginal {
+        entry: &'static crate::offhost_b1::destination_actor::OriginalDEntryScope,
+        budget: Arc<Mutex<registry::ScanBudget>>,
+        root: BackupDir,
+        root_identity: (u64, u64),
+        key_file: File,
+        key_stamp: Stamp,
+        key_bytes_sha256: String,
+        trust_file: File,
+        trust_stamp: Stamp,
+        trust_raw: Vec<u8>,
+        trust: VerifierTrustConfig,
+        key: EcdsaKeyPair,
+    }
+
+    impl B1DestinationSignerOriginal {
+        pub(crate) fn open_fixed_for_original(
+            entry: &'static crate::offhost_b1::destination_actor::OriginalDEntryScope,
+        ) -> Result<Arc<Self>, BackupError> {
+            let budget = entry.take_fixed_signer_scope()?;
+            entry.prepay_wire_work(4096 * 32, 32)?;
+            let root = BackupDir::open_trusted_private_root(std::path::Path::new(KEY_ROOT))?;
+            root.require_private_directory()?;
+            let root_identity = root.identity()?;
+            let trust_file = root.open_file("trust.json")?;
+            let (trust_stamp, mut trust_bytes) = read_first(&trust_file, &budget)?;
+            let trust_raw = std::mem::take(&mut trust_bytes.0);
+            registry::prepay_current_b1_json(&budget, &trust_raw)?;
+            let trust: VerifierTrustConfig = serde_json::from_slice(&trust_raw)?;
+            if trust.canonical_bytes()? != trust_raw {
+                return Err(BackupError::Invalid("B1 original verifier trust bytes"));
+            }
+            crate::complete::require_deployment_verifier_key(&trust)?;
+            let key_file = root.open_file("destination.pk8")?;
+            let (key_stamp, raw) = read_first(&key_file, &budget)?;
+            let key_bytes_sha256 = digest(&raw.0);
+            let key = EcdsaKeyPair::from_pkcs8(
+                &ECDSA_P256_SHA256_FIXED_SIGNING,
+                &raw.0,
+                &ring::rand::SystemRandom::new(),
+            )
+            .map_err(|_| BackupError::Invalid("B1 original verifier PKCS8"))?;
+            if hex::encode(key.public_key().as_ref()) != trust.verifier_public_key_hex
+                || digest(key.public_key().as_ref()) != entry.verifier_public_key_pin_data()
+            {
+                return Err(BackupError::Invalid("B1 original verifier public key pins"));
+            }
+            drop(raw);
+            let original = Arc::new(Self {
+                entry,
+                budget,
+                root,
+                root_identity,
+                key_file,
+                key_stamp,
+                key_bytes_sha256,
+                trust_file,
+                trust_stamp,
+                trust_raw,
+                trust,
+                key,
+            });
+            original.recheck_held()?;
+            Ok(original)
+        }
+
+        pub(crate) fn recheck_pending_original(
+            &self,
+            original: &crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD,
+        ) -> Result<(), BackupError> {
+            original.require_destination(original.destination_original())?;
+            if !std::ptr::eq(self.entry, original.entry_original())
+                || !std::ptr::eq(self, original.signer_original()?.as_ref())
+            {
+                return Err(BackupError::Invalid(
+                    "first B1 signer belongs to another original",
+                ));
+            }
+            self.require_original_budget(&original.destination_original().lease.budget)?;
+            self.recheck_held()
+        }
+
+        pub(crate) fn trust_data(&self) -> &VerifierTrustConfig {
+            &self.trust
+        }
+
+        pub(super) fn require_original_budget(
+            &self,
+            budget: &Arc<Mutex<registry::ScanBudget>>,
+        ) -> Result<(), BackupError> {
+            if !Arc::ptr_eq(&self.budget, budget) {
+                return Err(BackupError::Invalid("B1 signer original cumulative budget"));
+            }
+            Ok(())
+        }
+
+        fn recheck_held(&self) -> Result<(), BackupError> {
+            self.entry.prepay_wire_work(4096 * 32, 32)?;
+            self.root.require_private_directory()?;
+            if self.root.identity()? != self.root_identity
+                || BackupDir::open_trusted_private_root(std::path::Path::new(KEY_ROOT))?
+                    .identity()?
+                    != self.root_identity
+            {
+                return Err(BackupError::Invalid("B1 signer original root replaced"));
+            }
+            let trust_raw = reread_original(&self.trust_file, self.trust_stamp, &self.budget)?;
+            let key_raw = reread_original(&self.key_file, self.key_stamp, &self.budget)?;
+            if trust_raw.0 != self.trust_raw
+                || digest(&key_raw.0) != self.key_bytes_sha256
+                || Stamp::from(&self.root.open_file("trust.json")?.metadata()?) != self.trust_stamp
+                || Stamp::from(&self.root.open_file("destination.pk8")?.metadata()?)
+                    != self.key_stamp
+            {
+                return Err(BackupError::Invalid("B1 original signer/trust changed"));
+            }
+            Ok(())
+        }
+
+        pub(super) fn recheck_consuming(
+            &self,
+            original: &OriginalRemoteFinalization,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<(), BackupError> {
+            original.require_own_original_signer(owner, self)?;
+            self.recheck_held()
+        }
+
+        pub(super) fn recheck_committed_original(
+            &self,
+            committed: &CommittedRemoteOriginal,
+        ) -> Result<(), BackupError> {
+            committed.require_own_committed_signer(self)?;
+            self.recheck_held()
+        }
+        pub(super) fn sign_original_consuming(
+            &self,
+            original: &OriginalRemoteFinalization,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<DestinationWitness, BackupError> {
+            self.recheck_consuming(original, owner)?;
+            let statement = original.statement_for_receipt(owner)?;
+            let bytes = statement.canonical_bytes()?;
+            if bytes.len() > 8192 {
+                return Err(BackupError::Capacity("B1 original signer statement"));
+            }
+            original.check_deadline()?;
+            let signature = self
+                .key
+                .sign(&ring::rand::SystemRandom::new(), &bytes)
+                .map_err(|_| BackupError::Invalid("B1 original destination signature"))?;
+            self.recheck_consuming(original, owner)?;
+            Ok(DestinationWitness {
+                statement,
+                signature_hex: hex::encode(signature.as_ref()),
+            })
+        }
+    }
+
+    fn pay(
+        budget: &Arc<Mutex<registry::ScanBudget>>,
+        bytes: u64,
+        entries: usize,
+    ) -> Result<(), BackupError> {
+        let mut meter = budget
+            .lock()
+            .map_err(|_| BackupError::Invalid("B1 signer budget poison"))?;
+        meter.charge(bytes)?;
+        meter.entries(entries)
+    }
+    fn read_first(
+        file: &File,
+        budget: &Arc<Mutex<registry::ScanBudget>>,
+    ) -> Result<(Stamp, PrivateBytes), BackupError> {
+        pay(budget, 0, 2)?;
+        let stamp = Stamp::from(&file.metadata()?);
+        stamp.require_record()?;
+        let raw = reread_original(file, stamp, budget)?;
+        Ok((stamp, raw))
+    }
+    fn reread_original(
+        mut file: &File,
+        stamp: Stamp,
+        budget: &Arc<Mutex<registry::ScanBudget>>,
+    ) -> Result<PrivateBytes, BackupError> {
+        stamp.require_record()?;
+        pay(
+            budget,
+            stamp
+                .len
+                .checked_mul(4)
+                .and_then(|n| n.checked_add(1))
+                .ok_or(BackupError::Overflow)?,
+            4,
+        )?;
+        if Stamp::from(&file.metadata()?) != stamp {
+            return Err(BackupError::Invalid("B1 first signer descriptor changed"));
+        }
+        file.seek(SeekFrom::Start(0))?;
+        let mut raw = PrivateBytes(vec![
+            0;
+            usize::try_from(stamp.len)
+                .map_err(|_| BackupError::Overflow)?
+        ]);
+        file.read_exact(&mut raw.0)?;
+        let mut extra = [0];
+        if file.read(&mut extra)? != 0 || Stamp::from(&file.metadata()?) != stamp {
+            return Err(BackupError::Invalid("B1 first signer bytes changed"));
+        }
+        Ok(raw)
+    }
+}
+
 #[derive(Debug)]
 pub struct VerifiedDestination {
     #[cfg(target_os = "linux")]
@@ -740,6 +1093,916 @@ impl VerifiedDestination {
         {
             let _ = signer;
             Err(BackupError::Invalid("destination verifier requires Linux"))
+        }
+    }
+}
+
+/// The remote final consumer is deliberately separate from VerifiedDestination.
+/// There is no public or test-success constructor and no conversion from a
+/// Local proof, signature DATA, or a recovered record. The fixed authenticated
+/// stream/eleven-step/adjunct producer below supplies its actual retained owner.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+#[allow(
+    dead_code,
+    reason = "default-off original D; installation, CODE and runtime acceptance remain separate"
+)]
+mod remote_finalization {
+    use super::*;
+    use learning_assets::backup_fs::{BackupDir, BackupEntryKind};
+    use sha2::{Digest, Sha256};
+    use std::{
+        io::Read,
+        os::unix::fs::MetadataExt,
+        sync::{Arc, Mutex},
+        time::Instant,
+    };
+
+    // DATA projection of the fixed original session/Ready, never a capability.
+    // No serde/from-path/boolean selector or signing entry is attached to it.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct RemoteFinalBindingData {
+        pub(crate) backup_id: Uuid,
+        pub(crate) attempt_id: Uuid,
+        pub(crate) source_operation_id: Uuid,
+        pub(crate) session_binding_sha256: String,
+        pub(crate) source_auth_frame_sha256: String,
+        pub(crate) source_auth_key_sha256: String,
+        pub(crate) s_nonce: String,
+        pub(crate) d_nonce: String,
+        pub(crate) manifest_sha256: String,
+        pub(crate) proof_sha256: String,
+        pub(crate) snapshot_effects_proof_sha256: String,
+        pub(crate) snapshot_effects_input_sha256: String,
+        pub(crate) snapshot_effects_intent_sha256: String,
+        pub(crate) fence_anchor_sha256: String,
+        pub(crate) protection_snapshot_sha256: String,
+    }
+    impl RemoteFinalBindingData {
+        pub(crate) fn validate_data(&self) -> Result<(), BackupError> {
+            if ![self.backup_id, self.attempt_id, self.source_operation_id]
+                .iter()
+                .all(|id| v4(&id.to_string()))
+                || ![
+                    &self.session_binding_sha256,
+                    &self.source_auth_frame_sha256,
+                    &self.source_auth_key_sha256,
+                    &self.s_nonce,
+                    &self.d_nonce,
+                    &self.manifest_sha256,
+                    &self.proof_sha256,
+                    &self.snapshot_effects_proof_sha256,
+                    &self.snapshot_effects_input_sha256,
+                    &self.snapshot_effects_intent_sha256,
+                    &self.fence_anchor_sha256,
+                    &self.protection_snapshot_sha256,
+                ]
+                .iter()
+                .all(|value| valid_digest(value))
+            {
+                return Err(BackupError::Invalid("remote original Final binding DATA"));
+            }
+            Ok(())
+        }
+    }
+
+    /// Retained actual Ready owner. Only the completed authenticated stream,
+    /// the original eleven natural steps and the real remote adjunct writer
+    /// construct it. It remains in Book even during Final/sign/receipt unwind.
+    pub(crate) struct PreparedRemoteDestinationOriginal {
+        original: Arc<crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD>,
+        proof: CapturedSourceProof,
+        identity: attempt::CommitIdentity,
+        adjunct: Arc<snapshot_effects::RemoteCopiedSnapshotEffectsOriginal>,
+        manifest_raw: Vec<u8>,
+        destination_roster: Vec<String>,
+        evidence_roster: Vec<String>,
+    }
+    pub(crate) fn prepare_original_remote_destination(
+        received: &crate::offhost_b1::destination_actor::OriginalReceivedFiles<'_>,
+    ) -> Result<Arc<PreparedRemoteDestinationOriginal>, BackupError> {
+        let original = received.original();
+        original.require_destination(original.destination_original())?;
+        original.prepay_original_work(65_536, 32)?;
+        let signer = original.signer_original()?;
+        signer.recheck_pending_original(original)?;
+        linux::trust_matches(original.destination_original(), signer.trust_data())?;
+        let (proof, identity) = linux::persist_original_remote(received)?;
+        attempt::remote::require_original_pending(original, &identity)?;
+        let adjunct = snapshot_effects::copy_original_remote_effects(
+            received,
+            &proof,
+            &identity,
+            signer.trust_data(),
+        )?;
+        original.prepay_original_work(
+            (received.manifest_raw().len() as u64)
+                .checked_mul(2)
+                .and_then(|n| n.checked_add(65_536))
+                .ok_or(BackupError::Overflow)?,
+            32,
+        )?;
+        let destination_roster = registry::prepaid_b1_roster(
+            original.destination_original().destination(),
+            &original.destination_original().lease.budget,
+            registry::MAX_ENTRIES,
+        )?;
+        let evidence_roster = registry::prepaid_b1_roster(
+            original.destination_original().evidence(),
+            &original.destination_original().lease.budget,
+            registry::MAX_ENTRIES,
+        )?;
+        attempt::require_committed_names(&evidence_roster, proof.backup_id())?;
+        let owner = Arc::new(PreparedRemoteDestinationOriginal {
+            original: Arc::clone(original),
+            proof,
+            identity,
+            adjunct: Arc::new(adjunct),
+            manifest_raw: received.manifest_raw().to_vec(),
+            destination_roster,
+            evidence_roster,
+        });
+        owner.recheck_original_ready()?;
+        Ok(owner)
+    }
+    impl PreparedRemoteDestinationOriginal {
+        pub(crate) fn recheck_original_ready(&self) -> Result<(), BackupError> {
+            self.original
+                .require_destination(self.original.destination_original())?;
+            self.original
+                .signer_original()?
+                .recheck_pending_original(&self.original)?;
+            attempt::remote::require_original_pending(&self.original, &self.identity)?;
+            self.adjunct
+                .recheck_pending_original(&self.original, &self.proof, &self.identity)
+        }
+        pub(crate) fn ready_witness_bytes(&self) -> Result<&[u8], BackupError> {
+            Ok(self.adjunct.witness_bytes())
+        }
+        pub(crate) fn ready_intent_bytes(&self) -> Result<&[u8], BackupError> {
+            Ok(self.adjunct.intent_bytes())
+        }
+        pub(crate) fn proof_sha256_data(&self) -> &str {
+            &self.identity.intent.proof_sha256
+        }
+        pub(crate) fn manifest_sha256_data(&self) -> &str {
+            &self.identity.intent.manifest_sha256
+        }
+        pub(crate) fn ready_proof_sha256_data(&self) -> String {
+            digest(self.adjunct.witness_bytes())
+        }
+        pub(crate) fn ready_intent_sha256_data(&self) -> String {
+            digest(self.adjunct.intent_bytes())
+        }
+        pub(crate) fn input_sha256_data(&self) -> &str {
+            self.adjunct.input_sha256_data()
+        }
+        pub(crate) fn original_actor(
+            &self,
+        ) -> &Arc<crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD> {
+            &self.original
+        }
+        pub(crate) fn finalize_fixed(
+            &self,
+            decision: crate::offhost_b1::finalize::AuthenticatedFinalInOriginalD,
+        ) -> Result<CommittedRemoteOriginal, BackupError> {
+            self.recheck_original_ready()?;
+            self.original.prepay_original_work(
+                (self.manifest_raw.len() as u64)
+                    .checked_mul(2)
+                    .and_then(|n| n.checked_add(2 * 16_384 * 32))
+                    .ok_or(BackupError::Overflow)?,
+                32,
+            )?;
+            let binding = decision.binding_data().clone();
+            decision.require_original(
+                &self
+                    .original
+                    .destination_original()
+                    .lease
+                    .destination_operation,
+                &binding,
+            )?;
+            if binding.backup_id != self.identity.intent.backup_id
+                || binding.attempt_id != self.identity.intent.attempt_id
+                || binding.proof_sha256 != self.identity.intent.proof_sha256
+                || binding.manifest_sha256 != self.identity.intent.manifest_sha256
+                || binding.snapshot_effects_proof_sha256 != self.ready_proof_sha256_data()
+                || binding.snapshot_effects_intent_sha256 != self.ready_intent_sha256_data()
+                || binding.snapshot_effects_input_sha256 != self.input_sha256_data()
+            {
+                return Err(BackupError::Invalid("Final differs from original Ready"));
+            }
+            let context = OriginalRemoteFinalization {
+                destination: Arc::clone(self.original.destination_arc_original()),
+                identity: self.identity.clone(),
+                proof: CapturedSourceProof {
+                    record: self.proof.record.clone(),
+                },
+                manifest_raw: self.manifest_raw.clone(),
+                destination_roster: self.destination_roster.clone(),
+                evidence_roster: self.evidence_roster.clone(),
+                signer: Arc::clone(self.original.signer_original()?),
+                native: Arc::clone(self.original.native_original()?),
+                adjunct: Arc::clone(&self.adjunct),
+                original: Arc::clone(&self.original),
+                binding,
+                deadline: self.original.entry_original().operation_deadline_data(),
+            };
+            context.finish(decision)
+        }
+    }
+
+    pub(crate) struct OriginalRemoteFinalization {
+        destination: Arc<EnrolledDestination>,
+        identity: attempt::CommitIdentity,
+        proof: CapturedSourceProof,
+        manifest_raw: Vec<u8>,
+        destination_roster: Vec<String>,
+        evidence_roster: Vec<String>,
+        signer: Arc<B1DestinationSignerOriginal>,
+        native: Arc<crate::offhost_b1::destination_actor::NativeDestinationLocalCustody>,
+        adjunct: Arc<snapshot_effects::RemoteCopiedSnapshotEffectsOriginal>,
+        original: Arc<crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD>,
+        binding: RemoteFinalBindingData,
+        // This is the original D deadline. There is no clock/deadline argument
+        // to the consumer, no fresh clock and no producer in this component.
+        deadline: Instant,
+    }
+
+    /// Keeps the original D roots/lease/budget alive after disk Committed,
+    /// while the future actor checks result ACK/End/actual EOF/natural exit.
+    /// This is not that transport completion and has no normal-success method.
+    pub(crate) struct CommittedRemoteOriginal {
+        original: OriginalRemoteFinalization,
+        receipt: crate::complete::OriginalRemoteReceipt,
+    }
+    impl CommittedRemoteOriginal {
+        pub(crate) fn receipt_data(&self) -> &[u8] {
+            self.receipt.bytes()
+        }
+        pub(crate) fn receipt_sha256_data(&self) -> &str {
+            self.receipt.receipt_sha256()
+        }
+        pub(crate) fn original_backup_id_data(&self) -> Uuid {
+            self.original.identity.intent.backup_id
+        }
+        pub(crate) fn held_destination_for_committed(&self) -> &EnrolledDestination {
+            &self.original.destination
+        }
+        pub(crate) fn statement_for_committed(&self) -> DestinationStatement {
+            statement(&self.original.proof, self.original.signer.trust_data())
+        }
+        pub(crate) fn trust_for_committed(&self) -> &VerifierTrustConfig {
+            self.original.signer.trust_data()
+        }
+        pub(crate) fn require_own_committed_native(
+            &self,
+            native: &crate::offhost_b1::destination_actor::NativeDestinationLocalCustody,
+        ) -> Result<(), BackupError> {
+            attempt::remote::require_committed_original(
+                self.original.operation(),
+                &self.original.identity,
+            )?;
+            if !std::ptr::eq(self.original.native.as_ref(), native) {
+                return Err(BackupError::Invalid("different committed native owner"));
+            }
+            native.require_operation_original(self.original.operation())
+        }
+        pub(crate) fn require_own_committed_signer(
+            &self,
+            signer: &B1DestinationSignerOriginal,
+        ) -> Result<(), BackupError> {
+            attempt::remote::require_committed_original(
+                self.original.operation(),
+                &self.original.identity,
+            )?;
+            if !std::ptr::eq(self.original.signer.as_ref(), signer) {
+                return Err(BackupError::Invalid("different committed signer owner"));
+            }
+            signer.require_original_budget(&self.original.destination.lease.budget)
+        }
+        pub(crate) fn recheck_local_committed(&self) -> Result<(), BackupError> {
+            attempt::remote::require_committed_original(
+                self.original.operation(),
+                &self.original.identity,
+            )?;
+            self.original.check_deadline()?;
+            self.original.native.recheck_committed_original(self)?;
+            self.original.signer.recheck_committed_original(self)?;
+            self.original.destination.recheck()?;
+            self.original.original.recheck_committed_namespace(self)?;
+            self.receipt.recheck_committed_original(self)?;
+            self.original.check_deadline()?;
+            attempt::remote::require_committed_original(
+                self.original.operation(),
+                &self.original.identity,
+            )
+        }
+    }
+
+    impl OriginalRemoteFinalization {
+        pub(crate) fn finish(
+            self,
+            decision: crate::offhost_b1::finalize::AuthenticatedFinalInOriginalD,
+        ) -> Result<CommittedRemoteOriginal, BackupError> {
+            let receipt = attempt::remote::consume_original(&self, &decision)?;
+            Ok(CommittedRemoteOriginal {
+                original: self,
+                receipt,
+            })
+        }
+        pub(super) fn operation(&self) -> &Arc<Mutex<OperationAuthority>> {
+            &self.destination.lease.destination_operation
+        }
+        pub(super) fn identity(&self) -> &attempt::CommitIdentity {
+            &self.identity
+        }
+        pub(super) fn final_binding_data(&self) -> &RemoteFinalBindingData {
+            &self.binding
+        }
+        fn charge(&self, bytes: u64, entries: usize) -> Result<(), BackupError> {
+            let mut budget = self.destination.lease.budget.lock().map_err(|_| {
+                BackupError::Invalid("remote original cumulative scan budget poisoned")
+            })?;
+            budget.charge(bytes)?;
+            budget.entries(entries)
+        }
+        pub(super) fn prepay_consumer_entry(&self) -> Result<(), BackupError> {
+            self.check_deadline()?;
+            self.charge(16_384, 16)
+        }
+        pub(crate) fn check_deadline(&self) -> Result<(), BackupError> {
+            if Instant::now() >= self.deadline {
+                return Err(BackupError::Invalid("remote original local deadline"));
+            }
+            Ok(())
+        }
+        pub(crate) fn observe_remote_rejection(&self) -> Result<(), BackupError> {
+            // A negative observation is ordered by the exact same mutex.
+            // Committed remains a disk fact if its later transport fails.
+            attempt::remote::observe_rejection(self.operation(), self.identity.intent.backup_id)
+                .map(|_| ())
+        }
+        pub(super) fn require_pending_inputs(&self) -> Result<(), BackupError> {
+            self.check_deadline()?;
+            // Called while still Pending under the original authority mutex.
+            // This observes a pre-consumption cancellation/rejection before the
+            // transition. It never calls require_pending (which would relock).
+            self.original.require_destination(&self.destination)?;
+            self.signer.recheck_pending_original(&self.original)?;
+            self.binding.validate_data()?;
+            if self.binding.backup_id != self.identity.intent.backup_id
+                || self.binding.attempt_id != self.identity.intent.attempt_id
+                || self.binding.proof_sha256 != self.identity.intent.proof_sha256
+                || self.binding.manifest_sha256 != self.identity.intent.manifest_sha256
+                || self.proof.record.backup_id != self.binding.backup_id
+                || self.proof.record.manifest_sha256 != self.binding.manifest_sha256
+            {
+                return Err(BackupError::Invalid("remote original prepared identity"));
+            }
+            Ok(())
+        }
+        fn require_guard(&self, owner: &RemoteConsumption<'_>) -> Result<(), BackupError> {
+            owner.require_original(self.operation(), &self.identity)?;
+            self.check_deadline()
+        }
+        pub(crate) fn require_own_original_signer(
+            &self,
+            owner: &RemoteConsumption<'_>,
+            signer: &B1DestinationSignerOriginal,
+        ) -> Result<(), BackupError> {
+            self.require_guard(owner)?;
+            if !std::ptr::eq(self.signer.as_ref(), signer) {
+                return Err(BackupError::Invalid("different original D signing owner"));
+            }
+            signer.require_original_budget(&self.destination.lease.budget)
+        }
+        pub(crate) fn require_own_local_native(
+            &self,
+            owner: &RemoteConsumption<'_>,
+            native: &crate::offhost_b1::destination_actor::NativeDestinationLocalCustody,
+        ) -> Result<(), BackupError> {
+            self.require_guard(owner)?;
+            if !std::ptr::eq(self.native.as_ref(), native) {
+                return Err(BackupError::Invalid(
+                    "different original D local native owner",
+                ));
+            }
+            native.require_operation_original(self.operation())
+        }
+
+        // Only a genuine consuming original can lend these handles to the
+        // concrete complete.rs writer. No caller-selected root, trust or lease.
+        pub(crate) fn held_destination_for_receipt(
+            &self,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<&EnrolledDestination, BackupError> {
+            self.require_guard(owner)?;
+            Ok(&self.destination)
+        }
+        pub(crate) fn trust_for_receipt(
+            &self,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<&VerifierTrustConfig, BackupError> {
+            self.require_guard(owner)?;
+            Ok(self.signer.trust_data())
+        }
+        pub(crate) fn statement_for_receipt(
+            &self,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<DestinationStatement, BackupError> {
+            self.require_guard(owner)?;
+            Ok(statement(&self.proof, self.signer.trust_data()))
+        }
+        pub(crate) fn recheck_for_receipt(
+            &self,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<(), BackupError> {
+            self.require_guard(owner)?;
+            self.charge(16_384 * 8, 32)?;
+            self.native.recheck_consuming_original(self, owner)?;
+            self.signer.recheck_consuming(self, owner)?;
+            self.destination.recheck()?;
+            let (manifest, index) = self.read_package()?;
+            let (proof, identity) = self.read_evidence(&manifest, &index)?;
+            if identity != self.identity
+                || canonical(&proof.record)? != canonical(&self.proof.record)?
+            {
+                return Err(BackupError::Invalid("remote original evidence changed"));
+            }
+            self.adjunct.recheck_consuming_original(
+                &self.destination,
+                &self.proof,
+                &self.identity,
+                &self.binding,
+                self.signer.trust_data(),
+                owner,
+            )?;
+            self.destination.recheck()?;
+            self.require_guard(owner)
+        }
+        pub(crate) fn recheck_published_receipt_roster(
+            &self,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<(), BackupError> {
+            self.require_guard(owner)?;
+            self.charge(
+                (self.destination_roster.len() as u64 + 1)
+                    .checked_mul(512)
+                    .ok_or(BackupError::Overflow)?,
+                1,
+            )?;
+            let mut expected = self.destination_roster.clone();
+            expected.push(format!("{}.complete", self.identity.intent.backup_id));
+            expected.sort();
+            self.exact_names(self.destination.destination(), &expected)
+        }
+        pub(super) fn sign_and_publish_fixed(
+            &self,
+            owner: &RemoteConsumption<'_>,
+        ) -> Result<crate::complete::OriginalRemoteReceipt, BackupError> {
+            self.recheck_for_receipt(owner)?;
+            let id = self.identity.intent.backup_id;
+            let prefix = id.to_string();
+            let sealed_name = format!("{id}.sealed");
+            self.exact_names(self.destination.destination(), &self.destination_roster)?;
+            let names = &self.destination_roster;
+            if names
+                .iter()
+                .any(|name| name.starts_with(&prefix) && name != &sealed_name)
+            {
+                return Err(BackupError::Invalid("remote original complete residue"));
+            }
+            self.require_guard(owner)?;
+            self.charge(8192 * 8, 4)?;
+            let witness = self.signer.sign_original_consuming(self, owner)?;
+            self.require_guard(owner)?;
+            crate::complete::publish_original_remote_receipt(self, owner, witness)
+        }
+
+        fn read_manifest_file(&self, root: &BackupDir) -> Result<Vec<u8>, BackupError> {
+            let expected = self.manifest_raw.len();
+            if expected == 0 || expected > crate::MAX_ASSET_INDEX_BYTES {
+                return Err(BackupError::Capacity("remote original manifest bytes"));
+            }
+            self.charge(
+                (expected as u64)
+                    .checked_mul(4)
+                    .ok_or(BackupError::Overflow)?,
+                4,
+            )?;
+            let mut file = root.open_file("manifest.json")?;
+            let before = file.metadata()?;
+            if before.uid() != 0
+                || before.gid() != 0
+                || before.nlink() != 1
+                || before.mode() & 0o7777 != 0o400
+                || before.len() != expected as u64
+            {
+                return Err(BackupError::Invalid("remote original manifest custody"));
+            }
+            let mut raw = vec![0; expected];
+            file.read_exact(&mut raw)?;
+            let mut extra = [0];
+            if file.read(&mut extra)? != 0
+                || !same_file(&before, &file.metadata()?)
+                || raw != self.manifest_raw
+            {
+                return Err(BackupError::Invalid("remote original manifest changed"));
+            }
+            let named = root.open_file("manifest.json")?.metadata()?;
+            if !same_file(&before, &named) {
+                return Err(BackupError::Invalid("remote original manifest replaced"));
+            }
+            Ok(raw)
+        }
+        fn read_package(&self) -> Result<(BackupManifestV1, Vec<u8>), BackupError> {
+            self.check_deadline()?;
+            let id = self.identity.intent.backup_id;
+            let root = self
+                .destination
+                .destination()
+                .open_dir(&format!("{id}.sealed"))?;
+            root.require_sealed_directory()?;
+            let root_identity = root.identity()?;
+            let raw = self.read_manifest_file(&root)?;
+            registry::prepay_current_b1_json(&self.destination.lease.budget, &raw)?;
+            let manifest: BackupManifestV1 = serde_json::from_slice(&raw)?;
+            if manifest.backup_id != id
+                || manifest.canonical_bytes()? != raw
+                || digest(&raw) != self.identity.intent.manifest_sha256
+                || manifest.files.len() as u64 + 1 > crate::offhost_b1::finalize::FILES
+            {
+                return Err(BackupError::Invalid("remote original package manifest"));
+            }
+            let index_record = manifest
+                .files
+                .iter()
+                .find(|r| r.path == "asset-index.json")
+                .ok_or(BackupError::Invalid("remote original asset index"))?;
+            let total = manifest
+                .files
+                .iter()
+                .try_fold(raw.len() as u64, |n, record| {
+                    n.checked_add(record.size).ok_or(BackupError::Overflow)
+                })?;
+            if total > crate::offhost_b1::finalize::PACKAGE_BYTES
+                || index_record.size == 0
+                || index_record.size > crate::MAX_ASSET_INDEX_BYTES as u64
+            {
+                return Err(BackupError::Capacity("remote original package profile"));
+            }
+            self.charge(
+                index_record
+                    .size
+                    .checked_mul(4)
+                    .ok_or(BackupError::Overflow)?,
+                4,
+            )?;
+            let mut index_file = root.open_file("asset-index.json")?;
+            let before = index_file.metadata()?;
+            if before.uid() != 0
+                || before.gid() != 0
+                || before.nlink() != 1
+                || before.mode() & 0o7777 != 0o400
+                || before.len() != index_record.size
+            {
+                return Err(BackupError::Invalid("remote original index custody"));
+            }
+            let mut index =
+                vec![0; usize::try_from(index_record.size).map_err(|_| BackupError::Overflow)?];
+            index_file.read_exact(&mut index)?;
+            let mut extra = [0];
+            if index_file.read(&mut extra)? != 0
+                || !same_file(&before, &index_file.metadata()?)
+                || !same_file(&before, &root.open_file("asset-index.json")?.metadata()?)
+                || digest(&index) != index_record.sha256
+            {
+                return Err(BackupError::Invalid("remote original index changed"));
+            }
+            registry::prepay_current_b1_json(&self.destination.lease.budget, &index)?;
+            manifest.validate_with_index(&index)?;
+            self.package_inventory(&root, &manifest)?;
+            for record in &manifest.files {
+                self.read_package_file(&root, record)?;
+            }
+            self.package_inventory(&root, &manifest)?;
+            root.require_sealed_directory()?;
+            if self.read_manifest_file(&root)? != raw
+                || self
+                    .destination
+                    .destination()
+                    .open_dir(&format!("{id}.sealed"))?
+                    .identity()?
+                    != root_identity
+            {
+                return Err(BackupError::Invalid("remote original package replaced"));
+            }
+            self.check_deadline()?;
+            Ok((manifest, index))
+        }
+        fn read_package_file(
+            &self,
+            root: &BackupDir,
+            record: &FileRecord,
+        ) -> Result<(), BackupError> {
+            self.check_deadline()?;
+            let (relative, name) = record
+                .path
+                .rsplit_once('/')
+                .unwrap_or(("", record.path.as_str()));
+            self.charge(
+                record
+                    .size
+                    .checked_mul(2)
+                    .and_then(|n| n.checked_add(65_537))
+                    .ok_or(BackupError::Overflow)?,
+                6,
+            )?;
+            let parent = self.open_relative_directory(root, relative)?;
+            parent.require_sealed_directory()?;
+            let parent_identity = parent.identity()?;
+            let mut file = parent.open_file(name)?;
+            let before = file.metadata()?;
+            if before.uid() != 0
+                || before.gid() != 0
+                || before.nlink() != 1
+                || before.mode() & 0o7777 != 0o400
+                || before.len() != record.size
+            {
+                return Err(BackupError::Invalid("remote original package file custody"));
+            }
+            let mut hash = Sha256::new();
+            let mut remaining = record.size;
+            let mut buffer = [0_u8; 65_536];
+            while remaining > 0 {
+                self.check_deadline()?;
+                let limit = usize::try_from(remaining.min(buffer.len() as u64))
+                    .map_err(|_| BackupError::Overflow)?;
+                let count = match file.read(&mut buffer[..limit]) {
+                    Ok(count) => count,
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(error) => return Err(error.into()),
+                };
+                if count == 0 {
+                    return Err(BackupError::Invalid(
+                        "remote original premature package EOF",
+                    ));
+                }
+                remaining -= count as u64;
+                hash.update(&buffer[..count]);
+            }
+            let mut extra = [0];
+            if file.read(&mut extra)? != 0
+                || !same_file(&before, &file.metadata()?)
+                || !same_file(&before, &parent.open_file(name)?.metadata()?)
+                || format!("{:x}", hash.finalize()) != record.sha256
+                || self.open_relative_directory(root, relative)?.identity()? != parent_identity
+            {
+                return Err(BackupError::Invalid("remote original package file changed"));
+            }
+            self.check_deadline()
+        }
+        fn package_inventory(
+            &self,
+            root: &BackupDir,
+            manifest: &BackupManifestV1,
+        ) -> Result<(), BackupError> {
+            let mut files = BTreeSet::from(["manifest.json".to_owned()]);
+            let mut dirs = BTreeSet::from([String::new()]);
+            for record in &manifest.files {
+                self.charge(
+                    (record.path.len() as u64)
+                        .checked_mul(4)
+                        .ok_or(BackupError::Overflow)?,
+                    2,
+                )?;
+                if !files.insert(record.path.clone()) {
+                    return Err(BackupError::Invalid(
+                        "remote original duplicate package file",
+                    ));
+                }
+                let mut path = record.path.as_str();
+                while let Some((parent, _)) = path.rsplit_once('/') {
+                    dirs.insert(parent.to_owned());
+                    path = parent;
+                }
+            }
+            // Reopen each exact relative directory iteratively. At most two
+            // temporary directory FDs are live, independent of path depth.
+            for relative in &dirs {
+                self.check_deadline()?;
+                let dir = self.open_relative_directory(root, relative)?;
+                dir.require_sealed_directory()?;
+                let before = dir.identity()?;
+                let expected = files
+                    .iter()
+                    .chain(dirs.iter())
+                    .filter(|path| {
+                        if relative.is_empty() {
+                            !path.is_empty() && !path.contains('/')
+                        } else {
+                            path.rsplit_once('/')
+                                .is_some_and(|(p, _)| p == relative.as_str())
+                        }
+                    })
+                    .count();
+                let names = self.bounded_names(&dir, expected)?;
+                for leaf in &names {
+                    let name = if relative.is_empty() {
+                        leaf.clone()
+                    } else {
+                        format!("{relative}/{leaf}")
+                    };
+                    match dir.kind(leaf)? {
+                        BackupEntryKind::File if files.contains(&name) => (),
+                        BackupEntryKind::Directory if dirs.contains(&name) => (),
+                        _ => {
+                            return Err(BackupError::Invalid("remote original exact package tree"));
+                        }
+                    }
+                }
+                if names.len() != expected
+                    || self.open_relative_directory(root, relative)?.identity()? != before
+                    || self.bounded_names(&dir, expected)? != names
+                {
+                    return Err(BackupError::Invalid(
+                        "remote original package inventory changed",
+                    ));
+                }
+            }
+            Ok(())
+        }
+        fn bounded_names(
+            &self,
+            root: &BackupDir,
+            expected: usize,
+        ) -> Result<Vec<String>, BackupError> {
+            let cap = expected.checked_add(1).ok_or(BackupError::Overflow)?;
+            if cap > registry::MAX_ENTRIES {
+                return Err(BackupError::Capacity("remote original directory entries"));
+            }
+            // Linux leaf names are <=255 bytes. Include String/Vec capacity,
+            // sorting and the one unexpected-entry probe before allocation.
+            self.charge(
+                (cap as u64).checked_mul(512).ok_or(BackupError::Overflow)?,
+                cap,
+            )?;
+            let mut names = root.list_bounded(cap)?;
+            names.sort();
+            Ok(names)
+        }
+        fn exact_names(&self, root: &BackupDir, expected: &[String]) -> Result<(), BackupError> {
+            if expected.windows(2).any(|pair| pair[0] >= pair[1])
+                || self.bounded_names(root, expected.len())?.as_slice() != expected
+            {
+                return Err(BackupError::Invalid(
+                    "remote original held directory roster changed",
+                ));
+            }
+            Ok(())
+        }
+        fn open_relative_directory(
+            &self,
+            root: &BackupDir,
+            path: &str,
+        ) -> Result<BackupDir, BackupError> {
+            self.charge(path.len() as u64, path.split('/').count() + 1)?;
+            let mut current = root.try_clone()?;
+            if !path.is_empty() {
+                for component in path.split('/') {
+                    current = current.open_dir(component)?;
+                }
+            }
+            Ok(current)
+        }
+        fn read_evidence(
+            &self,
+            manifest: &BackupManifestV1,
+            index: &[u8],
+        ) -> Result<(CapturedSourceProof, attempt::CommitIdentity), BackupError> {
+            let id = self.identity.intent.backup_id;
+            self.exact_names(self.destination.evidence(), &self.evidence_roster)?;
+            attempt::require_committed_names(&self.evidence_roster, id)?;
+            let attempt = self
+                .destination
+                .evidence()
+                .open_dir(&format!("{id}.attempt"))?;
+            attempt.require_private_directory()?;
+            if self.bounded_names(&attempt, 2)? != ["intent.json", "terminal.json"] {
+                return Err(BackupError::Invalid(
+                    "remote original exact evidence attempt",
+                ));
+            }
+            let (intent, _) = registry::read(
+                &attempt,
+                "intent.json",
+                4096,
+                &self.destination.lease.budget,
+            )?;
+            let (terminal, _) = registry::read(
+                &attempt,
+                "terminal.json",
+                4096,
+                &self.destination.lease.budget,
+            )?;
+            let identity = attempt::validate_committed(&intent, &terminal)?;
+            let expected_bytes = self.proof.record.files.iter().try_fold(0u64, |n, record| {
+                n.checked_add(record.size).ok_or(BackupError::Overflow)
+            })?;
+            if expected_bytes > crate::offhost_b1::finalize::EVIDENCE_BYTES {
+                return Err(BackupError::Capacity("remote original evidence bytes"));
+            }
+            self.charge(
+                expected_bytes.checked_mul(4).ok_or(BackupError::Overflow)?,
+                self.proof.record.files.len() * 2,
+            )?;
+            let proof = linux::read_payload_from_verified_package(
+                &self.destination,
+                id,
+                self.signer.trust_data(),
+                manifest,
+                index,
+            )?;
+            if identity != self.identity
+                || (
+                    identity.intent.destination_dev,
+                    identity.intent.destination_ino,
+                ) != self.destination.destination().identity()?
+                || (identity.intent.evidence_dev, identity.intent.evidence_ino)
+                    != self.destination.evidence().identity()?
+                || identity.intent.manifest_sha256 != proof.record.manifest_sha256
+                || identity.intent.proof_sha256 != digest(&canonical(&proof.record)?)
+            {
+                return Err(BackupError::Invalid("remote original readback identity"));
+            }
+            self.check_deadline()?;
+            Ok((proof, identity))
+        }
+    }
+
+    fn same_file(a: &std::fs::Metadata, b: &std::fs::Metadata) -> bool {
+        (
+            a.dev(),
+            a.ino(),
+            a.uid(),
+            a.gid(),
+            a.len(),
+            a.mode(),
+            a.nlink(),
+            a.mtime(),
+            a.mtime_nsec(),
+            a.ctime(),
+            a.ctime_nsec(),
+        ) == (
+            b.dev(),
+            b.ino(),
+            b.uid(),
+            b.gid(),
+            b.len(),
+            b.mode(),
+            b.nlink(),
+            b.mtime(),
+            b.mtime_nsec(),
+            b.ctime(),
+            b.ctime_nsec(),
+        )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn binding_data() -> RemoteFinalBindingData {
+            RemoteFinalBindingData {
+                backup_id: Uuid::new_v4(),
+                attempt_id: Uuid::new_v4(),
+                source_operation_id: Uuid::new_v4(),
+                session_binding_sha256: "a".repeat(64),
+                source_auth_frame_sha256: "b".repeat(64),
+                source_auth_key_sha256: "6".repeat(64),
+                s_nonce: "c".repeat(64),
+                d_nonce: "d".repeat(64),
+                manifest_sha256: "e".repeat(64),
+                proof_sha256: "f".repeat(64),
+                snapshot_effects_proof_sha256: "1".repeat(64),
+                snapshot_effects_input_sha256: "2".repeat(64),
+                snapshot_effects_intent_sha256: "3".repeat(64),
+                fence_anchor_sha256: "4".repeat(64),
+                protection_snapshot_sha256: "5".repeat(64),
+            }
+        }
+
+        #[test]
+        fn remote_final_binding_projection_is_data_and_rejects_missing_nonce_or_identity() {
+            let mut data = binding_data();
+            data.validate_data().unwrap();
+            data.d_nonce.clear();
+            assert!(data.validate_data().is_err());
+            data.d_nonce = "d".repeat(64);
+            data.source_operation_id = Uuid::nil();
+            assert!(data.validate_data().is_err());
+            // No original D, authenticated Final or receipt can be built here.
         }
     }
 }
@@ -935,7 +2198,7 @@ mod linux {
             .open_dir(&format!("{id}.sealed"))?;
         crate::protection::verify_registered_package(&destination.lease, &dir, id)
     }
-    fn trust_matches(
+    pub(super) fn trust_matches(
         destination: &EnrolledDestination,
         trust: &VerifierTrustConfig,
     ) -> Result<(), BackupError> {
@@ -1016,6 +2279,16 @@ mod linux {
     ) -> Result<CapturedSourceProof, BackupError> {
         trust_matches(destination, trust)?;
         let (manifest, index) = package(destination, id)?;
+        read_payload_from_verified_package(destination, id, trust, &manifest, &index)
+    }
+    pub(super) fn read_payload_from_verified_package(
+        destination: &EnrolledDestination,
+        id: Uuid,
+        trust: &VerifierTrustConfig,
+        manifest: &BackupManifestV1,
+        index: &[u8],
+    ) -> Result<CapturedSourceProof, BackupError> {
+        trust_matches(destination, trust)?;
         let dir = destination.evidence().open_dir(&id.to_string())?;
         let (raw, _) = registry::read(&dir, "source-proof.json", 16384, &destination.lease.budget)?;
         let record: ProofRecord = canonical_record(&raw, 16384)?;
@@ -1042,7 +2315,14 @@ mod linux {
         }
         let mut reader = Reader { files };
         reader.files.insert("source-proof.json".into(), raw);
-        let proof = reopen_evidence(&mut reader, id, &manifest, &index, trust)?;
+        #[cfg(feature = "offhost-b1")]
+        {
+            registry::prepay_current_b1_json(&destination.lease.budget, index)?;
+            for bytes in reader.files.values() {
+                registry::prepay_current_b1_json(&destination.lease.budget, bytes)?;
+            }
+        }
+        let proof = reopen_evidence(&mut reader, id, manifest, index, trust)?;
         dir.sync()?;
         destination.evidence().sync()?;
         destination.recheck()?;
@@ -1134,25 +2414,14 @@ mod linux {
     ) -> Result<Prepared, BackupError> {
         trust_matches(destination, &trust)?;
         let (manifest, index) = package(destination, id)?;
-        let group: SourceGroup = canonical_record(&files["source-group.json"], 16384)?;
-        let record = ProofRecord {
-            format_version: 1,
-            capability: "captured_source_proof_v1".into(),
-            backup_id: id,
-            manifest_sha256: manifest.canonical_sha256()?,
-            source_control_sha256: digest(&files["source-released.json"]),
-            source_group_id: group.group_id,
-            source_registry_generation_sha256: digest(&files["source-generation.json"]),
-            protection_snapshot_sha256: digest(&files["protection-snapshot.json"]),
-            files: files
-                .iter()
-                .map(|(path, raw)| FileRecord {
-                    path: path.clone(),
-                    size: raw.len() as u64,
-                    sha256: digest(raw),
-                })
-                .collect(),
-        };
+        let record = proof_record_from_files(id, &manifest, &files)?;
+        #[cfg(feature = "offhost-b1")]
+        {
+            registry::prepay_current_b1_json(&destination.lease.budget, &index)?;
+            for bytes in files.values() {
+                registry::prepay_current_b1_json(&destination.lease.budget, bytes)?;
+            }
+        }
         validate_copies(&record, &files, &manifest, &index, &trust)?;
         let raw = canonical(&record)?;
         if raw.len() > 16384 {
@@ -1182,6 +2451,8 @@ mod linux {
     }
     enum SourceInput<'a> {
         Captured(&'a ProtectionSnapshot),
+        #[cfg(feature = "offhost-b1")]
+        OriginalRemote(&'a crate::offhost_b1::destination_actor::OriginalReceivedFiles<'a>),
         #[cfg(test)]
         Synthetic {
             trust: VerifierTrustConfig,
@@ -1208,6 +2479,8 @@ mod linux {
         fn source_recheck(&self) -> Result<(), BackupError> {
             match &self.input {
                 SourceInput::Captured(snapshot) => snapshot.recheck_held(),
+                #[cfg(feature = "offhost-b1")]
+                SourceInput::OriginalRemote(received) => received.recheck(),
                 #[cfg(test)]
                 SourceInput::Synthetic { .. } => Ok(()),
             }
@@ -1233,6 +2506,10 @@ mod linux {
                         SourceInput::Captured(snapshot) => {
                             snapshot.require_same_operation(&destination.lease)?
                         }
+                        #[cfg(feature = "offhost-b1")]
+                        SourceInput::OriginalRemote(received) => {
+                            received.original().require_destination(destination)?
+                        }
                         #[cfg(test)]
                         SourceInput::Synthetic { .. } => (),
                     }
@@ -1250,6 +2527,17 @@ mod linux {
                     let (trust, files) = match &self.input {
                         SourceInput::Captured(snapshot) => {
                             (installed_trust()?, snapshot.captured_files(self.id)?)
+                        }
+                        #[cfg(feature = "offhost-b1")]
+                        SourceInput::OriginalRemote(received) => {
+                            let original = received.original();
+                            original.require_destination(destination)?;
+                            let files = received.read_source_files_data()?;
+                            original.require_source_binding_files(&files)?;
+                            let signer = original.signer_original()?;
+                            signer.recheck_pending_original(original)?;
+                            original.prepay_original_work(16_384, 4)?;
+                            (signer.trust_data().clone(), files)
                         }
                         #[cfg(test)]
                         SourceInput::Synthetic { trust, files } => (trust.clone(), files.clone()),
@@ -1372,6 +2660,63 @@ mod linux {
         };
         attempt::publish(&destination.lease.destination_operation, id, &mut writer)
     }
+    #[cfg(feature = "offhost-b1")]
+    pub(super) struct OriginalRemoteWriter<'a>(Writer<'a>);
+    #[cfg(feature = "offhost-b1")]
+    impl attempt::PublicationIo for OriginalRemoteWriter<'_> {
+        type Output = (CapturedSourceProof, attempt::CommitIdentity);
+        fn step(&mut self, step: attempt::Step) -> Result<(), BackupError> {
+            let received = match &self.0.input {
+                SourceInput::OriginalRemote(received) => *received,
+                _ => return Err(BackupError::Invalid("fixed original remote writer input")),
+            };
+            let bytes = received.source_records().iter().try_fold(0u64, |n, r| {
+                n.checked_add(r.size).ok_or(BackupError::Overflow)
+            })?;
+            // The old eleven concrete filesystem steps remain intact.
+            // Their remote route additionally prepays fixed list/stat/open
+            // work and all source-derived parse/hash/copy/write work before
+            // entering the old step. No later consumption repays this IO.
+            let dynamic = match step {
+                attempt::Step::Prepare
+                | attempt::Step::FinalReadback
+                | attempt::Step::TerminalReadback => bytes.checked_mul(32),
+                attempt::Step::Stage => bytes.checked_mul(4),
+                _ => Some(0),
+            }
+            .and_then(|n| n.checked_add(1_048_576))
+            .ok_or(BackupError::Overflow)?;
+            received.original().prepay_original_work(dynamic, 256)?;
+            attempt::PublicationIo::step(&mut self.0, step)
+        }
+        fn outcome(&mut self) -> Result<(Self::Output, attempt::CommitIdentity), BackupError> {
+            let (proof, identity) = attempt::PublicationIo::outcome(&mut self.0)?;
+            Ok(((proof, identity.clone()), identity))
+        }
+    }
+
+    #[cfg(feature = "offhost-b1")]
+    pub(super) fn persist_original_remote(
+        received: &crate::offhost_b1::destination_actor::OriginalReceivedFiles<'_>,
+    ) -> Result<(CapturedSourceProof, attempt::CommitIdentity), BackupError> {
+        let original = received.original();
+        original.require_destination(original.destination_original())?;
+        let mut writer = OriginalRemoteWriter(Writer {
+            destination: original.destination_original(),
+            input: SourceInput::OriginalRemote(received),
+            id: original.backup_id_data()?,
+            attempt_id: original.destination_attempt_data()?,
+            attempt_dir: None,
+            prepared: None,
+            proof: None,
+            identity: None,
+            terminal: None,
+            #[cfg(test)]
+            fault: None,
+        });
+        attempt::remote::publish_original(original, &mut writer)
+    }
+
     #[cfg(test)]
     pub(super) fn persist_synthetic(
         destination: &EnrolledDestination,

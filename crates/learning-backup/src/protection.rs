@@ -81,6 +81,17 @@ impl ProtectionSnapshot {
     pub(crate) fn recheck_held(&self) -> Result<(), BackupError> {
         self.inner.recheck(&self.inner.lease)
     }
+    /// Fixed readonly prepayment for the additional B1 Publication views.
+    /// The actual snapshot keeps its fields private and observes the original
+    /// operation before computing work; callers cannot choose a quota/backing.
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn prepay_publication_views(
+        &self,
+        lease: &RegistryLease,
+    ) -> Result<(), BackupError> {
+        self.require_same_operation(lease)?;
+        self.inner.prepay_publication_views(lease)
+    }
     pub fn recheck(&self, lease: &RegistryLease) -> Result<(), BackupError> {
         #[cfg(target_os = "linux")]
         {
@@ -506,6 +517,46 @@ mod linux {
         }
     }
     impl Snapshot {
+        #[cfg(feature = "offhost-b1")]
+        pub(super) fn prepay_publication_views(
+            &self,
+            lease: &RegistryLease,
+        ) -> Result<(), BackupError> {
+            registry::require_shared_scan_budget(&self.lease.budget, &lease.budget)?;
+            let mut bytes = 32768usize;
+            let mut entries = 64usize;
+            for (path, (raw, _)) in &self.lease.metadata {
+                bytes = bytes
+                    .checked_add(path.len())
+                    .and_then(|n| n.checked_add(raw.len()))
+                    .and_then(|n| n.checked_add(512))
+                    .ok_or(BackupError::Overflow)?;
+                entries = entries.checked_add(4).ok_or(BackupError::Overflow)?;
+            }
+            for (path, (raw, _)) in &self.observations {
+                bytes = bytes
+                    .checked_add(path.len())
+                    .and_then(|n| n.checked_add(raw.as_ref().map_or(0, Vec::len)))
+                    .and_then(|n| n.checked_add(512))
+                    .ok_or(BackupError::Overflow)?;
+                entries = entries.checked_add(4).ok_or(BackupError::Overflow)?;
+            }
+            for key in self.counts.keys() {
+                bytes = bytes
+                    .checked_add(key.len() + 128)
+                    .ok_or(BackupError::Overflow)?;
+                entries = entries.checked_add(1).ok_or(BackupError::Overflow)?;
+            }
+            // Covers held lease/group/roots/handles, temporary current scan,
+            // captured map/record tree and their canonical/hash passes. All
+            // original reads/traversals continue to incur their own charges.
+            let mut scan = lease
+                .budget
+                .lock()
+                .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+            scan.charge((bytes as u64).checked_mul(8).ok_or(BackupError::Overflow)?)?;
+            scan.entries(entries)
+        }
         pub(super) fn captured_files(
             &self,
             id: Uuid,
@@ -658,6 +709,8 @@ mod linux {
         if file.metadata()?.len() != m.len() {
             return Err(BackupError::Invalid("registry sealed metadata size"));
         }
+        #[cfg(feature = "offhost-b1")]
+        registry::prepay_current_b1_json(&lease.budget, &raw)?;
         Ok(raw)
     }
     pub(super) fn verify_pin(
@@ -738,6 +791,19 @@ mod linux {
                     return Err(BackupError::Invalid("registry pin metadata digest"));
                 }
             } else {
+                #[cfg(feature = "offhost-b1")]
+                lease
+                    .budget
+                    .lock()
+                    .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+                    .prepay_b1_metadata_work(
+                        record
+                            .size
+                            .checked_mul(2)
+                            .and_then(|n| n.checked_add(1))
+                            .ok_or(BackupError::Overflow)?,
+                        4,
+                    )?;
                 crate::sealed::check_file(dir, record)?;
             }
         }
@@ -755,6 +821,15 @@ mod linux {
         observations: &mut Observations,
     ) -> Result<Vec<u8>, BackupError> {
         let (raw, id) = registry::read(dir, name, cap, &lease.budget)?;
+        #[cfg(feature = "offhost-b1")]
+        {
+            registry::prepay_current_b1_json(&lease.budget, &raw)?;
+            lease
+                .budget
+                .lock()
+                .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+                .prepay_b1_metadata_work((path.len() as u64) * 2 + 512, 1)?;
+        }
         observations.insert(path, (Some(raw.clone()), id));
         Ok(raw)
     }
@@ -773,8 +848,20 @@ mod linux {
         if depth == 0 || !prefix.starts_with("local_pins") {
             dir.require_private_directory()?;
         }
+        #[cfg(feature = "offhost-b1")]
+        lease
+            .budget
+            .lock()
+            .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+            .prepay_b1_metadata_work(prefix.len() as u64 + 512, 1)?;
         observations.insert(prefix.into(), (None, dir.identity()?));
         for name in registry::list(dir, lease)? {
+            #[cfg(feature = "offhost-b1")]
+            lease
+                .budget
+                .lock()
+                .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+                .prepay_b1_metadata_work((prefix.len() + name.len() + 1) as u64 + 512, 1)?;
             let path = format!("{prefix}/{name}");
             match dir.kind(&name)? {
                 BackupEntryKind::Directory => {
@@ -807,6 +894,12 @@ mod linux {
                         if file.metadata()?.len() != m.len() {
                             return Err(BackupError::Invalid("registry source inventory size"));
                         }
+                        #[cfg(feature = "offhost-b1")]
+                        lease
+                            .budget
+                            .lock()
+                            .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+                            .prepay_b1_metadata_work(raw.len() as u64 + 512, 1)?;
                         observations.insert(path, (Some(raw), (m.dev(), m.ino())));
                     } else {
                         observations.insert(path, (None, (m.dev(), m.ino())));
@@ -822,6 +915,30 @@ mod linux {
         source: &EnrolledSource,
     ) -> Result<Snapshot, BackupError> {
         lease.recheck()?;
+        #[cfg(feature = "offhost-b1")]
+        {
+            let bytes = lease
+                .metadata
+                .iter()
+                .try_fold(32768usize, |n, (path, (raw, _))| {
+                    n.checked_add(path.len() + 512)
+                        .and_then(|n| n.checked_add(raw.len()))
+                        .ok_or(BackupError::Overflow)
+                })?;
+            lease
+                .budget
+                .lock()
+                .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+                .prepay_b1_metadata_work(
+                    (bytes as u64).checked_mul(8).ok_or(BackupError::Overflow)?,
+                    lease
+                        .metadata
+                        .len()
+                        .checked_mul(4)
+                        .and_then(|n| n.checked_add(64))
+                        .ok_or(BackupError::Overflow)?,
+                )?;
+        }
         let mut snapshot = Snapshot {
             lease: lease.clone_held()?,
             group: source.group.clone(),
@@ -1229,6 +1346,7 @@ mod linux {
             source: &EnrolledSource,
             id: Uuid,
         ) -> Result<Self, BackupError> {
+            lease.require_source_mutation_allowed()?;
             if !v4(&id.to_string()) {
                 return Err(BackupError::Invalid("registry backup UUID"));
             }
@@ -1282,6 +1400,7 @@ mod linux {
             Err(BackupError::Invalid("registry pending missing"))
         }
         fn publish(&self, files: &[(&str, &[u8])]) -> Result<(), BackupError> {
+            self.lease.require_source_mutation_allowed()?;
             self.lease.recheck()?;
             let staging = self.lease.root.open_dir("staging")?;
             let token = Uuid::new_v4().to_string();

@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-31。当前状态：Task9 R2b：Source 前段准备代码普通检查通过，默认关闭；first S / M6 仍未接通，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`00e154651b1e9bb3b7fe763a5a905db24cef992b`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-11-01。当前状态：Task9 R2b：first S/M6 默认关闭实现通过限定普通检查；正式异机验收继续开放，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`7157556c37ac34e0fef9e345a7a560f0f4960f51`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。Source 前段准备代码与 DB 发布顺序谓词补齐；新增 12 个普通组件测试。Backup 450/106 与 603/106、DB 62/24 与 123/26（passed/ignored），两套 13 道普通检查通过。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。准确 22 个源码路径；46 个新增普通组件测试体。Backup 默认 450 passed / 106 ignored，offhost 649 passed / 106 ignored；完整 13 门成功，DB 仅依赖编译。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,22 +61,21 @@ flowchart LR
 
 ## 下一步
 
-当前预检仅 registry 快照与 Task1b 元数据；完整 SourceGroup/Catalog 与首次 S、原 S 时钟、Source/M6、Root/C11 完整生命周期及全链 global64/S5 尚待接通。独立目标安装与正式异机验收未完成。
+B/C 安装、公钥信任与 SourceCapture 新挂载、旧 writer 写入面排除、全期 global64 / S5、真实 Root/PG/C11、首次跨机签名与 RA/RB、Task9 和 C4 正式验收均继续 OPEN。
 
-- **Source 首次 S**：在同一真实原件内接入私有 Publication 准入、当前 registry / 保护快照和完整 SourceGroup / Catalog 关联；保持 holder、lease、registry 的真实作用域，不重建 Source 凭据。
-- **原生命周期与计费**：接入原定 S 时钟、Root/C11 原件持有与结算顺序、全链累计 global64 和 S5 管线；普通计费组件测试不替代全链证明。
-- **Source / M6 整体接通**：在批准编码范围内继续完成真实输入、对端 D Ready、Capture 结算及 final/fence/D 消费；公开入口在全部条件完成前保持关闭。
-- **独立目标正式验收**：准备准确目标与托管、最小安装/信任/权限审批，之后再执行真实异机整链、失败注入与规定恢复；当前不签发 CompleteBackup。
+- **B/C 准入与安装**：分别核定准确目标、密钥/公钥信任、SourceCapture 新挂载和旧 writer 排除；按最小审批范围实施。
+- **全期资源与生命周期**：核实 global64、S5、真实 Root/PG/C11 和原持有者自然结算；普通模型测试不替代实测。
+- **异机正式验收**：实际首次跨机签名、RA/RB 与规定故障/恢复证据；Task9/C4 保持 OPEN，未知保持 HOLD。
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-Source 前段准备代码与 DB 发布顺序谓词补齐；新增 12 个普通组件测试。Backup 450/106 与 603/106、DB 62/24 与 123/26（passed/ignored），两套 13 道普通检查通过。
+准确 22 个源码路径；46 个新增普通组件测试体。Backup 默认 450 passed / 106 ignored，offhost 649 passed / 106 ignored；完整 13 门成功，DB 仅依赖编译。
 
-当前预检仅 registry 快照与 Task1b 元数据；完整 SourceGroup/Catalog 与首次 S、原 S 时钟、Source/M6、Root/C11 完整生命周期及全链 global64/S5 尚待接通。独立目标安装与正式异机验收未完成。
+B/C 安装、公钥信任与 SourceCapture 新挂载、旧 writer 写入面排除、全期 global64 / S5、真实 Root/PG/C11、首次跨机签名与 RA/RB、Task9 和 C4 正式验收均继续 OPEN。
 
-受测702 文件、六处源码改动；格式仅一处表达式换行。格式批 c82f07d5、Backup 批 c77672b1、DB 批 8d323357 均实际退出 0、源码未变并完成精确 ID 清理；三批原始证据与六处源码 CODE 已独立核对。
+受测 706 文件；批次 af1986cd-f101-47bf-880a-c2134468013f，结果 95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d；源码、原始证据、自然退出及精确清理独立核对。
 
 ```mermaid
 flowchart LR
@@ -88,7 +87,7 @@ flowchart LR
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>私有单机范围限定验收"]
-    C4T9["Task 9<br/>真实独立故障域闭合<br/>Root／M3片段普通回归通过，Source整链待接"]
+    C4T9["Task 9<br/>真实独立故障域闭合<br/>first S/M6 默认关闭代码及13门普通检查通过；正式异机验收 OPEN"]
     C4T1 --> C4T2
     C4T2 --> C4T3
     C4T3 --> C4T4
@@ -114,7 +113,7 @@ flowchart LR
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
 | Task 8 · 当前回归、旧版升级与审查 | 私有单机范围限定验收 | Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。 169 ignored已具名处置，不等于169全部运行；65 extra与3 measurement未执行披露。 |
-| Task 9 · 真实独立故障域闭合 | Root／M3片段普通回归通过，Source整链待接 | 默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。 受测源码基线a3a209711f5441c25093aeb5052fe538537d03b0／treef7915076d0d613d08a1443383e18c25be26c4122，最终701源索引SHA256 fceee5c0aeb439f989051d257e039ff4c5b14724225761edd48118866d81aeb6。本轮格式批次c58ae018-b231-492d-b6b2-5d17980febff、Backup批次5283b8f9-ed50-4de5-95e7-c8daadbefcba、DB批次61f3279a-85df-45fa-8e7d-69ab8ed23400分别独核原始证据；结果SHA256依次为fa2925c2a3f3da3eefb2d52b70a0383d9d432817906b5f721dafe3ffe065b5cb、ecb047f13f0c724ee5d7b6df2f115e32ed3c00f11e3eb90c76464d217a98d917、33982f824c41782590561810f8d80ab7120cad329f22c8d4ac8dafd196221ad8。实际格式导出17项与受审源逐字相同；两组完整名单、既有ignored、源704项前后原始快照、同一容器自然退出0与精确清理均核对。这是收集回件的独立核对，不是额外远程亲见；输出限制为退出后读取校验，未声称连续OS输出上限。 |
+| Task 9 · 真实独立故障域闭合 | first S/M6 默认关闭代码及13门普通检查通过；正式异机验收 OPEN | 本轮 first S/M6 已形成默认关闭实现。准确源码的完整13道普通Linux门通过：Backup 默认 450 passed / 106 ignored，offhost 649 passed / 106 ignored；46个不同新增测试体，旧84个受影响测试正文和属性保留，跨feature重复执行不累加。DB本轮仅依赖编译，没有新DB测试信用。真实first S/Ready/fence、Root/PG/C11和异机签名尚未验收。 成功批次 af1986cd-f101-47bf-880a-c2134468013f；受测706文件、22处源码（18既有加4新），源索引SHA-256 6efcea40845eef4193a48ee62a7774ca3691b183b1784f525d1ad9cd42f9e48f；实际结果SHA-256 95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d；独立原始证据审查SHA-256 557226b27be2b078fda3caff4d32902c4dd73e7bbe243c3612d6f8567a70cd82。13门全部退出0，源码前后不变、自然退出与精确ID清理均独核。B/C 安装、公钥信任与 SourceCapture 新挂载、旧 writer 写入面排除、全期 global64 / S5、真实 Root/PG/C11、首次跨机签名与 RA/RB、Task9 和 C4 正式验收均继续 OPEN。 |
 
 ### 原五任务父里程碑（保留原编号）
 

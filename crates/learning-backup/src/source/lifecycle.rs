@@ -418,6 +418,20 @@ mod linux {
         }
         let mut admission = SourceAdmission::try_acquire(pool, &config.expected_database).await?;
         let control = binding::admit_control_root(&mut admission, &config.control_root).await?;
+        // In a Source-role installation recovery itself can make journal
+        // durability changes. Acquire its one actual registry lease before
+        // that first action and reuse it below; never unlock and reacquire.
+        // Legacy/default and D-only binaries keep the historical order and do
+        // not open a Source policy or fence namespace.
+        #[cfg(feature = "offhost-b1")]
+        let early_source_lease = if crate::offhost_b1::source_mutation_gate_enabled()? {
+            let registry = crate::ManagementRegistry::open_installed()?;
+            let lease = registry.try_lock()?;
+            lease.require_source_mutation_allowed()?;
+            Some(lease)
+        } else {
+            None
+        };
         let journal = SourceGateJournal::recover_in(&control, config.backup_id)?;
         scan(&control, Some(config.backup_id))?;
         let sidecar = sidecar(&control, config.backup_id, journal.record())?;
@@ -433,8 +447,15 @@ mod linux {
         if !role_safe(&facts) {
             return Err(BackupError::Invalid("source lifecycle role preflight"));
         }
-        let registry = crate::ManagementRegistry::open_installed()?;
-        let lease = registry.try_lock()?;
+        #[cfg(feature = "offhost-b1")]
+        let lease = match early_source_lease {
+            Some(original) => original,
+            None => crate::ManagementRegistry::open_installed()?.try_lock()?,
+        };
+        #[cfg(not(feature = "offhost-b1"))]
+        let lease = crate::ManagementRegistry::open_installed()?.try_lock()?;
+        #[cfg(feature = "offhost-b1")]
+        lease.require_source_mutation_allowed()?;
         let enrolled = lease.admit_existing_source(&control, config)?;
         let protection = crate::CaptureProtection::reopen(&lease, &enrolled, config.backup_id)?;
         let pin_root = enrolled.handle("local_pins").try_clone()?;

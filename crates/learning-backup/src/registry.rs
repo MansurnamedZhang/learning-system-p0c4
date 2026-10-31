@@ -110,6 +110,29 @@ impl ScanBudget {
             ..Self::default()
         }
     }
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn original_b1_scan(
+        &self,
+    ) -> Result<learning_assets::root_journal::SharedJournalBudget, BackupError> {
+        self.b1_scan
+            .as_ref()
+            .cloned()
+            .ok_or(BackupError::Invalid("B1 original cumulative scan backing"))
+    }
+    /// Accounting-only branch. No boolean qualification escapes this helper.
+    /// Legacy/default wrappers keep their old accounting/behaviour unchanged.
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn prepay_b1_metadata_work(
+        &mut self,
+        bytes: u64,
+        entries: usize,
+    ) -> Result<(), BackupError> {
+        if self.b1_scan.is_some() {
+            self.charge(bytes)?;
+            self.entries(entries)?;
+        }
+        Ok(())
+    }
     pub(crate) fn charge(&mut self, bytes: u64) -> Result<(), BackupError> {
         #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
         if let Some(scan) = &self.b1_scan {
@@ -578,6 +601,77 @@ impl ManagementRegistry {
         })();
         admission.record_result(observed)
     }
+    /// Only a currently held genuine Publication session consumes this scope.
+    /// Its fresh wrapper was charged before Catalog/Root IO, not retrofitted.
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn open_installed_publication(
+        admission: &crate::source::B1PublicationAdmission<'_>,
+    ) -> Result<Self, BackupError> {
+        let (budget, admission_failed) = admission.take_registry_scope()?;
+        let observed = (|| {
+            let path = Path::new(REGISTRY_PATH);
+            {
+                let mut scan = budget
+                    .lock()
+                    .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+                scan.entries(path.components().count() * 4 + 4)?;
+                scan.charge(4096)?;
+            }
+            let root = BackupDir::open_trusted_private_root(path)?;
+            let registry = Self {
+                root,
+                path: path.to_owned(),
+                budget,
+                b1_scope: Some(B1RegistryScope {
+                    admission_failed,
+                    lease_attempted: std::sync::atomic::AtomicBool::new(false),
+                }),
+            };
+            linux::read_snapshot(&registry.root, &registry.path, &registry.budget)?;
+            admission.revalidate()?;
+            Ok(registry)
+        })();
+        if observed.is_err() {
+            admission.fail();
+        }
+        observed
+    }
+    /// Fixed actual D entry scope. Native/stdio accounting starts in that
+    /// original process book before registry IO and is never replaced here.
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn open_installed_destination_original(
+        original: &crate::offhost_b1::destination_actor::OriginalDEntryScope,
+    ) -> Result<Self, BackupError> {
+        let observed = (|| {
+            original.recheck()?;
+            let (budget, admission_failed) = original.take_fixed_registry_scope()?;
+            let path = Path::new(REGISTRY_PATH);
+            {
+                let mut scan = budget
+                    .lock()
+                    .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+                scan.entries(path.components().count() * 4 + 4)?;
+                scan.charge(4096)?;
+            }
+            let root = BackupDir::open_trusted_private_root(path)?;
+            let registry = Self {
+                root,
+                path: path.to_owned(),
+                budget,
+                b1_scope: Some(B1RegistryScope {
+                    admission_failed,
+                    lease_attempted: std::sync::atomic::AtomicBool::new(false),
+                }),
+            };
+            linux::read_snapshot(&registry.root, &registry.path, &registry.budget)?;
+            original.recheck()?;
+            Ok(registry)
+        })();
+        if observed.is_err() {
+            original.reject();
+        }
+        observed
+    }
     /// Metadata preflight only. This accepts the same opaque, genuine Source
     /// original; no caller-selected path, meter, failure flag or admin session.
     /// The wrapper and once-only lease belong to preflight, never publication S.
@@ -669,6 +763,19 @@ impl ManagementRegistry {
     }
 }
 impl RegistryLease {
+    /// Negative guard only at actual Source mutation closures. Generic
+    /// registry locking/read-only D/import paths never consult Source roots.
+    pub(crate) fn require_source_mutation_allowed(&self) -> Result<(), BackupError> {
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        {
+            crate::offhost_b1::require_source_mutation_allowed(self)
+        }
+        #[cfg(not(all(target_os = "linux", feature = "offhost-b1")))]
+        {
+            Ok(())
+        }
+    }
+
     pub(crate) fn clone_held(&self) -> Result<Self, BackupError> {
         Ok(Self {
             root: self.root.try_clone()?,
@@ -785,6 +892,43 @@ impl RegistryLease {
         admission.revalidate()?;
         Ok(source)
     }
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) async fn lookup_publication_source(
+        &self,
+        admission: &mut crate::source::B1PublicationAdmission<'_>,
+    ) -> Result<EnrolledSource, BackupError> {
+        admission.revalidate_sql().await?;
+        require_shared_scan_budget(&self.budget, admission.budget())?;
+        self.recheck()?;
+        let selected = match self.groups.get(admission.input()?.group_id()) {
+            Some(Group::Source(group)) => group,
+            _ => {
+                admission.fail();
+                return Err(BackupError::Invalid("B1 original Publication group"));
+            }
+        };
+        validate_build_binding(
+            selected,
+            option_env!("KNOWWEAVE_C4_SOURCE_CONTROL_BINDING_SHA256"),
+            option_env!("KNOWWEAVE_SOURCE_COMMIT"),
+            option_env!("KNOWWEAVE_BUILD_ID_SHA256"),
+        )?;
+        // Bound the four-root/group clones and descriptor traversal before the
+        // old fixed helper opens its first directory; no caller assets/config.
+        {
+            let mut scan = self
+                .budget
+                .lock()
+                .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+            scan.charge(16384)?;
+            scan.entries(48)?;
+        }
+        let source = linux::publication_source(self, selected)?;
+        admission.require_enrollment(self, &source)?;
+        admission.revalidate_sql().await?;
+        self.recheck()?;
+        Ok(source)
+    }
     pub fn admit_destination(
         &self,
         destination_root: &Path,
@@ -799,6 +943,58 @@ impl RegistryLease {
             Err(BackupError::Invalid("registry requires Linux"))
         }
     }
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) fn prepay_current_b1_json(
+    budget: &Arc<Mutex<ScanBudget>>,
+    raw: &[u8],
+) -> Result<(), BackupError> {
+    let applies = budget
+        .lock()
+        .map_err(|_| BackupError::Invalid("B1 scan budget"))?
+        .b1_scan
+        .is_some();
+    if applies {
+        crate::source::binding::prepay_canonical_data(raw, budget)?;
+    }
+    Ok(())
+}
+
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) fn prepay_publication_protection(
+    lease: &RegistryLease,
+    source: &EnrolledSource,
+) -> Result<(), BackupError> {
+    let metadata = lease
+        .metadata
+        .iter()
+        .try_fold(0usize, |n, (path, (raw, _))| {
+            n.checked_add(path.len())
+                .and_then(|v| v.checked_add(raw.len()))
+                .ok_or(BackupError::Overflow)
+        })?;
+    let roots = source.roots.values().try_fold(0usize, |n, r| {
+        n.checked_add(r.path.len() + r.enrollment_id.len() + 512)
+            .ok_or(BackupError::Overflow)
+    })?;
+    let bytes = metadata
+        .checked_mul(8)
+        .and_then(|n| n.checked_add(roots * 8 + 32768))
+        .ok_or(BackupError::Overflow)?;
+    let mut scan = lease
+        .budget
+        .lock()
+        .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+    scan.charge(bytes as u64)?;
+    scan.entries(
+        lease
+            .metadata
+            .len()
+            .checked_mul(4)
+            .and_then(|n| n.checked_add(64))
+            .ok_or(BackupError::Overflow)?,
+    )
 }
 
 #[cfg(target_os = "linux")]
@@ -1342,6 +1538,13 @@ mod linux {
             handles,
             roots,
         })
+    }
+    #[cfg(feature = "offhost-b1")]
+    pub(super) fn publication_source(
+        lease: &RegistryLease,
+        group: &SourceGroup,
+    ) -> Result<EnrolledSource, BackupError> {
+        source(lease, group)
     }
     pub(super) fn admit_control(
         lease: &RegistryLease,

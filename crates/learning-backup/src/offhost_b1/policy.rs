@@ -53,6 +53,106 @@ pub(super) fn preflight_fixed_source_metadata(
     observed
 }
 
+/// Borrowed fixed loader custody. The actual retained async frame owns the
+/// lease; this facade never returns a self-borrowing or static holder.
+#[cfg(target_os = "linux")]
+pub(super) struct SourceFirstSMetadata<'a> {
+    held: installed::HeldInstalledInputs<'a>,
+}
+#[cfg(target_os = "linux")]
+impl<'a> SourceFirstSMetadata<'a> {
+    pub(super) fn load(
+        lease: &'a crate::RegistryLease,
+        admission: &crate::source::B1PublicationAdmission<'_>,
+        source: &crate::EnrolledSource,
+    ) -> Result<Self, BackupError> {
+        admission.revalidate()?;
+        let pins = BuildPins::parse(super::fixed_build_inputs(), Role::Source)?;
+        let mut held = installed::load_installed(&pins, lease)?;
+        held.recheck_source_publication(admission, source)?;
+        Ok(Self { held })
+    }
+    pub(super) fn fence_metadata(&self) -> Result<SourceFenceMetadata<'_>, BackupError> {
+        self.held.source_fence_metadata()
+    }
+    pub(super) fn fence_anchor_data(&self) -> Result<SourceFenceAnchorData<'_>, BackupError> {
+        self.held.source_fence_anchor_data()
+    }
+    pub(super) fn recheck(
+        &mut self,
+        admission: &crate::source::B1PublicationAdmission<'_>,
+        source: &crate::EnrolledSource,
+    ) -> Result<(), BackupError> {
+        self.held.recheck_source_publication(admission, source)
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(super) use installed::{DestinationMetadataData, SourceFenceMetadata};
+/// Readonly fields from the already held Task1b anchor. This is DATA only;
+/// the fence producer independently requires the same original lease/source.
+#[cfg(target_os = "linux")]
+pub(super) struct SourceFenceAnchorData<'a> {
+    pub(super) deployment_id: &'a str,
+    pub(super) source_group_id: &'a str,
+    pub(super) root_dev: u64,
+    pub(super) root_ino: u64,
+    pub(super) anchor_raw: &'a [u8],
+    pub(super) anchor_sha256: &'a str,
+}
+#[cfg(target_os = "linux")]
+pub(super) struct HeldSourceMutationInputs<'a> {
+    held: installed::HeldInstalledInputs<'a>,
+}
+#[cfg(target_os = "linux")]
+pub(super) fn load_fixed_source_mutation_metadata(
+    lease: &crate::RegistryLease,
+) -> Result<HeldSourceMutationInputs<'_>, BackupError> {
+    let pins = BuildPins::parse(super::fixed_build_inputs(), Role::Source)?;
+    let mut held = installed::load_installed(&pins, lease)?;
+    held.recheck_source_mutation()?;
+    Ok(HeldSourceMutationInputs { held })
+}
+#[cfg(target_os = "linux")]
+impl HeldSourceMutationInputs<'_> {
+    pub(super) fn recheck(&mut self) -> Result<(), BackupError> {
+        self.held.recheck_source_mutation()
+    }
+    pub(super) fn fence_anchor_data(&self) -> Result<SourceFenceAnchorData<'_>, BackupError> {
+        self.held.source_fence_anchor_data()
+    }
+}
+
+/// Actual fixed Task1b metadata custody only, not genuine D qualification.
+#[cfg(target_os = "linux")]
+pub(super) struct HeldDestinationInputs<'a> {
+    held: installed::HeldInstalledInputs<'a>,
+}
+#[cfg(target_os = "linux")]
+pub(super) fn load_fixed_destination_metadata(
+    lease: &crate::RegistryLease,
+) -> Result<HeldDestinationInputs<'_>, BackupError> {
+    let pins = BuildPins::parse(super::fixed_build_inputs(), Role::Destination)?;
+    let mut held = installed::load_installed(&pins, lease)?;
+    held.recheck()?;
+    Ok(HeldDestinationInputs { held })
+}
+#[cfg(target_os = "linux")]
+impl HeldDestinationInputs<'_> {
+    pub(super) fn recheck(&mut self) -> Result<(), BackupError> {
+        self.held.recheck()
+    }
+    pub(super) fn require_destination(
+        &mut self,
+        destination: &crate::EnrolledDestination,
+    ) -> Result<(), BackupError> {
+        self.held.recheck_destination(destination)
+    }
+    pub(super) fn destination_data(&self) -> Result<DestinationMetadataData<'_>, BackupError> {
+        self.held.destination_data()
+    }
+}
+
 const SOURCE_POLICY_PATH: &str = "/var/lib/knowweave-c4/b1/source-policy.json";
 const DESTINATION_POLICY_PATH: &str = "/var/lib/knowweave-c4/b1/destination-policy.json";
 const FENCE_ROOT: &str = "/var/lib/knowweave-c4-source-fences";

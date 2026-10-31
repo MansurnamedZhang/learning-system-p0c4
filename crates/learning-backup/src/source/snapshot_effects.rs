@@ -54,6 +54,12 @@ struct Enrollment {
     _isolation: super::endpoint::VerifiedSourceIsolation,
     #[cfg(feature = "offhost-b1")]
     b1: Option<B1Enrollment>,
+    // Source-role installs retain the actual original registry lease through
+    // broker work and its naturally completed quiescence. A concurrent first
+    // S cannot publish its negative fence between a check and a journal write.
+    // This is never a reconstructed lock or a caller-selected bypass flag.
+    #[cfg(feature = "offhost-b1")]
+    source_mutation_lease: Option<RegistryLease>,
 }
 
 #[cfg(feature = "offhost-b1")]
@@ -214,6 +220,7 @@ impl EnrolledSnapshotBroker {
         let admission = original.admission.as_ref().expect("stored admission");
         let enrolled = original.enrolled.as_ref().expect("stored source");
         let lease = original.lease.as_ref().expect("stored lease");
+        lease.require_source_mutation_allowed()?;
         original.config = Some(admission.b1_configuration(enrolled)?);
         let config = original.config.as_ref().expect("stored configuration");
         original.isolation = Some(admission.b1_isolation(config, true)?);
@@ -278,7 +285,9 @@ impl EnrolledSnapshotBroker {
             .as_ref()
             .expect("stored closed Install inputs")
             .recheck_enrollment(lease, enrolled)?;
-        original.lease = None;
+        // Keep the actual original lock throughout all Install/cutover writes.
+        // It transfers into Enrollment below and is released only once the
+        // broker has naturally quiesced, before the fresh Capture lease opens.
         let binding_id = Uuid::new_v4();
         let epoch_id = Uuid::new_v4();
         budget.lock().map_err(|_| invalid())?.charge(4096)?;
@@ -413,6 +422,7 @@ impl EnrolledSnapshotBroker {
                     .expect("stored original C11 observation"),
                 local: original.local.take().expect("stored original local mounts"),
             }),
+            source_mutation_lease: original.lease.take(),
         });
         let enrollment = original
             .enrollment
@@ -458,6 +468,8 @@ impl EnrolledSnapshotBroker {
         eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_REGISTRY_ADMIT_BEFORE");
         let registry = ManagementRegistry::open_installed()?;
         let lease = registry.try_lock()?;
+        #[cfg(feature = "offhost-b1")]
+        lease.require_source_mutation_allowed()?;
         let enrolled = lease.admit_source(&control, assets, config)?;
         #[cfg(test)]
         eprintln!("FULL_REHEARSAL_CAPTURE_CHECKPOINT step=INSTALL_REGISTRY_ADMIT_AFTER");
@@ -492,6 +504,14 @@ impl EnrolledSnapshotBroker {
         // A captured lease clone would hold the global registry lock for the
         // entire broker lifetime. Store the immutable original record bytes
         // instead; capture must reacquire and revalidate their real handles.
+        #[cfg(feature = "offhost-b1")]
+        let source_mutation_lease = if crate::offhost_b1::source_mutation_gate_enabled()? {
+            Some(lease)
+        } else {
+            drop(lease);
+            None
+        };
+        #[cfg(not(feature = "offhost-b1"))]
         drop(lease);
         let binding_id = Uuid::new_v4();
         let epoch_id = Uuid::new_v4();
@@ -566,6 +586,8 @@ impl EnrolledSnapshotBroker {
             _isolation: isolation,
             #[cfg(feature = "offhost-b1")]
             b1: None,
+            #[cfg(feature = "offhost-b1")]
+            source_mutation_lease,
             binding_id: descriptor.binding_id,
             epoch_id: descriptor.epoch_id,
         };
@@ -627,6 +649,7 @@ impl EnrolledSnapshotBroker {
         &self,
         transition: Option<BeforeWriteTransition>,
     ) -> Result<BrokerSignalResult, BackupError> {
+        self.require_source_mutation_original()?;
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
         let original = self.work_listener.try_clone()?;
         original.set_nonblocking(true)?;
@@ -676,6 +699,7 @@ impl EnrolledSnapshotBroker {
         stream: UnixStream,
         transition: Option<BeforeWriteTransition>,
     ) -> Result<BrokerSignalResult, BackupError> {
+        self.require_source_mutation_original()?;
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
         let result = tokio::time::timeout_at(deadline, async {
             match transition {
@@ -692,6 +716,7 @@ impl EnrolledSnapshotBroker {
         Ok(result)
     }
     pub fn request_quiesce(&self) -> Result<(), BackupError> {
+        self.require_source_mutation_original()?;
         self.broker.request_quiesce().map_err(|_| invalid())
     }
     pub async fn quiesce_for_capture(self, backup_id: Uuid) -> Result<CaptureInput, BackupError> {
@@ -707,6 +732,7 @@ impl EnrolledSnapshotBroker {
         self.quiesce_original(backup_id).await
     }
     async fn quiesce_original(self, backup_id: Uuid) -> Result<CaptureInput, BackupError> {
+        self.require_source_mutation_original()?;
         #[cfg(feature = "offhost-b1")]
         if let Some(original) = &self.enrollment.b1 {
             original.recheck()?;
@@ -723,14 +749,40 @@ impl EnrolledSnapshotBroker {
         if let Some(original) = &self.enrollment.b1 {
             original.recheck()?;
         }
+        // This follows the actual broker's completed quiescence, including its
+        // final original recheck. No active writer is converted into an empty
+        // lock slot. Capture must acquire its separate real lease before any
+        // further Source/control/protection write.
+        #[cfg(feature = "offhost-b1")]
+        let enrollment = {
+            let mut original = self.enrollment;
+            drop(original.source_mutation_lease.take());
+            original
+        };
+        #[cfg(not(feature = "offhost-b1"))]
+        let enrollment = self.enrollment;
         Ok(CaptureInput {
             cut,
-            enrollment: self.enrollment,
+            enrollment,
             pending: None,
             started: false,
             #[cfg(feature = "offhost-b1")]
             b1_capture: None,
         })
+    }
+
+    fn require_source_mutation_original(&self) -> Result<(), BackupError> {
+        #[cfg(feature = "offhost-b1")]
+        if crate::offhost_b1::source_mutation_gate_enabled()? {
+            let lease = self
+                .enrollment
+                .source_mutation_lease
+                .as_ref()
+                .ok_or_else(invalid)?;
+            crate::registry::require_shared_scan_budget(&lease.budget, &self.enrollment.budget)?;
+            lease.require_source_mutation_allowed()?;
+        }
+        Ok(())
     }
 }
 
@@ -973,7 +1025,10 @@ impl Enrollment {
     }
 }
 
-fn descriptor_matches(descriptor: &Descriptor, group: &SourceGroup) -> Result<(), BackupError> {
+pub(crate) fn descriptor_matches(
+    descriptor: &Descriptor,
+    group: &SourceGroup,
+) -> Result<(), BackupError> {
     if descriptor.format_version != 2
         || descriptor.capability != "snapshot_effect_epoch_v2"
         || descriptor.storage_encoding != ENCODING
@@ -1073,9 +1128,33 @@ impl B1QuiesceOwners {
             .ok_or_else(invalid)?
             .revalidate()
             .map_err(|_| invalid())?;
-        self.enrollment.as_ref().ok_or_else(invalid)?.b1_fence()
+        self.enrollment.as_ref().ok_or_else(invalid)?.b1_fence()?;
+        // The genuine Capture route uses this retained Q0 Book, rather than
+        // EnrolledSnapshotBroker::quiesce_original above. Release only after
+        // its actual cut is stored and both natural Q0 and original rechecks
+        // have succeeded. Error/unknown/unwind keeps the lease in this Book.
+        let enrollment = self.enrollment.as_mut().ok_or_else(invalid)?;
+        if crate::offhost_b1::source_mutation_gate_enabled()? {
+            let lease = enrollment
+                .source_mutation_lease
+                .as_ref()
+                .ok_or_else(invalid)?;
+            crate::registry::require_shared_scan_budget(&lease.budget, &enrollment.budget)?;
+            lease.require_source_mutation_allowed()?;
+        }
+        drop(enrollment.source_mutation_lease.take());
+        Ok(())
     }
     pub(crate) fn validate_input_transfer(&self) -> Result<(), BackupError> {
+        if self
+            .enrollment
+            .as_ref()
+            .ok_or_else(invalid)?
+            .source_mutation_lease
+            .is_some()
+        {
+            return Err(invalid());
+        }
         self.enrollment.as_ref().ok_or_else(invalid)?.b1_fence()?;
         self.cut
             .as_ref()

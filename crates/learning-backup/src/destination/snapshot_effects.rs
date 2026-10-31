@@ -30,6 +30,229 @@ pub struct CopiedSnapshotEffectsV2 {
     core: SnapshotCopyCore,
 }
 
+/// Only the concrete authenticated-stream copy below owns this fully checked
+/// core and its original Ready records. No public constructor, Local/Copied
+/// conversion, serde, Clone or test-success factory exists.
+#[cfg(feature = "offhost-b1")]
+#[allow(
+    dead_code,
+    reason = "default-off original D; installation, CODE and runtime acceptance remain separate"
+)]
+pub(super) struct RemoteCopiedSnapshotEffectsOriginal {
+    core: SnapshotCopyCore,
+    ready_witness_raw: Vec<u8>,
+    ready_intent_raw: Vec<u8>,
+    input_sha256: String,
+    root_roster: Vec<String>,
+}
+
+#[cfg(feature = "offhost-b1")]
+impl RemoteCopiedSnapshotEffectsOriginal {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn recheck_consuming_original(
+        &self,
+        destination: &EnrolledDestination,
+        proof: &CapturedSourceProof,
+        identity: &super::attempt::CommitIdentity,
+        binding: &super::RemoteFinalBindingData,
+        trust: &crate::VerifierTrustConfig,
+        owner: &super::RemoteConsumption<'_>,
+    ) -> Result<(), BackupError> {
+        let core = &self.core;
+        let (lease, base_identity) = match &core.origin {
+            CopyOrigin::OriginalRemote {
+                lease,
+                base_identity,
+                ..
+            } => (lease, base_identity),
+            CopyOrigin::Production { .. } => return Err(invalid()),
+            #[cfg(test)]
+            CopyOrigin::CurrentPin(_) => return Err(invalid()),
+        };
+        // This is the real same-mutex Consuming borrow, not a mode flag.
+        // Replaces only the recursive lock in CopyOrigin::recheck.
+        owner.require_original(&destination.lease.destination_operation, identity)?;
+        owner.require_original(&lease.destination_operation, base_identity)?;
+        if base_identity != identity
+            || !std::sync::Arc::ptr_eq(&core.budget, &destination.lease.budget)
+            || !std::sync::Arc::ptr_eq(&lease.budget, &destination.lease.budget)
+        {
+            return Err(invalid());
+        }
+        charge(&core.budget, &core.journal_budget, 16_384 * 32, 32)?;
+        lease.recheck()?;
+        destination.recheck()?;
+        if lease.path != destination.lease.path
+            || lease.authority != destination.lease.authority
+            || lease.root.identity()? != destination.lease.root.identity()?
+            || core.record.backup_id != identity.intent.backup_id
+            || core.record.backup_id != binding.backup_id
+            || core.record.backup_id != proof.record.backup_id
+            || core.record.manifest_sha256 != proof.record.manifest_sha256
+            || core.record.manifest_sha256 != identity.intent.manifest_sha256
+            || core.record.source_group_id.to_string() != proof.record.source_group_id
+            || core.record.source_registry_generation_sha256
+                != proof.record.source_registry_generation_sha256
+            || self.input_sha256 != binding.snapshot_effects_input_sha256
+            || self.ready_witness_raw.len() > 16_384
+            || self.ready_intent_raw.len() > 16_384
+            || hash(&self.ready_witness_raw) != binding.snapshot_effects_proof_sha256
+            || hash(&self.ready_intent_raw) != binding.snapshot_effects_intent_sha256
+            || core.intent_sha256 != binding.snapshot_effects_intent_sha256
+        {
+            return Err(invalid());
+        }
+        let source_raw = crate::registry::canonical(&proof.record)?;
+        if source_raw.len() > 16_384
+            || hash(&source_raw) != core.binding_sha256
+            || hash(&source_raw) != identity.intent.proof_sha256
+        {
+            return Err(invalid());
+        }
+        let id = core.record.backup_id.to_string();
+        let evidence = destination.evidence();
+        let root = evidence.open_dir(".snapshot-effects-v2")?;
+        root.require_private_directory()?;
+        if root.identity()? != core.root.identity()?
+            || root.open_dir(&id)?.identity()? != core.directory.identity()?
+            || root.open_dir(&format!("{id}.attempt"))?.identity()? != core.attempt.identity()?
+        {
+            return Err(invalid());
+        }
+        self.exact_root_roster(&root)?;
+        super::attempt::require_committed_names(&self.root_roster, core.record.backup_id)?;
+        files::exact_tree(
+            &core.directory,
+            &core.records,
+            &core.budget,
+            &core.journal_budget,
+        )?;
+        files::exact_tree(
+            &core.attempt,
+            &core.attempt_files,
+            &core.budget,
+            &core.journal_budget,
+        )?;
+
+        let capture_raw = encode(&core.record, &core.budget, &core.journal_budget)?;
+        let capture_record = core
+            .records
+            .iter()
+            .find(|record| record.path == "capture.json")
+            .ok_or_else(invalid)?;
+        let payload_record = core
+            .records
+            .iter()
+            .find(|record| record.path == "payload-manifest.json")
+            .ok_or_else(invalid)?;
+        let payload_raw = files::read(
+            &core.directory,
+            payload_record,
+            &core.budget,
+            &core.journal_budget,
+        )?;
+        if hash(&capture_raw) != core.capture_sha256
+            || hash(&payload_raw) != core.payload_sha256
+            || capture_record.sha256 != core.capture_sha256
+            || capture_record.size != capture_raw.len() as u64
+            || core.attempt_files.len() != 2
+            || !core.attempt_files.iter().any(|record| {
+                record.path == "intent.json"
+                    && record.sha256 == core.intent_sha256
+                    && record.size == self.ready_intent_raw.len() as u64
+            })
+            || !core.attempt_files.iter().any(|record| {
+                record.path == "terminal.json" && record.sha256 == core.terminal_sha256
+            })
+        {
+            return Err(invalid());
+        }
+        let intent: Value = serde_json::from_slice(&self.ready_intent_raw)?;
+        let effect_attempt = wire::uuid(&intent["attempt_id"])?;
+        let operation_nonce = wire::uuid(&intent["operation_nonce"])?;
+        let basis = CopyBasis::Production {
+            destination,
+            proof,
+            trust,
+            base_identity,
+        };
+        let (expected_witness, mut expected_intent) = basis.statements(
+            &core.record,
+            &capture_raw,
+            &payload_raw,
+            &source_raw,
+            effect_attempt,
+            operation_nonce,
+            &core.budget,
+            &core.journal_budget,
+        )?;
+        let expected_witness_raw = encode(&expected_witness, &core.budget, &core.journal_budget)?;
+        expected_intent["effect_statement_sha256"] = json!(hash(&expected_witness_raw));
+        if expected_witness_raw != self.ready_witness_raw
+            || encode(&expected_intent, &core.budget, &core.journal_budget)?
+                != self.ready_intent_raw
+        {
+            return Err(invalid());
+        }
+        let terminal = json!({"format_version":2,"capability":"snapshot_effect_commit_v2",
+            "backup_id":core.record.backup_id,"attempt_id":effect_attempt,"intent_sha256":core.intent_sha256});
+        if hash(&encode(&terminal, &core.budget, &core.journal_budget)?) != core.terminal_sha256 {
+            return Err(invalid());
+        }
+        let checked = verify::inventory(
+            &core.inventory,
+            &core.ledger,
+            &core.prefix,
+            &core.namespace,
+            &core.budget,
+            &core.journal_budget,
+        )?;
+        verify_copied_packages(
+            &core.directory,
+            &core.record,
+            &checked,
+            &core.inventory,
+            &core.budget,
+            &core.journal_budget,
+        )?;
+        if evidence.open_dir(".snapshot-effects-v2")?.identity()? != core.root.identity()?
+            || root.open_dir(&id)?.identity()? != core.directory.identity()?
+            || root.open_dir(&format!("{id}.attempt"))?.identity()? != core.attempt.identity()?
+        {
+            return Err(invalid());
+        }
+        self.exact_root_roster(&root)?;
+        lease.recheck()?;
+        destination.recheck()?;
+        owner.require_original(&destination.lease.destination_operation, identity)
+    }
+
+    fn exact_root_roster(&self, root: &BackupDir) -> Result<(), BackupError> {
+        let cap = self
+            .root_roster
+            .len()
+            .checked_add(1)
+            .ok_or(BackupError::Overflow)?;
+        if cap > crate::registry::MAX_ENTRIES
+            || self.root_roster.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(invalid());
+        }
+        charge(
+            &self.core.budget,
+            &self.core.journal_budget,
+            (cap as u64).checked_mul(512).ok_or(BackupError::Overflow)?,
+            cap,
+        )?;
+        let mut names = root.list_bounded(cap)?;
+        names.sort();
+        if names != self.root_roster {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+}
+
 // Neither variant is caller-created. The private rehearsal wrapper can never
 // be converted to the public, production-only copied capability.
 pub(crate) enum CheckedSnapshotCopy {
@@ -103,6 +326,13 @@ struct SnapshotCopyCore {
 }
 
 enum CopyOrigin {
+    #[cfg(feature = "offhost-b1")]
+    OriginalRemote {
+        lease: RegistryLease,
+        base_identity: super::attempt::CommitIdentity,
+        original:
+            std::sync::Arc<crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD>,
+    },
     Production {
         lease: RegistryLease,
         base_identity: super::attempt::CommitIdentity,
@@ -113,6 +343,25 @@ enum CopyOrigin {
 impl CopyOrigin {
     fn recheck(&self) -> Result<(), BackupError> {
         match self {
+            #[cfg(feature = "offhost-b1")]
+            Self::OriginalRemote {
+                original,
+                lease,
+                base_identity,
+            } => {
+                original.require_destination(original.destination_original())?;
+                crate::registry::require_shared_scan_budget(
+                    &original.destination_original().lease.budget,
+                    &lease.budget,
+                )?;
+                if !std::sync::Arc::ptr_eq(
+                    &original.destination_original().lease.destination_operation,
+                    &lease.destination_operation,
+                ) {
+                    return Err(invalid());
+                }
+                super::attempt::remote::require_original_pending(original, base_identity)
+            }
             Self::Production {
                 lease,
                 base_identity,
@@ -130,6 +379,8 @@ impl CopyOrigin {
     }
     fn require_target(&self, _target: &Value) -> Result<(), BackupError> {
         match self {
+            #[cfg(feature = "offhost-b1")]
+            Self::OriginalRemote { .. } => Err(invalid()),
             Self::Production { .. } => Ok(()),
             #[cfg(test)]
             Self::CurrentPin(origin) => require_current_pin_target(&origin.target, _target),
@@ -137,6 +388,8 @@ impl CopyOrigin {
     }
     fn insert_binding(&self, value: &mut Value, sha256: &str) {
         match self {
+            #[cfg(feature = "offhost-b1")]
+            Self::OriginalRemote { .. } => value["captured_source_proof_sha256"] = json!(sha256),
             Self::Production { .. } => value["captured_source_proof_sha256"] = json!(sha256),
             #[cfg(test)]
             Self::CurrentPin(_) => {
@@ -220,21 +473,18 @@ impl CopyBasis<'_> {
                         .ok_or(BackupError::Overflow)?,
                     0,
                 )?;
-                let witness = json!({"format_version":2,"capability":"snapshot_effect_witness_v2",
-                    "backup_id":record.backup_id,"effect_attempt_id":attempt_id,"base_attempt_id":base_identity.intent.attempt_id,
-                    "manifest_sha256":record.manifest_sha256,"captured_source_proof_sha256":hash(binding_raw),
-                    "capture_sha256":hash(capture_raw),"payload_manifest_sha256":hash(payload_raw),"binding_sha256":record.binding_sha256,
-                    "epoch_sha256":record.epoch_sha256,"journal_head_sequence":record.journal_head_sequence,
-                    "journal_head_sha256":record.journal_head_sha256,"cut_event_sha256":record.cut_event_sha256,
-                    "complete_statement_sha256":hash(&complete_raw),"source_host_id":trust.source_host_id,"source_storage_id":trust.source_storage_id,
-                    "destination_host_id":trust.destination_host_id,"destination_storage_id":trust.destination_storage_id,
-                    "destination_dev":destination_dev,"destination_ino":destination_ino,"evidence_dev":evidence_dev,"evidence_ino":evidence_ino});
-                let intent = json!({"format_version":2,"capability":"snapshot_effect_attempt_v2",
-                    "backup_id":record.backup_id,"attempt_id":attempt_id,"base_attempt_id":base_identity.intent.attempt_id,
-                    "operation_nonce":operation_nonce,"destination_dev":destination_dev,"destination_ino":destination_ino,
-                    "evidence_dev":evidence_dev,"evidence_ino":evidence_ino,"manifest_sha256":record.manifest_sha256,
-                    "captured_source_proof_sha256":hash(binding_raw),"capture_sha256":hash(capture_raw),"payload_manifest_sha256":hash(payload_raw)});
-                Ok((witness, intent))
+                production_statement_data(
+                    record,
+                    capture_raw,
+                    payload_raw,
+                    binding_raw,
+                    attempt_id,
+                    operation_nonce,
+                    base_identity.intent.attempt_id,
+                    &complete_statement,
+                    (destination_dev, destination_ino),
+                    (evidence_dev, evidence_ino),
+                )
             }
             #[cfg(test)]
             Self::CurrentPin {
@@ -260,6 +510,137 @@ impl CopyBasis<'_> {
             }
         }
     }
+}
+
+/// Exact existing v2 witness/intent DATA, shared with the concrete writer. This
+/// has no CopyOrigin, operation, signer or filesystem qualification. Its caller
+/// pays canonical/clone/hash work from the original cumulative meter first.
+#[allow(clippy::too_many_arguments)]
+fn production_statement_data(
+    record: &Capture,
+    capture_raw: &[u8],
+    payload_raw: &[u8],
+    binding_raw: &[u8],
+    effect_attempt: Uuid,
+    operation_nonce: Uuid,
+    base_attempt: Uuid,
+    complete: &crate::DestinationStatement,
+    destination: (u64, u64),
+    evidence: (u64, u64),
+) -> Result<(Value, Value), BackupError> {
+    if !crate::registry::v4(&effect_attempt.to_string())
+        || !crate::registry::v4(&operation_nonce.to_string())
+        || !crate::registry::v4(&base_attempt.to_string())
+        || record.backup_id != complete.backup_id
+        || record.manifest_sha256 != complete.manifest_sha256
+        || capture_raw.is_empty()
+        || payload_raw.is_empty()
+        || binding_raw.is_empty()
+        || capture_raw.len() > wire::MAX_FILE as usize
+        || payload_raw.len() > wire::MAX_FILE as usize
+        || binding_raw.len() > 16_384
+    {
+        return Err(invalid());
+    }
+    let witness = json!({"format_version":2,"capability":"snapshot_effect_witness_v2",
+        "backup_id":record.backup_id,"effect_attempt_id":effect_attempt,"base_attempt_id":base_attempt,
+        "manifest_sha256":record.manifest_sha256,"captured_source_proof_sha256":hash(binding_raw),
+        "capture_sha256":hash(capture_raw),"payload_manifest_sha256":hash(payload_raw),"binding_sha256":record.binding_sha256,
+        "epoch_sha256":record.epoch_sha256,"journal_head_sequence":record.journal_head_sequence,
+        "journal_head_sha256":record.journal_head_sha256,"cut_event_sha256":record.cut_event_sha256,
+        "complete_statement_sha256":hash(&complete.canonical_bytes()?),
+        "source_host_id":complete.source_host_id,"source_storage_id":complete.source_storage_id,
+        "destination_host_id":complete.destination_host_id,"destination_storage_id":complete.destination_storage_id,
+        "destination_dev":destination.0,"destination_ino":destination.1,"evidence_dev":evidence.0,"evidence_ino":evidence.1});
+    let intent = json!({"format_version":2,"capability":"snapshot_effect_attempt_v2",
+        "backup_id":record.backup_id,"attempt_id":effect_attempt,"base_attempt_id":base_attempt,
+        "operation_nonce":operation_nonce,"destination_dev":destination.0,"destination_ino":destination.1,
+        "evidence_dev":evidence.0,"evidence_ino":evidence.1,"manifest_sha256":record.manifest_sha256,
+        "captured_source_proof_sha256":hash(binding_raw),"capture_sha256":hash(capture_raw),"payload_manifest_sha256":hash(payload_raw)});
+    Ok((witness, intent))
+}
+
+/// Verify Ready adjunct bytes against independently held Source inputs. The
+/// only values learned from the candidate are its two opaque v4 attempt labels;
+/// every witness/intent field is then rebuilt using the original writer schema.
+/// Returning hashes is DATA comparison, never a Copied/OriginalD capability.
+#[cfg(feature = "offhost-b1")]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_b1_ready_data(
+    witness_raw: &[u8],
+    intent_raw: &[u8],
+    capture: &Capture,
+    capture_raw: &[u8],
+    payload_raw: &[u8],
+    proof_raw: &[u8],
+    complete: &crate::DestinationStatement,
+    base_attempt: Uuid,
+    destination: (u64, u64),
+    evidence: (u64, u64),
+    budget: &Budget,
+) -> Result<(String, String), BackupError> {
+    if witness_raw.len() > 16_384
+        || intent_raw.len() > 16_384
+        || capture_raw.len() > wire::MAX_FILE as usize
+        || payload_raw.len() > wire::MAX_FILE as usize
+        || proof_raw.len() > 16_384
+    {
+        return Err(invalid());
+    }
+    let statement_strings = complete
+        .source_root
+        .len()
+        .checked_add(complete.source_control_root.len())
+        .and_then(|n| n.checked_add(complete.destination_root.len()))
+        .and_then(|n| n.checked_add(complete.manifest_sha256.len()))
+        .and_then(|n| n.checked_add(complete.source_control_sha256.len()))
+        .ok_or(BackupError::Overflow)?;
+    if statement_strings > 8192 {
+        return Err(invalid());
+    }
+    let prepaid = (witness_raw.len() as u64)
+        .checked_add(intent_raw.len() as u64)
+        .and_then(|n| n.checked_add(capture_raw.len() as u64))
+        .and_then(|n| n.checked_add(payload_raw.len() as u64))
+        .and_then(|n| n.checked_add(proof_raw.len() as u64))
+        .and_then(|n| n.checked_add(statement_strings as u64))
+        .and_then(|n| n.checked_mul(32))
+        .ok_or(BackupError::Overflow)?;
+    {
+        let mut meter = budget.lock().map_err(|_| invalid())?;
+        meter.charge(prepaid)?;
+        meter.entries(8)?;
+    }
+    let witness: Value = crate::registry::canonical_record(witness_raw, 16_384)?;
+    let intent: Value = crate::registry::canonical_record(intent_raw, 16_384)?;
+    let attempt = wire::uuid(&intent["attempt_id"])?;
+    let nonce = wire::uuid(&intent["operation_nonce"])?;
+    // The independently held Capture object must itself still match its bytes.
+    if crate::registry::canonical(capture)? != capture_raw {
+        return Err(invalid());
+    }
+    let (expected_witness, mut expected_intent) = production_statement_data(
+        capture,
+        capture_raw,
+        payload_raw,
+        proof_raw,
+        attempt,
+        nonce,
+        base_attempt,
+        complete,
+        destination,
+        evidence,
+    )?;
+    let expected_witness_raw = crate::registry::canonical(&expected_witness)?;
+    expected_intent["effect_statement_sha256"] = json!(hash(&expected_witness_raw));
+    if witness != expected_witness
+        || intent != expected_intent
+        || expected_witness_raw != witness_raw
+        || crate::registry::canonical(&expected_intent)? != intent_raw
+    {
+        return Err(invalid());
+    }
+    Ok((hash(witness_raw), hash(intent_raw)))
 }
 
 #[cfg(test)]
@@ -580,6 +961,534 @@ pub fn copy_snapshot_effects(
     Ok(result)
 }
 
+#[cfg(feature = "offhost-b1")]
+struct OriginalRemoteEffectsInputs {
+    directory: BackupDir,
+    record: Capture,
+    inventory: JobInventory,
+    namespace: Vec<NamespaceEntry>,
+    prefix: Prefix,
+    ledger: Ledger,
+    source_identity: Value,
+    budget: Budget,
+    journal_budget: SharedJournalBudget,
+}
+
+#[cfg(feature = "offhost-b1")]
+fn validate_original_transported_effects(
+    received: &crate::offhost_b1::destination_actor::OriginalReceivedFiles<'_>,
+    proof: &CapturedSourceProof,
+) -> Result<OriginalRemoteEffectsInputs, BackupError> {
+    use crate::source::snapshot_effects::wire::{Cut, Descriptor, ENCODING, Reference};
+    received.recheck()?;
+    let original = received.original();
+    let budget = &original.destination_original().lease.budget;
+    let journal = original.journal_original();
+    let mut bytes = 0u64;
+    for record in received.effect_records() {
+        bytes = bytes
+            .checked_add(record.size)
+            .ok_or(BackupError::Overflow)?;
+    }
+    if bytes > crate::offhost_b1::finalize::EVIDENCE_BYTES {
+        return Err(invalid());
+    }
+    charge(
+        budget,
+        journal,
+        bytes.checked_mul(40).ok_or(BackupError::Overflow)?,
+        received.effect_records().len() * 4,
+    )?;
+    files::exact_tree(
+        received.effects_directory(),
+        received.effect_records(),
+        budget,
+        journal,
+    )?;
+    let mut raw = BTreeMap::new();
+    for record in received.effect_records() {
+        let bytes = files::read(received.effects_directory(), record, budget, journal)?;
+        if record.path.ends_with(".json") {
+            crate::registry::prepay_current_b1_json(budget, &bytes)?;
+        }
+        raw.insert(record.path.clone(), bytes);
+    }
+    let at = |name: &str| raw.get(name).ok_or_else(invalid);
+    let record: Capture = crate::registry::canonical_record(at("capture.json")?, wire::MAX_FILE)?;
+    let mut expected_records = record.files.clone();
+    expected_records.push(FileRecord {
+        path: "capture.json".into(),
+        size: at("capture.json")?.len() as u64,
+        sha256: hash(at("capture.json")?),
+    });
+    expected_records.sort_by(|a, b| a.path.cmp(&b.path));
+    if record.format_version != 2
+        || record.capability != "snapshot_effect_capture_v2"
+        || record.storage_encoding != ENCODING
+        || expected_records != received.effect_records()
+        || record.files.windows(2).any(|w| w[0].path >= w[1].path)
+        || record.backup_id != proof.record.backup_id
+        || record.manifest_sha256 != proof.record.manifest_sha256
+        || record.source_group_id.to_string() != proof.record.source_group_id
+        || record.source_registry_generation_sha256
+            != proof.record.source_registry_generation_sha256
+        || hash(at("capture.json")?) != received.transport_capture_sha256_data()
+        || record.epoch_sha256 != hash(at("epoch.json")?)
+        || record.rows_sha256 != hash(at("source-rows.json")?)
+        || record.namespace_sha256 != hash(at("namespace.json")?)
+        || record.companion_authority_sha256 != hash(at("companion/authority.json")?)
+        || record.companion_generation_sha256
+            != hash(at("companion/generations/00000000000000000001.json")?)
+    {
+        return Err(invalid());
+    }
+    let source_files = received.read_source_files_data()?;
+    for name in [
+        "source-authority.json",
+        "source-generation.json",
+        "source-group.json",
+    ] {
+        if at(name)? != source_files.get(name).ok_or_else(invalid)? {
+            return Err(invalid());
+        }
+    }
+    for (name, source_raw) in source_files
+        .iter()
+        .filter(|(name, _)| name.starts_with("roots/"))
+    {
+        if at(name)? != source_raw {
+            return Err(invalid());
+        }
+    }
+    let group: crate::registry::SourceGroup =
+        crate::registry::canonical_record(at("source-group.json")?, 16_384)?;
+    let descriptor: Descriptor = serde_json::from_slice(at("epoch.json")?)?;
+    // The shared pure predicate also hashes four compiled DB writer sources
+    // (96,867 bytes at this reviewed base) and makes bounded UUID strings.
+    // Pay its conservative fixed 1MiB work before that real hash invocation.
+    original.prepay_original_work(1_048_576, 4)?;
+    crate::source::snapshot_effects::descriptor_matches(&descriptor, &group)?;
+    if record.binding_sha256
+        != hash(at(&format!(
+            "companion/bindings/{}.json",
+            descriptor.binding_id
+        ))?)
+    {
+        return Err(invalid());
+    }
+    let ledger: Ledger = serde_json::from_slice(at("ledger.json")?)?;
+    let cut: Cut = serde_json::from_slice(at("cut.json")?)?;
+    let inventory: JobInventory =
+        crate::registry::canonical_record(at("source-rows.json")?, wire::MAX_FILE)?;
+    let namespace: Vec<NamespaceEntry> =
+        crate::registry::canonical_record(at("namespace.json")?, wire::MAX_FILE)?;
+    if namespace.windows(2).any(|w| w[0].path >= w[1].path)
+        || namespace.len() > wire::MAX_FILES
+        || record.capture_id != cut.capture_id
+        || record.journal_head_sequence != cut.cut_record.sequence
+        || record.journal_head_sha256 != cut.cut_record.sha256
+        || record.cut_event_sha256 != cut.cut_record.sha256
+    {
+        return Err(invalid());
+    }
+    let journal_files = raw
+        .iter()
+        .filter(|(path, _)| path.starts_with("journal/"))
+        .map(|(path, raw)| (path.clone(), raw.clone()))
+        .collect();
+    let prefix = Prefix::check(
+        &journal_files,
+        at("epoch.json")?,
+        descriptor.epoch_id,
+        descriptor.binding_id,
+        &Reference {
+            sequence: record.journal_head_sequence,
+            sha256: record.journal_head_sha256.clone(),
+        },
+    )?;
+    let head: [u8; 32] = hex::decode(&cut.cut_record.sha256)
+        .map_err(|_| invalid())?
+        .try_into()
+        .map_err(|_| invalid())?;
+    verify::cut(
+        &descriptor,
+        &ledger,
+        &cut,
+        (cut.cut_record.sequence, head),
+        at("epoch.json")?,
+        at("ledger.json")?,
+        record.backup_id,
+    )?;
+    verify::prefix_cut(
+        &prefix,
+        &cut,
+        at("epoch.json")?,
+        at("ledger.json")?,
+        budget,
+        journal,
+    )?;
+    let checked = verify::inventory(&inventory, &ledger, &prefix, &namespace, budget, journal)?;
+    verify_copied_packages(
+        received.effects_directory(),
+        &record,
+        &checked,
+        &inventory,
+        budget,
+        journal,
+    )?;
+    let descriptor_raw = json!({"backup_id":record.backup_id,"source_group_id":record.source_group_id,
+        "manifest_sha256":record.manifest_sha256,"capture_sha256":hash(at("capture.json")?),
+        "roster_sha256":hash(&crate::registry::canonical(&received.effect_records())?),
+        "transport_index_sha256":hash(received.transport_raw())});
+    let mut input_bytes = b"KnowWeave/Task9/B1/effects-input/v1\0".to_vec();
+    input_bytes.extend(crate::registry::canonical(&descriptor_raw)?);
+    if hash(&input_bytes) != original.snapshot_effects_input_sha256_data() {
+        return Err(invalid());
+    }
+    received.recheck()?;
+    Ok(OriginalRemoteEffectsInputs {
+        directory: received.effects_directory().try_clone()?,
+        record,
+        inventory,
+        namespace,
+        prefix,
+        ledger,
+        source_identity: serde_json::to_value(&received.manifest_data().source)?,
+        budget: budget.clone(),
+        journal_budget: journal.clone(),
+    })
+}
+
+#[cfg(feature = "offhost-b1")]
+pub(super) fn copy_original_remote_effects(
+    received: &crate::offhost_b1::destination_actor::OriginalReceivedFiles<'_>,
+    proof: &CapturedSourceProof,
+    base_identity: &super::attempt::CommitIdentity,
+    trust: &crate::VerifierTrustConfig,
+) -> Result<RemoteCopiedSnapshotEffectsOriginal, BackupError> {
+    let original = received.original();
+    original.require_destination(original.destination_original())?;
+    super::attempt::remote::require_original_pending(original, base_identity)?;
+    original.require_original_effects_fd_room()?;
+    let captured = validate_original_transported_effects(received, proof)?;
+    let destination = original.destination_original();
+    original.prepay_original_work(65_536, 32)?;
+    let origin = CopyOrigin::OriginalRemote {
+        lease: destination.lease.clone_held()?,
+        base_identity: base_identity.clone(),
+        original: std::sync::Arc::clone(original),
+    };
+    let basis = CopyBasis::Production {
+        destination,
+        proof,
+        trust,
+        base_identity,
+    };
+    let evidence_path =
+        PathBuf::from(&destination.lease.roots[&destination.group.roots["evidence"]].path);
+    let core = write_original_remote_copy(
+        destination.evidence(),
+        &evidence_path,
+        captured,
+        destination.lease.budget.clone(),
+        origin,
+        basis,
+    )?;
+    let intent_record = core
+        .attempt_files
+        .iter()
+        .find(|r| r.path == "intent.json")
+        .ok_or_else(invalid)?;
+    let ready_intent_raw = files::read(
+        &core.attempt,
+        intent_record,
+        &core.budget,
+        &core.journal_budget,
+    )?;
+    crate::registry::prepay_current_b1_json(&core.budget, &ready_intent_raw)?;
+    let intent: Value = crate::registry::canonical_record(&ready_intent_raw, 16_384)?;
+    let capture_raw = encode(&core.record, &core.budget, &core.journal_budget)?;
+    let payload_raw = files::read(
+        &core.directory,
+        core.records
+            .iter()
+            .find(|r| r.path == "payload-manifest.json")
+            .ok_or_else(invalid)?,
+        &core.budget,
+        &core.journal_budget,
+    )?;
+    let proof_raw = crate::registry::canonical(&proof.record)?;
+    let (witness, _) = production_statement_data(
+        &core.record,
+        &capture_raw,
+        &payload_raw,
+        &proof_raw,
+        wire::uuid(&intent["attempt_id"])?,
+        wire::uuid(&intent["operation_nonce"])?,
+        base_identity.intent.attempt_id,
+        &super::statement(proof, trust),
+        destination.destination().identity()?,
+        destination.evidence().identity()?,
+    )?;
+    let ready_witness_raw = encode(&witness, &core.budget, &core.journal_budget)?;
+    validate_b1_ready_data(
+        &ready_witness_raw,
+        &ready_intent_raw,
+        &core.record,
+        &capture_raw,
+        &payload_raw,
+        &proof_raw,
+        &super::statement(proof, trust),
+        base_identity.intent.attempt_id,
+        destination.destination().identity()?,
+        destination.evidence().identity()?,
+        &core.budget,
+    )?;
+    let root_roster =
+        crate::registry::prepaid_b1_roster(&core.root, &core.budget, crate::registry::MAX_ENTRIES)?;
+    super::attempt::require_committed_names(&root_roster, core.record.backup_id)?;
+    let result = RemoteCopiedSnapshotEffectsOriginal {
+        core,
+        ready_witness_raw,
+        ready_intent_raw,
+        input_sha256: original.snapshot_effects_input_sha256_data().to_owned(),
+        root_roster,
+    };
+    result.recheck_pending_original(original, proof, base_identity)?;
+    Ok(result)
+}
+
+#[cfg(feature = "offhost-b1")]
+impl RemoteCopiedSnapshotEffectsOriginal {
+    pub(super) fn witness_bytes(&self) -> &[u8] {
+        &self.ready_witness_raw
+    }
+    pub(super) fn intent_bytes(&self) -> &[u8] {
+        &self.ready_intent_raw
+    }
+    pub(super) fn input_sha256_data(&self) -> &str {
+        &self.input_sha256
+    }
+    pub(super) fn recheck_pending_original(
+        &self,
+        original: &crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD,
+        proof: &CapturedSourceProof,
+        identity: &super::attempt::CommitIdentity,
+    ) -> Result<(), BackupError> {
+        super::attempt::remote::require_original_pending(original, identity)?;
+        let (lease, actual_identity) = match &self.core.origin {
+            CopyOrigin::OriginalRemote {
+                original: held,
+                lease,
+                base_identity,
+            } if std::ptr::eq(original, held.as_ref()) => (lease, base_identity),
+            _ => return Err(invalid()),
+        };
+        if actual_identity != identity
+            || !std::sync::Arc::ptr_eq(
+                &lease.destination_operation,
+                &original.destination_original().lease.destination_operation,
+            )
+            || self.core.record.backup_id != proof.record.backup_id
+            || self.core.binding_sha256 != identity.intent.proof_sha256
+            || self.input_sha256 != original.snapshot_effects_input_sha256_data()
+        {
+            return Err(invalid());
+        }
+        self.exact_root_roster(&self.core.root)?;
+        files::exact_tree(
+            &self.core.directory,
+            &self.core.records,
+            &self.core.budget,
+            &self.core.journal_budget,
+        )?;
+        files::exact_tree(
+            &self.core.attempt,
+            &self.core.attempt_files,
+            &self.core.budget,
+            &self.core.journal_budget,
+        )?;
+        super::attempt::remote::require_original_pending(original, identity)
+    }
+}
+
+#[cfg(feature = "offhost-b1")]
+fn write_original_remote_copy(
+    evidence: &BackupDir,
+    evidence_path: &std::path::Path,
+    captured: OriginalRemoteEffectsInputs,
+    budget: Budget,
+    origin: CopyOrigin,
+    basis: CopyBasis<'_>,
+) -> Result<SnapshotCopyCore, BackupError> {
+    let journal = &captured.journal_budget;
+    let root = match evidence.kind(".snapshot-effects-v2") {
+        Ok(BackupEntryKind::Directory) => evidence.open_dir(".snapshot-effects-v2")?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let dir = evidence.create_dir(".snapshot-effects-v2")?;
+            evidence.sync()?;
+            dir
+        }
+        _ => return Err(invalid()),
+    };
+    root.require_private_directory()?;
+    let id = captured.record.backup_id.to_string();
+    for name in crate::registry::prepaid_b1_roster(&root, &budget, wire::MAX_FILES)? {
+        if name == id
+            || name == format!("{id}.attempt")
+            || name.starts_with(&format!("{id}.staging-"))
+        {
+            return Err(invalid());
+        }
+    }
+    let capture_raw = encode(&captured.record, &budget, journal)?;
+    // The original exact-twelve-file proof is capped at 16KiB by its reader.
+    // Pay its closed, shallow canonical conversion before touching it.
+    charge(&budget, journal, 16_384 * 32, 1)?;
+    let source_proof_raw = basis.binding_raw()?;
+    if source_proof_raw.len() > 16_384 {
+        return Err(invalid());
+    }
+    let mut records = captured.record.files.clone();
+    records.push(FileRecord {
+        path: "capture.json".into(),
+        size: capture_raw.len() as u64,
+        sha256: hash(&capture_raw),
+    });
+    records.sort_by(|a, b| a.path.cmp(&b.path));
+    files::exact_tree(&captured.directory, &records, &captured.budget, journal)?;
+    let payload = json!({"format_version":2,"capability":"snapshot_effect_payload_v2","backup_id":captured.record.backup_id,"files":records});
+    let payload_raw = encode(&payload, &budget, journal)?;
+    let attempt_id = Uuid::new_v4();
+    let operation_nonce = Uuid::new_v4();
+    let attempt_name = format!("{id}.attempt");
+    let attempt = root.create_dir(&attempt_name)?;
+    root.sync()?;
+    let (effect_statement, intent) = basis.statements(
+        &captured.record,
+        &capture_raw,
+        &payload_raw,
+        &source_proof_raw,
+        attempt_id,
+        operation_nonce,
+        &budget,
+        journal,
+    )?;
+    let effect_statement_raw = encode(&effect_statement, &budget, journal)?;
+    let mut intent = intent;
+    intent["effect_statement_sha256"] = json!(hash(&effect_statement_raw));
+    let intent_raw = encode(&intent, &budget, journal)?;
+    let intent_file = files::put(&attempt, "intent.json", &intent_raw, &budget, journal)?;
+    let mut attempt_files = vec![intent_file];
+    #[cfg(test)]
+    if matches!(&basis, CopyBasis::CurrentPin { .. }) {
+        attempt_files.push(files::put(
+            &attempt,
+            "current-pin-binding.json",
+            &source_proof_raw,
+            &budget,
+            journal,
+        )?);
+        attempt_files.push(files::put(
+            &attempt,
+            "private-copy-statement.json",
+            &effect_statement_raw,
+            &budget,
+            journal,
+        )?);
+    }
+    let staging_name = format!("{id}.staging-{attempt_id}");
+    let directory = root.create_dir(&staging_name)?;
+    root.sync()?;
+    copy_records(
+        &captured.directory,
+        &directory,
+        &records,
+        &captured.budget,
+        &budget,
+        journal,
+    )?;
+    records.push(files::put(
+        &directory,
+        "payload-manifest.json",
+        &payload_raw,
+        &budget,
+        journal,
+    )?);
+    records.sort_by(|a, b| a.path.cmp(&b.path));
+    // Independent target bytes, including every package, are checked after the
+    // copy and before any no-replace publication or opaque result can exist.
+    files::exact_tree(&directory, &records, &budget, journal)?;
+    let checked = verify::inventory(
+        &captured.inventory,
+        &captured.ledger,
+        &captured.prefix,
+        &captured.namespace,
+        &budget,
+        journal,
+    )?;
+    verify_copied_packages(
+        &directory,
+        &captured.record,
+        &checked,
+        &captured.inventory,
+        &budget,
+        journal,
+    )?;
+    basis.recheck()?;
+    origin.recheck()?;
+    files::seal_tree(&directory)?;
+    root.rename_noreplace_without_sync(&staging_name, &id)?;
+    root.sync()?;
+    evidence.sync()?;
+    if root.open_dir(&id)?.identity()? != directory.identity()? {
+        return Err(invalid());
+    }
+    files::exact_tree(&directory, &records, &budget, journal)?;
+    #[allow(unused_mut)]
+    let mut terminal = json!({"format_version":2,"capability":"snapshot_effect_commit_v2",
+        "backup_id":captured.record.backup_id,"attempt_id":attempt_id,"intent_sha256":hash(&intent_raw)});
+    #[cfg(test)]
+    if matches!(&basis, CopyBasis::CurrentPin { .. }) {
+        terminal["capability"] = json!("current_pin_snapshot_effect_commit_v2");
+        terminal["authority_scope"] =
+            json!("PRIVATE_CURRENT_PIN_SINGLE_HOST_REHEARSAL_NOT_COMPLETE");
+        terminal["complete_backup"] = json!(false);
+    }
+    let terminal_raw = encode(&terminal, &budget, journal)?;
+    let terminal_file = files::put(&attempt, "terminal.json", &terminal_raw, &budget, journal)?;
+    attempt.sync()?;
+    root.sync()?;
+    evidence.sync()?;
+    attempt_files.push(terminal_file);
+    basis.recheck()?;
+    origin.recheck()?;
+    Ok(SnapshotCopyCore {
+        root,
+        directory,
+        directory_path: evidence_path.join(".snapshot-effects-v2").join(&id),
+        origin,
+        record: captured.record,
+        records,
+        inventory: captured.inventory,
+        namespace: captured.namespace,
+        prefix: captured.prefix,
+        ledger: captured.ledger,
+        source_identity: captured.source_identity,
+        capture_sha256: hash(&capture_raw),
+        payload_sha256: hash(&payload_raw),
+        intent_sha256: hash(&intent_raw),
+        terminal_sha256: hash(&terminal_raw),
+        binding_sha256: hash(&source_proof_raw),
+        budget,
+        journal_budget: captured.journal_budget,
+        recovery_budget: Mutex::new(None),
+        recovery_identity: Mutex::new(None),
+        attempt,
+        attempt_files,
+    })
+}
+
 fn write_copy(
     evidence: &BackupDir,
     evidence_path: &std::path::Path,
@@ -810,6 +1719,8 @@ impl SnapshotCopyCore {
     fn recheck(&self) -> Result<(), BackupError> {
         self.origin.recheck()?;
         let path_matches = match &self.origin {
+            #[cfg(feature = "offhost-b1")]
+            CopyOrigin::OriginalRemote { .. } => return Err(invalid()),
             CopyOrigin::Production { .. } => {
                 BackupDir::open_trusted_private_root(&self.directory_path)?.identity()?
                     == self.directory.identity()?
@@ -1343,5 +2254,186 @@ mod current_pin_copy_tests {
             drop((directory, attempt, root, evidence, control));
             fs::remove_dir_all(path).unwrap();
         }
+    }
+}
+
+#[cfg(all(test, feature = "offhost-b1"))]
+mod b1_ready_data_tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+    struct DataFixture {
+        capture: Capture,
+        capture_raw: Vec<u8>,
+        payload_raw: Vec<u8>,
+        proof_raw: Vec<u8>,
+        statement: crate::DestinationStatement,
+        base: Uuid,
+        witness: Vec<u8>,
+        intent: Vec<u8>,
+    }
+    // Pure wire DATA comparison only: no CapturedSnapshotEffectsV2, original
+    // D, copied capability, lease, native process or authority is constructed.
+    fn fixture() -> DataFixture {
+        let id = Uuid::new_v4();
+        let capture = Capture {
+            format_version: 2,
+            capability: "snapshot_effect_capture_v2".into(),
+            storage_encoding: wire::ENCODING.into(),
+            backup_id: id,
+            capture_id: Uuid::new_v4(),
+            manifest_sha256: "1".repeat(64),
+            source_group_id: Uuid::new_v4(),
+            source_registry_generation_sha256: "2".repeat(64),
+            companion_authority_sha256: "3".repeat(64),
+            companion_generation_sha256: "4".repeat(64),
+            binding_sha256: "5".repeat(64),
+            epoch_sha256: "6".repeat(64),
+            journal_head_sequence: 2,
+            journal_head_sha256: "7".repeat(64),
+            cut_event_sha256: "7".repeat(64),
+            rows_sha256: "8".repeat(64),
+            namespace_sha256: "9".repeat(64),
+            files: vec![],
+        };
+        let capture_raw = crate::registry::canonical(&capture).unwrap();
+        let payload_raw=crate::registry::canonical(&json!({"format_version":2,"capability":"snapshot_effect_payload_v2","backup_id":id,"files":[]})).unwrap();
+        let proof_raw = b"{}".to_vec();
+        let statement = crate::DestinationStatement {
+            format_version: 2,
+            backup_id: id,
+            manifest_sha256: capture.manifest_sha256.clone(),
+            source_control_sha256: "a".repeat(64),
+            source_root: "/source/pins".into(),
+            source_control_root: "/source/control".into(),
+            destination_root: "/destination".into(),
+            source_host_id: Uuid::new_v4(),
+            source_storage_id: Uuid::new_v4(),
+            destination_host_id: Uuid::new_v4(),
+            destination_storage_id: Uuid::new_v4(),
+        };
+        let base = Uuid::new_v4();
+        let (witness, mut intent) = production_statement_data(
+            &capture,
+            &capture_raw,
+            &payload_raw,
+            &proof_raw,
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            base,
+            &statement,
+            (1, 2),
+            (1, 3),
+        )
+        .unwrap();
+        let witness = crate::registry::canonical(&witness).unwrap();
+        intent["effect_statement_sha256"] = json!(hash(&witness));
+        DataFixture {
+            capture,
+            capture_raw,
+            payload_raw,
+            proof_raw,
+            statement,
+            base,
+            witness,
+            intent: crate::registry::canonical(&intent).unwrap(),
+        }
+    }
+    fn check(
+        f: &DataFixture,
+        witness: &[u8],
+        intent: &[u8],
+        destination: (u64, u64),
+        budget: &Budget,
+    ) -> Result<(String, String), BackupError> {
+        validate_b1_ready_data(
+            witness,
+            intent,
+            &f.capture,
+            &f.capture_raw,
+            &f.payload_raw,
+            &f.proof_raw,
+            &f.statement,
+            f.base,
+            destination,
+            (1, 3),
+            budget,
+        )
+    }
+    #[test]
+    fn b1_ready_data_joins_exact_writer_fields_to_independent_root_and_input_bytes() {
+        let f = fixture();
+        let budget = Arc::new(Mutex::new(crate::registry::ScanBudget::default()));
+        let hashes = check(&f, &f.witness, &f.intent, (1, 2), &budget).unwrap();
+        assert_eq!(hashes, (hash(&f.witness), hash(&f.intent)));
+        assert!(check(&f, &f.witness, &f.intent, (9, 2), &budget).is_err());
+        let mut changed = f.payload_raw.clone();
+        changed.push(b' ');
+        assert!(
+            validate_b1_ready_data(
+                &f.witness,
+                &f.intent,
+                &f.capture,
+                &f.capture_raw,
+                &changed,
+                &f.proof_raw,
+                &f.statement,
+                f.base,
+                (1, 2),
+                (1, 3),
+                &budget
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn b1_ready_data_rejects_cross_record_attempt_extra_fields_and_non_v4_nonce() {
+        let f = fixture();
+        let budget = Arc::new(Mutex::new(crate::registry::ScanBudget::default()));
+        let mut intent: Value = serde_json::from_slice(&f.intent).unwrap();
+        intent["attempt_id"] = json!(Uuid::new_v4());
+        assert!(
+            check(
+                &f,
+                &f.witness,
+                &crate::registry::canonical(&intent).unwrap(),
+                (1, 2),
+                &budget
+            )
+            .is_err()
+        );
+        let mut intent: Value = serde_json::from_slice(&f.intent).unwrap();
+        intent["operation_nonce"] = json!(Uuid::nil());
+        assert!(
+            check(
+                &f,
+                &f.witness,
+                &crate::registry::canonical(&intent).unwrap(),
+                (1, 2),
+                &budget
+            )
+            .is_err()
+        );
+        let mut witness: Value = serde_json::from_slice(&f.witness).unwrap();
+        witness["permission"] = json!(true);
+        assert!(
+            check(
+                &f,
+                &crate::registry::canonical(&witness).unwrap(),
+                &f.intent,
+                (1, 2),
+                &budget
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn b1_ready_data_rejects_caps_before_parse_and_keeps_original_failed_parse_charge() {
+        let f = fixture();
+        let budget = Arc::new(Mutex::new(crate::registry::ScanBudget::default()));
+        budget.lock().unwrap().charge(77).unwrap();
+        assert!(check(&f, &vec![b'x'; 16_385], &f.intent, (1, 2), &budget).is_err());
+        assert_eq!(budget.lock().unwrap().bytes, 77);
+        assert!(check(&f, b"{", &f.intent, (1, 2), &budget).is_err());
+        assert!(budget.lock().unwrap().bytes > 77);
     }
 }

@@ -106,6 +106,8 @@ pub(crate) struct OperationAuthority {
     failed: bool,
     attempted: BTreeSet<Uuid>,
     successful: BTreeMap<Uuid, CommitIdentity>,
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    remote_final: BTreeMap<Uuid, remote::Phase>,
 }
 impl OperationAuthority {
     fn begin(&mut self, id: Uuid) -> Result<(), BackupError> {
@@ -117,6 +119,8 @@ impl OperationAuthority {
         Ok(())
     }
     pub(super) fn require(&self, identity: &CommitIdentity) -> Result<(), BackupError> {
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        self.require_local_publication(identity.intent.backup_id)?;
         if self.failed || self.successful.get(&identity.intent.backup_id) != Some(identity) {
             return Err(BackupError::Invalid(
                 "original destination publication operation required",
@@ -125,6 +129,8 @@ impl OperationAuthority {
         Ok(())
     }
     pub(super) fn require_id(&self, id: Uuid) -> Result<(), BackupError> {
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        self.require_local_publication(id)?;
         if self.failed || !self.successful.contains_key(&id) {
             return Err(BackupError::Invalid(
                 "original destination publication operation required",
@@ -135,6 +141,23 @@ impl OperationAuthority {
     fn invalidate(&mut self) {
         self.failed = true;
         self.successful.clear();
+        #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+        for phase in self.remote_final.values_mut() {
+            // A later transport failure cannot erase a completed disk commit.
+            // It still invalidates future uses of this original operation.
+            if *phase != remote::Phase::Committed {
+                *phase = remote::Phase::Failed;
+            }
+        }
+    }
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    fn require_local_publication(&self, id: Uuid) -> Result<(), BackupError> {
+        if self.remote_final.contains_key(&id) {
+            return Err(BackupError::Invalid(
+                "remote original requires its one-shot Final consumer",
+            ));
+        }
+        Ok(())
     }
 }
 pub(crate) struct ErrorFence {
@@ -283,6 +306,402 @@ pub(super) fn publish<I: PublicationIo>(
     )?;
     fence.complete();
     Ok(output)
+}
+
+// The concrete original receiver selects this fixed, non-generic remote writer
+// before its first step. Neither disk DATA, a callback, a caller mode flag nor
+// a successful Local operation can construct its genuine authenticated owner.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+#[allow(
+    dead_code,
+    reason = "default-off original D; installation, CODE and runtime acceptance remain separate"
+)]
+pub(super) mod remote {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) enum Phase {
+        Pending,
+        Consuming,
+        Committed,
+        Failed,
+    }
+
+    pub(in crate::destination) fn publish_original(
+        original: &crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD,
+        io: &mut crate::destination::linux::OriginalRemoteWriter<'_>,
+    ) -> Result<(crate::CapturedSourceProof, CommitIdentity), BackupError> {
+        original.require_destination(original.destination_original())?;
+        // Pay original attempted/success/final BTreeMap nodes and the intent
+        // clone before the first publication step, not at later consumption.
+        original.prepay_original_work(16_384, 8)?;
+        let context = &original.destination_original().lease.destination_operation;
+        let id = original.backup_id_data()?;
+        let error = ErrorFence::new(context);
+        {
+            let mut authority = context.lock().map_err(|poison| {
+                poison.into_inner().invalidate();
+                BackupError::Invalid("remote original operation poisoned")
+            })?;
+            authority.begin(id)?;
+            authority.remote_final.insert(id, Phase::Pending);
+        }
+        for step in STEPS {
+            io.step(step)?;
+        }
+        let (output, identity) = io.outcome()?;
+        if identity.intent.backup_id != id {
+            return Err(BackupError::Invalid("remote original evidence identity"));
+        }
+        let output = serialized_commit(
+            context,
+            |authority| {
+                if authority.failed
+                    || !authority.attempted.contains(&id)
+                    || authority.successful.contains_key(&id)
+                    || authority.remote_final.get(&id) != Some(&Phase::Pending)
+                {
+                    return Err(BackupError::Invalid("remote original evidence invalidated"));
+                }
+                Ok(())
+            },
+            |authority| {
+                authority.successful.insert(id, identity);
+                Ok(output)
+            },
+        )?;
+        error.complete();
+        Ok(output)
+    }
+
+    /// A borrow of the actual, still-held original authority mutex. Only the
+    /// fixed consumer below can acquire it; there is no callback or constructor
+    /// for a caller, an authenticated-DATA object, or a recovered disk record.
+    pub(crate) struct Consumption<'a> {
+        context: &'a Arc<Mutex<OperationAuthority>>,
+        identity: &'a CommitIdentity,
+        authority: MutexGuard<'a, OperationAuthority>,
+        completed: bool,
+    }
+    impl<'a> Consumption<'a> {
+        fn lock_pending(
+            context: &'a Arc<Mutex<OperationAuthority>>,
+            identity: &'a CommitIdentity,
+        ) -> Result<Self, BackupError> {
+            let authority = context.lock().map_err(|poison| {
+                poison.into_inner().invalidate();
+                BackupError::Invalid("remote original operation poisoned")
+            })?;
+            let owner = Self {
+                context,
+                identity,
+                authority,
+                completed: false,
+            };
+            owner.require_pending()?;
+            Ok(owner)
+        }
+        fn require_pending(&self) -> Result<(), BackupError> {
+            let id = self.identity.intent.backup_id;
+            if self.authority.failed
+                || self.authority.successful.get(&id) != Some(self.identity)
+                || self.authority.remote_final.get(&id) != Some(&Phase::Pending)
+            {
+                return Err(BackupError::Invalid(
+                    "remote Final is not original Pending success",
+                ));
+            }
+            Ok(())
+        }
+        fn enter(&mut self) -> Result<(), BackupError> {
+            self.require_pending()?;
+            *self
+                .authority
+                .remote_final
+                .get_mut(&self.identity.intent.backup_id)
+                .ok_or(BackupError::Invalid("remote original Final state"))? = Phase::Consuming;
+            Ok(())
+        }
+        pub(in crate::destination) fn require_original(
+            &self,
+            context: &Arc<Mutex<OperationAuthority>>,
+            identity: &CommitIdentity,
+        ) -> Result<(), BackupError> {
+            let id = identity.intent.backup_id;
+            if !Arc::ptr_eq(self.context, context)
+                || self.identity != identity
+                || self.authority.failed
+                || self.authority.successful.get(&id) != Some(identity)
+                || self.authority.remote_final.get(&id) != Some(&Phase::Consuming)
+            {
+                return Err(BackupError::Invalid(
+                    "same consuming remote original required",
+                ));
+            }
+            Ok(())
+        }
+        fn commit(mut self) -> Result<(), BackupError> {
+            self.require_original(self.context, self.identity)?;
+            *self
+                .authority
+                .remote_final
+                .get_mut(&self.identity.intent.backup_id)
+                .ok_or(BackupError::Invalid("remote original Final state"))? = Phase::Committed;
+            self.completed = true;
+            Ok(())
+        }
+    }
+    impl Drop for Consumption<'_> {
+        fn drop(&mut self) {
+            if !self.completed {
+                // Already own the same mutex; an ErrorFence here would relock.
+                self.authority.invalidate();
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub(in crate::destination) enum RejectionObservation {
+        RejectedPending,
+        RetainedConsumption,
+        AlreadyFailed,
+    }
+    pub(in crate::destination) fn observe_rejection(
+        context: &Arc<Mutex<OperationAuthority>>,
+        id: Uuid,
+    ) -> Result<RejectionObservation, BackupError> {
+        let mut authority = context.lock().map_err(|poison| {
+            poison.into_inner().invalidate();
+            BackupError::Invalid("remote original operation poisoned")
+        })?;
+        match authority.remote_final.get(&id) {
+            Some(Phase::Pending) => {
+                authority.invalidate();
+                Ok(RejectionObservation::RejectedPending)
+            }
+            Some(Phase::Consuming | Phase::Committed) => {
+                Ok(RejectionObservation::RetainedConsumption)
+            }
+            Some(Phase::Failed) => Ok(RejectionObservation::AlreadyFailed),
+            None => {
+                authority.invalidate();
+                Err(BackupError::Invalid("remote original rejection identity"))
+            }
+        }
+    }
+
+    pub(in crate::destination) fn require_original_pending(
+        original: &crate::offhost_b1::destination_actor::OriginalAuthenticatedSourceInD,
+        identity: &CommitIdentity,
+    ) -> Result<(), BackupError> {
+        original.require_destination(original.destination_original())?;
+        let authority = original
+            .destination_original()
+            .lease
+            .destination_operation
+            .lock()
+            .map_err(|_| BackupError::Invalid("remote original Pending poisoned"))?;
+        if authority.failed
+            || authority.successful.get(&identity.intent.backup_id) != Some(identity)
+            || authority.remote_final.get(&identity.intent.backup_id) != Some(&Phase::Pending)
+            || identity.intent.backup_id != original.backup_id_data()?
+        {
+            return Err(BackupError::Invalid(
+                "same original remote Pending required",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(in crate::destination) fn require_committed_original(
+        context: &Arc<Mutex<OperationAuthority>>,
+        identity: &CommitIdentity,
+    ) -> Result<(), BackupError> {
+        let authority = context
+            .lock()
+            .map_err(|_| BackupError::Invalid("committed original operation poisoned"))?;
+        if authority.failed
+            || authority.remote_final.get(&identity.intent.backup_id) != Some(&Phase::Committed)
+            || authority.successful.get(&identity.intent.backup_id) != Some(identity)
+        {
+            return Err(BackupError::Invalid(
+                "same actual committed original required",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(in crate::destination) fn consume_original(
+        original: &crate::destination::OriginalRemoteFinalization,
+        decision: &crate::offhost_b1::finalize::AuthenticatedFinalInOriginalD,
+    ) -> Result<crate::complete::OriginalRemoteReceipt, BackupError> {
+        let mut owner = Consumption::lock_pending(original.operation(), original.identity())?;
+        original.prepay_consumer_entry()?;
+        decision.require_original(original.operation(), original.final_binding_data())?;
+        original.require_pending_inputs()?;
+        owner.enter()?;
+        let receipt = original.sign_and_publish_fixed(&owner)?;
+        original.check_deadline()?;
+        // Disk success is committed here, before the opaque receipt can escape.
+        owner.commit()?;
+        Ok(receipt)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        // Pure state-model fixtures only. These cannot construct an original
+        // D owner, an authenticated Final, a signer, or a committed receipt.
+        fn pending_model() -> (Arc<Mutex<OperationAuthority>>, CommitIdentity) {
+            let id = Uuid::new_v4();
+            let identity = CommitIdentity {
+                intent: Intent {
+                    format_version: 1,
+                    capability: "destination_evidence_attempt_v1".into(),
+                    backup_id: id,
+                    attempt_id: Uuid::new_v4(),
+                    destination_dev: 1,
+                    destination_ino: 2,
+                    evidence_dev: 1,
+                    evidence_ino: 3,
+                    manifest_sha256: "a".repeat(64),
+                    proof_sha256: "b".repeat(64),
+                },
+            };
+            let mut model = OperationAuthority::default();
+            model.begin(id).unwrap();
+            model.remote_final.insert(id, Phase::Pending);
+            model.successful.insert(id, identity.clone());
+            (Arc::new(Mutex::new(model)), identity)
+        }
+
+        #[test]
+        fn remote_state_model_never_uses_legacy_local_signing_authority() {
+            let (context, identity) = pending_model();
+            assert!(context.lock().unwrap().require(&identity).is_err());
+            assert!(
+                context
+                    .lock()
+                    .unwrap()
+                    .require_id(identity.intent.backup_id)
+                    .is_err()
+            );
+            assert!(
+                finalize_use::<()>(&context, &identity, || {
+                    panic!("legacy signer must not run for Remote")
+                })
+                .is_err()
+            );
+        }
+
+        #[test]
+        fn remote_state_model_requires_original_success_and_exact_attempt() {
+            let (context, identity) = pending_model();
+            let other_context = Arc::new(Mutex::new(OperationAuthority::default()));
+            assert!(Consumption::lock_pending(&other_context, &identity).is_err());
+            let mut changed = identity.clone();
+            changed.intent.attempt_id = Uuid::new_v4();
+            assert!(Consumption::lock_pending(&context, &changed).is_err());
+            assert_eq!(
+                context.lock().unwrap().remote_final[&identity.intent.backup_id],
+                Phase::Failed
+            );
+        }
+
+        #[test]
+        fn remote_state_model_pending_rejection_wins_before_consumption() {
+            let (context, identity) = pending_model();
+            assert_eq!(
+                observe_rejection(&context, identity.intent.backup_id).unwrap(),
+                RejectionObservation::RejectedPending
+            );
+            assert!(Consumption::lock_pending(&context, &identity).is_err());
+        }
+
+        #[test]
+        fn remote_state_model_drop_or_local_error_never_resets_consuming() {
+            let (context, identity) = pending_model();
+            {
+                let mut owner = Consumption::lock_pending(&context, &identity).unwrap();
+                owner.enter().unwrap();
+                owner.require_original(&context, &identity).unwrap();
+            }
+            assert_eq!(
+                context.lock().unwrap().remote_final[&identity.intent.backup_id],
+                Phase::Failed
+            );
+            assert!(Consumption::lock_pending(&context, &identity).is_err());
+        }
+
+        #[test]
+        fn remote_state_model_late_remote_event_keeps_committed_and_denies_reuse() {
+            let (context, identity) = pending_model();
+            let mut owner = Consumption::lock_pending(&context, &identity).unwrap();
+            owner.enter().unwrap();
+            owner.commit().unwrap();
+            assert_eq!(
+                observe_rejection(&context, identity.intent.backup_id).unwrap(),
+                RejectionObservation::RetainedConsumption
+            );
+            assert_eq!(
+                context.lock().unwrap().remote_final[&identity.intent.backup_id],
+                Phase::Committed
+            );
+            assert!(Consumption::lock_pending(&context, &identity).is_err());
+            assert_eq!(
+                context.lock().unwrap().remote_final[&identity.intent.backup_id],
+                Phase::Committed
+            );
+        }
+
+        #[test]
+        fn remote_state_model_consuming_holds_same_mutex_until_terminal_decision() {
+            use std::sync::{TryLockError, mpsc};
+            let (context, identity) = pending_model();
+            let cloned = Arc::clone(&context);
+            let worker_identity = identity.clone();
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let mut owner = Consumption::lock_pending(&cloned, &worker_identity).unwrap();
+                owner.enter().unwrap();
+                entered_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                owner.commit().unwrap();
+            });
+            entered_rx.recv().unwrap();
+            let held = matches!(context.try_lock(), Err(TryLockError::WouldBlock));
+            release_tx.send(()).unwrap();
+            worker.join().unwrap();
+            assert!(held);
+            assert_eq!(
+                observe_rejection(&context, identity.intent.backup_id).unwrap(),
+                RejectionObservation::RetainedConsumption
+            );
+        }
+
+        #[test]
+        fn remote_state_model_unwind_poison_is_terminal_without_recursive_lock() {
+            use std::panic::{AssertUnwindSafe, catch_unwind};
+            let (context, identity) = pending_model();
+            assert!(
+                catch_unwind(AssertUnwindSafe(|| {
+                    let mut owner = Consumption::lock_pending(&context, &identity).unwrap();
+                    owner.enter().unwrap();
+                    panic!("pure model local unwind");
+                }))
+                .is_err()
+            );
+            let authority = context.lock().unwrap_err().into_inner();
+            assert_eq!(
+                authority.remote_final[&identity.intent.backup_id],
+                Phase::Failed
+            );
+            drop(authority);
+            assert!(Consumption::lock_pending(&context, &identity).is_err());
+        }
+    }
 }
 
 #[cfg(test)]

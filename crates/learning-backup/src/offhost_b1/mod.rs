@@ -2,24 +2,25 @@
 //!
 //! Fixed process dispatch is a compile-time selection only. Each implemented
 //! role still admits its actual installed original before runtime or helpers.
-//! Source publication and the receiver remain closed until M6 is implemented.
+//! Installed Source/D routes use fixed zero-argument original factories.
+//! Feature/default pins remain closed; C installation and acceptance are separate.
 
-// These private data-only seams are not invoked by the closed runners yet.
-// Remove these dead-code allowances as their reviewed runtime consumers land;
-// no Clippy correctness lint or existing product module is suppressed.
+// These default-off modules also preserve preparation-only DATA consumers
+// and ordinary codec probes. No allowance grants installed authority or
+// suppresses Clippy correctness checks or an existing product module.
 #[allow(
     dead_code,
-    reason = "Task1a policy inputs have no runtime authority consumer"
+    reason = "Default-off policy codecs also preserve preparation-only DATA consumers; parsed metadata never grants installed authority"
 )]
 mod policy;
 #[allow(
     dead_code,
-    reason = "Task1a profile is not a wired runtime IO budget yet"
+    reason = "Default-off wire profile retains private DATA probes alongside original IO accounting"
 )]
 mod profile;
 #[allow(
     dead_code,
-    reason = "Task2a untrusted codec has no runtime authority or IO consumer"
+    reason = "Default-off original M6 wire also retains ordinary syntax/signature DATA probes, which never grant runtime authority"
 )]
 mod wire;
 
@@ -31,18 +32,44 @@ mod wire;
 )]
 mod source_launch;
 
-// This private Source preflight/Capture owner has no public M6 consumer yet.
-// The public Source route below still refuses before every side effect. This
-// allowance records that precise default-off integration boundary; it does not
-// suppress a correctness lint or qualify the internal phase as a publication S.
+// The fixed Source entry alone can enter its original preflight/Capture/S/M6
+// chain. It remains default-off and requires native installed admission before
+// runtime. Its ordinary private probes do not qualify a genuine operation.
 #[cfg(target_os = "linux")]
 #[allow(
     dead_code,
-    reason = "Private Source front preparation awaits the unimplemented M6 consumer; no runtime integration credit"
+    reason = "Default-off original Source contains private control/order probes; they do not establish installed or cross-machine execution"
 )]
 mod source_actor;
 #[cfg(target_os = "linux")]
 pub(crate) use source_actor::SourceFrontOriginal;
+
+#[cfg(target_os = "linux")]
+#[allow(
+    dead_code,
+    reason = "Default-off durable negative fence retains control probes; no decoded record grants a positive permit"
+)]
+mod source_fence;
+#[cfg(target_os = "linux")]
+#[allow(
+    dead_code,
+    reason = "Default-off Source supervision retains ordinary parser probes; actual C installation remains separate"
+)]
+mod supervisor;
+#[cfg(target_os = "linux")]
+pub(crate) use source_fence::{require_source_mutation_allowed, source_mutation_gate_enabled};
+#[cfg(target_os = "linux")]
+#[allow(
+    dead_code,
+    reason = "Default-off original D retains narrow preparation probes; metadata and ordinary tests never grant native admission"
+)]
+pub(crate) mod destination_actor;
+#[cfg(target_os = "linux")]
+#[allow(
+    dead_code,
+    reason = "Default-off original D finalization retains preparation-only negative probes; ordinary tests grant no D authority"
+)]
+pub(crate) mod finalize;
 
 #[cfg(target_os = "linux")]
 mod capture_child;
@@ -150,18 +177,25 @@ pub fn run_installed_offhost_b1_source() -> Result<(), BackupError> {
         // Root is its separate original producer; it never borrows the DB
         // factory or a parsed Source policy as qualification.
         Some("root-launcher") => return source_launch::run_fixed_root_launcher(),
-        Some("publication-source") | None => {}
+        Some("publication-source") => {
+            // Pure compile pins precede the zero-argument native factory.
+            // The factory precedes its own retained runtime and all helpers.
+            BuildPins::parse(fixed_build_inputs(), Role::Source)?;
+            return source_actor::run_fixed_source_entry();
+        }
+        None => {}
         Some(_) => return Err(BackupError::Invalid("offhost B1 fixed process role")),
     }
-    // M6/D Ready/auth/fence is not implemented. Keep this boundary before all
-    // side effects; do not start a capture and then unconditionally reject it.
+    // No fixed publication process declaration: preserve the old before-IO
+    // refusal, including correctly formed compile DATA without that role.
     refuse_unwired(fixed_build_inputs(), Role::Source)
 }
 
-/// Fixed installed stdio receiver entry. Task1a does not read stdin or any key.
-/// The foundation always refuses, including correctly pinned builds.
+/// The fixed receiver has no caller role, FD, path, key or clock input. Missing
+/// or mismatched compile pins refuse before its actual synchronous factory.
 pub fn run_installed_offhost_b1_receiver() -> Result<(), BackupError> {
-    refuse_unwired(fixed_build_inputs(), Role::Destination)
+    BuildPins::parse(fixed_build_inputs(), Role::Destination)?;
+    destination_actor::run_fixed_destination_entry()
 }
 
 #[cfg(test)]

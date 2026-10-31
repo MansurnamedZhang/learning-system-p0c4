@@ -873,3 +873,478 @@ impl SourceAdmission {
         Ok(())
     }
 }
+
+/// Publication is deliberately separate from the Install/Capture admission.
+/// This original slot lives in Source Book before session acquisition starts;
+/// dropping a borrowed future never drops this session or any unknown owner.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) struct B1PublicationOwners {
+    session: Option<learning_db::snapshot_broker::OwnedB1AdminSession>,
+    input: Option<Box<super::binding::B1PublicationInputs>>,
+    budget: std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
+    failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    registry_opened: std::sync::atomic::AtomicBool,
+    null_passfile: Option<std::fs::File>,
+    database: Option<String>,
+    postmaster: Option<String>,
+    attempted: bool,
+    closed: bool,
+    close_outcome: Option<bool>,
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+impl B1PublicationOwners {
+    pub(crate) fn original_slot(
+        original: &'static crate::offhost_b1::SourceFrontOriginal,
+    ) -> Result<Self, BackupError> {
+        let (budget, failed) = original.take_publication_scope()?;
+        // All fixed storage and Arc/Box allocations were reserved before the
+        // new scope was allocated, against the same genuine process backing.
+        Ok(Self {
+            session: None,
+            input: None,
+            budget,
+            failed,
+            registry_opened: std::sync::atomic::AtomicBool::new(false),
+            null_passfile: None,
+            database: None,
+            postmaster: None,
+            attempted: false,
+            closed: false,
+            close_outcome: None,
+        })
+    }
+    pub(crate) async fn acquire_in_place(
+        &mut self,
+        original: &'static crate::offhost_b1::SourceFrontOriginal,
+    ) -> Result<(), BackupError> {
+        if std::mem::replace(&mut self.attempted, true) {
+            original.reject();
+            return Err(publication_refused());
+        }
+        original.revalidate()?;
+        // The real wrapper is assigned directly into the rooted original slot
+        // before any local metadata read, SQL, allocation, or positive check.
+        self.session = Some(original.acquire_publication_admin().await?);
+        self.input = Some(Box::new(original.read_publication_inputs(&self.budget)?));
+        original.bind_publication_root_clock(
+            self.input.as_ref().expect("stored Publication inputs"),
+            &self.budget,
+        )?;
+        self.null_passfile = Some(SourceAdmission::open_null_passfile(&self.budget)?);
+        self.reserve_sql()?;
+        let session = self.session.as_mut().expect("stored Publication session");
+        let row = publication_sql(original, session.connection_in_original_owner()).await?;
+        publication_owner_row(&row)?;
+        let input = self.input.as_ref().expect("stored Publication inputs");
+        input.require_database(&row.3, row.6, &row.7)?;
+        if row.3 != session.database() {
+            return Err(publication_refused());
+        }
+        self.database = Some(row.3);
+        self.postmaster = Some(row.8);
+        self.reserve_sql()?;
+        let acquired = publication_acquire_lock(
+            original,
+            self.session
+                .as_mut()
+                .expect("stored Publication session")
+                .connection_in_original_owner(),
+        )
+        .await?;
+        if !acquired {
+            return Err(BackupError::Invalid("source maintenance admission busy"));
+        }
+        B1PublicationAdmission {
+            original,
+            owners: self,
+        }
+        .revalidate()
+    }
+    fn reserve_sql(&self) -> Result<(), BackupError> {
+        let mut scan = self.budget.lock().map_err(|_| publication_refused())?;
+        scan.charge(16384)?;
+        scan.entries(12)
+    }
+    pub(crate) async fn close_in_place(&mut self) -> Result<(), BackupError> {
+        if self.closed {
+            return if self.close_outcome == Some(true) {
+                Ok(())
+            } else {
+                Err(publication_refused())
+            };
+        }
+        self.closed = true;
+        let observed = match self.session.take() {
+            Some(session) => session.close().await.map_err(|_| publication_refused()),
+            None if !self.attempted => Ok(()),
+            None => Err(publication_refused()),
+        };
+        // A cancelled/unwound close leaves None: never reconstruct a wrapper
+        // or label that unknown close naturally settled from the started bit.
+        self.close_outcome = Some(observed.is_ok());
+        observed
+    }
+}
+
+/// Borrowing this private original slot creates no S. No clone, serde,
+/// caller-selected connection, path, raw FD, budget, phase or constructor.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) struct B1PublicationAdmission<'a> {
+    original: &'static crate::offhost_b1::SourceFrontOriginal,
+    owners: &'a mut B1PublicationOwners,
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+impl<'a> B1PublicationAdmission<'a> {
+    pub(crate) fn borrow_original(
+        original: &'static crate::offhost_b1::SourceFrontOriginal,
+        owners: &'a mut B1PublicationOwners,
+    ) -> Result<Self, BackupError> {
+        let admission = Self { original, owners };
+        admission.revalidate()?;
+        Ok(admission)
+    }
+    pub(crate) fn revalidate(&self) -> Result<(), BackupError> {
+        use std::sync::atomic::Ordering;
+        let observed = (|| {
+            if self.owners.failed.load(Ordering::Acquire) || self.owners.closed {
+                return Err(publication_refused());
+            }
+            self.original.revalidate()?;
+            self.original.first_s_clock()?.check()?;
+            let input = self.input()?;
+            self.original
+                .recheck_publication_inputs(input, &self.owners.budget)?;
+            SourceAdmission::check_null_passfile(
+                self.owners
+                    .null_passfile
+                    .as_ref()
+                    .ok_or_else(publication_refused)?,
+                &self.owners.budget,
+            )?;
+            if self
+                .owners
+                .session
+                .as_ref()
+                .ok_or_else(publication_refused)?
+                .database()
+                != input.database()
+                || self.owners.database.as_deref() != Some(input.database())
+            {
+                return Err(publication_refused());
+            }
+            self.original.first_s_clock()?.check()?;
+            self.original.revalidate()
+        })();
+        if observed.is_err() {
+            self.fail();
+        }
+        observed
+    }
+    pub(crate) async fn revalidate_sql(&mut self) -> Result<(), BackupError> {
+        self.revalidate()?;
+        self.owners.reserve_sql()?;
+        let original = self.original;
+        let observed = async {
+            let row = publication_sql(original, self.connection()).await?;
+            publication_owner_row(&row)?;
+            self.input()?.require_database(&row.3, row.6, &row.7)?;
+            if self.owners.database.as_deref() != Some(row.3.as_str())
+                || self.owners.postmaster.as_deref() != Some(row.8.as_str())
+            {
+                return Err(publication_refused());
+            }
+            self.owners.reserve_sql()?;
+            let locked = publication_lock_observation(original, self.connection()).await?;
+            if !locked {
+                return Err(publication_refused());
+            }
+            self.revalidate()
+        }
+        .await;
+        if observed.is_err() {
+            self.fail();
+        }
+        observed
+    }
+    pub(crate) async fn require_manifest_source(
+        &mut self,
+        manifest: &crate::BackupManifestV1,
+    ) -> Result<(), BackupError> {
+        self.revalidate_sql().await?;
+        let maximum = super::MIGRATOR.iter().count();
+        {
+            let mut scan = self.budget().lock().map_err(|_| publication_refused())?;
+            scan.charge(
+                (maximum as u64)
+                    .checked_mul(2048)
+                    .and_then(|n| n.checked_add(16384))
+                    .ok_or(BackupError::Overflow)?,
+            )?;
+            scan.entries(maximum.checked_add(8).ok_or(BackupError::Overflow)?)?;
+        }
+        let original = self.original;
+        let observed = async {
+            let version = publication_version(original, self.connection()).await?;
+            if version.parse::<u32>().ok().map(|v| v / 10000) != Some(18) {
+                return Err(publication_refused());
+            }
+            let rows = publication_migration_rows(original, self.connection()).await?;
+            if rows.len() != maximum {
+                return Err(publication_refused());
+            }
+            let mut migrations = Vec::new();
+            migrations
+                .try_reserve_exact(maximum)
+                .map_err(|_| publication_refused())?;
+            for ((version, bytes, checksum, success), embedded) in
+                rows.into_iter().zip(super::MIGRATOR.iter())
+            {
+                if !success
+                    || bytes != 48
+                    || version != embedded.version
+                    || checksum != hex::encode(embedded.checksum.as_ref())
+                {
+                    return Err(publication_refused());
+                }
+                migrations.push(crate::MigrationRecord {
+                    version: u64::try_from(version).map_err(|_| BackupError::Overflow)?,
+                    checksum_hex: checksum,
+                });
+            }
+            let source = crate::SourceIdentity::from_migrations(
+                super::compiled_build_id(option_env!("KNOWWEAVE_BUILD_ID_SHA256"))?,
+                option_env!("KNOWWEAVE_SOURCE_COMMIT")
+                    .ok_or_else(publication_refused)?
+                    .into(),
+                18,
+                migrations,
+            )?;
+            if source != manifest.source {
+                return Err(publication_refused());
+            }
+            self.revalidate_sql().await
+        }
+        .await;
+        if observed.is_err() {
+            self.fail();
+        }
+        observed
+    }
+    pub(crate) fn fail(&self) {
+        self.owners
+            .failed
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.original.reject();
+    }
+    pub(crate) fn input(&self) -> Result<&super::binding::B1PublicationInputs, BackupError> {
+        self.owners.input.as_deref().ok_or_else(publication_refused)
+    }
+    pub(crate) fn budget(&self) -> &std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>> {
+        &self.owners.budget
+    }
+    pub(crate) fn postmaster(&self) -> Result<&str, BackupError> {
+        self.owners
+            .postmaster
+            .as_deref()
+            .ok_or_else(publication_refused)
+    }
+    pub(crate) fn require_enrollment(
+        &self,
+        lease: &crate::RegistryLease,
+        source: &crate::EnrolledSource,
+    ) -> Result<(), BackupError> {
+        self.revalidate()?;
+        crate::registry::require_shared_scan_budget(&lease.budget, self.budget())?;
+        self.input()?.require_enrollment(lease, source)?;
+        self.input()?.require_control(lease, source)?;
+        self.revalidate()
+    }
+    pub(crate) fn take_registry_scope(
+        &self,
+    ) -> Result<
+        (
+            std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
+            std::sync::Arc<std::sync::atomic::AtomicBool>,
+        ),
+        BackupError,
+    > {
+        self.revalidate()?;
+        if self
+            .owners
+            .registry_opened
+            .swap(true, std::sync::atomic::Ordering::AcqRel)
+        {
+            self.fail();
+            return Err(publication_refused());
+        }
+        Ok((
+            std::sync::Arc::clone(&self.owners.budget),
+            std::sync::Arc::clone(&self.owners.failed),
+        ))
+    }
+    pub(crate) fn connection(&mut self) -> &mut PgConnection {
+        self.owners
+            .session
+            .as_mut()
+            .expect("admitted original Publication session")
+            .connection_in_original_owner()
+    }
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+fn publication_refused() -> BackupError {
+    BackupError::Invalid("B1 original Publication admission")
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+type PublicationOwnerRow = (
+    String,
+    String,
+    Option<String>,
+    String,
+    String,
+    bool,
+    i64,
+    String,
+    String,
+);
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+async fn publication_sql(
+    original: &'static crate::offhost_b1::SourceFrontOriginal,
+    connection: &mut PgConnection,
+) -> Result<PublicationOwnerRow, BackupError> {
+    let deadline = original.first_s_clock()?.deadline()?;
+    let query = sqlx::query_as("SELECT current_user::text, session_user::text, system_user, current_database()::text, pg_get_userbyid(d.datdba)::text, pg_catalog.inet_client_addr() IS NULL AND pg_catalog.inet_server_addr() IS NULL, d.oid::bigint, (pg_catalog.pg_control_system()).system_identifier::text, pg_catalog.pg_postmaster_start_time()::text FROM pg_catalog.pg_database d WHERE d.datname=current_database()").fetch_one(connection);
+    tokio::pin!(query);
+    let returned = tokio::select! {
+        result = &mut query => result,
+        _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => {
+            original.reject();
+            // Do not drop/replace the started query. The actual retained worker
+            // keeps this very future and its session until natural return.
+            (&mut query).await
+        }
+    };
+    publication_query_returned(original)?;
+    Ok(returned?)
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+async fn publication_acquire_lock(
+    original: &'static crate::offhost_b1::SourceFrontOriginal,
+    connection: &mut PgConnection,
+) -> Result<bool, BackupError> {
+    let deadline = original.first_s_clock()?.deadline()?;
+    let query = sqlx::query_scalar::<_, bool>("SELECT pg_catalog.pg_try_advisory_lock($1, $2)")
+        .bind(0x4b57_4334_i32)
+        .bind(0x5352_4345_i32)
+        .fetch_one(connection);
+    tokio::pin!(query);
+    let returned = tokio::select! { result = &mut query => result,
+    _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => { original.reject(); (&mut query).await } };
+    publication_query_returned(original)?;
+    Ok(returned?)
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+async fn publication_lock_observation(
+    original: &'static crate::offhost_b1::SourceFrontOriginal,
+    connection: &mut PgConnection,
+) -> Result<bool, BackupError> {
+    let deadline = original.first_s_clock()?.deadline()?;
+    let query = sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_locks WHERE pid=pg_catalog.pg_backend_pid() AND locktype='advisory' AND classid=$1::bigint::oid AND objid=$2::bigint::oid AND objsubid=2 AND granted)")
+        .bind(i64::from(0x4b57_4334_i32)).bind(i64::from(0x5352_4345_i32)).fetch_one(connection);
+    tokio::pin!(query);
+    let returned = tokio::select! { result = &mut query => result,
+    _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => { original.reject(); (&mut query).await } };
+    publication_query_returned(original)?;
+    Ok(returned?)
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+async fn publication_version(
+    original: &'static crate::offhost_b1::SourceFrontOriginal,
+    connection: &mut PgConnection,
+) -> Result<String, BackupError> {
+    let deadline = original.first_s_clock()?.deadline()?;
+    let query = sqlx::query_scalar("SHOW server_version_num").fetch_one(connection);
+    tokio::pin!(query);
+    let returned = tokio::select! { result = &mut query => result,
+    _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => { original.reject(); (&mut query).await } };
+    publication_query_returned(original)?;
+    Ok(returned?)
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+async fn publication_migration_rows(
+    original: &'static crate::offhost_b1::SourceFrontOriginal,
+    connection: &mut PgConnection,
+) -> Result<Vec<(i64, i32, String, bool)>, BackupError> {
+    let deadline = original.first_s_clock()?.deadline()?;
+    let maximum = i64::try_from(
+        super::MIGRATOR
+            .iter()
+            .count()
+            .checked_add(1)
+            .ok_or(BackupError::Overflow)?,
+    )
+    .map_err(|_| BackupError::Overflow)?;
+    let query = sqlx::query_as("SELECT version,pg_catalog.octet_length(checksum),pg_catalog.encode(pg_catalog.substring(checksum,1,49),'hex'),success FROM public._sqlx_migrations ORDER BY version LIMIT $1").bind(maximum).fetch_all(connection);
+    tokio::pin!(query);
+    let returned = tokio::select! { result = &mut query => result,
+    _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => { original.reject(); (&mut query).await } };
+    publication_query_returned(original)?;
+    Ok(returned?)
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+fn publication_query_returned(
+    original: &crate::offhost_b1::SourceFrontOriginal,
+) -> Result<(), BackupError> {
+    original.first_s_clock()?.check()?;
+    original.revalidate()
+}
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+fn publication_owner_row(row: &PublicationOwnerRow) -> Result<(), BackupError> {
+    if row.0 != "learning_admin"
+        || row.1 != "learning_admin"
+        || row.4 != "learning_admin"
+        || row.2.as_deref() != Some("peer:root")
+        || !row.5
+        || row.3.len() > 63
+        || row.6 <= 0
+        || row.7.is_empty()
+        || row.7.len() > 32
+        || row.8.is_empty()
+        || row.8.len() > 64
+    {
+        return Err(publication_refused());
+    }
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "linux", feature = "offhost-b1"))]
+mod publication_owner_data_tests {
+    use super::*;
+
+    #[test]
+    fn fixed_sql_tuple_requires_peer_root_unix_owner_and_bounded_identity() {
+        // Closed SQL-result DATA predicates only; this makes no session or S.
+        let mut row: PublicationOwnerRow = (
+            "learning_admin".into(),
+            "learning_admin".into(),
+            Some("peer:root".into()),
+            "learning_backup_fixture".into(),
+            "learning_admin".into(),
+            true,
+            12,
+            "123456".into(),
+            "2026-01-01 00:00:00+00".into(),
+        );
+        assert!(publication_owner_row(&row).is_ok());
+        row.2 = Some("password:root".into());
+        assert!(publication_owner_row(&row).is_err());
+        row.2 = Some("peer:root".into());
+        row.5 = false;
+        assert!(publication_owner_row(&row).is_err());
+        row.5 = true;
+        row.4 = "postgres".into();
+        assert!(publication_owner_row(&row).is_err());
+        row.4 = "learning_admin".into();
+        row.7 = "1".repeat(33);
+        assert!(publication_owner_row(&row).is_err());
+    }
+}

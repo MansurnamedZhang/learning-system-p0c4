@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct RootRecord {
+pub(in crate::offhost_b1) struct RootRecord {
     pub role: String,
     pub enrollment_id: String,
     pub path: String,
@@ -36,7 +36,7 @@ fn roots(records: &[RootRecord], roles: &[&str]) -> bool {
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct SourceBinding {
+pub(in crate::offhost_b1) struct SourceBinding {
     pub deployment_id: String,
     pub source_group_id: String,
     pub backup_id: String,
@@ -61,7 +61,7 @@ pub(super) struct SourceBinding {
     pub snapshot_effects_input_sha256: String,
 }
 impl SourceBinding {
-    pub(super) fn valid(&self) -> bool {
+    pub(in crate::offhost_b1) fn valid(&self) -> bool {
         [
             &self.deployment_id,
             &self.source_group_id,
@@ -97,7 +97,7 @@ impl SourceBinding {
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct DestinationBinding {
+pub(in crate::offhost_b1) struct DestinationBinding {
     pub deployment_id: String,
     pub destination_group_id: String,
     pub attempt_id: String,
@@ -108,7 +108,7 @@ pub(super) struct DestinationBinding {
     pub roots: Vec<RootRecord>,
 }
 impl DestinationBinding {
-    pub(super) fn valid(&self) -> bool {
+    pub(in crate::offhost_b1) fn valid(&self) -> bool {
         [
             &self.deployment_id,
             &self.destination_group_id,
@@ -130,7 +130,7 @@ impl DestinationBinding {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct HelloS {
+pub(in crate::offhost_b1) struct HelloS {
     pub schema_version: u32,
     pub profile: String,
     pub kind: String,
@@ -141,7 +141,7 @@ pub(super) struct HelloS {
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct HelloD {
+pub(in crate::offhost_b1) struct HelloD {
     pub schema_version: u32,
     pub profile: String,
     pub kind: String,
@@ -156,7 +156,7 @@ fn envelope(version: u32, profile: &str, name: &str, expected: &str) -> bool {
     version == 1 && profile == super::profile::PROFILE && name == expected
 }
 impl HelloS {
-    pub(super) fn valid(&self, h: Header) -> bool {
+    pub(in crate::offhost_b1) fn valid(&self, h: Header) -> bool {
         h.kind == super::Kind::Metadata
             && envelope(self.schema_version, &self.profile, &self.kind, "HelloS")
             && self.direction == Direction::SourceToDestination
@@ -168,7 +168,7 @@ impl HelloS {
     }
 }
 impl HelloD {
-    pub(super) fn valid(&self, h: Header) -> bool {
+    pub(in crate::offhost_b1) fn valid(&self, h: Header) -> bool {
         h.kind == super::Kind::Metadata
             && envelope(self.schema_version, &self.profile, &self.kind, "HelloD")
             && self.direction == Direction::DestinationToSource
@@ -182,7 +182,7 @@ impl HelloD {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub(super) enum FileRole {
+pub(in crate::offhost_b1) enum FileRole {
     PackageManifest,
     PackageMember,
     SourceEvidenceMember,
@@ -190,14 +190,14 @@ pub(super) enum FileRole {
     SnapshotEffectsMember,
 }
 impl FileRole {
-    pub(super) fn package(self) -> bool {
+    pub(in crate::offhost_b1) fn package(self) -> bool {
         matches!(self, Self::PackageManifest | Self::PackageMember)
     }
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Fence {
+pub(in crate::offhost_b1) struct Fence {
     pub operation_id: String,
     pub anchor_sha256: String,
     pub open_record_sha256: String,
@@ -223,7 +223,7 @@ macro_rules! control {
     ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => {
         #[derive(Serialize, Deserialize)]
         #[serde(deny_unknown_fields)]
-        pub(super) struct $name {
+        pub(in crate::offhost_b1) struct $name {
             pub schema_version: u32,
             pub profile: String,
             pub kind: String,
@@ -315,7 +315,7 @@ control!(SourceResultAck {
     receipt_sha256: String
 });
 
-pub(super) struct Common<'a> {
+pub(in crate::offhost_b1) struct Common<'a> {
     pub schema_version: u32,
     pub profile: &'a str,
     pub kind: &'a str,
@@ -328,7 +328,7 @@ pub(super) struct Common<'a> {
     pub binding_sha256: &'a str,
 }
 
-pub(super) enum UntrustedControl {
+pub(in crate::offhost_b1) enum UntrustedControl {
     SourceAuth(Box<SourceAuth>),
     AuthAccepted(AuthAccepted),
     FileBegin(FileBegin),
@@ -357,13 +357,13 @@ macro_rules! match_control {
     };
 }
 impl UntrustedControl {
-    pub(super) fn common(&self) -> Common<'_> {
+    pub(in crate::offhost_b1) fn common(&self) -> Common<'_> {
         match_control!(self, c => c.common())
     }
-    pub(super) fn canonical(&self) -> Result<Vec<u8>, WireError> {
+    pub(in crate::offhost_b1) fn canonical(&self) -> Result<Vec<u8>, WireError> {
         match_control!(self, c => registry::canonical(c).map_err(|_| WireError::Json))
     }
-    pub(super) fn tag(&self) -> u8 {
+    pub(in crate::offhost_b1) fn tag(&self) -> u8 {
         match self {
             Self::SourceAuth(_) => 1,
             Self::AuthAccepted(_) => 2,
@@ -377,7 +377,7 @@ impl UntrustedControl {
             Self::SourceResultAck(_) => 10,
         }
     }
-    pub(super) fn valid(&self, h: Header) -> bool {
+    pub(in crate::offhost_b1) fn valid(&self, h: Header) -> bool {
         let names = [
             "SourceAuth",
             "AuthAccepted",
@@ -472,7 +472,11 @@ impl UntrustedControl {
     }
 }
 
-pub(super) fn decode(tag: u8, raw: &[u8], header: Header) -> Result<UntrustedControl, WireError> {
+pub(in crate::offhost_b1) fn decode(
+    tag: u8,
+    raw: &[u8],
+    header: Header,
+) -> Result<UntrustedControl, WireError> {
     let cap = if tag == 4 {
         super::profile::CHUNK_CONTROL_BYTES
     } else {

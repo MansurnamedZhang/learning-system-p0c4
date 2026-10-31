@@ -7,13 +7,17 @@ use super::{
 };
 use std::{
     io,
-    os::fd::{AsRawFd, OwnedFd},
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::io::unix::AsyncFd;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PipeError {
+pub(super) enum PipeError {
     Wire(WireError),
     UnsupportedDescriptor,
     SigpipePreconditionUnsatisfied,
@@ -36,10 +40,18 @@ impl From<WireError> for PipeError {
     }
 }
 
+#[derive(Clone, Copy)]
+enum OriginalClock {
+    Ordinary,
+    Source(&'static crate::offhost_b1::source_actor::SourceFrontOriginal),
+    Destination(&'static crate::offhost_b1::destination_actor::OriginalDEntryScope),
+}
 struct SessionClock {
     operation: Instant,
     handshake: Instant,
     idle: Instant,
+    original: OriginalClock,
+    authenticated_handshake: bool,
 }
 impl SessionClock {
     fn start() -> Self {
@@ -48,14 +60,31 @@ impl SessionClock {
             operation: now + Duration::from_secs(profile::OPERATION_SECONDS),
             handshake: now + Duration::from_secs(profile::HANDSHAKE_SECONDS),
             idle: now + Duration::from_secs(profile::IDLE_SECONDS),
+            original: OriginalClock::Ordinary,
+            authenticated_handshake: false,
         }
     }
     fn check(&self) -> Result<(), PipeError> {
+        match self.original {
+            OriginalClock::Ordinary => {}
+            OriginalClock::Source(original) => {
+                original
+                    .revalidate()
+                    .map_err(|_| PipeError::OperationDeadline)?;
+                original
+                    .first_s_clock()
+                    .and_then(|clock| clock.check())
+                    .map_err(|_| PipeError::OperationDeadline)?;
+            }
+            OriginalClock::Destination(original) => original
+                .recheck()
+                .map_err(|_| PipeError::OperationDeadline)?,
+        }
         let now = Instant::now();
         if now >= self.operation {
             return Err(PipeError::OperationDeadline);
         }
-        if now >= self.handshake {
+        if !self.authenticated_handshake && now >= self.handshake {
             return Err(PipeError::HandshakeDeadline);
         }
         if now >= self.idle {
@@ -64,7 +93,31 @@ impl SessionClock {
         Ok(())
     }
     fn deadline(&self) -> tokio::time::Instant {
-        tokio::time::Instant::from_std(self.operation.min(self.handshake).min(self.idle))
+        let operation = match self.original {
+            OriginalClock::Source(original) => original
+                .first_s_clock()
+                .and_then(|clock| clock.deadline())
+                .unwrap_or(self.operation)
+                .min(self.operation),
+            _ => self.operation,
+        };
+        let limit = if self.authenticated_handshake {
+            operation.min(self.idle)
+        } else {
+            operation.min(self.handshake).min(self.idle)
+        };
+        tokio::time::Instant::from_std(limit)
+    }
+    fn prepay(&self, bytes: u64, entries: usize) -> Result<(), PipeError> {
+        match self.original {
+            OriginalClock::Ordinary => Ok(()),
+            OriginalClock::Source(original) => original
+                .prepay_wire_work(bytes, entries)
+                .map_err(|_| PipeError::Wire(WireError::Budget)),
+            OriginalClock::Destination(original) => original
+                .prepay_wire_work(bytes, entries)
+                .map_err(|_| PipeError::Wire(WireError::Budget)),
+        }
     }
     fn progress(&mut self, bytes: usize) -> Result<(), PipeError> {
         self.check()?;
@@ -90,7 +143,7 @@ fn sigpipe_ignored() -> Result<(), PipeError> {
     }
     Ok(())
 }
-fn descriptor(fd: &OwnedFd, mode: i32) -> Result<(u64, u64), PipeError> {
+fn descriptor(fd: &impl AsRawFd, mode: i32) -> Result<(u64, u64), PipeError> {
     let mut stat: libc::stat = unsafe { std::mem::zeroed() };
     let flags = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETFL) };
     let descriptor_flags = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETFD) };
@@ -113,8 +166,8 @@ fn retry_without_progress(error: io::ErrorKind) -> bool {
     )
 }
 
-async fn read_some(
-    fd: &AsyncFd<OwnedFd>,
+async fn read_some<F: AsRawFd>(
+    fd: &AsyncFd<F>,
     clock: &mut SessionClock,
     buffer: &mut [u8],
 ) -> Result<usize, PipeError> {
@@ -148,8 +201,8 @@ async fn read_some(
         }
     }
 }
-async fn read_exact(
-    fd: &AsyncFd<OwnedFd>,
+async fn read_exact<F: AsRawFd>(
+    fd: &AsyncFd<F>,
     clock: &mut SessionClock,
     buffer: &mut [u8],
     progress: &mut usize,
@@ -166,8 +219,8 @@ async fn read_exact(
     }
     clock.check()
 }
-async fn write_all(
-    fd: &AsyncFd<OwnedFd>,
+async fn write_all<F: AsRawFd>(
+    fd: &AsyncFd<F>,
     clock: &mut SessionClock,
     buffer: &[u8],
     progress: &mut usize,
@@ -208,13 +261,13 @@ async fn write_all(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum UntrustedPipeTermination {
+pub(super) enum UntrustedPipeTermination {
     EndFramesAndObservedEof,
     AbortAndObservedEof,
 }
-struct PipeIo {
-    input: AsyncFd<OwnedFd>,
-    output: Option<AsyncFd<OwnedFd>>,
+pub(in crate::offhost_b1) struct PipeIo<F: AsRawFd = OwnedFd> {
+    input: AsyncFd<F>,
+    output: Option<AsyncFd<F>>,
     outbound: Direction,
     inbound: Direction,
     syntax: WireSyntax,
@@ -228,6 +281,7 @@ struct PipeIo {
     eof_probe_started: bool,
     eof_observed: bool,
     probe: [u8; 1],
+    original_pair: Option<&'static OriginalPipePair>,
 }
 impl PipeIo {
     fn new(input: OwnedFd, output: OwnedFd, outbound: Direction) -> Result<Self, PipeError> {
@@ -257,8 +311,11 @@ impl PipeIo {
             eof_probe_started: false,
             eof_observed: false,
             probe: [0],
+            original_pair: None,
         })
     }
+}
+impl<F: AsRawFd> PipeIo<F> {
     fn check(&mut self) -> Result<(), PipeError> {
         if self.syntax.phase == SyntaxPhase::Poisoned {
             return Err(PipeError::Poisoned);
@@ -273,7 +330,7 @@ impl PipeIo {
         self.syntax.poison();
         Err(error)
     }
-    async fn read_frame(&mut self) -> Result<UntrustedFrame<'_>, PipeError> {
+    pub(super) async fn read_frame(&mut self) -> Result<UntrustedFrame<'_>, PipeError> {
         self.check()?;
         if self.inbound_end || self.eof_probe_started {
             return self.reject(PipeError::Closed);
@@ -295,6 +352,12 @@ impl PipeIo {
                     .map_err(|_| PipeError::Wire(WireError::Length))?,
             )
             .ok_or(PipeError::Wire(WireError::Length))?;
+        self.clock.prepay(
+            (length as u64)
+                .checked_mul(64)
+                .ok_or(PipeError::Wire(WireError::Budget))?,
+            16,
+        )?;
         self.buffer.resize(length, 0);
         self.buffer[..HEADER].copy_from_slice(&self.header);
         read_exact(
@@ -310,7 +373,7 @@ impl PipeIo {
         self.inbound_end = header.kind == Kind::End;
         Ok(frame)
     }
-    async fn write_frame(&mut self, raw: &[u8]) -> Result<(), PipeError> {
+    pub(super) async fn write_frame(&mut self, raw: &[u8]) -> Result<(), PipeError> {
         self.check()?;
         if self.outbound_end || self.output.is_none() {
             return self.reject(PipeError::Closed);
@@ -341,6 +404,12 @@ impl PipeIo {
         {
             return Err(PipeError::Wire(WireError::Length));
         }
+        self.clock.prepay(
+            (raw.len() as u64)
+                .checked_mul(64)
+                .ok_or(PipeError::Wire(WireError::Budget))?,
+            16,
+        )?;
         self.buffer.clear();
         self.buffer.extend_from_slice(raw);
         reservation.stage(&self.buffer)?;
@@ -358,7 +427,7 @@ impl PipeIo {
         self.outbound_end = header.kind == Kind::End;
         Ok(())
     }
-    async fn expect_eof(&mut self) -> Result<(), PipeError> {
+    pub(super) async fn expect_eof(&mut self) -> Result<(), PipeError> {
         self.check()?;
         if self.eof_probe_started
             || (!self.inbound_end && self.syntax.phase != SyntaxPhase::Aborted)
@@ -377,7 +446,7 @@ impl PipeIo {
         self.eof_observed = true;
         Ok(())
     }
-    fn close_output_after_end(&mut self) -> Result<(), PipeError> {
+    pub(super) fn close_output_after_end(&mut self) -> Result<(), PipeError> {
         self.check()?;
         if self.output.is_none()
             || (!self.outbound_end && self.syntax.phase != SyntaxPhase::Aborted)
@@ -386,9 +455,12 @@ impl PipeIo {
         }
         // Closes this owned pipe write end only; no claim about external dup FDs.
         drop(self.output.take());
+        if let Some(original) = self.original_pair {
+            original.close_output_after_original_end()?;
+        }
         self.clock.check().inspect_err(|_| self.syntax.poison())
     }
-    fn finish_untrusted(&mut self) -> Result<UntrustedPipeTermination, PipeError> {
+    pub(super) fn finish_untrusted(&mut self) -> Result<UntrustedPipeTermination, PipeError> {
         self.check()?;
         if !self.eof_observed || self.output.is_some() {
             return self.reject(PipeError::Incomplete);
@@ -398,6 +470,382 @@ impl PipeIo {
             SyntaxPhase::Aborted => Ok(UntrustedPipeTermination::AbortAndObservedEof),
             _ => self.reject(PipeError::Incomplete),
         }
+    }
+}
+
+/// Kernel descriptors are owned by the original process book, not by a
+/// cancellable readiness registration. No FD constructor escapes this module.
+struct OriginalPipeSlot {
+    fd: Mutex<Option<OwnedFd>>,
+}
+impl AsRawFd for OriginalPipeSlot {
+    fn as_raw_fd(&self) -> i32 {
+        self.fd
+            .lock()
+            .ok()
+            .and_then(|guard| guard.as_ref().map(AsRawFd::as_raw_fd))
+            .unwrap_or(-1)
+    }
+}
+#[derive(Clone, Copy)]
+enum OriginalPipeOrigin {
+    Source(&'static crate::offhost_b1::source_actor::SourceFrontOriginal),
+    Destination(&'static crate::offhost_b1::destination_actor::OriginalDEntryScope),
+}
+pub(in crate::offhost_b1) struct OriginalPipePair {
+    input: OriginalPipeSlot,
+    output: OriginalPipeSlot,
+    origin: OriginalPipeOrigin,
+    registered: AtomicBool,
+}
+static D_STDIO_ENTERED: AtomicBool = AtomicBool::new(false);
+static D_STDIO: OnceLock<OriginalPipePair> = OnceLock::new();
+static S_STDIO_ENTERED: AtomicBool = AtomicBool::new(false);
+static S_STDIO: OnceLock<OriginalPipePair> = OnceLock::new();
+fn original_pipe_error() -> crate::BackupError {
+    crate::BackupError::Invalid("B1 original pipe custody or lifecycle")
+}
+impl OriginalPipePair {
+    fn prepay(&self, bytes: u64, entries: usize) -> Result<(), crate::BackupError> {
+        match self.origin {
+            OriginalPipeOrigin::Source(original) => original.prepay_wire_work(bytes, entries),
+            OriginalPipeOrigin::Destination(original) => original.prepay_wire_work(bytes, entries),
+        }
+    }
+    fn recheck(&self) -> Result<(), crate::BackupError> {
+        self.prepay(0, 8)?;
+        let read = descriptor(&self.input, libc::O_RDONLY).map_err(|_| original_pipe_error())?;
+        let write = descriptor(&self.output, libc::O_WRONLY).map_err(|_| original_pipe_error())?;
+        if read == write {
+            return Err(original_pipe_error());
+        }
+        sigpipe_ignored().map_err(|_| original_pipe_error())
+    }
+    fn set_fixed_flags(&self) -> Result<(), crate::BackupError> {
+        for slot in [&self.input, &self.output] {
+            self.prepay(0, 4)?;
+            let fd = slot.as_raw_fd();
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+            let fdflags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            if flags < 0
+                || fdflags < 0
+                || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0
+                || unsafe { libc::fcntl(fd, libc::F_SETFD, fdflags | libc::FD_CLOEXEC) } < 0
+            {
+                return Err(original_pipe_error());
+            }
+        }
+        self.recheck()
+    }
+    fn close_output_after_original_end(&self) -> Result<(), PipeError> {
+        let mut slot = self.output.fd.lock().map_err(|_| PipeError::Closed)?;
+        let actual = slot.take().ok_or(PipeError::Closed)?;
+        drop(actual);
+        Ok(())
+    }
+}
+pub(in crate::offhost_b1) fn retain_original_destination_stdio(
+    original: &'static crate::offhost_b1::destination_actor::OriginalDEntryScope,
+) -> Result<&'static OriginalPipePair, crate::BackupError> {
+    original.recheck()?;
+    if D_STDIO_ENTERED.swap(true, Ordering::AcqRel) {
+        original.reject();
+        return Err(original_pipe_error());
+    }
+    original.prepay_wire_work(std::mem::size_of::<OriginalPipePair>() as u64, 4)?;
+    // Actual stdin/stdout are taken exactly once and retained BEFORE flags,
+    // fstat or any other fallible local validation. No caller FD is accepted.
+    let held = D_STDIO.get_or_init(|| OriginalPipePair {
+        input: OriginalPipeSlot {
+            fd: Mutex::new(Some(unsafe { OwnedFd::from_raw_fd(0) })),
+        },
+        output: OriginalPipeSlot {
+            fd: Mutex::new(Some(unsafe { OwnedFd::from_raw_fd(1) })),
+        },
+        origin: OriginalPipeOrigin::Destination(original),
+        registered: AtomicBool::new(false),
+    });
+    if let Err(error) = held.set_fixed_flags().and_then(|()| original.recheck()) {
+        original.reject();
+        return Err(error);
+    }
+    Ok(held)
+}
+pub(in crate::offhost_b1) fn retain_original_source_pipes(
+    original: &'static crate::offhost_b1::source_actor::SourceFrontOriginal,
+    ssh: &'static crate::offhost_b1::supervisor::OriginalSshOwner,
+) -> Result<&'static OriginalPipePair, crate::BackupError> {
+    original.revalidate()?;
+    ssh.require_original(original)?;
+    if S_STDIO_ENTERED.swap(true, Ordering::AcqRel) {
+        original.reject();
+        return Err(original_pipe_error());
+    }
+    original.prepay_wire_work(std::mem::size_of::<OriginalPipePair>() as u64, 4)?;
+    let held = S_STDIO.get_or_init(|| OriginalPipePair {
+        input: OriginalPipeSlot {
+            fd: Mutex::new(None),
+        },
+        output: OriginalPipeSlot {
+            fd: Mutex::new(None),
+        },
+        origin: OriginalPipeOrigin::Source(original),
+        registered: AtomicBool::new(false),
+    });
+    {
+        let mut slot = held.input.fd.lock().map_err(|_| original_pipe_error())?;
+        if slot.is_some() {
+            return Err(original_pipe_error());
+        }
+        *slot = Some(ssh.take_original_read_pipe()?);
+    }
+    {
+        let mut slot = held.output.fd.lock().map_err(|_| original_pipe_error())?;
+        if slot.is_some() {
+            return Err(original_pipe_error());
+        }
+        *slot = Some(ssh.take_original_write_pipe()?);
+    }
+    if let Err(error) = held.set_fixed_flags().and_then(|()| original.revalidate()) {
+        original.reject();
+        return Err(error);
+    }
+    Ok(held)
+}
+pub(in crate::offhost_b1) fn close_original_source_output_negative(
+    ssh: &crate::offhost_b1::supervisor::OriginalSshOwner,
+    original: &'static crate::offhost_b1::source_actor::SourceFrontOriginal,
+) -> Result<(), crate::BackupError> {
+    original.require_negative_m6_custody(ssh)?;
+    if let Some(pair) = S_STDIO.get() {
+        if !matches!(pair.origin,OriginalPipeOrigin::Source(held) if std::ptr::eq(held,original)) {
+            return Err(original_pipe_error());
+        }
+        drop(
+            pair.output
+                .fd
+                .lock()
+                .map_err(|_| original_pipe_error())?
+                .take(),
+        );
+    }
+    Ok(())
+}
+pub(in crate::offhost_b1) struct OriginalPipeBorrow {
+    slot: &'static OriginalPipeSlot,
+}
+impl AsRawFd for OriginalPipeBorrow {
+    fn as_raw_fd(&self) -> i32 {
+        self.slot.as_raw_fd()
+    }
+}
+pub(in crate::offhost_b1) type OriginalPipeIo = PipeIo<OriginalPipeBorrow>;
+impl PipeIo<OriginalPipeBorrow> {
+    fn register_original(
+        pair: &'static OriginalPipePair,
+        outbound: Direction,
+        clock: SessionClock,
+    ) -> Result<Self, crate::BackupError> {
+        pair.recheck()?;
+        if pair.registered.swap(true, Ordering::AcqRel) {
+            return Err(original_pipe_error());
+        }
+        pair.prepay(std::mem::size_of::<Self>() as u64, 4)?;
+        Ok(Self {
+            input: AsyncFd::new(OriginalPipeBorrow { slot: &pair.input })
+                .map_err(|_| original_pipe_error())?,
+            output: Some(
+                AsyncFd::new(OriginalPipeBorrow { slot: &pair.output })
+                    .map_err(|_| original_pipe_error())?,
+            ),
+            outbound,
+            inbound: match outbound {
+                Direction::SourceToDestination => Direction::DestinationToSource,
+                Direction::DestinationToSource => Direction::SourceToDestination,
+            },
+            syntax: WireSyntax::default(),
+            clock,
+            header: [0; HEADER],
+            buffer: Vec::new(),
+            read_progress: 0,
+            write_progress: 0,
+            inbound_end: false,
+            outbound_end: false,
+            eof_probe_started: false,
+            eof_observed: false,
+            probe: [0],
+            original_pair: Some(pair),
+        })
+    }
+    pub(in crate::offhost_b1) fn for_original_source(
+        pair: &'static OriginalPipePair,
+        first: &crate::offhost_b1::source_actor::SourceFirstS<'_>,
+    ) -> Result<Self, crate::BackupError> {
+        let original = first.original_owner();
+        if !matches!(pair.origin, OriginalPipeOrigin::Source(held) if std::ptr::eq(held, original))
+        {
+            return Err(original_pipe_error());
+        }
+        let epoch = first.clock()?;
+        let clock = SessionClock {
+            operation: epoch.deadline()?,
+            handshake: epoch.handshake_deadline_data()?,
+            idle: Instant::now() + Duration::from_secs(profile::IDLE_SECONDS),
+            original: OriginalClock::Source(original),
+            authenticated_handshake: false,
+        };
+        Self::register_original(pair, Direction::SourceToDestination, clock)
+    }
+    pub(super) fn for_original_destination(
+        pair: &'static OriginalPipePair,
+        original: &mut crate::offhost_b1::destination_actor::OriginalDestinationSession<'_>,
+    ) -> Result<Self, crate::BackupError> {
+        let entry = {
+            let mut view = original.wire_identity()?;
+            view.recheck()?;
+            view.entry_original()
+        };
+        if !matches!(pair.origin, OriginalPipeOrigin::Destination(held) if std::ptr::eq(held, entry))
+        {
+            return Err(original_pipe_error());
+        }
+        let operation = entry.operation_deadline_data();
+        let handshake = operation
+            .checked_sub(Duration::from_secs(profile::OPERATION_SECONDS))
+            .and_then(|start| start.checked_add(Duration::from_secs(profile::HANDSHAKE_SECONDS)))
+            .ok_or_else(original_pipe_error)?;
+        let clock = SessionClock {
+            operation,
+            handshake,
+            idle: Instant::now() + Duration::from_secs(profile::IDLE_SECONDS),
+            original: OriginalClock::Destination(entry),
+            authenticated_handshake: false,
+        };
+        Self::register_original(pair, Direction::DestinationToSource, clock)
+    }
+    /// Same original IO is retained by its process book. Crypto is checked
+    /// against PREVIOUS transcript heads before syntax or D has adopted data.
+    pub(super) async fn read_original_destination_frame(
+        &mut self,
+        original: &mut crate::offhost_b1::destination_actor::OriginalDestinationSession<'_>,
+    ) -> Result<(UntrustedFrame<'_>, Option<super::VerifiedOriginalDControl>), crate::BackupError>
+    {
+        self.check().map_err(|_| original_pipe_error())?;
+        if self.inbound_end || self.eof_probe_started {
+            return Err(original_pipe_error());
+        }
+        let mut reservation = self
+            .syntax
+            .reserve_frame(self.inbound)
+            .map_err(|_| original_pipe_error())?;
+        self.header.fill(0);
+        self.read_progress = 0;
+        read_exact(
+            &self.input,
+            &mut self.clock,
+            &mut self.header,
+            &mut self.read_progress,
+        )
+        .await
+        .map_err(|_| original_pipe_error())?;
+        let header = reservation
+            .declare(&self.header)
+            .map_err(|_| original_pipe_error())?;
+        let length = HEADER
+            .checked_add(header.payload_bytes as usize)
+            .ok_or_else(original_pipe_error)?;
+        self.clock
+            .prepay(
+                (length as u64)
+                    .checked_mul(64)
+                    .ok_or_else(original_pipe_error)?,
+                24,
+            )
+            .map_err(|_| original_pipe_error())?;
+        self.buffer.resize(length, 0);
+        self.buffer[..HEADER].copy_from_slice(&self.header);
+        read_exact(
+            &self.input,
+            &mut self.clock,
+            &mut self.buffer[HEADER..],
+            &mut self.read_progress,
+        )
+        .await
+        .map_err(|_| original_pipe_error())?;
+        let parsed = super::parse_frame(&self.buffer, header).map_err(|_| original_pipe_error())?;
+        let signed = matches!(
+            &parsed.message,
+            super::UntrustedMessage::Data(
+                super::UntrustedControl::SourceAuth(_)
+                    | super::UntrustedControl::SourceFinalDecision(_),
+                _
+            )
+        );
+        let verified = if signed {
+            Some(super::verify_original_destination_control(
+                reservation.owner,
+                parsed,
+                &self.buffer[..HEADER],
+                &self.buffer[HEADER..],
+                original,
+            )?)
+        } else {
+            None
+        };
+        let frame = reservation
+            .stage(&self.buffer)
+            .map_err(|_| original_pipe_error())?;
+        self.clock.check().map_err(|_| original_pipe_error())?;
+        reservation.finish().map_err(|_| original_pipe_error())?;
+        self.inbound_end = header.kind == Kind::End;
+        Ok((frame, verified))
+    }
+    pub(super) fn mark_original_handshake_authenticated(
+        &mut self,
+    ) -> Result<(), crate::BackupError> {
+        self.clock.check().map_err(|_| original_pipe_error())?;
+        if matches!(self.clock.original, OriginalClock::Ordinary)
+            || self.clock.authenticated_handshake
+        {
+            return Err(original_pipe_error());
+        }
+        self.clock.authenticated_handshake = true;
+        Ok(())
+    }
+    pub(in crate::offhost_b1) fn close_output_negative_after_original_worker(
+        &mut self,
+        ssh: &crate::offhost_b1::supervisor::OriginalSshOwner,
+    ) -> Result<(), crate::BackupError> {
+        let pair = self.original_pair.ok_or_else(original_pipe_error)?;
+        let OriginalPipeOrigin::Source(original) = pair.origin else {
+            return Err(original_pipe_error());
+        };
+        original.require_negative_m6_custody(ssh)?;
+        // Actual worker/read/write is naturally returned before registrations
+        // and the one original write FD are closed, never while in flight.
+        drop(self.output.take());
+        let mut slot = pair.output.fd.lock().map_err(|_| original_pipe_error())?;
+        drop(slot.take());
+        self.syntax.poison();
+        Ok(())
+    }
+    pub(super) fn prepay_original_serialization(
+        &self,
+        body_bytes: usize,
+    ) -> Result<(), crate::BackupError> {
+        let work = (body_bytes as u64)
+            .checked_mul(4)
+            .and_then(|n| n.checked_add(profile::CONTROL_BYTES.checked_mul(64)?))
+            .ok_or_else(original_pipe_error)?;
+        self.clock
+            .prepay(work, 32)
+            .map_err(|_| original_pipe_error())
+    }
+    pub(super) fn syntax_original(&self) -> &WireSyntax {
+        &self.syntax
+    }
+    pub(super) fn raw_inbound(&self) -> &[u8] {
+        &self.buffer
     }
 }
 

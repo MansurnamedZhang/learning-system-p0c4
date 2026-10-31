@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "Root／M3片段普通回归通过，Source整链待接",
-    "detail": "默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。",
-    "evidence": "受测源码基线a3a209711f5441c25093aeb5052fe538537d03b0／treef7915076d0d613d08a1443383e18c25be26c4122，最终701源索引SHA256 fceee5c0aeb439f989051d257e039ff4c5b14724225761edd48118866d81aeb6。本轮格式批次c58ae018-b231-492d-b6b2-5d17980febff、Backup批次5283b8f9-ed50-4de5-95e7-c8daadbefcba、DB批次61f3279a-85df-45fa-8e7d-69ab8ed23400分别独核原始证据；结果SHA256依次为fa2925c2a3f3da3eefb2d52b70a0383d9d432817906b5f721dafe3ffe065b5cb、ecb047f13f0c724ee5d7b6df2f115e32ed3c00f11e3eb90c76464d217a98d917、33982f824c41782590561810f8d80ab7120cad329f22c8d4ac8dafd196221ad8。实际格式导出17项与受审源逐字相同；两组完整名单、既有ignored、源704项前后原始快照、同一容器自然退出0与精确清理均核对。这是收集回件的独立核对，不是额外远程亲见；输出限制为退出后读取校验，未声称连续OS输出上限。"
+    "statusLabel": "first S/M6 默认关闭代码及13门普通检查通过；正式异机验收 OPEN",
+    "detail": "本轮 first S/M6 已形成默认关闭实现。准确源码的完整13道普通Linux门通过：Backup 默认 450 passed / 106 ignored，offhost 649 passed / 106 ignored；46个不同新增测试体，旧84个受影响测试正文和属性保留，跨feature重复执行不累加。DB本轮仅依赖编译，没有新DB测试信用。真实first S/Ready/fence、Root/PG/C11和异机签名尚未验收。",
+    "evidence": "成功批次 af1986cd-f101-47bf-880a-c2134468013f；受测706文件、22处源码（18既有加4新），源索引SHA-256 6efcea40845eef4193a48ee62a7774ca3691b183b1784f525d1ad9cd42f9e48f；实际结果SHA-256 95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d；独立原始证据审查SHA-256 557226b27be2b078fda3caff4d32902c4dd73e7bbe243c3612d6f8567a70cd82。13门全部退出0，源码前后不变、自然退出与精确ID清理均独核。B/C 安装、公钥信任与 SourceCapture 新挂载、旧 writer 写入面排除、全期 global64 / S5、真实 Root/PG/C11、首次跨机签名与 RA/RB、Task9 和 C4 正式验收均继续 OPEN。"
   }
 ];
 
@@ -1638,36 +1638,32 @@ export const diagrams = [
 
 export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
-  "date": "2026-10-31",
+  "date": "2026-11-01",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
-  "state": "Task9 R2b：Source 前段准备代码普通检查通过，默认关闭；first S / M6 仍未接通",
-  "progressSummary": "Source 前段准备代码与 DB 发布顺序谓词补齐；新增 12 个普通组件测试。Backup 450/106 与 603/106、DB 62/24 与 123/26（passed/ignored），两套 13 道普通检查通过。",
-  "progressEvidence": "受测702 文件、六处源码改动；格式仅一处表达式换行。格式批 c82f07d5、Backup 批 c77672b1、DB 批 8d323357 均实际退出 0、源码未变并完成精确 ID 清理；三批原始证据与六处源码 CODE 已独立核对。",
-  "pendingSummary": "当前预检仅 registry 快照与 Task1b 元数据；完整 SourceGroup/Catalog 与首次 S、原 S 时钟、Source/M6、Root/C11 完整生命周期及全链 global64/S5 尚待接通。独立目标安装与正式异机验收未完成。",
+  "sourceCommit": "7157556c37ac34e0fef9e345a7a560f0f4960f51",
+  "state": "Task9 R2b：first S/M6 默认关闭实现通过限定普通检查；正式异机验收继续开放",
+  "progressSummary": "准确 22 个源码路径；46 个新增普通组件测试体。Backup 默认 450 passed / 106 ignored，offhost 649 passed / 106 ignored；完整 13 门成功，DB 仅依赖编译。",
+  "progressEvidence": "受测 706 文件；批次 af1986cd-f101-47bf-880a-c2134468013f，结果 95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d；源码、原始证据、自然退出及精确清理独立核对。",
+  "pendingSummary": "B/C 安装、公钥信任与 SourceCapture 新挂载、旧 writer 写入面排除、全期 global64 / S5、真实 Root/PG/C11、首次跨机签名与 RA/RB、Task9 和 C4 正式验收均继续 OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "P0-C4 Task9 持续实施：Source 前段准备代码通过限定检查，正式异机备份验收仍待完成",
-  "taskPlanScope": "沿用批准的 R2b 37 文件编码及普通 Linux 检查范围；默认关闭。此次只改五个现有源码文件并新增一个内部 Source actor；不含密钥、信任、launcher 安装或安全权限变更。",
+  "roadmapHeadline": "P0-C4 Task9 持续实施：first S/M6 默认关闭代码与普通检查收尾，实际安装与异机验收 OPEN",
+  "taskPlanScope": "原 2026-10-26 R2b 职责与既有 Source/DB/C11 补充合同；18 既有加 4 新增源码路径，未扩大安装、安全权限或运行范围。",
   "nextSteps": [
     [
-      "Source 首次 S",
-      "在同一真实原件内接入私有 Publication 准入、当前 registry / 保护快照和完整 SourceGroup / Catalog 关联；保持 holder、lease、registry 的真实作用域，不重建 Source 凭据。"
+      "B/C 准入与安装",
+      "分别核定准确目标、密钥/公钥信任、SourceCapture 新挂载和旧 writer 排除；按最小审批范围实施。"
     ],
     [
-      "原生命周期与计费",
-      "接入原定 S 时钟、Root/C11 原件持有与结算顺序、全链累计 global64 和 S5 管线；普通计费组件测试不替代全链证明。"
+      "全期资源与生命周期",
+      "核实 global64、S5、真实 Root/PG/C11 和原持有者自然结算；普通模型测试不替代实测。"
     ],
     [
-      "Source / M6 整体接通",
-      "在批准编码范围内继续完成真实输入、对端 D Ready、Capture 结算及 final/fence/D 消费；公开入口在全部条件完成前保持关闭。"
-    ],
-    [
-      "独立目标正式验收",
-      "准备准确目标与托管、最小安装/信任/权限审批，之后再执行真实异机整链、失败注入与规定恢复；当前不签发 CompleteBackup。"
+      "异机正式验收",
+      "实际首次跨机签名、RA/RB 与规定故障/恢复证据；Task9/C4 保持 OPEN，未知保持 HOLD。"
     ]
   ]
 };

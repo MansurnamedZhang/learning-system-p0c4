@@ -13,6 +13,10 @@ pub(crate) mod lifecycle_tests;
 pub(crate) mod snapshot_effects;
 #[cfg(target_os = "linux")]
 pub(crate) use admission::SourceAdmission;
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) use admission::{B1PublicationAdmission, B1PublicationOwners};
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) use binding::{B1PublicationInputs, B1PublicationPinView};
 #[cfg(all(test, target_os = "linux"))]
 mod admission_tests;
 #[cfg(all(test, target_os = "linux"))]
@@ -180,15 +184,16 @@ pub async fn force_close_release_ready(
             return Err(BackupError::Invalid("recovery database identity"));
         }
         let root = binding::admit_control_root(&mut admission, control_root).await?;
+        let registry = crate::ManagementRegistry::open_installed()?;
+        let lease = registry.try_lock()?;
+        let enrolled = lease.admit_control_source(&root, expected_database)?;
+        lease.require_source_mutation_allowed()?;
         let journal = SourceGateJournal::recover_in(&root, backup_id)?;
         if journal.record().phase() != GatePhase::ReleaseReady {
             return Err(BackupError::Invalid(
                 "recovery requires release-ready phase",
             ));
         }
-        let registry = crate::ManagementRegistry::open_installed()?;
-        let lease = registry.try_lock()?;
-        let enrolled = lease.admit_control_source(&root, expected_database)?;
         let _protection = crate::CaptureProtection::reopen(&lease, &enrolled, backup_id)?;
         lease.recheck()?;
         let profile = c0_d1::SourceProfile::from_broker_oid(journal.full_c_broker_oid());
@@ -335,6 +340,7 @@ pub(crate) async fn prepare_b1_retained(
     let enrolled = original.enrolled.as_ref().expect("stored source");
     let lease = original.lease.as_ref().expect("stored lease");
     let admission = original.admission.as_mut().expect("stored admission");
+    lease.require_source_mutation_allowed()?;
     input.require_b1_admission(admission, lease, enrolled, config)?;
     if config.backup_id.is_nil()
         || config.drain_timeout.is_zero()
@@ -616,6 +622,7 @@ pub(super) async fn prepare_linux_with_effects(
     let registry = crate::ManagementRegistry::open_installed()?;
     let lease = registry.try_lock()?;
     let enrolled = lease.admit_source(&control, assets, config)?;
+    lease.require_source_mutation_allowed()?;
     let pin_root = enrolled.handle("local_pins").try_clone()?;
     if control.identity()? == pin_root.identity()? {
         return Err(BackupError::Invalid("source control and pin root alias"));

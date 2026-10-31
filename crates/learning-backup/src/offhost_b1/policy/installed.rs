@@ -256,6 +256,42 @@ impl HeldInstalledInputs<'_> {
         Ok(())
     }
 
+    /// Fixed join of this exact held Source policy to the real Publication
+    /// admission/current lease. Child inputs stay private; this returns no
+    /// DTO, callback, path, credential, bool qualification or actor authority.
+    pub(super) fn recheck_source_publication(
+        &mut self,
+        admission: &crate::source::B1PublicationAdmission<'_>,
+        source: &crate::EnrolledSource,
+    ) -> Result<(), BackupError> {
+        self.recheck()?;
+        self.failed = true;
+        admission.require_enrollment(self.lease, source)?;
+        let value = match &self.inputs {
+            UntrustedInputs::Source(value) => value,
+            _ => return Err(refused()),
+        };
+        if value.policy.deployment_id != source.group.deployment_id
+            || value.policy.source_group_id != source.group.group_id
+            || value.policy.source_connection.database != source.group.database
+            || value.policy.source_connection.role != "learning_admin"
+            || !super::connection(&value.policy.source_connection)
+            || !super::transport(&value.policy.transport)
+        {
+            return Err(refused());
+        }
+        admission.input()?.require_policy_group(
+            &value.policy.source_group_id,
+            &value.policy.source_connection.database,
+            &value.policy.source_control_binding_sha256,
+            &value.policy.source_auth_public_key_sha256,
+            &value.policy.launch_id,
+        )?;
+        admission.revalidate()?;
+        self.failed = false;
+        self.recheck()
+    }
+
     fn require_local_bindings(&self) -> Result<(), BackupError> {
         let (anchor, deployment, metadata_root) = match &self.inputs {
             UntrustedInputs::Source(value) => (
@@ -275,6 +311,198 @@ impl HeldInstalledInputs<'_> {
             return Err(refused());
         }
         require_registry_anchor(anchor, self.lease)
+    }
+}
+
+/// Fixed Source metadata borrow; no constructor or permission conversion.
+/// The actual First-S or management negative-check caller keeps the lease.
+pub(in crate::offhost_b1) struct SourceFenceMetadata<'a> {
+    root: &'a BackupDir,
+    raw: &'a [u8],
+    value: &'a UntrustedSourceInputs,
+}
+impl SourceFenceMetadata<'_> {
+    pub(in crate::offhost_b1) fn root_original(&self) -> &BackupDir {
+        self.root
+    }
+    pub(in crate::offhost_b1) fn anchor_bytes_data(&self) -> &[u8] {
+        self.raw
+    }
+    pub(in crate::offhost_b1) fn anchor_sha256_data(&self) -> &str {
+        &self.value.policy.source_fence_anchor_sha256
+    }
+    pub(in crate::offhost_b1) fn manager_release_sha256_data(&self) -> &str {
+        &self.value.policy.manager_release_sha256
+    }
+    pub(in crate::offhost_b1) fn source_auth_sha256_data(&self) -> &str {
+        &self.value.policy.source_auth_public_key_sha256
+    }
+    pub(in crate::offhost_b1) fn destination_policy_sha256_data(&self) -> &str {
+        &self.value.policy.transport.destination_policy_sha256
+    }
+    pub(in crate::offhost_b1) fn destination_deployment_id_data(&self) -> &str {
+        &self.value.policy.transport.destination_deployment_id
+    }
+    pub(in crate::offhost_b1) fn ssh_endpoint_data(&self) -> (&str, u16, &str) {
+        (
+            &self.value.policy.transport.host,
+            self.value.policy.transport.port,
+            &self.value.policy.transport.user,
+        )
+    }
+    pub(in crate::offhost_b1) fn transport_public_key_sha256_data(&self) -> &str {
+        &self.value.launch.transport_public_key_sha256
+    }
+    pub(in crate::offhost_b1) fn verifier_public_key_sha256_data(&self) -> &str {
+        &self.value.policy.destination_verifier_public_key_sha256
+    }
+}
+impl HeldInstalledInputs<'_> {
+    pub(super) fn source_fence_anchor_data(
+        &self,
+    ) -> Result<super::SourceFenceAnchorData<'_>, BackupError> {
+        let metadata = self.source_fence_metadata()?;
+        let value = match &self.inputs {
+            UntrustedInputs::Source(value) => value,
+            _ => return Err(refused()),
+        };
+        Ok(super::SourceFenceAnchorData {
+            deployment_id: &value.policy.deployment_id,
+            source_group_id: &value.policy.source_group_id,
+            root_dev: value.fence.fence_root.dev,
+            root_ino: value.fence.fence_root.ino,
+            anchor_raw: metadata.raw,
+            anchor_sha256: &value.policy.source_fence_anchor_sha256,
+        })
+    }
+    pub(super) fn recheck_source_mutation(&mut self) -> Result<(), BackupError> {
+        self.recheck()?;
+        self.failed = true;
+        let value = match &self.inputs {
+            UntrustedInputs::Source(value) => value,
+            _ => return Err(refused()),
+        };
+        let group = crate::registry::unique_source(self.lease.groups.values().filter_map(
+            |group| match group {
+                crate::registry::Group::Source(group)
+                    if group.group_id == value.policy.source_group_id =>
+                {
+                    Some(group)
+                }
+                _ => None,
+            },
+        ))?;
+        if group.deployment_id != value.policy.deployment_id
+            || group.database != value.policy.source_connection.database
+            || group.source_binding_sha256 != value.policy.source_control_binding_sha256
+            || value.policy.source_connection.role != "learning_admin"
+            || !super::connection(&value.policy.source_connection)
+            || !super::transport(&value.policy.transport)
+        {
+            return Err(refused());
+        }
+        crate::registry::validate_build_binding(
+            group,
+            option_env!("KNOWWEAVE_C4_SOURCE_CONTROL_BINDING_SHA256"),
+            option_env!("KNOWWEAVE_SOURCE_COMMIT"),
+            option_env!("KNOWWEAVE_BUILD_ID_SHA256"),
+        )?;
+        self.failed = false;
+        self.recheck()
+    }
+    pub(super) fn source_fence_metadata(&self) -> Result<SourceFenceMetadata<'_>, BackupError> {
+        if self.failed {
+            return Err(refused());
+        }
+        self.require_local_bindings()?;
+        match &self.inputs {
+            UntrustedInputs::Source(value) => Ok(SourceFenceMetadata {
+                root: &self.anchor_parent.dir,
+                raw: &self.anchor.raw,
+                value,
+            }),
+            _ => Err(refused()),
+        }
+    }
+}
+
+/// Borrowed untrusted metadata DATA from the actual held loader only. Native
+/// D, trust/key custody and its operation have to be admitted independently.
+pub(in crate::offhost_b1) struct DestinationMetadataData<'a> {
+    value: &'a UntrustedDestinationInputs,
+}
+impl<'a> DestinationMetadataData<'a> {
+    pub(in crate::offhost_b1) fn signature_data_pins(
+        &self,
+    ) -> super::CandidateDestinationSignaturePins<'a> {
+        self.value.signature_data_pins()
+    }
+    pub(in crate::offhost_b1) fn launch_id_data(&self) -> &str {
+        &self.value.launch.launch_id
+    }
+    pub(in crate::offhost_b1) fn launch_commit_data(&self) -> &str {
+        &self.value.launch.code_commit
+    }
+    pub(in crate::offhost_b1) fn launch_build_data(&self) -> &str {
+        &self.value.launch.build_input_sha256
+    }
+    pub(in crate::offhost_b1) fn binary_sha256_data(&self) -> &str {
+        &self.value.launch.binary_sha256
+    }
+    pub(in crate::offhost_b1) fn launcher_sha256_data(&self) -> &str {
+        &self.value.launch.launcher_sha256
+    }
+    pub(in crate::offhost_b1) fn policy_sha256_data(&self) -> &str {
+        &self.value.launch.policy_sha256
+    }
+    pub(in crate::offhost_b1) fn anchor_sha256_data(&self) -> &str {
+        &self.value.launch.anchor_sha256
+    }
+    pub(in crate::offhost_b1) fn session_root_identity_data(&self) -> (u64, u64) {
+        (
+            self.value.session.session_root.dev,
+            self.value.session.session_root.ino,
+        )
+    }
+}
+impl HeldInstalledInputs<'_> {
+    pub(super) fn destination_data(&self) -> Result<DestinationMetadataData<'_>, BackupError> {
+        if self.failed {
+            return Err(refused());
+        }
+        match &self.inputs {
+            UntrustedInputs::Destination(value) => Ok(DestinationMetadataData { value }),
+            _ => Err(refused()),
+        }
+    }
+    pub(super) fn recheck_destination(
+        &mut self,
+        destination: &crate::EnrolledDestination,
+    ) -> Result<(), BackupError> {
+        self.recheck()?;
+        self.failed = true;
+        crate::registry::require_shared_scan_budget(&self.lease.budget, &destination.lease.budget)?;
+        if !Arc::ptr_eq(
+            &self.lease.destination_operation,
+            &destination.lease.destination_operation,
+        ) || self.lease.root.identity()? != destination.lease.root.identity()?
+        {
+            return Err(refused());
+        }
+        let value = match &self.inputs {
+            UntrustedInputs::Destination(value) => value,
+            _ => return Err(refused()),
+        };
+        if value.policy.deployment_id != destination.group.deployment_id
+            || value.policy.destination_group_id != destination.group.group_id
+            || value.policy.registry_anchor.authority_sha256
+                != digest(&crate::registry::canonical(&self.lease.authority)?)
+        {
+            return Err(refused());
+        }
+        destination.recheck()?;
+        self.failed = false;
+        self.recheck()
     }
 }
 

@@ -18,6 +18,9 @@ use std::{
 };
 use uuid::Uuid;
 
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) use original_remote::{OriginalRemoteReceipt, publish_original_remote_receipt};
+
 // Version 2 fixes the verifier algorithm to ECDSA P-256/SHA-256 with SEC1
 // uncompressed keys and 64-byte fixed-width signatures. Version 1's Ed25519
 // verifier is never accepted for a CompleteBackup.
@@ -523,6 +526,331 @@ pub fn verify_destination_witness(
         .map_err(|_| BackupError::Invalid("destination witness signature"))
 }
 
+/// Concrete original-D writer. Never reopens source paths or acquires another
+/// registry lease; the existing public Local publisher and reader stay intact.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+#[allow(
+    dead_code,
+    reason = "default-off original D receipt core awaits genuine M6 producers"
+)]
+mod original_remote {
+    use super::*;
+    use crate::{
+        destination::{OriginalRemoteFinalization, RemoteConsumption},
+        registry::ScanBudget,
+    };
+    use std::sync::{Arc, Mutex};
+
+    const RECEIPT_BYTES: u64 = 8192;
+
+    // Constructed only after concrete full readback; it is still kept inside
+    // the original consume call until the same authority becomes Committed.
+    // The caller never receives the pre-commit witness or CompleteBackup.
+    pub(crate) struct OriginalRemoteReceipt {
+        complete: CompleteBackup,
+        raw: Vec<u8>,
+        // Wire/Ack digest is over the entire canonical receipt. CompleteBackup
+        // deliberately retains its historical v2 *body* digest contract.
+        wire_sha256: String,
+        written: std::fs::File,
+        written_stamp: std::fs::Metadata,
+    }
+    impl OriginalRemoteReceipt {
+        pub(crate) fn bytes(&self) -> &[u8] {
+            &self.raw
+        }
+        pub(crate) fn receipt_sha256(&self) -> &str {
+            &self.wire_sha256
+        }
+        pub(crate) fn recheck_committed_original(
+            &self,
+            committed: &crate::destination::CommittedRemoteOriginal,
+        ) -> Result<(), BackupError> {
+            let destination = committed.held_destination_for_committed();
+            let expected = committed.statement_for_committed();
+            let trust = committed.trust_for_committed();
+            charge(&destination.lease.budget, RECEIPT_BYTES * 32, 16)?;
+            if !same(&self.written_stamp, &self.written.metadata()?) {
+                return Err(BackupError::Invalid(
+                    "committed original receipt FD changed",
+                ));
+            }
+            let raw = read_receipt_held(
+                destination.destination(),
+                &format!("{}.complete", expected.backup_id),
+                &self.written,
+                &destination.lease.budget,
+            )?;
+            if raw != self.raw || digest(&raw) != self.wire_sha256 {
+                return Err(BackupError::Invalid(
+                    "committed original receipt bytes changed",
+                ));
+            }
+            checked_receipt(&raw, &expected, trust)?;
+            Ok(())
+        }
+    }
+
+    fn charge(
+        budget: &Arc<Mutex<ScanBudget>>,
+        bytes: u64,
+        entries: usize,
+    ) -> Result<(), BackupError> {
+        let mut meter = budget
+            .lock()
+            .map_err(|_| BackupError::Invalid("remote original receipt budget poisoned"))?;
+        meter.charge(bytes)?;
+        meter.entries(entries)
+    }
+
+    fn checked_receipt(
+        raw: &[u8],
+        expected: &DestinationStatement,
+        trust: &VerifierTrustConfig,
+    ) -> Result<CompleteBackup, BackupError> {
+        if raw.is_empty() || raw.len() as u64 > RECEIPT_BYTES {
+            return Err(BackupError::Capacity("remote original receipt bytes"));
+        }
+        let receipt: CompleteReceipt = serde_json::from_slice(raw)?;
+        if serde_json::to_vec(&receipt)? != raw
+            || receipt.body.format_version != WITNESS_FORMAT_VERSION
+            || receipt.body.backup_id != expected.backup_id
+            || &receipt.body.witness.statement != expected
+            || receipt.receipt_sha256 != digest(&serde_json::to_vec(&receipt.body)?)
+            || expected.source_root != trust.source_root
+            || expected.source_control_root != trust.source_control_root
+            || expected.source_host_id != trust.source_host_id
+            || expected.source_storage_id != trust.source_storage_id
+            || expected.destination_host_id != trust.destination_host_id
+            || expected.destination_storage_id != trust.destination_storage_id
+            || expected.destination_root != trust.destination_root
+        {
+            return Err(BackupError::Invalid(
+                "remote original receipt target linkage",
+            ));
+        }
+        let public = hex::decode(&trust.verifier_public_key_hex)
+            .map_err(|_| BackupError::Invalid("remote original witness public key"))?;
+        let signature = hex::decode(&receipt.body.witness.signature_hex)
+            .map_err(|_| BackupError::Invalid("remote original witness signature"))?;
+        verify_destination_witness(expected, &public, &signature)?;
+        Ok(CompleteBackup {
+            backup_id: expected.backup_id,
+            manifest_sha256: expected.manifest_sha256.clone(),
+            receipt_sha256: receipt.receipt_sha256,
+            source_control_sha256: expected.source_control_sha256.clone(),
+        })
+    }
+
+    fn same(a: &std::fs::Metadata, b: &std::fs::Metadata) -> bool {
+        (
+            a.dev(),
+            a.ino(),
+            a.uid(),
+            a.gid(),
+            a.len(),
+            a.mode(),
+            a.nlink(),
+            a.mtime(),
+            a.mtime_nsec(),
+            a.ctime(),
+            a.ctime_nsec(),
+        ) == (
+            b.dev(),
+            b.ino(),
+            b.uid(),
+            b.gid(),
+            b.len(),
+            b.mode(),
+            b.nlink(),
+            b.mtime(),
+            b.mtime_nsec(),
+            b.ctime(),
+            b.ctime_nsec(),
+        )
+    }
+
+    fn read_receipt_held(
+        root: &BackupDir,
+        name: &str,
+        written: &std::fs::File,
+        budget: &Arc<Mutex<ScanBudget>>,
+    ) -> Result<Vec<u8>, BackupError> {
+        charge(budget, RECEIPT_BYTES * 8, 6)?;
+        let mut file = root.open_file(name)?;
+        let before = file.metadata()?;
+        let original = written.metadata()?;
+        if before.uid() != 0
+            || before.gid() != 0
+            || before.nlink() != 1
+            || before.mode() & 0o7777 != 0o400
+            || before.len() == 0
+            || before.len() > RECEIPT_BYTES
+            || !same(&before, &original)
+        {
+            return Err(BackupError::Invalid(
+                "remote original sealed receipt custody",
+            ));
+        }
+        let mut raw = vec![0; usize::try_from(before.len()).map_err(|_| BackupError::Overflow)?];
+        file.read_exact(&mut raw)?;
+        let mut extra = [0];
+        if file.read(&mut extra)? != 0
+            || !same(&before, &file.metadata()?)
+            || !same(&before, &written.metadata()?)
+            || !same(&before, &root.open_file(name)?.metadata()?)
+        {
+            return Err(BackupError::Invalid(
+                "remote original receipt changed during readback",
+            ));
+        }
+        Ok(raw)
+    }
+
+    pub(crate) fn publish_original_remote_receipt(
+        original: &OriginalRemoteFinalization,
+        owner: &RemoteConsumption<'_>,
+        witness: DestinationWitness,
+    ) -> Result<OriginalRemoteReceipt, BackupError> {
+        original.check_deadline()?;
+        let destination = original.held_destination_for_receipt(owner)?;
+        let trust = original.trust_for_receipt(owner)?;
+        let expected = original.statement_for_receipt(owner)?;
+        let budget = &destination.lease.budget;
+        charge(budget, RECEIPT_BYTES * 32, 16)?;
+        require_deployment_verifier_key(trust)?;
+        if witness.statement != expected || witness.canonical_bytes()?.len() as u64 > RECEIPT_BYTES
+        {
+            return Err(BackupError::Invalid(
+                "remote original fixed receipt statement",
+            ));
+        }
+        let body = CompleteReceiptBody {
+            format_version: WITNESS_FORMAT_VERSION,
+            backup_id: expected.backup_id,
+            witness,
+        };
+        let receipt = CompleteReceipt {
+            receipt_sha256: digest(&serde_json::to_vec(&body)?),
+            body,
+        };
+        let raw = serde_json::to_vec(&receipt)?;
+        checked_receipt(&raw, &expected, trust)?;
+        original.check_deadline()?;
+        let root = destination.destination();
+        let root_identity = root.identity()?;
+        let temporary = format!("{}.complete-staging-{}", expected.backup_id, Uuid::new_v4());
+        let final_name = format!("{}.complete", expected.backup_id);
+        let mut written = root.create_file(&temporary)?;
+        original.check_deadline()?;
+        charge(budget, raw.len() as u64, 1)?;
+        written.write_all(&raw)?;
+        original.check_deadline()?;
+        written.sync_all()?;
+        original.check_deadline()?;
+        root.seal_file(&temporary)?;
+        original.check_deadline()?;
+        // The same concrete guard remains held through all blocking FS work.
+        // No timeout task can drop the authority while a writer continues.
+        destination.recheck()?;
+        root.rename_noreplace_without_sync(&temporary, &final_name)?;
+        original.check_deadline()?;
+        root.sync()?;
+        original.check_deadline()?;
+        let actual = read_receipt_held(root, &final_name, &written, budget)?;
+        if actual != raw || root.identity()? != root_identity {
+            return Err(BackupError::Invalid("remote original receipt replaced"));
+        }
+        let complete = checked_receipt(&actual, &expected, trust)?;
+        // Full package, original eleven-step proof and adjunct readback are
+        // repeated under the original held D handles/budgets, never S paths.
+        original.recheck_for_receipt(owner)?;
+        original.recheck_published_receipt_roster(owner)?;
+        if read_receipt_held(root, &final_name, &written, budget)? != actual {
+            return Err(BackupError::Invalid(
+                "remote original final receipt changed",
+            ));
+        }
+        destination.recheck()?;
+        original.check_deadline()?;
+        let wire_sha256 = digest(&actual);
+        let written_stamp = written.metadata()?;
+        Ok(OriginalRemoteReceipt {
+            complete,
+            raw: actual,
+            wire_sha256,
+            written,
+            written_stamp,
+        })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn original_remote_receipt_readback_rejects_symlink_before_custody() {
+            use std::{
+                fs,
+                os::unix::fs::{PermissionsExt, symlink},
+            };
+            let path =
+                std::env::temp_dir().join(format!("c4-remote-receipt-nofollow-{}", Uuid::new_v4()));
+            fs::create_dir(&path).unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+            let root = BackupDir::open_private_root(&path).unwrap();
+            let mut written = root.create_file("own-staging").unwrap();
+            written
+                .write_all(b"ordinary negative IO input, not a receipt")
+                .unwrap();
+            symlink("own-staging", path.join("own.complete")).unwrap();
+            let budget = Arc::new(Mutex::new(ScanBudget::default()));
+            let result = read_receipt_held(&root, "own.complete", &written, &budget);
+            fs::remove_dir_all(&path).unwrap();
+            assert!(
+                matches!(result, Err(BackupError::Io(error)) if error.raw_os_error() == Some(libc::ELOOP))
+            );
+            assert!(budget.lock().unwrap().bytes > 0);
+        }
+
+        #[test]
+        fn original_remote_receipt_parser_rejects_caps_before_json_or_crypto() {
+            let trust = VerifierTrustConfig {
+                format_version: 2,
+                source_root: "/source/pins".into(),
+                source_control_root: "/source/control".into(),
+                destination_root: "/destination/pins".into(),
+                source_host_id: Uuid::new_v4(),
+                source_storage_id: Uuid::new_v4(),
+                destination_host_id: Uuid::new_v4(),
+                destination_storage_id: Uuid::new_v4(),
+                verifier_public_key_hex: format!("04{}", "0".repeat(128)),
+            };
+            let statement = DestinationStatement {
+                format_version: 2,
+                backup_id: Uuid::new_v4(),
+                manifest_sha256: "a".repeat(64),
+                source_control_sha256: "b".repeat(64),
+                source_root: trust.source_root.clone(),
+                source_control_root: trust.source_control_root.clone(),
+                source_host_id: trust.source_host_id,
+                source_storage_id: trust.source_storage_id,
+                destination_host_id: trust.destination_host_id,
+                destination_storage_id: trust.destination_storage_id,
+                destination_root: trust.destination_root.clone(),
+            };
+            assert!(matches!(
+                checked_receipt(&[], &statement, &trust),
+                Err(BackupError::Capacity(_))
+            ));
+            assert!(matches!(
+                checked_receipt(&vec![b' '; 8193], &statement, &trust),
+                Err(BackupError::Capacity(_))
+            ));
+        }
+    }
+}
+
 #[cfg(all(test, target_os = "linux"))]
 mod linux_tests {
     use super::*;
@@ -557,5 +885,177 @@ mod linux_tests {
             verifier_public_key_hex: format!("04{}", "a".repeat(128)),
         };
         assert!(require_deployment_verifier_key(&trust).is_err());
+    }
+}
+
+// To be merged only by the owner of complete.rs. This stays a pure DATA
+// validator. It does not load a file, open a target, qualify D, sign anything,
+// create CompleteBackup, or attest the original publication call's outcome.
+#[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+pub(crate) fn validate_b1_receipt_data(
+    raw: &[u8],
+    expected: &DestinationStatement,
+    pinned_public_key: &[u8],
+    pinned_public_key_sha256: &str,
+    original_budget: &std::sync::Arc<std::sync::Mutex<crate::registry::ScanBudget>>,
+) -> Result<String, BackupError> {
+    if raw.is_empty()
+        || raw.len() > 8192
+        || !valid_digest(pinned_public_key_sha256)
+        || pinned_public_key.len() != 65
+        || pinned_public_key[0] != 4
+    {
+        return Err(BackupError::Invalid(
+            "B1 receipt DATA bounds or public-key pin",
+        ));
+    }
+    let expected_strings = expected
+        .source_root
+        .len()
+        .checked_add(expected.source_control_root.len())
+        .and_then(|n| n.checked_add(expected.destination_root.len()))
+        .and_then(|n| n.checked_add(expected.manifest_sha256.len()))
+        .and_then(|n| n.checked_add(expected.source_control_sha256.len()))
+        .ok_or(BackupError::Overflow)?;
+    // Refuse an unbounded caller DATA statement before allocating its old
+    // canonical form. The actual caller derives these paths from its retained
+    // Source/trust and authenticated HelloD inputs, never from this receipt.
+    if expected_strings > 8192 {
+        return Err(BackupError::Capacity("B1 expected receipt statement DATA"));
+    }
+    let reservation = (raw.len() as u64)
+        .checked_mul(16)
+        .and_then(|n| n.checked_add((expected_strings as u64).checked_mul(16)?))
+        .and_then(|n| n.checked_add(16_384))
+        .ok_or(BackupError::Overflow)?;
+    {
+        let mut budget = original_budget
+            .lock()
+            .map_err(|_| BackupError::Invalid("B1 receipt original scan budget"))?;
+        budget.charge(reservation)?;
+        budget.entries(64)?;
+    }
+    if digest(pinned_public_key) != pinned_public_key_sha256 {
+        return Err(BackupError::Invalid(
+            "B1 receipt DATA public key differs from build pin",
+        ));
+    }
+    expected.canonical_bytes()?;
+    let receipt: CompleteReceipt = serde_json::from_slice(raw)?;
+    // Preserve v2's existing struct-order byte encodings and embedded body
+    // digest. Do not replace them with sorted registry JSON or a new schema.
+    if serde_json::to_vec(&receipt)? != raw
+        || receipt.body.format_version != WITNESS_FORMAT_VERSION
+        || receipt.body.backup_id != expected.backup_id
+        || &receipt.body.witness.statement != expected
+        || receipt.body.witness.canonical_bytes().is_err()
+        || receipt.receipt_sha256 != digest(&serde_json::to_vec(&receipt.body)?)
+    {
+        return Err(BackupError::Invalid(
+            "B1 canonical receipt DATA or expected statement",
+        ));
+    }
+    let signature = hex::decode(&receipt.body.witness.signature_hex)
+        .map_err(|_| BackupError::Invalid("B1 receipt signature DATA"))?;
+    verify_destination_witness(expected, pinned_public_key, &signature)?;
+    // The wire result and ACK use SHA256(full canonical receipt bytes).
+    // This is distinct from the old embedded SHA256(receipt.body) above.
+    Ok(digest(raw))
+}
+
+#[cfg(all(test, target_os = "linux", feature = "offhost-b1"))]
+mod b1_receipt_data_tests {
+    use super::*;
+    use ring::signature::{ECDSA_P256_SHA256_FIXED_SIGNING, EcdsaKeyPair, KeyPair};
+    use std::sync::{Arc, Mutex};
+
+    // Ephemeral test-only signature math. No installed key/file/actor or
+    // independent host/storage/publication authority is constructed here.
+    fn sample() -> (Vec<u8>, DestinationStatement, Vec<u8>, String) {
+        let random = ring::rand::SystemRandom::new();
+        let pkcs8 =
+            EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &random).unwrap();
+        let pair =
+            EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs8.as_ref(), &random)
+                .unwrap();
+        let expected = DestinationStatement {
+            format_version: 2,
+            backup_id: Uuid::new_v4(),
+            manifest_sha256: "1".repeat(64),
+            source_control_sha256: "2".repeat(64),
+            source_root: "/private/source".into(),
+            source_control_root: "/private/control".into(),
+            source_host_id: Uuid::new_v4(),
+            source_storage_id: Uuid::new_v4(),
+            destination_host_id: Uuid::new_v4(),
+            destination_storage_id: Uuid::new_v4(),
+            destination_root: "/private/destination".into(),
+        };
+        let signature = pair
+            .sign(&random, &expected.canonical_bytes().unwrap())
+            .unwrap();
+        let body = CompleteReceiptBody {
+            format_version: 2,
+            backup_id: expected.backup_id,
+            witness: DestinationWitness {
+                statement: expected.clone(),
+                signature_hex: hex::encode(signature.as_ref()),
+            },
+        };
+        let body_digest = digest(&serde_json::to_vec(&body).unwrap());
+        let raw = serde_json::to_vec(&CompleteReceipt {
+            body,
+            receipt_sha256: body_digest.clone(),
+        })
+        .unwrap();
+        (
+            raw,
+            expected,
+            pair.public_key().as_ref().to_vec(),
+            body_digest,
+        )
+    }
+
+    #[test]
+    fn b1_receipt_data_uses_full_raw_digest_and_preserves_embedded_v2_body_domain() {
+        let (raw, expected, public, body_digest) = sample();
+        let budget = Arc::new(Mutex::new(crate::registry::ScanBudget::default()));
+        let full =
+            validate_b1_receipt_data(&raw, &expected, &public, &digest(&public), &budget).unwrap();
+        assert_eq!(full, digest(&raw));
+        assert_ne!(full, body_digest);
+        assert!(budget.lock().unwrap().bytes > raw.len() as u64);
+    }
+
+    #[test]
+    fn b1_receipt_data_rejects_changed_expected_statement_pin_and_noncanonical_bytes() {
+        let (raw, mut expected, public, _) = sample();
+        let budget = Arc::new(Mutex::new(crate::registry::ScanBudget::default()));
+        assert!(
+            validate_b1_receipt_data(&raw, &expected, &public, &"0".repeat(64), &budget).is_err()
+        );
+        let mut trailing = raw.clone();
+        trailing.push(b'\n');
+        assert!(
+            validate_b1_receipt_data(&trailing, &expected, &public, &digest(&public), &budget)
+                .is_err()
+        );
+        expected.manifest_sha256 = "3".repeat(64);
+        assert!(
+            validate_b1_receipt_data(&raw, &expected, &public, &digest(&public), &budget).is_err()
+        );
+        expected.manifest_sha256 = "1".repeat(64);
+        let mut extra: serde_json::Value = serde_json::from_slice(&raw).unwrap();
+        extra["close"] = serde_json::json!(true);
+        assert!(
+            validate_b1_receipt_data(
+                &serde_json::to_vec(&extra).unwrap(),
+                &expected,
+                &public,
+                &digest(&public),
+                &budget
+            )
+            .is_err()
+        );
     }
 }
