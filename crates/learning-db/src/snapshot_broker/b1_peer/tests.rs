@@ -20,6 +20,38 @@ fn fixed_control_original_monotonic_deadline_never_rebases_or_overflows() {
     assert!(process::root_control_remaining(0, 1).is_err());
 }
 
+// These component probes exercise the product phase/DATA predicate only.
+// A true result does not create a held record, process original, session or
+// HostPublicationAdmin slot, and is not genuine Root/PG admission evidence.
+#[test]
+fn source_publication_phase_rejects_bootstrap_and_inflight_capture() {
+    for phase in [0, 1, 2] {
+        for held_capture in [false, true] {
+            assert!(!process::source_publication_phase_data(
+                phase,
+                held_capture,
+                false
+            ));
+        }
+    }
+}
+
+#[test]
+fn source_publication_phase_requires_held_data_and_no_settlement() {
+    assert!(!process::source_publication_phase_data(3, false, false));
+    assert!(!process::source_publication_phase_data(3, false, true));
+    assert!(!process::source_publication_phase_data(3, true, true));
+    assert!(process::source_publication_phase_data(3, true, false));
+}
+
+#[test]
+fn source_publication_phase_rejects_settlement_progress_and_late_reentry() {
+    for phase in [4, 5, 6, usize::MAX] {
+        assert!(!process::source_publication_phase_data(phase, true, false));
+        assert!(!process::source_publication_phase_data(phase, true, true));
+    }
+}
+
 #[test]
 fn fixed_control_source_roster_requires_held_current_records_and_final_phase() {
     assert!(!process::role_roster_leaf(

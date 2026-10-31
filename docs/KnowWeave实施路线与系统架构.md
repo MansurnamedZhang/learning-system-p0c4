@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-10-29。当前状态：C4实施中 · 两组普通回归通过，Task9仍未完成，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`a3a209711f5441c25093aeb5052fe538537d03b0`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-10-31。当前状态：Task9 R2b：Source 前段准备代码普通检查通过，默认关闭；first S / M6 仍未接通，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`00e154651b1e9bb3b7fe763a5a905db24cef992b`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。Source 前段准备代码与 DB 发布顺序谓词补齐；新增 12 个普通组件测试。Backup 450/106 与 603/106、DB 62/24 与 123/26（passed/ignored），两套 13 道普通检查通过。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,21 +61,22 @@ flowchart LR
 
 ## 下一步
 
-仍未接通正常Source入口：当前入口继续明确拒绝未接线执行，source_actor.rs尚未形成。下一步在已批准文件范围内接Source原操作、共享原始预算的preflight与先关持有者再取lease、唯一Capture生成的CapturedInputData，以及重新取得的首次Source会话；不能把capture-only会话转为Publication权限。Source首S、D/Ready、fence和最终settlement的M6闭环，以及S5封闭计费与全局64资源实证仍开放；whole M3／C11与Task9正式验收均未完成。真实密钥／信任／launcher安装、PG／安全权限、目标整链、源断联和恢复仍须按具体目标与影响另行确认。
+当前预检仅 registry 快照与 Task1b 元数据；完整 SourceGroup/Catalog 与首次 S、原 S 时钟、Source/M6、Root/C11 完整生命周期及全链 global64/S5 尚待接通。独立目标安装与正式异机验收未完成。
 
-- **01 · 接通Source原操作前段**：同一原始预算下完成preflight、释放检查持有者再取lease、唯一Capture产物与首次Source会话；入口未闭合前继续拒绝执行。
-- **02 · 闭合Source／M6与发布顺序**：接首次S、D/Ready、fence及settlement；完成S5累计计费与全局64资源实证，保持默认关闭和原权限边界。
-- **03 · 准备真实目标正式验收**：独立目标、密钥托管与安装状态需实核；安装、安全权限、目标整链、断联和恢复另按具体方案批准。
+- **Source 首次 S**：在同一真实原件内接入私有 Publication 准入、当前 registry / 保护快照和完整 SourceGroup / Catalog 关联；保持 holder、lease、registry 的真实作用域，不重建 Source 凭据。
+- **原生命周期与计费**：接入原定 S 时钟、Root/C11 原件持有与结算顺序、全链累计 global64 和 S5 管线；普通计费组件测试不替代全链证明。
+- **Source / M6 整体接通**：在批准编码范围内继续完成真实输入、对端 D Ready、Capture 结算及 final/fence/D 消费；公开入口在全部条件完成前保持关闭。
+- **独立目标正式验收**：准备准确目标与托管、最小安装/信任/权限审批，之后再执行真实异机整链、失败注入与规定恢复；当前不签发 CompleteBackup。
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。
+Source 前段准备代码与 DB 发布顺序谓词补齐；新增 12 个普通组件测试。Backup 450/106 与 603/106、DB 62/24 与 123/26（passed/ignored），两套 13 道普通检查通过。
 
-仍未接通正常Source入口：当前入口继续明确拒绝未接线执行，source_actor.rs尚未形成。下一步在已批准文件范围内接Source原操作、共享原始预算的preflight与先关持有者再取lease、唯一Capture生成的CapturedInputData，以及重新取得的首次Source会话；不能把capture-only会话转为Publication权限。Source首S、D/Ready、fence和最终settlement的M6闭环，以及S5封闭计费与全局64资源实证仍开放；whole M3／C11与Task9正式验收均未完成。真实密钥／信任／launcher安装、PG／安全权限、目标整链、源断联和恢复仍须按具体目标与影响另行确认。
+当前预检仅 registry 快照与 Task1b 元数据；完整 SourceGroup/Catalog 与首次 S、原 S 时钟、Source/M6、Root/C11 完整生命周期及全链 global64/S5 尚待接通。独立目标安装与正式异机验收未完成。
 
-受测源码基线a3a209711f5441c25093aeb5052fe538537d03b0／treef7915076d0d613d08a1443383e18c25be26c4122，最终701源索引SHA256 fceee5c0aeb439f989051d257e039ff4c5b14724225761edd48118866d81aeb6。本轮格式批次c58ae018-b231-492d-b6b2-5d17980febff、Backup批次5283b8f9-ed50-4de5-95e7-c8daadbefcba、DB批次61f3279a-85df-45fa-8e7d-69ab8ed23400分别独核原始证据；结果SHA256依次为fa2925c2a3f3da3eefb2d52b70a0383d9d432817906b5f721dafe3ffe065b5cb、ecb047f13f0c724ee5d7b6df2f115e32ed3c00f11e3eb90c76464d217a98d917、33982f824c41782590561810f8d80ab7120cad329f22c8d4ac8dafd196221ad8。实际格式导出17项与受审源逐字相同；两组完整名单、既有ignored、源704项前后原始快照、同一容器自然退出0与精确清理均核对。这是收集回件的独立核对，不是额外远程亲见；输出限制为退出后读取校验，未声称连续OS输出上限。
+受测702 文件、六处源码改动；格式仅一处表达式换行。格式批 c82f07d5、Backup 批 c77672b1、DB 批 8d323357 均实际退出 0、源码未变并完成精确 ID 清理；三批原始证据与六处源码 CODE 已独立核对。
 
 ```mermaid
 flowchart LR

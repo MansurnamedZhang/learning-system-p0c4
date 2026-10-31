@@ -15,10 +15,14 @@
     },
     {
       "path": ".build/knowweave-map.data.mjs",
-      "bytes": 63857,
-      "sha256": "72e8f9f7c7a01ec16657f2ee6d77028fb1e735be2e8aaf39641be3d86d9ced15",
+      "bytes": 62932,
+      "sha256": "850ab5f9f73081213e872fc6c1948f99fee786da3120c1029bc09cda701acc46",
       "source_bytes_preserved": false,
-      "scope": "TASK9_ROOT_M3_ORIGINAL_OWNER_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_SOURCE_FRONT_CURRENT_DOCUMENTATION_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "72e8f9f7c7a01ec16657f2ee6d77028fb1e735be2e8aaf39641be3d86d9ced15"
     },
     {
       "path": ".build/verify-knowweave-map.py",
@@ -69,12 +73,15 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 117332,
       "path": "KnowWeave实施路线与架构.html",
-      "scope": "TASK9_ROOT_M3_ORIGINAL_OWNER_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "c142cedd7519c6231360fb218419c4fbeedaa63264388ca57e55aacf2f6dfd6d",
-      "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "bytes": 115749,
+      "sha256": "21a588b20ff077b22622a826622176b5f790944a17ecbf18bfeacfb4e82aa66b",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_SOURCE_FRONT_CURRENT_DOCUMENTATION_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "c142cedd7519c6231360fb218419c4fbeedaa63264388ca57e55aacf2f6dfd6d"
     },
     {
       "bytes": 130010,
@@ -85,13 +92,15 @@
       "scope": "TASK8_SCOPED_SINGLE_HOST_FINAL_DOCUMENTATION"
     },
     {
-      "bytes": 106428,
       "path": "README.md",
-      "scope": "TASK9_ROOT_M3_ORIGINAL_OWNER_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "1a478fd1d31718e16c5d4627c9734d70f6b84c43014198e5f004808f2c11184d",
-      "source_blob_sha256": "441bd9d77e6a6a2c5e14967d58d39fc1dbff7d0b50ed96c6d1018cea287efd5f",
+      "bytes": 109276,
+      "sha256": "161702850e7babd415bd694987271965067c8540d35fecd7864ffed638398f56",
       "source_bytes_preserved": false,
-      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
+      "scope": "TASK9_SOURCE_FRONT_CURRENT_DOCUMENTATION_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "1a478fd1d31718e16c5d4627c9734d70f6b84c43014198e5f004808f2c11184d"
     },
     {
       "bytes": 367,
@@ -604,17 +613,25 @@
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/mod.rs",
-      "bytes": 13698,
-      "sha256": "6e2a6e8e530b213ef9d3a76faf5747ac5a3c6c3c947d746d59d7cbe3cd606332",
+      "bytes": 14283,
+      "sha256": "47357bbb0f355c186ee9f2ecfb5a10555f2385e9219d084ca24bdcf7ff8d39db",
       "source_bytes_preserved": false,
-      "scope": "TASK9_ROOT_M3_ORIGINAL_OWNER_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_SOURCE_FRONT_FORMATTED_CANDIDATE_DEFAULT_OFF_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "6e2a6e8e530b213ef9d3a76faf5747ac5a3c6c3c947d746d59d7cbe3cd606332"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy.rs",
-      "bytes": 14246,
-      "sha256": "a87964a6194d11a612d1efdcd1a6c42195677d62cc916038956498c9ee96cb29",
-      "source_bytes_preserved": true,
-      "scope": "TASK9_R2B_TASK2C_SIGNATURE_DATA_AND_APPROVED_SOURCE_SCOPE_ONLY"
+      "bytes": 15758,
+      "sha256": "16384578be3714c6da755b046c276b5ec555ee9f4ae71a441a2eb9ef9b8144eb",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_SOURCE_FRONT_FORMATTED_CANDIDATE_DEFAULT_OFF_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "a87964a6194d11a612d1efdcd1a6c42195677d62cc916038956498c9ee96cb29"
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/policy/installed.rs",
@@ -643,6 +660,16 @@
       "sha256": "d49bba0f5e48688b4305bb9cd24b6fc8e8761be62d053b4f60853a62427fca6d",
       "source_bytes_preserved": true,
       "scope": "TASK9_R2B_TASK2B_UNAUTHENTICATED_PIPE_IO_AND_LIMITED_LINUX_CHECKS"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/source_actor.rs",
+      "bytes": 15522,
+      "sha256": "cfa9a550777a4e116e40163806b827a01361698ba925a42b74b008409e42887c",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_SOURCE_FRONT_FORMATTED_CANDIDATE_DEFAULT_OFF_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": false
     },
     {
       "path": "crates/learning-backup/src/offhost_b1/source_launch.rs",
@@ -739,13 +766,15 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 62447,
       "path": "crates/learning-backup/src/registry.rs",
-      "sha256": "266441a5b037bdf3e3a8930b9e0d1e6ca736a49819251fcac4f930cb62d4fa0c",
-      "source_blob_sha256": "ae50d7942b922bc1879f6aab613e8f70eab39537afa590f15a415e92429c4abb",
+      "bytes": 64170,
+      "sha256": "dd940ddd0a6232c9d9e3d5944d0b6de4e5e486a029008b36cf613511a7b0fd60",
       "source_bytes_preserved": false,
-      "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a",
-      "scope": "TASK9_S5_CONSUMER_C11_DATA_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_SOURCE_FRONT_FORMATTED_CANDIDATE_DEFAULT_OFF_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "266441a5b037bdf3e3a8930b9e0d1e6ca736a49819251fcac4f930cb62d4fa0c"
     },
     {
       "bytes": 19036,
@@ -2170,16 +2199,14 @@
     },
     {
       "path": "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
-      "bytes": 154752,
-      "sha256": "cd44b8c69e3e7f4d4d0418f6634224031ab291858a1a1b2133edc784d846e31f",
+      "bytes": 155494,
+      "sha256": "f199ffd5541e8794a0e1c122ee3d308e7ff46195ca5e9407d78ca27e67cd3716",
       "source_bytes_preserved": false,
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "source_provenance": {
-        "kind": "SEALED_CANDIDATE_FORMATTED_BYTES_NOT_BASE46b_BLOB",
-        "candidate_index_sha256": "a3d6bd10d5da6b911a67685ae5e72dee1e6f5501cf7cbd40b883b1e222b110e6",
-        "source_refs_sha256": "011790c5e2ac16ccec68dbcf89f53c76643815b268439352d4451cb9e282dd46",
-        "format_result_sha256": "67152c3070f15e505252dcfb3f976a933b5750d220c11e5f97142cd79ceb1e8f"
-      }
+      "scope": "TASK9_SOURCE_FRONT_FORMATTED_CANDIDATE_DEFAULT_OFF_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "cd44b8c69e3e7f4d4d0418f6634224031ab291858a1a1b2133edc784d846e31f"
     },
     {
       "path": "crates/learning-db/src/snapshot_broker/b1_peer/session.rs",
@@ -2190,16 +2217,14 @@
     },
     {
       "path": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
-      "bytes": 47675,
-      "sha256": "15062afe67b0e07c89325c2f8bb3514cdc299ff4b87fe5519985f11336929761",
+      "bytes": 48875,
+      "sha256": "e5762a76ada71a4ddf24b9579846bb31c0e5d1d046c293d010bf95efa78860f9",
       "source_bytes_preserved": false,
-      "scope": "TASK9_DB3_FIXED_CONTROL_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "source_provenance": {
-        "kind": "SEALED_CANDIDATE_FORMATTED_BYTES_NOT_BASE46b_BLOB",
-        "candidate_index_sha256": "a3d6bd10d5da6b911a67685ae5e72dee1e6f5501cf7cbd40b883b1e222b110e6",
-        "source_refs_sha256": "011790c5e2ac16ccec68dbcf89f53c76643815b268439352d4451cb9e282dd46",
-        "format_result_sha256": "67152c3070f15e505252dcfb3f976a933b5750d220c11e5f97142cd79ceb1e8f"
-      }
+      "scope": "TASK9_SOURCE_FRONT_FORMATTED_CANDIDATE_DEFAULT_OFF_ORDINARY_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "15062afe67b0e07c89325c2f8bb3514cdc299ff4b87fe5519985f11336929761"
     },
     {
       "bytes": 2432,
@@ -3764,12 +3789,15 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 49402,
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "scope": "TASK9_ROOT_M3_ORIGINAL_OWNER_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "1e1b009632f6c55a4855969db72610c0cf480563957aeb0a920ee94459b6c96f",
-      "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "bytes": 47742,
+      "sha256": "b3f31fcc8491ad5518ec816b9fc0c4af46f2c9f09488e336f75acef15b17854d",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_SOURCE_FRONT_CURRENT_DOCUMENTATION_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "1e1b009632f6c55a4855969db72610c0cf480563957aeb0a920ee94459b6c96f"
     },
     {
       "bytes": 2582,
@@ -4663,10 +4691,14 @@
     },
     {
       "path": "docs/task9/r2b-implementation-progress.md",
-      "bytes": 46026,
-      "sha256": "3fafc7999d45664fdb3c4b5925f62576117e247215501f46d0ad5670dc6e38ab",
+      "bytes": 48874,
+      "sha256": "20f50625c7fe468e4af96014ff7838dac4ec8b63f912155165843cc42b18639c",
       "source_bytes_preserved": false,
-      "scope": "TASK9_ROOT_M3_ORIGINAL_OWNER_ORDINARY_NOT_RUNTIME_NOT_TASK9"
+      "scope": "TASK9_SOURCE_FRONT_CURRENT_DOCUMENTATION_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "3fafc7999d45664fdb3c4b5925f62576117e247215501f46d0ad5670dc6e38ab"
     },
     {
       "path": "docs/task9/r2b-source-actor-code-contract.md",
@@ -4767,12 +4799,15 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 140113,
       "path": "docs/项目最新进度.md",
-      "scope": "TASK9_ROOT_M3_ORIGINAL_OWNER_ORDINARY_NOT_RUNTIME_NOT_TASK9",
-      "sha256": "fddc6c40ee5a8ece1d7839d0f8523a5bbc076b117ac2025aeebf08edc32c1c29",
-      "source_blob_sha256": null,
-      "source_bytes_preserved": false
+      "bytes": 142961,
+      "sha256": "810c52441fcf169a0c94fccc599982116ea5f352492befcfd2133b5200efb829",
+      "source_bytes_preserved": false,
+      "scope": "TASK9_SOURCE_FRONT_CURRENT_DOCUMENTATION_NOT_RUNTIME_NOT_TASK9",
+      "candidate_source_index_sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8",
+      "previous_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+      "exists_in_previous_base": true,
+      "previous_base_raw_sha256": "fddc6c40ee5a8ece1d7839d0f8523a5bbc076b117ac2025aeebf08edc32c1c29"
     },
     {
       "bytes": 25431,
@@ -5622,7 +5657,7 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 700,
+  "manifest_file_count_excludes_manifest_itself": 701,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
   "previous_public_commit": "a3a209711f5441c25093aeb5052fe538537d03b0",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
@@ -15477,5 +15512,174 @@
     "source_base_tree": "f7915076d0d613d08a1443383e18c25be26c4122",
     "source_leaves": 17,
     "status": "ROOT_M3_ORIGINAL_OWNER_SLICE_FULL_ORDINARY_BACKUP_DB_CHECKED_NOT_RUNTIME_NOT_TASK9"
+  },
+  "task9_r2b_source_front_preflight_ordinary": {
+    "status": "SOURCE_FRONT_PREFLIGHT_AND_PUBLICATION_STAGE_ORDINARY_CHECKED_NOT_RUNTIME_NOT_TASK9",
+    "source_base_commit": "00e154651b1e9bb3b7fe763a5a905db24cef992b",
+    "source_base_tree": "3afc4575c3130c51234f6c338a44f1c192f267cb",
+    "current_tree_file_count": 702,
+    "current_manifest_rows_excluding_itself": 701,
+    "source_leaves": {
+      "crates/learning-backup/src/offhost_b1/mod.rs": {
+        "bytes": 14283,
+        "sha256": "47357bbb0f355c186ee9f2ecfb5a10555f2385e9219d084ca24bdcf7ff8d39db"
+      },
+      "crates/learning-backup/src/offhost_b1/policy.rs": {
+        "bytes": 15758,
+        "sha256": "16384578be3714c6da755b046c276b5ec555ee9f4ae71a441a2eb9ef9b8144eb"
+      },
+      "crates/learning-backup/src/offhost_b1/source_actor.rs": {
+        "bytes": 15522,
+        "sha256": "cfa9a550777a4e116e40163806b827a01361698ba925a42b74b008409e42887c"
+      },
+      "crates/learning-backup/src/registry.rs": {
+        "bytes": 64170,
+        "sha256": "dd940ddd0a6232c9d9e3d5944d0b6de4e5e486a029008b36cf613511a7b0fd60"
+      },
+      "crates/learning-db/src/snapshot_broker/b1_peer/process.rs": {
+        "bytes": 155494,
+        "sha256": "f199ffd5541e8794a0e1c122ee3d308e7ff46195ca5e9407d78ca27e67cd3716"
+      },
+      "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs": {
+        "bytes": 48875,
+        "sha256": "e5762a76ada71a4ddf24b9579846bb31c0e5d1d046c293d010bf95efa78860f9"
+      }
+    },
+    "new_source_paths": [
+      "crates/learning-backup/src/offhost_b1/source_actor.rs"
+    ],
+    "existing_source_paths": 5,
+    "outside_six_exact_base": 696,
+    "formatted_source_index": {
+      "bytes": 121673,
+      "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-formatted-source-2026-10-31-1/SOURCE-INDEX.json",
+      "sha256": "70d167758913df3768dd9ea225e3374ef2f33dfe706ce094086731b5972f36a8"
+    },
+    "formatted_CODE_gate": {
+      "bytes": 3433,
+      "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-formatted-source-2026-10-31-1/CODE-GATE.json",
+      "sha256": "3dbefd73582b4502c98910947c1d64ae6ae79d1e4c7ccd8a9ba4d0f5e3ff1b27"
+    },
+    "new_ordinary_tests": {
+      "bytes": 2401,
+      "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-formatted-source-2026-10-31-1/TEST-DELTA.json",
+      "sha256": "b425ce3e152550b327474b04e13a3d994825e955b8fb06d6d1d320cd0d063ada"
+    },
+    "backup_new_bodies": 9,
+    "DB_peer_new_bodies": 3,
+    "distinct_new_bodies_total": 12,
+    "ordinary_counts": {
+      "backup": {
+        "default": {
+          "passed": 450,
+          "ignored": 106,
+          "filtered": 0
+        },
+        "offhost": {
+          "passed": 603,
+          "ignored": 106,
+          "filtered": 0
+        }
+      },
+      "db": {
+        "default": {
+          "passed": 62,
+          "ignored": 24,
+          "filtered": 0
+        },
+        "peer": {
+          "passed": 123,
+          "ignored": 26,
+          "filtered": 0
+        }
+      }
+    },
+    "format_tests_executed": 0,
+    "backup_full_phase_count": 13,
+    "DB_full_phase_count": 13,
+    "actual_modes": {
+      "backup": {
+        "evidence_zip": {
+          "bytes": 194683,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-checks-packages-2026-10-31-1/prepared-checks-c77672b1-49a8-4bba-9c18-d2641394e8a1/evidence.zip",
+          "sha256": "e168e74700b0914dfef3557aaef3675ab3f0324a0c2c3814f1dc00715910b767"
+        },
+        "independent_OTHER": {
+          "bytes": 4478,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-backup-actual-other-2026-10-31-1/REVIEW.json",
+          "sha256": "081d31bda574e1b66a35601e68cd0fbc2aa266e4b755987190d1fa03433f7589"
+        },
+        "mode_name": "checks",
+        "result": {
+          "bytes": 142037,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-checks-packages-2026-10-31-1/prepared-checks-c77672b1-49a8-4bba-9c18-d2641394e8a1/collected/result.json",
+          "sha256": "c26a80e1d2209f6a4448787ed05e35f02c7fbd0edf96082da75abcc24e9348bb"
+        }
+      },
+      "db": {
+        "evidence_zip": {
+          "bytes": 121494,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-checks-packages-2026-10-31-1/prepared-db-checks-8d323357-2598-4219-83ed-3f27f577e988/evidence.zip",
+          "sha256": "e151d24ed9b8f8811f33e0004ff677335368ab05ec61da33f002ab63041eb12e"
+        },
+        "independent_OTHER": {
+          "bytes": 4449,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-db-actual-other-2026-10-31-1/REVIEW.json",
+          "sha256": "ae426135af01b629f3977cb40fa8e702297ae0b582807cc64abb5f8048243b1b"
+        },
+        "mode_name": "db-checks",
+        "result": {
+          "bytes": 31306,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-checks-packages-2026-10-31-1/prepared-db-checks-8d323357-2598-4219-83ed-3f27f577e988/collected/result.json",
+          "sha256": "c9c07fa782fbd29b99048da007a63c4cc2ab270791169ea8da65f4c3de04cf11"
+        }
+      },
+      "format": {
+        "evidence_zip": {
+          "bytes": 264240,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-package-2026-10-31-1/prepared-format-c82f07d5-413b-4949-b73c-d4eb6aa00c80/evidence.zip",
+          "sha256": "51fff0def438e26e12229f470637ded0602b872b0c0aae344ddebebbbc4ae170"
+        },
+        "independent_OTHER": {
+          "bytes": 4287,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-format-actual-code-other-2026-10-31-1/REVIEW.json",
+          "sha256": "f10a519a4ba23ebfcd82ecdbe28917f544c9270d5ef1b94a85879c44d258a52a"
+        },
+        "mode_name": "format",
+        "result": {
+          "bytes": 3890,
+          "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-package-2026-10-31-1/prepared-format-c82f07d5-413b-4949-b73c-d4eb6aa00c80/collected/result.json",
+          "sha256": "a3e853a3803cbb5ad65328d24446f7aa6a00e857c94591c8556d1da92ee00e1c"
+        }
+      }
+    },
+    "independent_OTHER_admission": {
+      "path": "D:/codex/DeepLearning/.worktrees/knowweave-task7-attention/.artifacts/task9-r2b-source-front-publication-admission-other-2026-10-31-1/OTHER-ADMISSION.json",
+      "bytes": 4636,
+      "sha256": "09fb42bb6907e5735055e243e082f756c34a65a4f2154154b3e178d5cead41be"
+    },
+    "source_preflight_scope": "Registry snapshot plus Task1b metadata only; not complete SourceGroup/Catalog/firstS admission.",
+    "default_off": true,
+    "public_Source_zero_effect_refusal": true,
+    "M6_not_wired": true,
+    "preflight_registry_snapshot_and_Task1b_metadata_only": true,
+    "full_SourceGroup_Catalog_or_firstS_validated": false,
+    "capabilities_added": false,
+    "runtime_authority_wired": false,
+    "genuine_Root_PG_positive_credit": false,
+    "Task9_accepted": false,
+    "C4_accepted": false,
+    "installed": false,
+    "installation_authorized": false,
+    "keys_or_trust_installed": false,
+    "first_S": false,
+    "source_READY": false,
+    "fence_installed": false,
+    "CompleteBackup": false,
+    "main_merged": false,
+    "production_deployed": false,
+    "cross_config_execution_counts_summed_as_distinct_tests": false,
+    "global64_proved": false,
+    "S5_closed_pipeline_complete": false
   }
 }

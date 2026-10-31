@@ -31,6 +31,19 @@ mod wire;
 )]
 mod source_launch;
 
+// This private Source preflight/Capture owner has no public M6 consumer yet.
+// The public Source route below still refuses before every side effect. This
+// allowance records that precise default-off integration boundary; it does not
+// suppress a correctness lint or qualify the internal phase as a publication S.
+#[cfg(target_os = "linux")]
+#[allow(
+    dead_code,
+    reason = "Private Source front preparation awaits the unimplemented M6 consumer; no runtime integration credit"
+)]
+mod source_actor;
+#[cfg(target_os = "linux")]
+pub(crate) use source_actor::SourceFrontOriginal;
+
 #[cfg(target_os = "linux")]
 mod capture_child;
 #[cfg(target_os = "linux")]

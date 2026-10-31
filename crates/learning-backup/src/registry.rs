@@ -578,6 +578,45 @@ impl ManagementRegistry {
         })();
         admission.record_result(observed)
     }
+    /// Metadata preflight only. This accepts the same opaque, genuine Source
+    /// original; no caller-selected path, meter, failure flag or admin session.
+    /// The wrapper and once-only lease belong to preflight, never publication S.
+    #[cfg(all(target_os = "linux", feature = "offhost-b1"))]
+    pub(crate) fn open_installed_source_preflight(
+        original: &crate::offhost_b1::SourceFrontOriginal,
+    ) -> Result<Self, BackupError> {
+        let observed = (|| {
+            original.revalidate()?;
+            // Burn the original preflight open before any registry Root IO.
+            // This creates a fresh wrapper from the factory's same meter.
+            let (budget, admission_failed) = original.take_preflight_scope()?;
+            let path = Path::new(REGISTRY_PATH);
+            {
+                let mut scan = budget
+                    .lock()
+                    .map_err(|_| BackupError::Invalid("B1 scan budget"))?;
+                scan.entries(path.components().count().saturating_mul(4) + 4)?;
+                scan.charge(4096)?;
+            }
+            let root = BackupDir::open_trusted_private_root(path)?;
+            let registry = Self {
+                root,
+                path: path.to_owned(),
+                budget,
+                b1_scope: Some(B1RegistryScope {
+                    admission_failed,
+                    lease_attempted: std::sync::atomic::AtomicBool::new(false),
+                }),
+            };
+            linux::read_snapshot(&registry.root, &registry.path, &registry.budget)?;
+            original.revalidate()?;
+            Ok(registry)
+        })();
+        if observed.is_err() {
+            original.reject();
+        }
+        observed
+    }
     fn open(path: &Path) -> Result<Self, BackupError> {
         let root = BackupDir::open_trusted_private_root(path)?;
         #[allow(unused_mut)]

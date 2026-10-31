@@ -2416,6 +2416,17 @@ pub(super) fn root_control_remaining(start: u64, now: u64) -> Result<std::time::
     }
     Ok(std::time::Duration::from_nanos(end - now))
 }
+// A phase/DATA predicate only, never a constructor for a session or custody.
+// Its sole product caller first revalidates the actual process original and
+// derives both held flags from that same locked OriginalState. Publication's
+// existing HostPublicationAdmin slot still independently enforces one attempt.
+pub(super) fn source_publication_phase_data(
+    phase: usize,
+    held_capture: bool,
+    held_settlement: bool,
+) -> bool {
+    phase == 3 && held_capture && !held_settlement
+}
 fn root_control_deadline(start: u64, scan: &SharedJournalBudget) -> Result<Instant> {
     // Anchor before the kernel observation: conversion cannot extend the
     // original Root monotonic endpoint by time spent observing the clock.
@@ -3090,7 +3101,15 @@ impl ProcessCustodyCore {
             {
                 Ok(session::AdminStage::Capture)
             }
-            (job::ProcessRole::Source, 1) => Ok(session::AdminStage::Publication),
+            (job::ProcessRole::Source, phase)
+                if source_publication_phase_data(
+                    phase,
+                    state.source_captured.is_some(),
+                    state.source_settlement.is_some(),
+                ) =>
+            {
+                Ok(session::AdminStage::Publication)
+            }
             _ => Err(Error::Phase),
         }
     }

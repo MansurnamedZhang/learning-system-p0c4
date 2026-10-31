@@ -1,5 +1,21 @@
 # Task9 R2b实施进展
 
+## 2026-10-31：Source 前段准备代码与发布顺序谓词通过限定检查；Task9 继续实施
+
+本轮沿用已批准的 37 文件编码合同，实际改动五个现有源码文件并新增一个私有 source_actor.rs。内部 Source 前端保存同一真实 peer 原件，复用累计扫描计费，补齐 registry 快照与 Task1b 安装元数据的预检桥；重复进入、失败及借用中止会保留拒绝状态。该预检范围尚不包括完整 SourceGroup/Catalog 或首次 S 的准入。
+
+代码明确在释放 holder → lease → registry 后，才通过同一原件请求唯一 Capture，并在原 Book 保留返回的 opaque DATA。DB 的 Source 发布阶段相应要求输入采集已返回实际 DATA，原 child/cut 仍保留且尚未结算。当前公开 Source 入口继续在任何副作用前拒绝；上述内部准备没有接通 M6，也没有形成真实 Root/PG/C11 或首次 S 的运行验收。
+
+已在既有开发服务器的普通用户、固定离线 builder 中完成格式检查、Backup 13 道门及 DB 13 道门，包含严格 Clippy、编译、精确列举与全部非 ignored 库单元测试。Backup 默认配置 450 passed / 106 ignored，offhost 配置 603 passed / 106 ignored；DB 默认配置 62 passed / 24 ignored，peer 配置 123 passed / 26 ignored。新增普通组件测试共 12 个独立测试体（Backup 9、DB peer 3）；不同 feature 配置中的重复执行不重复计数，既有 ignored 用例没有执行或改名。
+
+本轮受测全源候选共 702 个文件；六个源码路径之外的 696 个文件与基线字节完全一致。Linux 格式器仅合并 source_actor.rs 中一个表达式的换行，测试体与属性保持原样。三批检查均保留源码和原始证据，源文件前后未变，检查容器自然退出并按精确 ID 清理；格式检查本身不提供编译或测试信用。三批原始日志、源码字节与容器收尾均已完成独立核对，并与准确源码 CODE 闭环。 这一字节比较针对受测候选，随后同步的进度文档另行更新。
+
+下一步在同一真实原件和批准文件范围内接入私有 Publication 准入、当前 registry/保护快照与 Catalog/SourceGroup 关联，建立首次 S 及原定时钟、Root/C11 生命周期与完整累计计费链路，再完成 Source/M6 和对端交互。此次普通组件回归没有证明全链 global64、S5、D Ready、fence 或 CompleteBackup。
+
+此次工作没有生成或安装密钥、信任、launcher，没有改变 PostgreSQL 或安全权限，没有执行真实目标整链、源端断联或恢复；没有合并 main 或部署生产。真实独立目标上的安装、签名托管和正式异机验收仍须按具体目标、影响及最小权限范围另行实施与确认。Task9 和 P0-C4 的正式验收状态继续保持未完成。
+
+---
+
 ## Root生产者与M3内部片段完成两组普通回归，Source整链仍开放 · 2026-10-29
 
 默认关闭的Root生产者与M3原始持有者片段已完成源码独审和同一701文件快照的两组完整普通Linux回归：Backup默认450通过／106忽略、offhost594通过／106忽略；DB默认62通过／24忽略、peer120通过／26忽略。各组13门全部退出0，均0失败／0过滤。新增29个不同正文为Root17、M3 Backup9和DB peer3；配置之间重复执行的正文不累加。

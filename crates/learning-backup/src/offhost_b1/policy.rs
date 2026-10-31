@@ -14,6 +14,45 @@ use serde::{Deserialize, Serialize};
 
 mod installed;
 
+/// Fixed metadata custody preflight. The Task1b holder remains owned by its
+/// existing loader; no private child fields are extracted or reparsed here.
+/// Every normal/error path drops holder, then its borrowed lease, then registry.
+/// No holder, lease, FD, selected SourceGroup or authority escapes this facade.
+#[cfg(target_os = "linux")]
+pub(super) fn preflight_fixed_source_metadata(
+    original: &super::source_actor::SourceFrontOriginal,
+) -> Result<(), BackupError> {
+    let observed = (|| {
+        original.revalidate()?;
+        let pins = BuildPins::parse(super::fixed_build_inputs(), Role::Source)?;
+        let registry = crate::ManagementRegistry::open_installed_source_preflight(original)?;
+        let result = match registry.try_lock() {
+            Ok(lease) => {
+                let result = match installed::load_installed(&pins, &lease) {
+                    Ok(mut held) => {
+                        let result = original
+                            .revalidate()
+                            .and_then(|()| held.recheck())
+                            .and_then(|()| original.revalidate());
+                        drop(held);
+                        result
+                    }
+                    Err(error) => Err(error),
+                };
+                drop(lease);
+                result
+            }
+            Err(error) => Err(error),
+        };
+        drop(registry);
+        result
+    })();
+    if observed.is_err() {
+        original.reject();
+    }
+    observed
+}
+
 const SOURCE_POLICY_PATH: &str = "/var/lib/knowweave-c4/b1/source-policy.json";
 const DESTINATION_POLICY_PATH: &str = "/var/lib/knowweave-c4/b1/destination-policy.json";
 const FENCE_ROOT: &str = "/var/lib/knowweave-c4-source-fences";
