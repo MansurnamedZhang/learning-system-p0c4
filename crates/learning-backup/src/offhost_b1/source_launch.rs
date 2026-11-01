@@ -31,6 +31,34 @@ const CONTROL_FRAMES: u64 = 64;
 const CONTROL_BYTES: u64 = 262_400;
 const OBSERVATION_NAME: &str = "install-cutover-observation.json";
 
+// Fixed C0 deployment recipe, selected only by the reviewed B1 code. These
+// fifteen mount rows are unrelated to the twelve captured-source proof files.
+const C0_RELEASE: &str = "/opt/knowweave-c4/b1-capture";
+const C0_POLICY: &str = "/var/lib/knowweave-c4/b1/source-policy.json";
+const C0_LAUNCH: &str = "/var/lib/knowweave-c4/b1/launch-manifest.json";
+const C0_FENCE: &str = "/var/lib/knowweave-c4-source-fences";
+const C0_PARENTS: [&str; 4] = [
+    "/var", "/var/lib", "/var/lib/knowweave-c4", "/var/lib/knowweave-c4/b1",
+];
+const C0_TOPOLOGY: [(&str, &str, bool); 15] = [
+    (C0_RELEASE, "bind", false),
+    ("/run/kwc4/sfx", "bind", true),
+    ("/usr/bin/docker", "bind", false),
+    (C0_FENCE, "bind", false),
+    ("/var/lib/knowweave-c4/b1-source-observation", "bind", false),
+    (C0_LAUNCH, "bind", false),
+    (C0_POLICY, "bind", false),
+    ("/var/lib/knowweave-c4/registry", "volume", true),
+    (InstalledSnapshotBinding::COMPANION_PATH, "volume", true),
+    (InstalledSnapshotBinding::EXPORT_PATH, "volume", true),
+    ("/var/lib/knowweave-source", "volume", true),
+    ("/var/lib/knowweave-source/assets", "bind", false),
+    ("/var/lib/postgresql", "volume", true),
+    ("/var/run/docker.sock", "bind", false),
+    ("/var/run/postgresql", "volume", true),
+];
+
+
 fn invalid() -> BackupError {
     BackupError::Invalid("B1 C11 original DATA mismatch")
 }
@@ -461,6 +489,56 @@ fn dedicated<'a>(
     }
     Ok(mount)
 }
+// Borrowed strings are DATA only; no caller path is opened by this predicate.
+fn c0_sources(row: &ContainerProjection) -> Result<[&str; 3], BackupError> {
+    if row.mounts.len() != C0_TOPOLOGY.len() {
+        return Err(invalid());
+    }
+    for (m, (destination, kind, rw)) in row.mounts.iter().zip(C0_TOPOLOGY) {
+        if m.destination != destination || m.kind != kind || m.rw != rw
+            || (kind == "volume" && m.name.as_ref().is_none_or(String::is_empty))
+        {
+            return Err(invalid());
+        }
+    }
+    let find = |target| row.mounts.iter().find(|m| m.destination == target).ok_or_else(invalid);
+    let release = find(C0_RELEASE)?;
+    let policy = find(C0_POLICY)?;
+    let launch = find(C0_LAUNCH)?;
+    let fence = find(C0_FENCE)?;
+    if policy.source.strip_prefix(release.source.as_str()) != Some("/capture-source-policy.json")
+        || launch.source.strip_prefix(release.source.as_str()) != Some("/capture-launch-manifest.json")
+        || fence.source != C0_FENCE
+        || [policy, launch, fence].iter().any(|m| m.name.as_ref().is_some_and(|n| !n.is_empty()))
+    {
+        return Err(invalid());
+    }
+    Ok([policy.source.as_str(), launch.source.as_str(), fence.source.as_str()])
+}
+fn c0_sources_metered<'a>(row: &'a ContainerProjection, meter: &SharedJournalBudget) -> Result<[&'a str; 3], BackupError> {
+    let work = row.mounts.iter().try_fold(256usize, |n, m| {
+        n.checked_add(m.destination.len()).and_then(|n| n.checked_add(m.source.len()))
+            .and_then(|n| n.checked_add(m.kind.len()))
+            .and_then(|n| n.checked_add(m.name.as_ref().map_or(0, String::len)))
+            .ok_or_else(invalid)
+    })?;
+    pay(meter, work.checked_mul(8).ok_or_else(invalid)?, row.mounts.len().checked_mul(8).ok_or_else(invalid)?)?;
+    c0_sources(row)
+}
+fn c0_rw_projection(
+    rows: &[ContainerProjection], sources: [&str; 3], meter: &SharedJournalBudget,
+) -> Result<(), BackupError> {
+    for row in rows {
+        for mount in &row.mounts {
+            let work = sources.iter().try_fold(mount.source.len(), |n,p| n.checked_add(p.len()).ok_or_else(invalid))?;
+            pay(meter, work.checked_mul(8).ok_or_else(invalid)?, 8)?;
+            if mount.rw && sources.iter().any(|p| contains(p, &mount.source) || contains(&mount.source, p)) {
+                return Err(invalid());
+            }
+        }
+    }
+    Ok(())
+}
 fn check_projection(
     host: &HostCutoverData,
     installed: &InstalledMountData,
@@ -472,10 +550,12 @@ fn check_projection(
         || own.image_sha256 != installed.image_sha256
         || own.project.as_deref() != Some(installed.compose_project.as_str())
         || own.service.as_deref() != Some("pg")
-        || own.mounts.len() != 12
+        || own.mounts.len() != C0_TOPOLOGY.len()
     {
         return Err(invalid());
     }
+    let sources = c0_sources_metered(own, meter)?;
+    c0_rw_projection(&host.complete_container_projection, sources, meter)?;
     let export = dedicated(own, InstalledSnapshotBinding::EXPORT_PATH)?;
     let companion = dedicated(own, InstalledSnapshotBinding::COMPANION_PATH)?;
     if export.name == companion.name
@@ -2458,35 +2538,18 @@ mod data_tests {
     // constructors. The foreign container below is deliberately outside the
     // Compose project so alias rejection cannot depend on a project filter.
     fn projection_fixture() -> (HostCutoverData, InstalledMountData) {
-        let destinations = [
-            "/var/lib/postgresql",
-            "/var/lib/knowweave-source",
-            "/var/lib/knowweave-source/assets",
-            "/var/lib/knowweave-c4/registry",
-            InstalledSnapshotBinding::COMPANION_PATH,
-            InstalledSnapshotBinding::EXPORT_PATH,
-            "/run/kwc4/sfx",
-            "/var/lib/knowweave-c4/b1-source-observation",
-            "/opt/knowweave-c4/b1-capture",
-            "/usr/bin/docker",
-            "/var/run/docker.sock",
-            "/var/run/postgresql",
-        ];
-        let mut mounts: Vec<MountProjection> = destinations
-            .into_iter()
-            .enumerate()
-            .map(|(index, destination)| {
-                let dedicated = destination == InstalledSnapshotBinding::COMPANION_PATH
-                    || destination == InstalledSnapshotBinding::EXPORT_PATH;
-                MountProjection {
-                    source: format!("/data/fixture-{index}"),
-                    destination: destination.into(),
-                    rw: ![2, 7, 8, 9, 10].contains(&index),
-                    kind: if dedicated { "volume" } else { "bind" }.into(),
-                    name: dedicated.then(|| format!("fixture-volume-{index}")),
-                }
-            })
-            .collect();
+        let mut mounts: Vec<MountProjection> = C0_TOPOLOGY.into_iter().enumerate()
+            .map(|(index, (destination, kind, rw))| MountProjection {
+                source: match destination {
+                    C0_POLICY => "/data/fixture-release/capture-source-policy.json".into(),
+                    C0_LAUNCH => "/data/fixture-release/capture-launch-manifest.json".into(),
+                    C0_FENCE => C0_FENCE.into(),
+                    C0_RELEASE => "/data/fixture-release".into(),
+                    _ => format!("/data/fixture-{index}"),
+                },
+                destination: destination.into(), kind: kind.into(), rw,
+                name: (kind == "volume").then(|| format!("fixture-volume-{index}")),
+            }).collect();
         mounts.sort_unstable_by(|a, b| a.destination.cmp(&b.destination));
         let rows: Vec<serde_json::Value> = mounts
             .iter()
@@ -2553,6 +2616,208 @@ mod data_tests {
             mount_digest,
         };
         (host, installed)
+    }
+
+    fn c0_projection_recipe(host: &HostCutoverData) -> String {
+        let own = host.complete_container_projection.iter().find(|v| v.container_id == host.container_id).unwrap();
+        let rows: Vec<serde_json::Value> = own.mounts.iter().map(|m| serde_json::json!({
+            "destination":m.destination,"source":m.source,"kind":m.kind,"rw":m.rw,"name":m.name.as_deref().unwrap_or("")
+        })).collect();
+        hex::encode(Sha256::digest(registry::canonical(&rows).unwrap()))
+    }
+
+    #[test]
+    fn c0_exact_fifteen_preserves_original_twelve_rows() {
+        let original = [
+            (C0_RELEASE,"bind",false),("/run/kwc4/sfx","bind",true),("/usr/bin/docker","bind",false),
+            ("/var/lib/knowweave-c4/b1-source-observation","bind",false),("/var/lib/knowweave-c4/registry","volume",true),
+            (InstalledSnapshotBinding::COMPANION_PATH,"volume",true),(InstalledSnapshotBinding::EXPORT_PATH,"volume",true),
+            ("/var/lib/knowweave-source","volume",true),("/var/lib/knowweave-source/assets","bind",false),
+            ("/var/lib/postgresql","volume",true),("/var/run/docker.sock","bind",false),("/var/run/postgresql","volume",true),
+        ];
+        let retained: Vec<_> = C0_TOPOLOGY.into_iter().filter(|m| ![C0_POLICY,C0_LAUNCH,C0_FENCE].contains(&m.0)).collect();
+        assert_eq!(retained.as_slice(),original);
+        assert!(C0_TOPOLOGY.windows(2).all(|v| v[0].0 < v[1].0));
+        let (host,installed) = projection_fixture();
+        check_projection(&host,&installed,&SharedJournalBudget::default()).unwrap();
+        assert_eq!(c0_sources(&host.complete_container_projection[0]).unwrap(),[
+            "/data/fixture-release/capture-source-policy.json","/data/fixture-release/capture-launch-manifest.json",C0_FENCE,
+        ]);
+    }
+
+    #[test]
+    fn c0_projection_rejects_old_twelve_and_extra_mount() {
+        for count in [12,14,15,16] {
+            let (mut host,mut installed) = projection_fixture();
+            let mounts = &mut host.complete_container_projection[0].mounts;
+            match count {
+                12 => mounts.retain(|v| ![C0_POLICY,C0_LAUNCH,C0_FENCE].contains(&v.destination.as_str())),
+                14 => { mounts.remove(3); }
+                15 => { mounts[4].destination = mounts[3].destination.clone(); }
+                16 => mounts.push(MountProjection {source:"/declared-extra".into(),destination:"/declared-extra".into(),kind:"bind".into(),rw:false,name:None}),
+                _ => unreachable!(),
+            }
+            mounts.sort_unstable_by(|a,b| a.destination.cmp(&b.destination));
+            installed.mount_digest = c0_projection_recipe(&host);
+            assert!(check_projection(&host,&installed,&SharedJournalBudget::default()).is_err());
+        }
+    }
+
+    #[test]
+    fn c0_projection_rejects_policy_launch_or_fence_rw() {
+        for target in [C0_POLICY,C0_LAUNCH,C0_FENCE] {
+            for change in ["rw","kind","source","name"] {
+                let (mut host,mut installed) = projection_fixture();
+                let mount = host.complete_container_projection[0].mounts.iter_mut().find(|m| m.destination == target).unwrap();
+                match change {
+                    "rw" => mount.rw = true,
+                    "kind" => mount.kind = "volume".into(),
+                    "source" => mount.source = "/different-release/or-fence".into(),
+                    "name" => mount.name = Some("new-authority-is-not-a-name".into()),
+                    _ => unreachable!(),
+                }
+                installed.mount_digest = c0_projection_recipe(&host);
+                assert!(check_projection(&host,&installed,&SharedJournalBudget::default()).is_err());
+            }
+        }
+        for rw_source in ["/data/fixture-release","/var/lib","/var/lib/knowweave-c4-source-fences/staging/child"] {
+            let (mut host,installed) = projection_fixture();
+            host.complete_container_projection.push(ContainerProjection {
+                container_id:"ff".repeat(32),image_sha256:format!("sha256:{}","aa".repeat(32)),running:false,
+                process_id:0,started_at:"DATA_ONLY".into(),restart_count:0,project:Some("outside-project".into()),service:None,
+                mounts:vec![MountProjection {source:rw_source.into(),destination:"/other-view".into(),kind:"bind".into(),rw:true,name:None}],
+            });
+            assert!(check_projection(&host,&installed,&SharedJournalBudget::default()).is_err());
+        }
+        // The own PG's other RW mounts are also in the complete DATA set.
+        let (mut host,mut installed) = projection_fixture();
+        host.complete_container_projection[0].mounts.iter_mut().find(|m| m.destination == "/run/kwc4/sfx").unwrap().source = C0_FENCE.into();
+        installed.mount_digest = c0_projection_recipe(&host);
+        assert!(check_projection(&host,&installed,&SharedJournalBudget::default()).is_err());
+        // These lexical DATA probes do not prove actual host inode aliases.
+    }
+
+    #[test]
+    fn c0_five_field_hash_covers_actual_source_name_and_ro() {
+        let (host,installed) = projection_fixture();
+        assert_eq!(c0_projection_recipe(&host),installed.mount_digest);
+        for field in ["source","name","rw"] {
+            let (mut changed,_) = projection_fixture();
+            let mount = changed.complete_container_projection[0].mounts.iter_mut().find(|m| m.destination == "/var/lib/postgresql").unwrap();
+            match field {
+                "source" => mount.source.push_str("-changed"),
+                "name" => mount.name = Some("changed-original-volume-name".into()),
+                "rw" => mount.rw = false,
+                _ => unreachable!(),
+            }
+            assert_ne!(c0_projection_recipe(&changed),installed.mount_digest);
+            assert!(check_projection(&changed,&installed,&SharedJournalBudget::default()).is_err());
+        }
+        let (mut changed,_) = projection_fixture();
+        changed.complete_container_projection[0].mounts.iter_mut().find(|m| m.destination == C0_POLICY).unwrap().name = Some(String::new());
+        assert_eq!(c0_projection_recipe(&changed),installed.mount_digest);
+        check_projection(&changed,&installed,&SharedJournalBudget::default()).unwrap();
+        changed.assets_mount.name = ActualOptionalString::Present(None);
+        assert!(same_before_after(&host,&changed,&installed,&SharedJournalBudget::default()).is_err());
+    }
+
+    fn c0_capture_policy_values() -> (serde_json::Value,serde_json::Value,serde_json::Value) {
+        use crate::offhost_b1::tests::{AUTH,COMMIT,HASH};
+        let id = "11111111-1111-4111-8111-111111111111";
+        let registry = serde_json::json!({"path":crate::registry::REGISTRY_PATH,"dev":1,"ino":2,"authority_sha256":HASH,"lock_dev":1,"lock_ino":3});
+        let anchor = serde_json::json!({
+            "format_version":1,"capability":"task9_b1_source_fence_anchor_v1","profile":"task9-b1-limited-v1",
+            "deployment_id":id,"registry_anchor":registry,"fence_root":{"path":C0_FENCE,"dev":1,"ino":4,"uid":0,"mode":448},"launch_id":id,
+        });
+        let policy = serde_json::json!({
+            "format_version":1,"capability":"task9_b1_source_policy_v1","profile":"task9-b1-limited-v1","role":"source",
+            "deployment_id":id,"source_group_id":id,"registry_anchor":registry,"source_control_binding_sha256":HASH,
+            "source_auth_public_key_sha256":AUTH,"source_auth_key_path":"/var/lib/knowweave-c4/b1/source-auth.pk8",
+            "source_fence_anchor_sha256":HASH,"manager_release_sha256":"44".repeat(32),"manager_build_input_sha256":HASH,
+            "destination_verifier_public_key_sha256":HASH,
+            "source_connection":{"method":"private_unix_socket_no_password","socket_dir":"/run/knowweave-c4-source-pg","database":"data_only","role":"data_owner"},
+            "transport":{"ssh_path":"/usr/bin/ssh","host":"example.invalid","port":22,"user":"data_transport",
+                "known_hosts_path":"/var/lib/knowweave-c4/b1/known-hosts","transport_key_path":"/var/lib/knowweave-c4/b1/transport-key",
+                "remote_command":"/usr/local/libexec/knowweave-c4-b1-receiver","destination_deployment_id":"22222222-2222-4222-8222-222222222222","destination_policy_sha256":HASH},
+            "launch_id":id,
+        });
+        let manifest = serde_json::json!({
+            "format_version":1,"capability":"task9_b1_launch_manifest_v1","profile":"task9-b1-limited-v1","launch_id":id,"role":"source",
+            "code_commit":COMMIT,"build_input_sha256":HASH,"binary_sha256":"44".repeat(32),"launcher_sha256":HASH,
+            "policy_sha256":HASH,"anchor_sha256":HASH,"source_auth_public_key_sha256":AUTH,"destination_verifier_public_key_sha256":HASH,"transport_public_key_sha256":HASH,
+        });
+        (policy,anchor,manifest)
+    }
+    fn c0_encode_capture_policy(values:(serde_json::Value,serde_json::Value,serde_json::Value)) -> [Vec<u8>;3] {
+        let (mut policy,anchor,mut launch) = values;
+        let anchor = registry::canonical(&anchor).unwrap();
+        policy["source_fence_anchor_sha256"] = crate::digest(&anchor).into();
+        let policy = registry::canonical(&policy).unwrap();
+        launch["policy_sha256"] = crate::digest(&policy).into();
+        launch["anchor_sha256"] = crate::digest(&anchor).into();
+        [policy,anchor,registry::canonical(&launch).unwrap()]
+    }
+    fn c0_parse_capture_policy(raw:&[Vec<u8>;3]) -> bool {
+        crate::offhost_b1::policy::parse_source_inputs(&raw[0],&raw[1],&raw[2],&crate::offhost_b1::tests::pins(crate::offhost_b1::Role::Source)).is_ok()
+    }
+
+    #[test]
+    fn c0_capture_policy_uses_own_manager_build_and_release() {
+        let raw = c0_encode_capture_policy(c0_capture_policy_values());
+        assert!(c0_parse_capture_policy(&raw));
+        let value:serde_json::Value = serde_json::from_slice(&raw[0]).unwrap();
+        let launch:serde_json::Value = serde_json::from_slice(&raw[2]).unwrap();
+        assert_eq!(value["manager_build_input_sha256"],launch["build_input_sha256"]);
+        assert_eq!(value["manager_release_sha256"],launch["binary_sha256"]);
+        // Canonical DATA succeeds; no installed Capture/process was constructed.
+    }
+
+    #[test]
+    fn c0_publication_bundle_cannot_substitute_capture_manager_pins() {
+        let (mut policy,anchor,mut launch) = c0_capture_policy_values();
+        policy["manager_build_input_sha256"] = "77".repeat(32).into();
+        policy["manager_release_sha256"] = "88".repeat(32).into();
+        launch["build_input_sha256"] = "77".repeat(32).into();
+        launch["binary_sha256"] = "88".repeat(32).into();
+        assert!(!c0_parse_capture_policy(&c0_encode_capture_policy((policy,anchor,launch))));
+        let (mut policy,anchor,launch) = c0_capture_policy_values();
+        policy["manager_release_sha256"] = "88".repeat(32).into();
+        assert!(!c0_parse_capture_policy(&c0_encode_capture_policy((policy,anchor,launch))));
+    }
+
+    #[test]
+    fn c0_parser_checks_crossrecord_shape_and_compiled_pins_only() {
+        let other = "22222222-2222-4222-8222-222222222222";
+        let (mut policy,mut anchor,launch) = c0_capture_policy_values();
+        policy["source_group_id"] = other.into();
+        policy["deployment_id"] = other.into(); anchor["deployment_id"] = other.into();
+        policy["registry_anchor"]["ino"] = 23.into(); anchor["registry_anchor"]["ino"] = 23.into();
+        // Expected-Catalog/current Group/registry comparisons belong to held
+        // admission, not this unchanged pure parser accepting valid foreign DATA.
+        assert!(c0_parse_capture_policy(&c0_encode_capture_policy((policy,anchor,launch))));
+        for change in ["group-shape","compiled-control","anchor-deployment","launch-cross-record"] {
+            let (mut policy,mut anchor,mut launch) = c0_capture_policy_values();
+            match change {
+                "group-shape" => policy["source_group_id"] = "not-a-v4".into(),
+                "compiled-control" => policy["source_control_binding_sha256"] = "99".repeat(32).into(),
+                "anchor-deployment" => anchor["deployment_id"] = other.into(),
+                "launch-cross-record" => launch["launch_id"] = other.into(),
+                _ => unreachable!(),
+            }
+            // Every hash/canonical preimage is recomputed; this is not rejection
+            // of an accidentally stale hash posing as a semantic assertion.
+            assert!(!c0_parse_capture_policy(&c0_encode_capture_policy((policy,anchor,launch))));
+        }
+    }
+
+    #[test]
+    fn c0_capture_negative_bundle_keeps_fixed_connection_and_transport_paths() {
+        for pointer in ["/source_auth_key_path","/source_connection/socket_dir","/source_connection/method",
+            "/transport/ssh_path","/transport/known_hosts_path","/transport/transport_key_path","/transport/remote_command"] {
+            let (mut policy,anchor,launch) = c0_capture_policy_values();
+            *policy.pointer_mut(pointer).unwrap() = "/caller-selected/forbidden".into();
+            assert!(!c0_parse_capture_policy(&c0_encode_capture_policy((policy,anchor,launch))));
+        }
     }
 
     #[test]
@@ -4603,8 +4868,10 @@ mod root_runtime {
     const NSFS_MAGIC: libc::c_long = 0x6e736673;
     const NS_GET_NSTYPE: libc::c_ulong = 0xb703;
     const RESOLVE_NO_XDEV: u64 = 0x01;
+    const RESOLVE_NO_MAGICLINKS: u64 = 0x02;
     const RESOLVE_NO_SYMLINKS: u64 = 0x04;
     const RESOLVE_BENEATH: u64 = 0x08;
+    const RESOLVE_IN_ROOT: u64 = 0x10;
     #[repr(C)]
     struct OpenHow {
         flags: u64,
@@ -8218,20 +8485,7 @@ mod root_runtime {
             stdin_bytes: written_stdin,
         })
     }
-    const TOPOLOGY: [(&str, &str, bool); 12] = [
-        ("/opt/knowweave-c4/b1-capture", "bind", false),
-        ("/run/kwc4/sfx", "bind", true),
-        ("/usr/bin/docker", "bind", false),
-        (OBSERVATION_ROOT, "bind", false),
-        ("/var/lib/knowweave-c4/registry", "volume", true),
-        (InstalledSnapshotBinding::COMPANION_PATH, "volume", true),
-        (InstalledSnapshotBinding::EXPORT_PATH, "volume", true),
-        ("/var/lib/knowweave-source", "volume", true),
-        ("/var/lib/knowweave-source/assets", "bind", false),
-        ("/var/lib/postgresql", "volume", true),
-        ("/var/run/docker.sock", "bind", false),
-        ("/var/run/postgresql", "volume", true),
-    ];
+    const TOPOLOGY: [(&str, &str, bool); 15] = C0_TOPOLOGY;
     fn projection(
         v: &serde_json::Value,
         scan: &SharedJournalBudget,
@@ -8299,6 +8553,464 @@ mod root_runtime {
     ) -> Result<T> {
         parse(&encode(data, cap, scan)?, cap, scan)
     }
+    // A generic observed RW destination may have ordinary image symlink
+    // parents. Resolve it only inside this same actual process root, reject
+    // magic links, and obtain metadata only. Protected source/metadata opens
+    // continue to use the unchanged NO_SYMLINKS open_beneath reader.
+    fn open_rw_target_metadata(root: &File, destination: &str, scan: &SharedJournalBudget) -> Result<File> {
+        if !job::path(destination) { return Err(invalid()); }
+        fd_gate(2,scan)?;
+        pay(scan,destination.len().checked_mul(2).and_then(|n| n.checked_add(128)).ok_or_else(invalid)?,2)?;
+        let relative = CString::new(&destination[1..]).map_err(|_| invalid())?;
+        let how = OpenHow { flags:(libc::O_PATH | libc::O_CLOEXEC) as u64, mode:0,
+            resolve:RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS };
+        let raw = unsafe { libc::syscall(libc::SYS_openat2,root.as_raw_fd(),relative.as_ptr(),&how,std::mem::size_of::<OpenHow>()) };
+        if raw < 0 { return Err(invalid()); }
+        Ok(unsafe { File::from_raw_fd(i32::try_from(raw).map_err(|_| invalid())?) })
+    }
+    // Fixed private purposes selected only by the nine original Root slots;
+    // neither caller DATA nor installed JSON can select a weaker purpose.
+    #[derive(Clone,Copy,PartialEq,Eq)]
+    enum C0PathPurpose { Release, Private }
+    fn c0_directory_permission(stamp: Stamp, purpose: C0PathPurpose) -> bool {
+        stamp.uid == 0 && stamp.mode & libc::S_IFMT == libc::S_IFDIR && stamp.mode & 0o022 == 0
+            && (purpose == C0PathPurpose::Release || stamp.gid == 0 && stamp.mode & 0o7777 == 0o700)
+    }
+    // Private, negative-only original Root custody. These fields cannot create
+    // an actor; every opened FD is stored before its next fallible observation.
+    struct C0HeldPath {
+        path: String,
+        maximum: Option<u64>,
+        purpose: C0PathPurpose,
+        file: Option<File>,
+        probe: Option<File>,
+        stamp: Option<Stamp>,
+        parents: Vec<(String, Stamp)>,
+        raw: Option<Vec<u8>>,
+        digest: Option<[u8; 32]>,
+        observed: Option<Vec<u8>>,
+    }
+    impl C0HeldPath {
+        fn empty(path: &str, maximum: Option<u64>, purpose: C0PathPurpose, scan: &SharedJournalBudget) -> Result<Self> {
+            if !super::path(path) { return Err(invalid()); }
+            let count = path.split('/').count();
+            let storage = count.checked_mul(std::mem::size_of::<(String, Stamp)>())
+                .and_then(|n| n.checked_add(path.len().checked_mul(8)?))
+                .and_then(|n| n.checked_add(std::mem::size_of::<Self>())).ok_or_else(invalid)?;
+            pay(scan, storage, count.checked_mul(3).ok_or_else(invalid)?)?;
+            Ok(Self { path: path.to_owned(), maximum, purpose, file: None, probe: None,
+                stamp: None, parents: Vec::with_capacity(count), raw: None, digest: None, observed: None })
+        }
+        fn check(&mut self, root: &File, scan: &SharedJournalBudget) -> Result<()> {
+            if self.file.is_none() {
+                let flags = libc::O_RDONLY | libc::O_NONBLOCK | if self.maximum.is_none() { libc::O_DIRECTORY } else { 0 };
+                self.file = Some(open_beneath(root, &self.path, flags, scan)?);
+                self.stamp = Some(Stamp::observe(self.file.as_ref().ok_or_else(invalid)?, scan)?);
+            }
+            let original = self.stamp.ok_or_else(invalid)?;
+            if original.uid != 0
+                || match self.maximum {
+                    Some(cap) => original.gid != 0 || !original.root_file(cap) || original.mode & 0o7777 != 0o600,
+                    None => !c0_directory_permission(original,self.purpose),
+                }
+            { return Err(invalid()); }
+            // Root and every parent are independently opened beneath this same
+            // held host/PG-root object. Only the fixed private loader/fence
+            // parent requires0700; R keeps the original root-owned/no022 rule.
+            let mut index = 0usize;
+            for end in std::iter::once(1).chain(self.path.bytes().enumerate().filter_map(|(i,b)| (i > 0 && b == b'/').then_some(i))) {
+                let prefix = &self.path[..end];
+                self.probe = Some(if prefix == "/" {
+                    fd_gate(2, scan)?;
+                    pay(scan, 0, 1)?;
+                    root.try_clone()?
+                } else { open_beneath(root, prefix, libc::O_RDONLY | libc::O_DIRECTORY, scan)? });
+                let now = Stamp::observe(self.probe.as_ref().ok_or_else(invalid)?, scan)?;
+                if !c0_directory_permission(now,C0PathPurpose::Release) { return Err(invalid()); }
+                if let Some((name, prior)) = self.parents.get(index) {
+                    if name != prefix || !now.same_directory_identity(prior) { return Err(invalid()); }
+                } else {
+                    pay(scan, prefix.len() + std::mem::size_of::<(String, Stamp)>(), 1)?;
+                    self.parents.push((prefix.to_owned(), now));
+                }
+                self.probe = None; // this successful readonly parent observation settled
+                index += 1;
+            }
+            if index != self.parents.len() || self.maximum.is_some() && self.parents.last().is_none_or(|(_,m)| !c0_directory_permission(*m,self.purpose)) { return Err(invalid()); }
+            self.named(root, scan)?;
+            if let Some(cap) = self.maximum {
+                if original.bytes == 0 || original.bytes > cap { return Err(invalid()); }
+                self.observed = Some(read_exact_file(self.file.as_mut().ok_or_else(invalid)?, original.bytes, scan)?);
+                let hash = digest_bytes(self.observed.as_deref().ok_or_else(invalid)?, scan)?;
+                if let Some(raw) = &self.raw {
+                    pay(scan, raw.len(), 1)?;
+                    if self.observed.as_ref() != Some(raw) || self.digest != Some(hash) { return Err(invalid()); }
+                    self.observed = None;
+                } else {
+                    self.raw = self.observed.take();
+                    self.digest = Some(hash);
+                }
+                self.named(root, scan)?;
+            }
+            Ok(())
+        }
+        fn check_release_leaf(&mut self, host_root: &File, release: &File, leaf: &str, scan: &SharedJournalBudget) -> Result<()> {
+            // The original source leaf is first opened beneath the held R FD,
+            // not by accepting an equal-bytes file at a reconstructed prefix.
+            if self.file.is_none() {
+                self.file = Some(open_beneath(release, leaf, libc::O_RDONLY | libc::O_NONBLOCK, scan)?);
+                self.stamp = Some(Stamp::observe(self.file.as_ref().ok_or_else(invalid)?, scan)?);
+            }
+            self.check(host_root, scan)?;
+            self.probe = Some(open_beneath(release, leaf, libc::O_PATH, scan)?);
+            if Some(Stamp::observe(self.probe.as_ref().ok_or_else(invalid)?, scan)?) != self.stamp { return Err(invalid()); }
+            self.probe = None;
+            Ok(())
+        }
+        fn named(&mut self, root: &File, scan: &SharedJournalBudget) -> Result<()> {
+            let flags = libc::O_PATH | if self.maximum.is_none() { libc::O_DIRECTORY } else { 0 };
+            self.probe = Some(open_beneath(root, &self.path, flags, scan)?);
+            let named = Stamp::observe(self.probe.as_ref().ok_or_else(invalid)?, scan)?;
+            let held = Stamp::observe(self.file.as_ref().ok_or_else(invalid)?, scan)?;
+            let prior = self.stamp.ok_or_else(invalid)?;
+            if if self.maximum.is_some() { named != prior || held != prior }
+                else { !named.same_directory_identity(&prior) || !held.same_directory_identity(&prior) }
+            { return Err(invalid()); }
+            self.probe = None;
+            require_cloexec(self.file.as_ref().ok_or_else(invalid)?.as_raw_fd())
+        }
+    }
+    struct C0OriginalViews {
+        capture_root: Option<File>,
+        capture_probe: Option<File>,
+        capture_object: Option<NativeObject>,
+        pg_pid: Option<u32>,
+        paths: [Option<C0HeldPath>; 9],
+        physical_probe: Option<File>,
+        physical_root: Option<File>,
+        physical_target: Option<File>,
+        tree_probe: Option<File>,
+        tree_entry: Option<File>,
+        tree_objects: Vec<NativeObject>,
+        tree_directories: Vec<(String, Stamp)>,
+        namespace_fixed: [Option<Stamp>; 3],
+    }
+    impl C0OriginalViews {
+        fn empty() -> Self { Self { capture_root: None, capture_probe: None, capture_object: None,
+            pg_pid: None, paths: std::array::from_fn(|_| None), physical_probe: None,
+            physical_root: None, physical_target: None, tree_probe: None, tree_entry: None, tree_objects: Vec::new(),
+            tree_directories: Vec::new(), namespace_fixed: [None; 3] } }
+        fn path(&self, index: usize) -> Result<&C0HeldPath> { self.paths.get(index).and_then(Option::as_ref).ok_or_else(invalid) }
+        fn compare_files(&self, a: usize, b: usize, scan: &SharedJournalBudget) -> Result<()> {
+            let a = self.path(a)?; let b = self.path(b)?;
+            pay(scan, a.raw.as_ref().map_or(0, Vec::len).checked_add(b.raw.as_ref().map_or(0, Vec::len)).ok_or_else(invalid)?, 2)?;
+            if a.stamp != b.stamp || a.raw.is_none() || a.raw != b.raw || a.digest != b.digest { return Err(invalid()); }
+            Ok(())
+        }
+        fn check(
+            &mut self, host_root: &File, proc: &ProcView, catalog: &job::ExecutionCatalog,
+            full: &HostCutoverData, scan: &SharedJournalBudget,
+        ) -> Result<()> {
+            let own = full.complete_container_projection.iter().find(|v| v.container_id == full.container_id).ok_or_else(invalid)?;
+            let sources = c0_sources_metered(own, scan)?;
+            c0_rw_projection(&full.complete_container_projection, sources, scan)?;
+            let pid = u32::try_from(own.process_id).map_err(|_| invalid())?;
+            pay(scan, 128, 3)?;
+            if self.capture_root.is_none() {
+                self.capture_root = Some(proc.open_checked_magic(&format!("{pid}/root"), scan)?);
+                self.capture_object = Some(actual_object(self.capture_root.as_ref().ok_or_else(invalid)?, scan)?);
+                self.pg_pid = Some(pid);
+            }
+            self.capture_probe = Some(proc.open_checked_magic(&format!("{pid}/root"), scan)?);
+            if self.pg_pid != Some(pid)
+                || self.capture_object != Some(actual_object(self.capture_probe.as_ref().ok_or_else(invalid)?, scan)?)
+                || self.capture_object != Some(actual_object(self.capture_root.as_ref().ok_or_else(invalid)?, scan)?)
+            { return Err(invalid()); }
+            self.capture_probe = None;
+            let release = own.mounts.iter().find(|m| m.destination == C0_RELEASE).ok_or_else(invalid)?;
+            let names = [sources[0], C0_POLICY, sources[1], C0_LAUNCH, sources[2], C0_FENCE,
+                release.source.as_str(), "/var/lib/knowweave-c4-source-fences/anchor.json", "/var/lib/knowweave-c4-source-fences/anchor.json"];
+            for i in [6,0,1,2,3,4,5,7,8] {
+                let name = names[i];
+                let cap = match i { 0 | 1 => Some(16_384), 2 | 3 | 7 | 8 => Some(4096), _ => None };
+                let purpose = if [0,2,6].contains(&i) { C0PathPurpose::Release } else { C0PathPurpose::Private };
+                if self.paths[i].is_none() { self.paths[i] = Some(C0HeldPath::empty(name, cap, purpose, scan)?); }
+                if self.path(i)?.path != name || self.path(i)?.maximum != cap || self.path(i)?.purpose != purpose { return Err(invalid()); }
+                if [0,2].contains(&i) {
+                    let (leaves, roots) = self.paths.split_at_mut(6);
+                    let release = roots[0].as_ref().and_then(|v| v.file.as_ref()).ok_or_else(invalid)?;
+                    let leaf = if i == 0 { "/capture-source-policy.json" } else { "/capture-launch-manifest.json" };
+                    leaves[i].as_mut().ok_or_else(invalid)?.check_release_leaf(host_root,release,leaf,scan)?;
+                } else {
+                    let root = if [1,3,5,8].contains(&i) { self.capture_root.as_ref().ok_or_else(invalid)? } else { host_root };
+                    self.paths[i].as_mut().ok_or_else(invalid)?.check(root, scan)?;
+                }
+            }
+            self.compare_files(0, 1, scan)?;
+            self.compare_files(2, 3, scan)?;
+            self.compare_files(7, 8, scan)?;
+            if !self.path(4)?.stamp.ok_or_else(invalid)?.same_directory_identity(&self.path(5)?.stamp.ok_or_else(invalid)?) { return Err(invalid()); }
+            let manifest_raw = self.path(2)?.raw.as_deref().ok_or_else(invalid)?;
+            let manifest: job::LaunchManifest = parse(manifest_raw, 4096, scan)?;
+            manifest.validate()?;
+            let capture = image(catalog, "Capture")?;
+            let launcher = image(catalog, "RootLauncher")?;
+            pay(scan, 512, 10)?;
+            if capture.launch_manifest.bytes != manifest_raw.len() as u64
+                || capture.launch_manifest.sha256 != hex::encode(self.path(2)?.digest.ok_or_else(invalid)?)
+                || manifest.code_commit != capture.code_commit || manifest.build_input_sha256 != capture.build_input_sha256
+                || manifest.binary_sha256 != capture.executable.sha256 || manifest.launcher_sha256 != launcher.executable.sha256
+                || manifest.launch_id != catalog.launch_id
+                || manifest.policy_sha256 != hex::encode(self.path(0)?.digest.ok_or_else(invalid)?)
+                || manifest.anchor_sha256 != hex::encode(self.path(7)?.digest.ok_or_else(invalid)?)
+                || manifest.source_auth_public_key_sha256 != catalog.installed_source.source_auth_public_key_sha256
+            { return Err(invalid()); }
+            self.check_metadata_join(catalog, &manifest, scan)?;
+            self.check_fence_tree(host_root, scan)?;
+            self.reject_rw_aliases(host_root, proc, full, scan)
+        }
+        fn check_metadata_join(&self, catalog: &job::ExecutionCatalog, launch: &job::LaunchManifest, scan: &SharedJournalBudget) -> Result<()> {
+            // Negative comparisons of already held original DATA only. These
+            // values cannot qualify a process or replace Task1b's strict loader,
+            // actual current Group/registry admission, or the original Catalog.
+            let policy_raw = self.path(0)?.raw.as_deref().ok_or_else(invalid)?;
+            let anchor_raw = self.path(7)?.raw.as_deref().ok_or_else(invalid)?;
+            let policy: serde_json::Value = parse(policy_raw, 16_384, scan)?;
+            let anchor: serde_json::Value = parse(anchor_raw, 4096, scan)?;
+            pay(scan, policy_raw.len().checked_add(anchor_raw.len()).and_then(|n| n.checked_mul(16)).ok_or_else(invalid)?, 32)?;
+            let original = &catalog.installed_source;
+            let capture = image(catalog,"Capture")?;
+            let fence = self.path(4)?.stamp.ok_or_else(invalid)?;
+            if policy["role"].as_str() != Some("source")
+                || policy["deployment_id"].as_str() != Some(original.deployment_id.as_str())
+                || policy["source_group_id"].as_str() != Some(original.source_group_id.as_str())
+                || policy["source_control_binding_sha256"].as_str() != Some(original.source_control_binding_sha256.as_str())
+                || policy["source_auth_public_key_sha256"].as_str() != Some(original.source_auth_public_key_sha256.as_str())
+                || policy["manager_build_input_sha256"].as_str() != Some(capture.build_input_sha256.as_str())
+                || policy["manager_release_sha256"].as_str() != Some(capture.executable.sha256.as_str())
+                || policy["destination_verifier_public_key_sha256"].as_str() != Some(launch.destination_verifier_public_key_sha256.as_str())
+                || policy["launch_id"].as_str() != Some(catalog.launch_id.as_str())
+                || policy["registry_anchor"] != anchor["registry_anchor"]
+                || policy["registry_anchor"]["path"].as_str() != Some(crate::registry::REGISTRY_PATH)
+                || policy["registry_anchor"]["authority_sha256"].as_str() != Some(original.registry_authority_sha256.as_str())
+                || policy["source_connection"]["database"].as_str() != Some(original.database.as_str())
+                || policy["source_connection"]["role"].as_str() != Some(catalog.peer_endpoint.admin_role.as_str())
+                || anchor["deployment_id"].as_str() != Some(original.deployment_id.as_str())
+                || anchor["launch_id"].as_str() != Some(catalog.launch_id.as_str())
+                || anchor["fence_root"]["path"].as_str() != Some(C0_FENCE)
+                || anchor["fence_root"]["dev"].as_u64() != Some(fence.dev)
+                || anchor["fence_root"]["ino"].as_u64() != Some(fence.ino)
+                || anchor["fence_root"]["uid"].as_u64() != Some(0)
+                || anchor["fence_root"]["mode"].as_u64() != Some(0o700)
+            { return Err(invalid()); }
+            Ok(())
+        }
+        fn fence_directory_names(&mut self, root: &File, path: &str, cap: usize, scan: &SharedJournalBudget) -> Result<Vec<String>> {
+            self.tree_probe = Some(open_beneath(root, path, libc::O_RDONLY | libc::O_DIRECTORY, scan)?);
+            let file = self.tree_probe.as_ref().ok_or_else(invalid)?;
+            let before = Stamp::observe(file, scan)?;
+            if before.uid != 0 || before.gid != 0 || before.mode & libc::S_IFMT != libc::S_IFDIR || before.mode & 0o7777 != 0o700 { return Err(invalid()); }
+            pay(scan, cap.checked_mul(std::mem::size_of::<String>()).and_then(|n| n.checked_add(4096)).ok_or_else(invalid)?, 1)?;
+            let mut names = Vec::with_capacity(cap);
+            let mut buffer = [0_u8; 4096];
+            loop {
+                pay(scan, buffer.len(), 1)?;
+                let n = unsafe { libc::syscall(libc::SYS_getdents64, file.as_raw_fd(), buffer.as_mut_ptr(), buffer.len()) };
+                if n < 0 { return Err(invalid()); }
+                if n == 0 { break; }
+                let n = usize::try_from(n).map_err(|_| invalid())?;
+                if n > buffer.len() { return Err(invalid()); }
+                let mut at = 0usize;
+                while at < n {
+                    if at.checked_add(19).is_none_or(|v| v > n) { return Err(invalid()); }
+                    let length = u16::from_ne_bytes([buffer[at + 16],buffer[at + 17]]) as usize;
+                    if length < 20 || at.checked_add(length).is_none_or(|v| v > n) { return Err(invalid()); }
+                    let field = &buffer[at + 19..at + length];
+                    let end = field.iter().position(|b| *b == 0).ok_or_else(invalid)?;
+                    let name = &field[..end];
+                    if name != b"." && name != b".." {
+                        if names.len() >= cap || name.is_empty() || name.contains(&b'/') { return Err(invalid()); }
+                        pay(scan, name.len().checked_mul(20).ok_or_else(invalid)?, 1)?;
+                        names.push(std::str::from_utf8(name).map_err(|_| invalid())?.to_owned());
+                    }
+                    at += length;
+                }
+            }
+            names.sort_unstable();
+            if names.windows(2).any(|v| v[0] == v[1]) || Stamp::observe(file, scan)? != before { return Err(invalid()); }
+            if self.tree_directories.len() >= 259 || self.tree_objects.len() >= 517 { return Err(invalid()); }
+            pay(scan, path.len(), 2)?;
+            self.tree_directories.push((path.to_owned(),before));
+            self.tree_objects.push(NativeObject { dev: before.dev, ino: before.ino, kind: libc::S_IFDIR });
+            self.tree_probe = None;
+            Ok(names)
+        }
+        fn fence_leaf(&mut self, root: &File, path: &str, cap: u64, scan: &SharedJournalBudget) -> Result<Stamp> {
+            self.tree_entry = Some(open_beneath(root, path, libc::O_PATH, scan)?);
+            let stamp = Stamp::observe(self.tree_entry.as_ref().ok_or_else(invalid)?, scan)?;
+            if stamp.uid != 0 || stamp.gid != 0 || stamp.mode & libc::S_IFMT != libc::S_IFREG
+                || stamp.mode & 0o7777 != 0o600 || stamp.links != 1 || stamp.bytes > cap
+                || self.tree_objects.len() >= 517 { return Err(invalid()); }
+            pay(scan, 0, 1)?;
+            self.tree_objects.push(NativeObject { dev: stamp.dev, ino: stamp.ino, kind: libc::S_IFREG });
+            self.tree_entry = None;
+            Ok(stamp)
+        }
+        fn check_fence_tree(&mut self, root: &File, scan: &SharedJournalBudget) -> Result<()> {
+            // These exact bounds derive from the existing namespace: four top
+            // entries, at most 256 v4 operations shared by its two directories,
+            // each containing at most the one fixed open.json. No recursive
+            // arbitrary tree or same-device exemption is accepted. Nonempty
+            // original fences are allowed here: Root still supervises Source
+            // after CaptureSettled while its legitimate fence is being written.
+            if self.tree_objects.capacity() == 0 {
+                pay(scan, 517usize.checked_mul(std::mem::size_of::<NativeObject>()).ok_or_else(invalid)?, 1)?;
+                self.tree_objects = Vec::with_capacity(517);
+            }
+            if self.tree_directories.capacity() == 0 {
+                pay(scan, 259usize.checked_mul(std::mem::size_of::<(String,Stamp)>()).ok_or_else(invalid)?, 1)?;
+                self.tree_directories = Vec::with_capacity(259);
+            }
+            self.tree_objects.clear(); self.tree_directories.clear();
+            if self.fence_directory_names(root, C0_FENCE, 4, scan)?.iter().map(String::as_str).ne(["anchor.json","lock","operations","staging"]) { return Err(invalid()); }
+            let anchor = self.fence_leaf(root, "/var/lib/knowweave-c4-source-fences/anchor.json", 4096, scan)?;
+            if Some(anchor) != self.path(7)?.stamp { return Err(invalid()); }
+            let lock = self.fence_leaf(root, "/var/lib/knowweave-c4-source-fences/lock", 0, scan)?;
+            if let Some(prior) = self.namespace_fixed[0] { if lock != prior { return Err(invalid()); } }
+            else { self.namespace_fixed[0] = Some(lock); }
+            let mut operation_count = 0usize;
+            for (slot, top) in [(1,"operations"),(2,"staging")] {
+                pay(scan, C0_FENCE.len() + top.len() + 1, 1)?;
+                let parent = format!("{C0_FENCE}/{top}");
+                let names = self.fence_directory_names(root, &parent, 256, scan)?;
+                operation_count = operation_count.checked_add(names.len()).filter(|n| *n <= 256).ok_or_else(invalid)?;
+                let stamp = self.tree_directories.last().ok_or_else(invalid)?.1;
+                if let Some(prior) = self.namespace_fixed[slot] {
+                    if !stamp.same_directory_identity(&prior) { return Err(invalid()); }
+                } else { self.namespace_fixed[slot] = Some(stamp); }
+                for name in names {
+                    if !registry::v4(&name) { return Err(invalid()); }
+                    pay(scan, parent.len() + name.len() + 1, 1)?;
+                    let operation = format!("{parent}/{name}");
+                    let files = self.fence_directory_names(root, &operation, 1, scan)?;
+                    if !files.is_empty() && files.iter().map(String::as_str).ne(["open.json"]) { return Err(invalid()); }
+                    if !files.is_empty() {
+                        pay(scan, operation.len() + 10, 1)?;
+                        self.fence_leaf(root, &format!("{operation}/open.json"), 16_384, scan)?;
+                    }
+                }
+            }
+            // A second full named-stamp sweep closes the cross-directory move
+            // window (e.g. staging->operations). A partial/moving tree is HOLD,
+            // never an excuse to omit an object or to retry with a fresh tree.
+            for (path, stamp) in &self.tree_directories {
+                self.tree_probe = Some(open_beneath(root, path, libc::O_PATH | libc::O_DIRECTORY, scan)?);
+                if Stamp::observe(self.tree_probe.as_ref().ok_or_else(invalid)?, scan)? != *stamp { return Err(invalid()); }
+                self.tree_probe = None;
+            }
+            self.paths[4].as_mut().ok_or_else(invalid)?.named(root,scan)
+        }
+        fn reject_rw_aliases(&mut self, root: &File, proc: &ProcView, full: &HostCutoverData, scan: &SharedJournalBudget) -> Result<()> {
+            // Sample each actual RW source and each of its real ancestor objects.
+            // Prefix strings alone cannot detect a bind alias to the same inode.
+            for container in &full.complete_container_projection {
+                for mount in &container.mounts {
+                    if !mount.rw { continue; }
+                    pay(scan, mount.source.len() * 8 + 256, mount.source.split('/').count() * 2 + 3)?;
+                    self.physical_probe = Some(open_beneath(root, &mount.source, libc::O_PATH, scan)?);
+                    let rw = actual_object(self.physical_probe.as_ref().ok_or_else(invalid)?, scan)?;
+                    if ![libc::S_IFREG, libc::S_IFDIR].contains(&rw.kind) { return Err(invalid()); }
+                    if container.running {
+                        // Inspect.Source is a pathname, not proof of the inode
+                        // still bound into a running container. Join the actual
+                        // target under that current process root as well; a
+                        // renamed/replaced host source is an unknown, not an
+                        // excuse to omit the old mounted object from protection.
+                        let pid = u32::try_from(container.process_id).map_err(|_| invalid())?;
+                        if pid == 0 { return Err(invalid()); }
+                        pay(scan, 256, 4)?;
+                        let before = proc.read_relative(&format!("{pid}/stat"),4096,scan)?;
+                        pay(scan, before.len().checked_mul(8).ok_or_else(invalid)?,8)?;
+                        let start = parse_start(&before,pid)?;
+                        self.physical_root = Some(proc.open_checked_magic(&format!("{pid}/root"),scan)?);
+                        let original_root = actual_object(self.physical_root.as_ref().ok_or_else(invalid)?,scan)?;
+                        self.physical_target = Some(open_rw_target_metadata(self.physical_root.as_ref().ok_or_else(invalid)?,&mount.destination,scan)?);
+                        if actual_object(self.physical_target.as_ref().ok_or_else(invalid)?,scan)? != rw { return Err(invalid()); }
+                        self.tree_probe = Some(proc.open_checked_magic(&format!("{pid}/root"),scan)?);
+                        if actual_object(self.tree_probe.as_ref().ok_or_else(invalid)?,scan)? != original_root { return Err(invalid()); }
+                        let after = proc.read_relative(&format!("{pid}/stat"),4096,scan)?;
+                        pay(scan, after.len().checked_mul(8).ok_or_else(invalid)?,8)?;
+                        if parse_start(&after,pid)? != start { return Err(invalid()); }
+                        self.tree_probe = None;
+                    }
+                    pay(scan, self.tree_objects.len().checked_mul(std::mem::size_of::<NativeObject>()).ok_or_else(invalid)?, self.tree_objects.len())?;
+                    if self.tree_objects.contains(&rw) { return Err(invalid()); }
+                    for index in [0,2,4] {
+                        let protected = self.path(index)?;
+                        pay(scan, protected.parents.len().checked_mul(std::mem::size_of::<Stamp>()).ok_or_else(invalid)?, protected.parents.len().checked_add(1).ok_or_else(invalid)?)?;
+                        let leaf = protected.stamp.ok_or_else(invalid)?;
+                        if (rw.dev,rw.ino,rw.kind) == (leaf.dev,leaf.ino,leaf.mode & libc::S_IFMT)
+                            || protected.parents.iter().any(|(_,p)| rw.kind == libc::S_IFDIR && rw.dev == p.dev && rw.ino == p.ino)
+                        { return Err(invalid()); }
+                    }
+                    self.physical_probe = None;
+                    // A RW source below any physical alias of the fence root
+                    // is also forbidden, including a differently named subtree.
+                    let fence = self.path(4)?.stamp.ok_or_else(invalid)?;
+                    for end in mount.source.bytes().enumerate().filter_map(|(i,b)| (i > 0 && b == b'/').then_some(i)) {
+                        self.physical_probe = Some(open_beneath(root, &mount.source[..end], libc::O_PATH | libc::O_DIRECTORY, scan)?);
+                        let parent = actual_object(self.physical_probe.as_ref().ok_or_else(invalid)?, scan)?;
+                        if parent.dev == fence.dev && parent.ino == fence.ino { return Err(invalid()); }
+                        self.physical_probe = None;
+                    }
+                    self.physical_target = None;
+                    self.physical_root = None;
+                }
+            }
+            Ok(())
+        }
+    }
+    struct C0NegativeCustody {
+        views: C0OriginalViews,
+        last_complete: Option<HostCutoverData>,
+        begun: bool,
+        failed: bool,
+    }
+    impl C0NegativeCustody {
+        fn empty() -> Self { Self { views: C0OriginalViews::empty(), last_complete: None, begun: false, failed: false } }
+        fn observe(
+            &mut self, root: &File, proc: &ProcView, catalog: &job::ExecutionCatalog,
+            full: &HostCutoverData, scan: &SharedJournalBudget,
+        ) -> Result<()> {
+            let _scope = ObservationScope::enter();
+            if self.failed { return Err(invalid()); }
+            self.begun = true;
+            self.failed = true;
+            self.views.check(root, proc, catalog, full, scan)?;
+            self.failed = false;
+            Ok(())
+        }
+        fn complete_round(&mut self, full: &HostCutoverData, scan: &SharedJournalBudget) -> Result<()> {
+            let _scope = ObservationScope::enter();
+            if self.failed || !self.begun { return Err(invalid()); }
+            self.failed = true;
+            self.last_complete = Some(clone_data(full, RECORD_CAP, scan)?);
+            self.failed = false;
+            Ok(())
+        }
+        fn recheck(&mut self, root: &File, proc: &ProcView, catalog: &job::ExecutionCatalog, scan: &SharedJournalBudget) -> Result<()> {
+            let _scope = ObservationScope::enter();
+            if !self.begun { return Ok(()); }
+            if self.failed { return Err(invalid()); }
+            self.failed = true;
+            // This is the most recent successful complete original round, never
+            // partial rows or an eternal before cache. It is NOT a new Docker
+            // snapshot every 100ms. The original full-scan/barrier schedule stays.
+            self.views.check(root, proc, catalog, self.last_complete.as_ref().ok_or_else(invalid)?, scan)?;
+            self.failed = false;
+            Ok(())
+        }
+    }
     struct HostObservation {
         data: HostCutoverData,
         network: Vec<u8>,
@@ -8314,6 +9026,8 @@ mod root_runtime {
             deadline: Instant,
             proc: &ProcView,
             scan: &SharedJournalBudget,
+            host_root: &File,
+            negative: &mut C0NegativeCustody,
         ) -> Result<HostObservation> {
             let r = &catalog.installed_runtime;
             let info = self.query("/v1.45/info", RECORD_CAP, deadline, scan)?;
@@ -8367,7 +9081,7 @@ mod root_runtime {
                 || current.image_sha256 != r.admitted_pg_image_id
                 || current.project.as_deref() != Some(&r.compose_project)
                 || current.service.as_deref() != Some("pg")
-                || current.mounts.len() != 12
+                || current.mounts.len() != C0_TOPOLOGY.len()
                 || jstr(&own["Config"], "Image", 256)? != PG_IMAGE
             {
                 return Err(invalid());
@@ -8461,7 +9175,7 @@ mod root_runtime {
                 RECORD_CAP,
                 scan,
             )?;
-            require_twelve_mountinfo(&mountinfo, scan)?;
+            require_fifteen_mountinfo(&mountinfo, scan)?;
             let assets_index = current
                 .mounts
                 .iter()
@@ -8527,6 +9241,8 @@ mod root_runtime {
                 docker_cli_sha256: self.cli_digest.clone(),
             };
             data.validate()?;
+            negative.observe(host_root, proc, catalog, &data, scan)?;
+            negative.complete_round(&data, scan)?;
             Ok(HostObservation {
                 data,
                 network: encode(&network, RECORD_CAP, scan)?,
@@ -8544,6 +9260,8 @@ mod root_runtime {
         proc: &ProcView,
         cli_digest: &str,
         scan: &SharedJournalBudget,
+        host_root: &File,
+        negative: &mut C0NegativeCustody,
     ) -> Result<HostObservation> {
         let r = &catalog.installed_runtime;
         let info = pack.info.as_ref().ok_or_else(invalid)?;
@@ -8587,7 +9305,7 @@ mod root_runtime {
             || current.image_sha256 != r.admitted_pg_image_id
             || current.project.as_deref() != Some(&r.compose_project)
             || current.service.as_deref() != Some("pg")
-            || current.mounts.len() != 12
+            || current.mounts.len() != C0_TOPOLOGY.len()
             || jstr(&own["Config"], "Image", 256)? != PG_IMAGE
         {
             return Err(invalid());
@@ -8670,7 +9388,7 @@ mod root_runtime {
             RECORD_CAP,
             scan,
         )?;
-        require_twelve_mountinfo(&mountinfo, scan)?;
+        require_fifteen_mountinfo(&mountinfo, scan)?;
         let assets_index = current
             .mounts
             .iter()
@@ -8735,6 +9453,7 @@ mod root_runtime {
             docker_cli_sha256: cli_digest.to_owned(),
         };
         data.validate()?;
+        negative.observe(host_root, proc, catalog, &data, scan)?;
         Ok(HostObservation {
             data,
             network: encode(&network, RECORD_CAP, scan)?,
@@ -8745,10 +9464,10 @@ mod root_runtime {
         })
     }
 
-    fn require_twelve_mountinfo(raw: &[u8], scan: &SharedJournalBudget) -> Result<()> {
+    fn require_fifteen_mountinfo(raw: &[u8], scan: &SharedJournalBudget) -> Result<()> {
         pay(scan, raw.len() * 8 + 1024, 0)?;
         let text = std::str::from_utf8(raw).map_err(|_| invalid())?;
-        let mut count = [0_usize; 12];
+        let mut count = [0_usize; 15];
         for line in text.lines() {
             pay(scan, 0, 8)?;
             let (left, _) = line.split_once(" - ").ok_or_else(invalid)?;
@@ -8766,14 +9485,14 @@ mod root_runtime {
                 {
                     return Err(invalid());
                 }
-            } else if TOPOLOGY
+            } else if C0_PARENTS.contains(&target) || TOPOLOGY
                 .iter()
                 .any(|(p, _, _)| contains(p, target) && *p != target)
             {
                 return Err(invalid());
             }
         }
-        if count != [1; 12] {
+        if count != [1; 15] {
             return Err(invalid());
         }
         Ok(())
@@ -10187,6 +10906,7 @@ mod root_runtime {
         pg: Option<PgCustody>,
         roots: Option<HeldRoots>,
         before: Option<HostObservation>,
+        c0_negative: C0NegativeCustody,
         install: Option<Generation>,
         capture_generation: Option<Generation>,
         genesis: Option<HeldGenesisData>,
@@ -10335,6 +11055,10 @@ mod root_runtime {
                 return Err(invalid());
             }
         }
+        {
+            let _scope = ObservationScope::enter();
+            pay(&scan, std::mem::size_of::<C0NegativeCustody>(), 1)?;
+        }
         let mut job = OriginalRootJob {
             scan,
             total,
@@ -10387,6 +11111,7 @@ mod root_runtime {
             pg: None,
             roots: None,
             before: None,
+            c0_negative: C0NegativeCustody::empty(),
             install: None,
             capture_generation: None,
             genesis: None,
@@ -10827,8 +11552,11 @@ mod root_runtime {
                         &self.native.proc,
                         &self.docker.as_ref().ok_or_else(invalid)?.cli_digest,
                         &self.scan,
+                        &self.own.root,
+                        &mut self.c0_negative,
                     )?;
                     self.check_completed_host_scan(&after)?;
+                    self.c0_negative.complete_round(&after.data, &self.scan)?;
                     // Only the whole full-set scan, and its current native
                     // join, reaches ready. Partial rows never authorize work.
                     self.host_ready = Some(after);
@@ -11819,6 +12547,7 @@ mod root_runtime {
             }
             self.catalog.recheck(&self.scan)?;
             self.manifest.recheck(&self.scan)?;
+            self.c0_negative.recheck(&self.own.root, &self.native.proc, &self.catalog.data, &self.scan)?;
             if let Some(d) = &self.docker {
                 d.daemon_pidfd.revalidate(&self.scan)?;
                 d.cli.revalidate(&self.scan)?;
@@ -15869,6 +16598,78 @@ mod root_runtime {
     #[cfg(test)]
     mod original_runtime_data_tests {
         use super::*;
+
+        #[test]
+        fn c0_parent_overlay_refuses_without_broad_bind() {
+            let mut mountinfo = String::from("1 0 0:1 / / rw - overlay overlay rw\n");
+            for (index,(target,_,rw)) in TOPOLOGY.iter().enumerate() {
+                mountinfo.push_str(&format!("{} 1 0:{} / {target} {} - ext4 /dev/fixture rw\n",index + 2,index + 2,if *rw { "rw" } else { "ro" }));
+            }
+            require_fifteen_mountinfo(mountinfo.as_bytes(),&SharedJournalBudget::default()).unwrap();
+            for parent in C0_PARENTS {
+                let changed = format!("{mountinfo}99 1 0:99 / {parent} ro - ext4 /dev/fixture ro\n");
+                assert!(require_fifteen_mountinfo(changed.as_bytes(),&SharedJournalBudget::default()).is_err());
+            }
+            let changed = format!("{mountinfo}99 1 0:99 / {C0_FENCE}/unexpected ro - ext4 /dev/fixture ro\n");
+            assert!(require_fifteen_mountinfo(changed.as_bytes(),&SharedJournalBudget::default()).is_err());
+            let duplicate = format!("{mountinfo}99 1 0:99 / {C0_POLICY} ro - ext4 /dev/fixture ro\n");
+            assert!(require_fifteen_mountinfo(duplicate.as_bytes(),&SharedJournalBudget::default()).is_err());
+
+            // Permission DATA only: an original root-owned0755 R remains valid,
+            // while actual loader-b1/fence private directories still need0700.
+            let mut directory = Stamp { dev:1,ino:2,uid:0,gid:1000,mode:libc::S_IFDIR | 0o755,
+                links:2,bytes:4096,mtime_ns:1,ctime_ns:1 };
+            assert!(c0_directory_permission(directory,C0PathPurpose::Release));
+            assert!(!c0_directory_permission(directory,C0PathPurpose::Private));
+            directory.gid = 0; directory.mode = libc::S_IFDIR | 0o700;
+            assert!(c0_directory_permission(directory,C0PathPurpose::Private));
+            directory.mode = libc::S_IFDIR | 0o775;
+            assert!(!c0_directory_permission(directory,C0PathPurpose::Release));
+            directory.mode = libc::S_IFDIR | 0o755; directory.uid = 1000;
+            assert!(!c0_directory_permission(directory,C0PathPurpose::Release));
+
+            // Ordinary owned temporary tree, not a Root/Capture fixture. An
+            // absolute image symlink is resolved INSIDE this same root FD;
+            // the protected-source NO_SYMLINKS reader remains strict.
+            let temporary = std::env::temp_dir().join(format!("knowweave-c0-target-{}",Uuid::new_v4()));
+            let mut builder = std::fs::DirBuilder::new();
+            std::os::unix::fs::DirBuilderExt::mode(&mut builder,0o700);
+            builder.create(&temporary).unwrap();
+            std::fs::create_dir(temporary.join("run")).unwrap();
+            std::fs::create_dir(temporary.join("var")).unwrap();
+            std::fs::write(temporary.join("run/target"),b"DATA_ONLY").unwrap();
+            std::os::unix::fs::symlink("/run",temporary.join("var/run")).unwrap();
+            std::os::unix::fs::symlink("/missing-in-original-root/target",temporary.join("outside")).unwrap();
+            let original_root = File::open(&temporary).unwrap();
+            let meter = SharedJournalBudget::default();
+            let target = open_rw_target_metadata(&original_root,"/var/run/target",&meter).unwrap();
+            let direct = File::open(temporary.join("run/target")).unwrap();
+            assert!(actual_object(&target,&meter).unwrap() == actual_object(&direct,&meter).unwrap());
+            assert!(open_rw_target_metadata(&original_root,"/outside",&meter).is_err());
+            assert!(open_beneath(&original_root,"/var/run/target",libc::O_PATH,&meter).is_err());
+            drop(target); drop(direct); drop(original_root);
+            for file in ["outside","var/run","run/target"] { std::fs::remove_file(temporary.join(file)).unwrap(); }
+            for directory in ["var","run"] { std::fs::remove_dir(temporary.join(directory)).unwrap(); }
+            std::fs::remove_dir(&temporary).unwrap();
+
+            // Original thread-local nesting is restored; the monotone global
+            // observation counter is charged through its real original path.
+            // No counter reset or quota override is used by this unit probe.
+            let previous = OBSERVING.with(std::cell::Cell::get);
+            let before = OBSERVATION_USED.load(Ordering::Acquire);
+            {
+                let _outer = ObservationScope::enter();
+                assert!(OBSERVING.with(std::cell::Cell::get));
+                {
+                    let _inner = ObservationScope::enter();
+                    pay(&meter,17,1).unwrap();
+                }
+                assert!(OBSERVING.with(std::cell::Cell::get));
+            }
+            assert_eq!(OBSERVING.with(std::cell::Cell::get),previous);
+            assert!(OBSERVATION_USED.load(Ordering::Acquire) >= before.checked_add(17).unwrap());
+        }
+
         use std::io::Write;
         #[test]
         fn bootstrap_pid_data_expires_at_final_init_boundary() {

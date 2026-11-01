@@ -1293,3 +1293,205 @@ fn c11_genesis_data_hashes_original_payload_header_and_complete_frame_separately
             .is_err()
     );
 }
+
+// C0 ordinary component probes only. None calls the acquisition slot or builds
+// a genuine PeerOriginal, installed Root/PG context, policy or publication S.
+fn c0_projection_data() -> Vec<job::InstallMountProjection> {
+    process::CAPTURE_TOPOLOGY.iter().enumerate().map(|(i, (destination, kind, rw))| {
+        let source = match i {
+            0 => "/ordinary-data/capture-release".to_owned(),
+            3 => "/var/lib/knowweave-c4-source-fences".to_owned(),
+            5 => "/ordinary-data/capture-release/capture-launch-manifest.json".to_owned(),
+            6 => "/ordinary-data/capture-release/capture-source-policy.json".to_owned(),
+            _ => format!("/ordinary-data/source-{i}"),
+        };
+        job::InstallMountProjection {
+            destination: (*destination).to_owned(), source, kind: (*kind).to_owned(), rw: *rw,
+            name: (*kind == "volume").then(|| format!("ordinary-data-volume-{i}")),
+        }
+    }).collect()
+}
+
+fn c0_launch_data() -> Vec<u8> {
+    job::canonical(&serde_json::json!({
+        "format_version":1,"capability":"task9_b1_launch_manifest_v1",
+        "profile":"task9-b1-limited-v1","launch_id":JOB,"role":"source",
+        "code_commit":"a".repeat(40),"build_input_sha256":"b".repeat(64),
+        "binary_sha256":"c".repeat(64),"launcher_sha256":"d".repeat(64),
+        "policy_sha256":"e".repeat(64),"anchor_sha256":"f".repeat(64),
+        "source_auth_public_key_sha256":"0".repeat(64),
+        "destination_verifier_public_key_sha256":"1".repeat(64),
+        "transport_public_key_sha256":"2".repeat(64)
+    })).unwrap()
+}
+
+struct C0OrdinaryFile {
+    path: std::path::PathBuf,
+    file: std::fs::File,
+}
+impl C0OrdinaryFile {
+    fn new(raw: &[u8]) -> Self {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("knowweave-c0-data-{}", uuid::Uuid::new_v4()));
+        let mut file = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&path).unwrap();
+        file.write_all(raw).unwrap();
+        file.flush().unwrap();
+        Self { path, file }
+    }
+}
+impl Drop for C0OrdinaryFile {
+    fn drop(&mut self) {
+        // This owns only the test's create_new ordinary temporary data file.
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+#[test]
+fn c0_capture_projection_exact_fifteen_is_data_only() {
+    let mut mounts = c0_projection_data();
+    assert_eq!(mounts.len(), 15);
+    assert!(mounts.windows(2).all(|w| w[0].destination < w[1].destination));
+    let original = process::capture_mount_recipe_data(&mounts).unwrap();
+    let rows: Vec<_> = mounts.iter().map(|m| serde_json::json!({
+        "destination":m.destination,"source":m.source,"kind":m.kind,"rw":m.rw,
+        "name":m.name.as_deref().unwrap_or("")
+    })).collect();
+    use sha2::{Digest, Sha256};
+    assert_eq!(original, process::encode_hex(&Sha256::digest(job::canonical(&rows).unwrap())));
+    mounts[7].name = Some("another-actual-data-volume".to_owned());
+    assert_ne!(process::capture_mount_recipe_data(&mounts).unwrap(), original);
+    mounts[5].source = "/ordinary-data/copied-launch.json".into();
+    assert!(process::capture_mount_recipe_data(&mounts).is_err());
+    for i in [3, 5, 6] {
+        let mut bad = c0_projection_data();
+        bad[i].rw = true;
+        assert!(process::capture_mount_recipe_data(&bad).is_err());
+        let mut wrong_kind = c0_projection_data();
+        wrong_kind[i].kind = "volume".into();
+        assert!(process::capture_mount_recipe_data(&wrong_kind).is_err());
+        let mut wrong_name = c0_projection_data();
+        wrong_name[i].name = Some("not-a-bind-name".into());
+        assert!(process::capture_mount_recipe_data(&wrong_name).is_err());
+        let mut wrong_source = c0_projection_data();
+        wrong_source[i].source = "/ordinary-data/another-source".into();
+        assert!(process::capture_mount_recipe_data(&wrong_source).is_err());
+    }
+}
+
+#[test]
+fn c0_capture_negative_launch_requires_original_stamp_and_bytes() {
+    use sha2::{Digest, Sha256};
+    let raw = c0_launch_data();
+    let scan = SharedJournalBudget::default();
+    let mut actual = C0OrdinaryFile::new(&raw);
+    let stamp = process::Stamp::observe(&actual.file, &scan).unwrap();
+    let (observed, digest) = process::capture_launch_read_data(&mut actual.file, &stamp, &scan).unwrap();
+    assert_eq!(observed, raw);
+    assert!(process::capture_negative_launch_data((&stamp, &raw, &digest), (&stamp, &raw, &digest), &scan).is_ok());
+    let mut wrong_digest = digest; wrong_digest[0] ^= 1;
+    assert!(process::capture_negative_launch_data((&stamp, &raw, &wrong_digest), (&stamp, &raw, &wrong_digest), &scan).is_err());
+    let mut changed = [stamp; 9];
+    changed[0].dev += 1; changed[1].ino += 1; changed[2].uid += 1; changed[3].gid += 1;
+    changed[4].mode ^= 0o100; changed[5].links += 1; changed[6].bytes += 1;
+    changed[7].mtime_ns += 1; changed[8].ctime_ns += 1;
+    for alias in changed {
+        assert!(process::capture_negative_launch_data((&stamp, &raw, &digest), (&alias, &raw, &digest), &scan).is_err());
+    }
+    let mut noncanonical = raw.clone(); noncanonical.push(b'\n');
+    let mut longer = stamp; longer.bytes = noncanonical.len() as u64;
+    let nd: [u8; 32] = Sha256::digest(&noncanonical).into();
+    assert!(process::capture_negative_launch_data((&longer, &noncanonical, &nd), (&longer, &noncanonical, &nd), &scan).is_err());
+    let mut other_raw = raw.clone(); other_raw[0] ^= 1;
+    let od: [u8; 32] = Sha256::digest(&other_raw).into();
+    assert!(process::capture_negative_launch_data((&stamp, &raw, &digest), (&stamp, &other_raw, &od), &scan).is_err());
+    let mut exact = C0OrdinaryFile::new(&[b'x'; 4096]);
+    let exact_stamp = process::Stamp::observe(&exact.file, &scan).unwrap();
+    assert_eq!(process::capture_launch_read_data(&mut exact.file, &exact_stamp, &scan).unwrap().0.len(), 4096);
+    let mut over = C0OrdinaryFile::new(&[b'x'; 4097]);
+    let over_stamp = process::Stamp::observe(&over.file, &scan).unwrap();
+    assert!(process::capture_launch_read_data(&mut over.file, &over_stamp, &scan).is_err());
+    assert!(process::capture_launch_read_data(&mut over.file, &exact_stamp, &scan).is_err());
+}
+
+#[test]
+fn c0_capture_negative_launch_rejects_same_bytes_new_inode() {
+    use sha2::{Digest, Sha256};
+    let raw = c0_launch_data();
+    let scan = SharedJournalBudget::default();
+    let first = C0OrdinaryFile::new(&raw); let copy = C0OrdinaryFile::new(&raw);
+    let a = process::Stamp::observe(&first.file, &scan).unwrap();
+    let b = process::Stamp::observe(&copy.file, &scan).unwrap();
+    assert_ne!((a.dev, a.ino), (b.dev, b.ino));
+    let digest: [u8; 32] = Sha256::digest(&raw).into();
+    assert!(process::capture_negative_launch_data((&a, &raw, &digest), (&b, &raw, &digest), &scan).is_err());
+    // This does not simulate a bind mount or create a root-owned launch alias.
+}
+
+fn c0_mountinfo_data() -> String {
+    let mut text = "1 0 0:1 / / rw - overlay overlay rw\n2 1 0:2 / /proc rw - proc proc rw\n".to_owned();
+    for (i, (target, _, rw)) in process::CAPTURE_TOPOLOGY.iter().enumerate() {
+        text.push_str(&format!("{} 1 0:3 / {} {} - tmpfs data rw\n", i + 3, target, if *rw { "rw" } else { "ro" }));
+    }
+    text
+}
+
+#[test]
+fn c0_capture_readonly_roots_rejects_missing_or_rw_negative_view() {
+    let good = c0_mountinfo_data();
+    assert!(process::capture_readonly_mountinfo_data(good.as_bytes()).is_ok());
+    for i in [3, 5, 6] {
+        let target = process::CAPTURE_TOPOLOGY[i].0;
+        let missing = good.lines().filter(|line| line.split_ascii_whitespace().nth(4) != Some(target)).collect::<Vec<_>>().join("\n");
+        assert!(process::capture_readonly_mountinfo_data(missing.as_bytes()).is_err());
+        let rw = good.replace(&format!(" {target} ro "), &format!(" {target} rw "));
+        assert!(process::capture_readonly_mountinfo_data(rw.as_bytes()).is_err());
+        let duplicate = format!("{good}99 1 0:3 / {target} ro - tmpfs data rw\n");
+        assert!(process::capture_readonly_mountinfo_data(duplicate.as_bytes()).is_err());
+    }
+    for target in ["/var", "/var/lib", "/var/lib/knowweave-c4", "/var/lib/knowweave-c4/b1", "/var/lib/knowweave-c4-source-fences/extra", "/opt/knowweave-c4/b1-capture/extra"] {
+        let masked = format!("{good}99 1 0:3 / {target} ro - tmpfs data rw\n");
+        assert!(process::capture_readonly_mountinfo_data(masked.as_bytes()).is_err());
+    }
+}
+
+#[test]
+fn c0_old_twelve_never_selects_new_profile() {
+    let fifteen = c0_projection_data();
+    let old = fifteen.into_iter().enumerate().filter_map(|(i, row)| (!matches!(i, 3 | 5 | 6)).then_some(row)).collect::<Vec<_>>();
+    assert_eq!(old.len(), 12);
+    for _ in 0..2 {
+        assert!(process::capture_mount_recipe_data(&old).is_err());
+    }
+    let mut missing = c0_projection_data(); missing.pop();
+    assert!(process::capture_mount_recipe_data(&missing).is_err());
+    let mut extra = c0_projection_data(); extra.push(job::InstallMountProjection {
+        destination: "/unexpected".into(), source: "/ordinary-data/unexpected".into(), kind: "bind".into(), rw: false, name: None,
+    });
+    assert!(process::capture_mount_recipe_data(&extra).is_err());
+    let mut duplicate = c0_projection_data(); duplicate.swap(0, 1);
+    assert!(process::capture_mount_recipe_data(&duplicate).is_err());
+}
+
+#[test]
+fn c0_negative_metadata_repeats_debit_original_meter() {
+    use std::io::{Seek, SeekFrom};
+    let scan = SharedJournalBudget::default(); let alias = scan.clone();
+    let mut actual = C0OrdinaryFile::new(&c0_launch_data());
+    let stamp = process::Stamp::observe(&actual.file, &scan).unwrap();
+    let before = scan.usage().unwrap();
+    process::capture_launch_read_data(&mut actual.file, &stamp, &scan).unwrap();
+    let once = scan.usage().unwrap();
+    process::capture_launch_read_data(&mut actual.file, &stamp, &alias).unwrap();
+    let twice = scan.usage().unwrap();
+    assert!(scan.shares_meter_with(&alias));
+    assert!(once.charged_bytes > before.charged_bytes && twice.charged_bytes > once.charged_bytes);
+    assert!(once.charged_entries > before.charged_entries && twice.charged_entries > once.charged_entries);
+    assert_eq!(scan.usage().unwrap(), alias.usage().unwrap());
+    let remaining = 512 * 1024 * 1024 - twice.charged_bytes;
+    scan.charge(remaining, 0).unwrap();
+    actual.file.seek(SeekFrom::Start(17)).unwrap();
+    assert_eq!(process::capture_launch_read_data(&mut actual.file, &stamp, &alias), Err(Error::Capacity));
+    assert_eq!(actual.file.stream_position().unwrap(), 17);
+    assert!(scan.usage().unwrap().exhausted && alias.usage().unwrap().exhausted);
+    assert_eq!(process::prepay_capture_launch_work(&scan), Err(Error::Capacity));
+}

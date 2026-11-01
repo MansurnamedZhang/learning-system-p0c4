@@ -2,12 +2,12 @@
   "schema": 1,
   "artifact_kind": "TASK9_INSTALLATION_AND_TWO_HOST_PREPARATION_NOT_AUTHORITY",
   "date": "2026-11-01",
-  "status": "LOCAL_PREPARATION_ONLY_NOT_AUTHORIZED_NOT_EXECUTED",
+  "status": "DEFAULT_OFF_FIVE_SOURCE_STATIC_CODE_REVIEWED_CONSOLE_AUTH_HOLD_NO_UPLOAD_OR_PRODUCT_RUN",
   "product_consumes_this_file": false,
   "executable": false,
-  "code_base_commit": "be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c",
-  "code_base_tree": "675b764b27ca4bbe6f7485094e314c0999844e3f",
-  "product_source_changed_this_preparation": false,
+  "code_base_commit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
+  "code_base_tree": "7984aa2073418b48f19df7e6be01c20861b6c403",
+  "product_source_changed_this_preparation": true,
   "default_off": true,
   "plan": "docs/task9/installation-and-two-host-acceptance-plan.md",
   "historical_ordinary_checks": {
@@ -53,7 +53,7 @@
   },
   "approvals": {
     "A": "AUTHORIZED_PREPARATION_ONLY",
-    "C0": "EXACT_FIVE_FILE_CONTRACT_REVIEWED_CODING_AND_LIMITED_CHECKS_NOT_AUTHORIZED",
+    "C0": "AUTHORIZED_EXACT_FIVE_EXISTING_SOURCE_DEFAULT_OFF_CODE_AND_ORIGINAL_LIMITED_ORDINARY_CHECKS_NOT_INSTALLATION",
     "B": "EXACT_KEY_TRUST_CUSTODY_NOT_AUTHORIZED",
     "C": "EXACT_RUNTIME_LAUNCH_PERMISSION_MOUNT_INSTALLATION_NOT_AUTHORIZED",
     "D1": "REAL_FIRST_PUBLICATION_RA_AND_NAMED_NEGATIVES_NOT_AUTHORIZED",
@@ -66,7 +66,7 @@
     "source_expected_destination_policy_pin_requires_actual_D_installation_readback_not_wire_echo": true
   },
   "capture_topology_proposal": {
-    "state": "EXACT_FIVE_FILE_CONTRACT_REVIEWED_NOT_APPROVED_NOT_IMPLEMENTED",
+    "state": "DEFAULT_OFF_FIVE_SOURCE_CANDIDATE_STATIC_CODE_REVIEWED_NOT_TESTED_NOT_INSTALLED",
     "current_closed_mount_count": 12,
     "candidate_closed_mount_count": 15,
     "preserve_original_twelve_identities_and_modes": true,
@@ -88,7 +88,9 @@
     "source_evidence_file_count_unchanged": 12,
     "C11_message_count_unchanged": 15,
     "main_actions_unchanged": 13,
-    "coding_authorized": false
+    "coding_authorized": true,
+    "current_closed_mount_count_scope": "Historical pre-C0 code profile only; not this candidate or a fresh site observation",
+    "actual_candidate_mounts_observed": false
   },
   "blockers": [
     {
@@ -103,10 +105,12 @@
       "id": "H2",
       "status": "OPEN",
       "requires": [
-        "HUMAN_C0_EXACT_FIVE_FILE_CODING_APPROVAL",
-        "REVIEWED_IMPLEMENTATION_AND_FRESH_ORDINARY_CHECKS",
+        "USER_NORMAL_NATIVE_SSH_READ_ONLY_LOGIN_CHECK",
+        "FRESH_FORMAT_AND_FOUR_CONFIG_COMPILER_ROSTERS",
+        "FRESH_WHOLE_LIBRARY_ORDINARY_REGRESSION_AND_RAW_OTHER",
         "C_REAL_FIFTEEN_MOUNTS_AND_C11"
-      ]
+      ],
+      "gap": "Five-leaf static CODE passed; first user-console SSH authentication exited255 with no upload/runner record; old batch HOLD and no format/compiler/Clippy/test credit"
     },
     {
       "id": "H3",
@@ -248,6 +252,79 @@
     "site_obligation_groups": 12,
     "product_tests_executed": false,
     "approved": false,
-    "implemented": false
+    "implemented": false,
+    "record_semantics": "Historical reviewed proposal and original false flags preserved; later minimum coding decision is recorded separately in current_c0_code_preparation, not retroactively in the contract"
+  },
+  "historical_installation_preparation_record": {
+    "status": "LOCAL_PREPARATION_ONLY_NOT_AUTHORIZED_NOT_EXECUTED",
+    "code_base_commit": "be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c",
+    "code_base_tree": "675b764b27ca4bbe6f7485094e314c0999844e3f",
+    "product_source_changed_this_preparation": false,
+    "C0_approval_record": "EXACT_FIVE_FILE_CONTRACT_REVIEWED_CODING_AND_LIMITED_CHECKS_NOT_AUTHORIZED",
+    "H2_blocker": {
+      "id": "H2",
+      "status": "OPEN",
+      "requires": [
+        "HUMAN_C0_EXACT_FIVE_FILE_CODING_APPROVAL",
+        "REVIEWED_IMPLEMENTATION_AND_FRESH_ORDINARY_CHECKS",
+        "C_REAL_FIFTEEN_MOUNTS_AND_C11"
+      ]
+    },
+    "scope": "Archived preparation record, not the current five-leaf coding decision or an installation observation"
+  },
+  "current_c0_code_preparation": {
+    "scope_basis": "User continued the preceding exact minimum coding and ordinary-check step; no retroactive approval of the historical proposal",
+    "five_existing_source_paths": [
+      "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "crates/learning-backup/src/source/binding.rs",
+      "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs"
+    ],
+    "source_index_sha256": "af8cb0416db30f1c57f09af6744678ff77fdd7c1c27ddcfa108cd9bc36c2c7d9",
+    "code_other_sha256": "a009984a1760bfa4d46f1c761de041962647390027740b74d2b49dcb1adf91f0",
+    "code_other_status": "PASS_C0_EXACT_FIVE_SOURCE_CODE_NOT_RUNTIME_NOT_TASK9",
+    "independent_code_review_sha256": "9d32925343f808d0439d8b05af114d46279a32b028587c747a119661b7976f5c",
+    "old109_test_attributes_and_bodies_raw_unchanged": true,
+    "new_distinct_test_definitions": 20,
+    "new_test_definitions_by_config": {
+      "backup-default": 0,
+      "backup-offhost": 14,
+      "db-default": 0,
+      "db-peer": 6
+    },
+    "new_ignored_tests": 0,
+    "format_executed": false,
+    "type_compile_executed": false,
+    "clippy_executed": false,
+    "tests_executed": false,
+    "fresh_format_compile_list_checks_batches": "FIRST_USER_CONSOLE_SSH_AUTHENTICATION_EXIT_255_HOLD_NOT_UPLOADED_OR_RUN",
+    "check_modes_planned_phases": {
+      "format": 1,
+      "compile-list": 13,
+      "checks": 25
+    },
+    "actual_compiler_rosters_observed": false,
+    "user_real_console_required_for_existing_password_authentication": true,
+    "transport_logical_client_connections_per_future_batch": 4,
+    "password_read_or_recorded_by_python": false,
+    "old37_53_contracts_preserved": true,
+    "old52_typed_checkpoints_preserved": true,
+    "site_C0_C02_open": true,
+    "installation_authorized": false,
+    "operational_authority_changed": false,
+    "current_noninteractive_source_metadata_attempt": "PERMISSION_DENIED_NO_BYPASS_OR_RETRY_HOLD_RETAINED_NOT_PRODUCT_EXECUTION",
+    "current_user_console_attempt": {
+      "safe_metadata_sha256": "c17d23d27c81694fcc8deffe489c436e6ab523c1995abfc4049f540b7aa7d599",
+      "first_phase": "01-create",
+      "ssh_exit": 255,
+      "later_upload_launch_collection_records_absent": true,
+      "reported_FileExistsError_consistent_with_existing_exclusive_attempt_marker": true,
+      "root_cause_of_authentication_rejection_established": false,
+      "old_batch_preserved_no_replay": true,
+      "new_authentication_credentials_or_rights": false,
+      "password_or_raw_error_copied_to_public_documents": false
+    },
+    "next_access_step": "USER_NORMAL_NATIVE_SSH_READ_ONLY_LOGIN_CHECK_THEN_FRESH_BATCH_AFTER_ACCESS_CONFIRMED"
   }
 }

@@ -340,6 +340,276 @@ impl<T: job::Record + serde::de::DeserializeOwned> HeldRecord<T> {
     }
 }
 
+const CAPTURE_LAUNCH_ALIAS: &str = "/var/lib/knowweave-c4/b1/launch-manifest.json";
+const CAPTURE_LAUNCH_MAX: u64 = 4096;
+
+// Negative resource custody only, belonging to the already burned process
+// attempt. No record, bool or caller can turn this slot into PeerOriginal.
+// Its actual descriptors survive acquisition failure and poisoned locks.
+static CAPTURE_LAUNCH_ACQUISITION: std::sync::Mutex<Option<CaptureLaunchMirror>> =
+    std::sync::Mutex::new(None);
+struct CaptureLaunchMirror {
+    scan: SharedJournalBudget,
+    pending: Vec<(File, Option<Stamp>)>,
+    held: Option<HeldNamed>,
+    raw: Vec<u8>,
+    digest: [u8; 32],
+    failed: bool,
+}
+struct CaptureLaunchAcquisitionGuard {
+    cell: &'static std::sync::Mutex<Option<CaptureLaunchMirror>>,
+    transferred_to_original_book: bool,
+}
+impl Drop for CaptureLaunchAcquisitionGuard {
+    fn drop(&mut self) {
+        if !self.transferred_to_original_book
+            && let Ok(mut slot) = self.cell.lock()
+            && let Some(original) = slot.as_mut()
+        {
+            original.failed = true;
+        }
+        // A poisoned cell remains permanently negative and retains all FDs.
+        // No close/reset/retry or authority is produced by this guard.
+    }
+}
+
+pub(super) fn prepay_capture_launch_work(scan: &SharedJournalBudget) -> Result<()> {
+    // Covers the fixed six-descriptor ancestry, named reopens, bounded vectors,
+    // CString/path storage and their metadata work before any new observation.
+    scan.charge(64 * 1024, 64).map_err(|_| Error::Capacity)
+}
+
+// Ordinary file DATA only; the actual fixed holder separately enforces named
+// ancestry/root ownership/0600 and retains the original FD before this call.
+pub(super) fn capture_launch_read_data(
+    file: &mut File,
+    stamp: &Stamp,
+    scan: &SharedJournalBudget,
+) -> Result<(Vec<u8>, [u8; 32])> {
+    prepay_capture_launch_work(scan)?;
+    if stamp.bytes == 0 || stamp.bytes > CAPTURE_LAUNCH_MAX
+        || stamp.mode & libc::S_IFMT != libc::S_IFREG
+        || Stamp::observe(file, scan)? != *stamp
+    {
+        return Err(Error::Identity);
+    }
+    scan.charge(stamp.bytes * 2 + 1, 3).map_err(|_| Error::Capacity)?;
+    let mut raw = vec![0; stamp.bytes as usize];
+    file.seek(SeekFrom::Start(0)).map_err(|_| Error::Io)?;
+    file.read_exact(&mut raw).map_err(|_| Error::Io)?;
+    let mut extra = [0];
+    if file.read(&mut extra).map_err(|_| Error::Io)? != 0 {
+        return Err(Error::Identity);
+    }
+    let digest = Sha256::digest(&raw).into();
+    if Stamp::observe(file, scan)? != *stamp {
+        return Err(Error::Identity);
+    }
+    Ok((raw, digest))
+}
+
+/// Full canonical DATA comparison; success is not a process or file authority.
+/// Production passes only the same OriginalState's held own manifest and the
+/// fixed alias retained below. Ordinary tests may compare nonqualified DATA.
+pub(super) fn capture_negative_launch_data(
+    own: (&Stamp, &[u8], &[u8; 32]),
+    alias: (&Stamp, &[u8], &[u8; 32]),
+    scan: &SharedJournalBudget,
+) -> Result<()> {
+    let (own_stamp, own_raw, own_digest) = own;
+    let (alias_stamp, alias_raw, alias_digest) = alias;
+    if own_raw.is_empty()
+        || own_raw.len() > CAPTURE_LAUNCH_MAX as usize
+        || alias_raw.is_empty()
+        || alias_raw.len() > CAPTURE_LAUNCH_MAX as usize
+    {
+        return Err(Error::Identity);
+    }
+    // Typed parse, canonical tree allocation, serialization, hashes and full
+    // comparison are prepaid on the caller's same cumulative backing.
+    scan.charge(((own_raw.len() + alias_raw.len()) as u64) * 64 + 2048, 32)
+        .map_err(|_| Error::Capacity)?;
+    if own_stamp != alias_stamp
+        || own_stamp.bytes != own_raw.len() as u64
+        || alias_stamp.bytes != alias_raw.len() as u64
+        || own_raw != alias_raw
+        || own_digest != alias_digest
+        || <[u8; 32]>::from(Sha256::digest(own_raw)) != *own_digest
+        || <[u8; 32]>::from(Sha256::digest(alias_raw)) != *alias_digest
+    {
+        return Err(Error::Identity);
+    }
+    let _: job::LaunchManifest = job::parse(alias_raw, CAPTURE_LAUNCH_MAX as usize)?;
+    Ok(())
+}
+
+impl CaptureLaunchMirror {
+    fn open_fixed(&mut self, scan: &SharedJournalBudget) -> Result<()> {
+        prepay_capture_launch_work(scan)?;
+        let fd = unsafe {
+            libc::open(
+                c"/".as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+            )
+        };
+        if fd < 0 {
+            return Err(Error::Io);
+        }
+        // Retain the actual descriptor before its first fallible observation.
+        self.pending.push((unsafe { File::from_raw_fd(fd) }, None));
+        for name in [c"var", c"lib", c"knowweave-c4", c"b1"] {
+            let (parent, saved) = self.pending.last_mut().ok_or(Error::Identity)?;
+            let stamp = Stamp::observe(parent, scan)?;
+            *saved = Some(stamp);
+            if stamp.uid != 0
+                || stamp.gid != 0
+                || stamp.mode & libc::S_IFMT != libc::S_IFDIR
+                || stamp.mode & 0o022 != 0
+            {
+                return Err(Error::Identity);
+            }
+            scan.charge(name.to_bytes().len() as u64, 1)
+                .map_err(|_| Error::Capacity)?;
+            let fd = unsafe {
+                libc::openat(
+                    parent.as_raw_fd(),
+                    name.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+                )
+            };
+            if fd < 0 {
+                return Err(Error::Io);
+            }
+            self.pending.push((unsafe { File::from_raw_fd(fd) }, None));
+        }
+        let (parent, saved) = self.pending.last_mut().ok_or(Error::Identity)?;
+        let stamp = Stamp::observe(parent, scan)?;
+        *saved = Some(stamp);
+        if stamp.uid != 0
+            || stamp.gid != 0
+            || stamp.mode & libc::S_IFMT != libc::S_IFDIR
+            || stamp.mode & 0o7777 != 0o700
+        {
+            return Err(Error::Identity);
+        }
+        scan.charge(20, 1).map_err(|_| Error::Capacity)?;
+        let fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                c"launch-manifest.json".as_ptr(),
+                libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK,
+            )
+        };
+        if fd < 0 {
+            return Err(Error::Io);
+        }
+        self.pending.push((unsafe { File::from_raw_fd(fd) }, None));
+        let (file, saved) = self.pending.last_mut().ok_or(Error::Identity)?;
+        let stamp = Stamp::observe(file, scan)?;
+        *saved = Some(stamp);
+        if !stamp.root_file(CAPTURE_LAUNCH_MAX)
+            || stamp.gid != 0
+            || stamp.mode & 0o7777 != 0o600
+        {
+            return Err(Error::Identity);
+        }
+        // All six originals are already rooted and fully stamped. This fixed
+        // nonfallible move preserves the same resources in the final holder.
+        let (file, _) = self.pending.pop().expect("fixed alias leaf retained");
+        let parents = self.pending.drain(..)
+            .map(|(file, stamp)| (file, stamp.expect("fixed ancestry stamped")))
+            .collect();
+        self.held = Some(HeldNamed {
+            file,
+            parents,
+            leaf: CString::new("launch-manifest.json").expect("fixed leaf has no NUL"),
+            stamp,
+            path: CAPTURE_LAUNCH_ALIAS.to_owned(),
+        });
+        Ok(())
+    }
+    fn read_and_join(
+        &mut self,
+        own: &HeldRecord<job::LaunchManifest>,
+        scan: &SharedJournalBudget,
+    ) -> Result<()> {
+        if !self.scan.shares_meter_with(scan) {
+            return Err(Error::Identity);
+        }
+        prepay_capture_launch_work(scan)?;
+        let held = self.held.as_mut().ok_or(Error::Identity)?;
+        held.revalidate(scan)?;
+        let (raw, digest) = capture_launch_read_data(&mut held.file, &held.stamp, scan)?;
+        held.revalidate(scan)?;
+        // Retain first observed bytes before typed parsing/comparison. Later
+        // observations can never replace the original raw image or digest.
+        if self.raw.is_empty() {
+            self.raw = raw;
+            self.digest = digest;
+        } else if raw != self.raw || digest != self.digest {
+            return Err(Error::Identity);
+        }
+        capture_negative_launch_data(
+            (&own.held.stamp, &own.raw, &own.digest),
+            (&held.stamp, &self.raw, &self.digest),
+            scan,
+        )?;
+        if Stamp::observe(&own.held.file, scan)? != own.held.stamp {
+            return Err(Error::Identity);
+        }
+        Ok(())
+    }
+}
+
+fn acquire_capture_launch_mirror(
+    own: &HeldRecord<job::LaunchManifest>,
+    scan: &SharedJournalBudget,
+) -> Result<CaptureLaunchAcquisitionGuard> {
+    prepay_capture_launch_work(scan)?;
+    scan.charge((std::mem::size_of::<CaptureLaunchMirror>() + 1024) as u64, 2)
+        .map_err(|_| Error::Capacity)?;
+    let mut slot = CAPTURE_LAUNCH_ACQUISITION.lock().map_err(|_| Error::Poisoned)?;
+    if let Some(original) = slot.as_mut() {
+        original.failed = true;
+        return Err(Error::Poisoned);
+    }
+    *slot = Some(CaptureLaunchMirror {
+        scan: scan.clone(),
+        pending: Vec::with_capacity(6),
+        held: None,
+        raw: Vec::new(),
+        digest: [0; 32],
+        failed: true,
+    });
+    let original = slot.as_mut().ok_or(Error::Poisoned)?;
+    original.open_fixed(scan)?;
+    original.read_and_join(own, scan)?;
+    original.failed = false;
+    Ok(CaptureLaunchAcquisitionGuard {
+        cell: &CAPTURE_LAUNCH_ACQUISITION,
+        transferred_to_original_book: false,
+    })
+}
+
+fn revalidate_capture_launch_mirror(
+    cell: &'static std::sync::Mutex<Option<CaptureLaunchMirror>>,
+    own: &HeldRecord<job::LaunchManifest>,
+    scan: &SharedJournalBudget,
+) -> Result<()> {
+    if !std::ptr::eq(cell, &CAPTURE_LAUNCH_ACQUISITION) {
+        return Err(Error::Identity);
+    }
+    let mut slot = cell.lock().map_err(|_| Error::Poisoned)?;
+    let original = slot.as_mut().ok_or(Error::Identity)?;
+    if original.failed {
+        return Err(Error::Poisoned);
+    }
+    original.failed = true;
+    original.read_and_join(own, scan)?;
+    original.failed = false;
+    Ok(())
+}
+
 pub(super) fn encode_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -2345,34 +2615,108 @@ fn source_endpoint(
 }
 fn require_capture_readonly_roots(scan: &SharedJournalBudget) -> Result<()> {
     let raw = bounded_kernel_read("/proc/self/mountinfo", 1024 * 1024, scan)?;
+    scan.charge((raw.len() as u64) * 64 + 4096, 1)
+        .map_err(|_| Error::Capacity)?;
+    let lines = raw.iter().filter(|b| **b == b'\n').count() + 1;
+    scan.charge(0, (lines as u64) * 16)
+        .map_err(|_| Error::Capacity)?;
+    capture_readonly_mountinfo_data(&raw)
+}
+
+// Fixed new-build B1 DATA recipe, never a caller-selectable profile. These are
+// Docker business targets, not a count of all platform mountinfo rows.
+pub(super) const CAPTURE_TOPOLOGY: [(&str, &str, bool); 15] = [
+    ("/opt/knowweave-c4/b1-capture", "bind", false),
+    ("/run/kwc4/sfx", "bind", true),
+    ("/usr/bin/docker", "bind", false),
+    ("/var/lib/knowweave-c4-source-fences", "bind", false),
+    ("/var/lib/knowweave-c4/b1-source-observation", "bind", false),
+    ("/var/lib/knowweave-c4/b1/launch-manifest.json", "bind", false),
+    ("/var/lib/knowweave-c4/b1/source-policy.json", "bind", false),
+    ("/var/lib/knowweave-c4/registry", "volume", true),
+    ("/var/lib/knowweave-c4/snapshot-effects-v2", "volume", true),
+    ("/var/lib/knowweave-c4/snapshot-export-v2", "volume", true),
+    ("/var/lib/knowweave-source", "volume", true),
+    ("/var/lib/knowweave-source/assets", "bind", false),
+    ("/var/lib/postgresql", "volume", true),
+    ("/var/run/docker.sock", "bind", false),
+    ("/var/run/postgresql", "volume", true),
+];
+
+pub(super) fn capture_readonly_mountinfo_data(raw: &[u8]) -> Result<()> {
     let text = std::str::from_utf8(&raw).map_err(|_| Error::Identity)?;
-    for root in [OBSERVATION_ROOT, "/opt/knowweave-c4/b1-capture"] {
-        let mut count = 0;
-        for line in text.lines() {
-            let fields: Vec<_> = line.split_ascii_whitespace().collect();
-            if fields.len() < 10 {
-                return Err(Error::Identity);
-            }
-            let target = fields[4];
-            if target == root {
-                count += 1;
-                if !fields[5].split(',').any(|v| v == "ro") {
-                    return Err(Error::Identity);
-                }
-            }
-            if target
-                .strip_prefix(root)
-                .is_some_and(|suffix| suffix.starts_with('/'))
-                && fields[5].split(',').any(|v| v == "rw")
+    let mut counts = [0usize; 15];
+    for line in text.lines() {
+        let fields: Vec<_> = line.split_ascii_whitespace().collect();
+        if fields.len() < 10 {
+            return Err(Error::Identity);
+        }
+        let separator = fields.iter().position(|v| *v == "-").ok_or(Error::Identity)?;
+        if separator < 6 || fields.len() != separator + 4 {
+            return Err(Error::Identity);
+        }
+        let target = fields[4];
+        if ["/var", "/var/lib", "/var/lib/knowweave-c4", "/var/lib/knowweave-c4/b1"].contains(&target) {
+            return Err(Error::Identity);
+        }
+        if let Some(index) = CAPTURE_TOPOLOGY.iter().position(|row| row.0 == target) {
+            counts[index] += 1;
+            let rw = CAPTURE_TOPOLOGY[index].2;
+            if counts[index] != 1
+                || !fields[5].split(',').any(|v| v == if rw { "rw" } else { "ro" })
+                || fields[5].split(',').any(|v| v == if rw { "ro" } else { "rw" })
             {
                 return Err(Error::Identity);
             }
-        }
-        if count != 1 {
+        } else if CAPTURE_TOPOLOGY.iter().any(|row| {
+            target.strip_prefix(row.0).is_some_and(|suffix| suffix.starts_with('/'))
+        }) {
             return Err(Error::Identity);
         }
     }
+    if counts.iter().any(|count| *count != 1) {
+        return Err(Error::Identity);
+    }
     Ok(())
+}
+
+pub(super) fn capture_mount_recipe_data(mounts: &[job::InstallMountProjection]) -> Result<String> {
+    if mounts.len() != CAPTURE_TOPOLOGY.len() {
+        return Err(Error::Identity);
+    }
+    for (mount, (destination, kind, rw)) in mounts.iter().zip(CAPTURE_TOPOLOGY) {
+        if mount.destination != destination || mount.kind != kind || mount.rw != rw
+            || !job::path(&mount.source)
+            || (kind == "bind" && mount.name.as_deref().is_some_and(|name| !name.is_empty()))
+            || (kind == "volume" && mount.name.as_deref().is_none_or(str::is_empty))
+        {
+            return Err(Error::Identity);
+        }
+    }
+    let release = &mounts[0].source;
+    let fixed_leaf = |source: &str, leaf: &str| {
+        source.strip_prefix(release.as_str()).is_some_and(|suffix| suffix.strip_prefix('/') == Some(leaf))
+    };
+    if mounts[3].source != "/var/lib/knowweave-c4-source-fences"
+        || !fixed_leaf(&mounts[5].source, "capture-launch-manifest.json")
+        || !fixed_leaf(&mounts[6].source, "capture-source-policy.json")
+    {
+        return Err(Error::Identity);
+    }
+    #[derive(serde::Serialize)]
+    struct Mount<'a> {
+        destination: &'a str,
+        source: &'a str,
+        kind: &'a str,
+        rw: bool,
+        name: &'a str,
+    }
+    let normalized = mounts.iter().map(|m| Mount {
+        destination: &m.destination, source: &m.source, kind: &m.kind, rw: m.rw,
+        name: m.name.as_deref().unwrap_or(""),
+    }).collect::<Vec<_>>();
+    let raw = job::canonical(&normalized)?;
+    Ok(encode_hex(&Sha256::digest(&raw)))
 }
 
 enum OriginalRoleOwner {
@@ -2385,6 +2729,7 @@ enum OriginalRoleOwner {
     },
     Capture {
         capture: Box<HeldRecord<job::CaptureStart>>,
+        negative_launch: &'static std::sync::Mutex<Option<CaptureLaunchMirror>>,
         native: CaptureNative,
         backup: String,
         nonce: String,
@@ -2751,12 +3096,15 @@ impl OriginalState {
             }
             OriginalRoleOwner::Capture {
                 capture,
+                negative_launch,
                 native,
                 backup,
                 nonce,
                 request,
             } => {
                 require_capture_readonly_roots(scan)?;
+                live()?;
+                revalidate_capture_launch_mirror(*negative_launch, &self.manifest, scan)?;
                 live()?;
                 capture.revalidate(scan)?;
                 live()?;
@@ -3395,6 +3743,11 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
     pins.join(&catalog.data, &manifest.data)?;
     let own_row = image(&catalog.data, pins.row())?;
     match_record_reference(&own_row.launch_manifest, &manifest.raw, &manifest.digest)?;
+    let mut negative_launch = if pins.role == job::ProcessRole::Capture {
+        Some(acquire_capture_launch_mirror(&manifest, &scan)?)
+    } else {
+        None
+    };
     let own_image = MeasuredImage::open(own_row, std::process::id(), &scan)?;
     recheck_actual_environment(pins.role, &catalog.data.installed_source.database, &scan)?;
     require_single_thread(&scan)?;
@@ -3539,6 +3892,7 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
             native.join(&catalog.data, &capture.data)?;
             OriginalRoleOwner::Capture {
                 capture: Box::new(capture),
+                negative_launch: negative_launch.as_ref().ok_or(Error::Identity)?.cell,
                 native,
                 backup,
                 nonce,
@@ -3575,6 +3929,9 @@ pub(super) fn admit_original_process() -> Result<PeerOriginal> {
         failed: AtomicBool::new(false),
     });
     session::register_original_book(&custody)?;
+    if let Some(acquisition) = negative_launch.as_mut() {
+        acquisition.transferred_to_original_book = true;
+    }
     Ok(PeerOriginal { custody })
 }
 
@@ -4055,7 +4412,7 @@ mod c11 {
                 || current.image_sha256 != host.image_sha256
                 || current.project.as_deref() != Some(runtime.compose_project.as_str())
                 || current.service.as_deref() != Some("pg")
-                || current.mounts.len() != 12
+                || current.mounts.len() != CAPTURE_TOPOLOGY.len()
             {
                 return Err(Error::Identity);
             }
@@ -4073,14 +4430,6 @@ mod c11 {
             }
             if legacy.next().is_some() {
                 return Err(Error::Identity);
-            }
-            #[derive(serde::Serialize)]
-            struct Mount<'a> {
-                destination: &'a str,
-                source: &'a str,
-                kind: &'a str,
-                rw: bool,
-                name: &'a str,
             }
             // Strings may require six-byte JSON escapes; reserve the actual
             // bounded normalization/canonical allocation/hash before creating
@@ -4106,20 +4455,8 @@ mod c11 {
                 maximum.checked_mul(4).ok_or(Error::Capacity)?,
                 (current.mounts.len() as u64) * 8,
             )?;
-            let mounts = current
-                .mounts
-                .iter()
-                .map(|m| Mount {
-                    destination: &m.destination,
-                    source: &m.source,
-                    kind: &m.kind,
-                    rw: m.rw,
-                    name: m.name.as_deref().unwrap_or(""),
-                })
-                .collect::<Vec<_>>();
-            let raw = job::canonical(&mounts)?;
+            let digest = capture_mount_recipe_data(&current.mounts)?;
             a.live()?;
-            let digest = encode_hex(&Sha256::digest(&raw));
             if digest != runtime.capture_mount_recipe_sha256
                 || digest != state.catalog.data.capture_recipe_sha256
             {

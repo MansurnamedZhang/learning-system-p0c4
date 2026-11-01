@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "Capture 增量合同已独审；五叶编码与安装待批准",
-    "detail": "唯一15挂载=原12保留＋Capture专用policy、原own manifest两个RO别名＋真实fence RO。未来五个现有Rust文件，保持角色/build原件、来源写面排除和原预算。",
-    "evidence": "合同/机器表/分层计划独审；20普通提案与12现场组全部未执行。现403 Rust、旧37/53和旧51检查点不变，保留旧草案未通过项。C0编码、B/C实装、原Root/PG/C11/global64/S5、首签与RA/RB及Task9/C4仍OPEN。"
+    "statusLabel": "Capture 代码静审通过；控制台 AUTH255／HOLD",
+    "detail": "首轮真实控制台在首次SSH认证时退出255，未观察到上传或runner启动；FileExistsError与原批次独占、防重放门一致。本候选尚未运行格式、类型、Clippy或测试；20个新增定义按四配置为0/14/0/6。",
+    "evidence": "组合CODE gate a009984a、独审9d329253；旧109个测试属性/正文保留。认证原因尚未确定，原批次HOLD保留且不重放；先由用户验证标准客户端正常只读登录，再建新批次。真实C0-C02、B/C安装、Root/PG/C11/S5、FD全期证明、首签/RA/RB及Task9/C4仍OPEN。"
   }
 ];
 
@@ -1640,30 +1640,30 @@ export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
   "date": "2026-11-01",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "0531083cc7b686ee30a0df7b4c9cdae3aa84b574",
-  "state": "Task9 C0：Capture 五文件增量合同完成独审；编码与现场权限仍待批准",
-  "progressSummary": "本轮仅合同/机器表/分层计划与文档检查，产品源码不变。未来准确五叶、十五项挂载；计划20项普通检查和12组现场义务均未执行。",
-  "progressEvidence": "Capture 专属 policy 与原 own launch manifest 两个 RO 别名，加真实 fence RO；本 Capture 构建/ELF/原件身份不借 PublicationSource。旧51检查点、原37/53及所有403份Rust保持字节。",
-  "pendingSummary": "待人类批准准确五文件 C0 编码及限定 Linux 检查；目标新资料、安装器/固定启动链、B/C 实装和全期 Root/PG/C11/global64/S5、首签/RA/RB仍OPEN。",
+  "sourceCommit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
+  "state": "Task9 C0：五叶代码静审通过；首轮控制台认证255，原批次HOLD",
+  "progressSummary": "五叶默认关闭候选组合静审通过，保留旧109个测试属性/正文并新增20个普通定义。首轮控制台仅首次SSH认证退出255，未观察到上传或runner启动；尚无本候选的rustfmt、类型、Clippy或测试结果。",
+  "progressEvidence": "CODE gate a009984a、独审9d329253；新增定义四配置0/14/0/6。认证HOLD c17d23d2：首连接退出255，后续上传/启动/采集记录缺失；FileExistsError与既有独占尝试标记一致。原37/53、合同三件及52个历史检查点保留。",
+  "pendingSummary": "先由用户用标准SSH客户端验证正常只读登录，不发送或记录口令；认证原因未定，不绕过拒绝。原失败批次不重放，正常访问确认后才绑定新format批次，后续compile/list与全新25门另用新UUID。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
-  "boundarySummary": "合同独审不授C0编码、现场挂载、key/trust、首签或恢复权限；Task9/C4、CompleteBackup与生产仍OPEN。",
-  "roadmapHeadline": "P0-C4 Task9：Capture 挂载合同已独审，C0 编码及真实安装未授权",
-  "taskPlanScope": "当前只起草与审查合同和文档同步；未来代码闭集五个现有Rust文件，未新增文件/依赖/打包/部署/CI或修改原批准记录。",
+  "boundarySummary": "本轮仅继续准确五叶默认关闭编码与原普通Linux检查。控制台认证失败不授新凭证或权限；B/C安装、真实C0-C02及Root/PG/C11/S5、首签/RA/RB和Task9/C4均OPEN，旧FAIL/HOLD保持。",
+  "roadmapHeadline": "P0-C4 Task9：代码静审已过，普通 Linux 检查受控制台认证阻断",
+  "taskPlanScope": "准确五个既有Rust文件的默认关闭候选已组合静审，新增20定义尚未执行。首轮真实控制台AUTH255/HOLD未上传或启动产品；原批次保持、先核正常登录，不以重跑规避独占门。",
   "nextSteps": [
     [
-      "批准准确 C0 五叶",
-      "先审定Capture专用只读视图、同原件持续再核、来源写别名拒绝和固定十五项；批准后才编码及限定Linux检查。"
+      "核正常只读登录",
+      "用户在真实控制台使用标准SSH客户端只读验证id-u；不向对话提交口令，不由脚本读取或缓存。权限拒绝继续HOLD，不绕过。"
     ],
     [
-      "C0 新代码与原件补验",
-      "按新不可变源包独审、格式/Clippy/编译/普通回归分层留证；旧普通13门不冒充新代码通过。"
+      "绑定全新格式批次",
+      "正常访问经核实后，保留原失败批次，创建新的精确绑定批次并一次启动format；FileExistsError对应旧尝试标记，禁止清除后重放。"
     ],
     [
-      "独立现场与双机验收",
-      "目标新资料和安装器/实际权限另审，完成Root/PG/C11/S5/global64后再分案首签、RA、源不可访问RB。"
+      "后续名单与普通25门",
+      "格式原件独核后另建compile/list批次取得四配置实际名单，再冻结名单、重新审绑定并执行全新25门；现场B/C和双机验收仍另审。"
     ]
   ]
 };
