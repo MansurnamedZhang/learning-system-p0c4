@@ -1,5 +1,19 @@
 # Task9 已选目标与平台预检
 
+## 2026-11-01：真实安装与双机验收方案准备，尚未安装或运行
+
+本轮只完成安装前审查、方案与填报结构、现有访问范围内的只读元数据检查及文档核验；产品源码保持 be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c 的默认关闭状态。既有 13 道普通 Linux 检查及 Backup 默认 450 / offhost 649 passed（各 106 ignored）、46 个不同新增正文保留原批证据，本轮没有新增产品测试信用。
+
+[真实安装与双机整链实施单](installation-and-two-host-acceptance-plan.md)已明确六项前置缺口和 A/C0/B/C/D1/D2 边界：Capture 固定 12-mount 与新 policy/fence 读取冲突；15-mount 是待审增量候选，未改代码。B1 固定安装器/受限 native parent 链、真实 key/trust/ELF/anchor 清单、旧 writer 排除、全期 global64/S5/Root/PG/C11 以及真正首签和 RA/RB 仍需后续闭合。
+
+S 普通用户元数据已重新读取；root 私有安装信息权限拒绝则保持未知。D 本轮既有非交互访问权限拒绝，没有取得新现场状态，不沿用历史容量当当前保证。密钥用途分为 S 应用认证、SSH transport 与 D 备份签名三类；未生成、安装或收集凭证。C0/B/C/D1/D2 均未由本次准备授予。
+
+执行顺序为现场事实和准确 C0 合同 → B 托管 public pins → 固定角色构建 → C 安装及真实生命周期证明 → D1 原调用成功/CompleteBackup/RA → 预准入 S2 与规定负例 → D2 狭窄源不可访问/RB → 原始证据独核及适用回归。成功 S1 fence 仍长期保留；不重用 S1 或覆盖 D1 trust 来做后续传输。所有旧失败/HOLD 保留，Task9/C4 开放，未合并 main、未部署生产。
+
+以下为按日期保留的历史检查点，不能作为当前安装状态或新增权限依据。
+
+---
+
 ## 最新检查点：Task2c签名DATA片 · 2026-10-27
 
 Task2c完成固定SourceAuth/SourceFinalDecision的签名DATA验证片，新14项/offhost89逐名实际通过并独核；默认450通过/106忽略，特性538通过/106忽略分别计；两配置不相加。格式、严格Clippy、bin构建通过。

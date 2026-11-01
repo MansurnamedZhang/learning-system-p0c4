@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "first S/M6 默认关闭代码及13门普通检查通过；正式异机验收 OPEN",
-    "detail": "本轮 first S/M6 已形成默认关闭实现。准确源码的完整13道普通Linux门通过：Backup 默认 450 passed / 106 ignored，offhost 649 passed / 106 ignored；46个不同新增测试体，旧84个受影响测试正文和属性保留，跨feature重复执行不累加。DB本轮仅依赖编译，没有新DB测试信用。真实first S/Ready/fence、Root/PG/C11和异机签名尚未验收。",
-    "evidence": "成功批次 af1986cd-f101-47bf-880a-c2134468013f；受测706文件、22处源码（18既有加4新），源索引SHA-256 6efcea40845eef4193a48ee62a7774ca3691b183b1784f525d1ad9cd42f9e48f；实际结果SHA-256 95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d；独立原始证据审查SHA-256 557226b27be2b078fda3caff4d32902c4dd73e7bbe243c3612d6f8567a70cd82。13门全部退出0，源码前后不变、自然退出与精确ID清理均独核。B/C 安装、公钥信任与 SourceCapture 新挂载、旧 writer 写入面排除、全期 global64 / S5、真实 Root/PG/C11、首次跨机签名与 RA/RB、Task9 和 C4 正式验收均继续 OPEN。"
+    "statusLabel": "安装与双机方案已准备；真实安装/Task9 验收 OPEN",
+    "detail": "已列六项缺口及 A/C0/B/C/D1/D2 最小审批。Capture 原12mount与新policy/fence冲突，15mount仅待审候选；本轮不改Rust、不安装密钥/信任/launcher、不运行首签或恢复。",
+    "evidence": "be147 默认关闭代码及历史 ordinary13 门（450/649 passed、各106 ignored，46个新正文）保持原信用。S 只读元数据更新；S 私有安装及 D 新现场状态仍未核实。方案规定 S1 永久 fence、S2 预准入、RA/RB fresh顺序、六窗口与原件独审；Task9/C4 未关闭。"
   }
 ];
 
@@ -1640,30 +1640,30 @@ export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
   "date": "2026-11-01",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "7157556c37ac34e0fef9e345a7a560f0f4960f51",
-  "state": "Task9 R2b：first S/M6 默认关闭实现通过限定普通检查；正式异机验收继续开放",
-  "progressSummary": "准确 22 个源码路径；46 个新增普通组件测试体。Backup 默认 450 passed / 106 ignored，offhost 649 passed / 106 ignored；完整 13 门成功，DB 仅依赖编译。",
-  "progressEvidence": "受测 706 文件；批次 af1986cd-f101-47bf-880a-c2134468013f，结果 95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d；源码、原始证据、自然退出及精确清理独立核对。",
-  "pendingSummary": "B/C 安装、公钥信任与 SourceCapture 新挂载、旧 writer 写入面排除、全期 global64 / S5、真实 Root/PG/C11、首次跨机签名与 RA/RB、Task9 和 C4 正式验收均继续 OPEN。",
+  "sourceCommit": "be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c",
+  "state": "Task9 实装与双机整链方案准备：C0 拓扑与 B/C/D 待审，产品保持默认关闭",
+  "progressSummary": "本轮文档与准备结构核验；产品源码不变。既有普通 13 门、默认 450/offhost 649 passed（各106 ignored）、46新正文保留原证据，没有新增现场验收信用。",
+  "progressEvidence": "2026-11-01 完成 S 普通用户只读元数据，root 私有安装权限拒绝保持未知；D 非交互访问拒绝，未取得新现场状态。六项缺口和准确审批分包见真实安装与双机实施单。",
+  "pendingSummary": "H1 目标现况；H2 Capture 12→15 固定拓扑待准确合同；H3 key/trust 与 ELF/policy/anchor 实值；H4 安装器和 native parent 链；H5 旧 writer/global64/S5/真实 C11；H6 首签、RA/RB 与故障原件独核。Task9/C4 OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
-  "boundarySummary": "Task9、C4整关、独立存储、正常CompleteBackup、RecoveredInstance、公开恢复和生产仍OPEN。",
-  "roadmapHeadline": "P0-C4 Task9 持续实施：first S/M6 默认关闭代码与普通检查收尾，实际安装与异机验收 OPEN",
-  "taskPlanScope": "原 2026-10-26 R2b 职责与既有 Source/DB/C11 补充合同；18 既有加 4 新增源码路径，未扩大安装、安全权限或运行范围。",
+  "boundarySummary": "真实安装、首次 S/Ready/fence、正常 CompleteBackup、RA/RB 与 Task9/C4 正式验收仍 OPEN；没有源端隔离、main 合并或生产部署。",
+  "roadmapHeadline": "P0-C4 Task9：真实安装与双机验收准备继续，C0 与 B/C/D 尚未授权实施",
+  "taskPlanScope": "本轮 docs-only 准备与已有 feature 分支同步；不改变 Rust、旧37矩阵、53分层计划或原批准合同，不安装或扩大安全权限。",
   "nextSteps": [
     [
-      "B/C 准入与安装",
-      "分别核定准确目标、密钥/公钥信任、SourceCapture 新挂载和旧 writer 排除；按最小审批范围实施。"
+      "现场事实与 C0",
+      "先核 D 当前安装/容量和 S 私有安装元数据，再审定准确拓扑与安装工具差额；不绕过权限拒绝。"
     ],
     [
-      "全期资源与生命周期",
-      "核实 global64、S5、真实 Root/PG/C11 和原持有者自然结算；普通模型测试不替代实测。"
+      "B 托管与 C 安装",
+      "分阶确认三用途 key/trust、固定角色 ELF、policy/anchor/launcher、挂载及旧 writer/全期生命周期证据。"
     ],
     [
-      "异机正式验收",
-      "实际首次跨机签名、RA/RB 与规定故障/恢复证据；Task9/C4 保持 OPEN，未知保持 HOLD。"
+      "D1 与 D2 分案验收",
+      "正常跨机首发与 RA；预准入 S2 负例保 D1 原件；再获准狭窄源不可访问与 fresh RB，最后原件独审。"
     ]
   ]
 };
@@ -1696,6 +1696,10 @@ export const principles = [
 ];
 
 export const references = [
+  [
+    "Task9真实安装、双机验收与最小审批",
+    "docs/task9/installation-and-two-host-acceptance-plan.md"
+  ],
   [
     "架构设计文档集（设计参考，状态以本图为准）",
     "docs/KnowWeave架构设计总览.md"

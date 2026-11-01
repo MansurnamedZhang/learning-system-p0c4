@@ -1,0 +1,214 @@
+{
+  "schema": 1,
+  "artifact_kind": "TASK9_INSTALLATION_AND_TWO_HOST_PREPARATION_NOT_AUTHORITY",
+  "date": "2026-11-01",
+  "status": "LOCAL_PREPARATION_ONLY_NOT_AUTHORIZED_NOT_EXECUTED",
+  "product_consumes_this_file": false,
+  "executable": false,
+  "code_base_commit": "be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c",
+  "code_base_tree": "675b764b27ca4bbe6f7485094e314c0999844e3f",
+  "product_source_changed_this_preparation": false,
+  "default_off": true,
+  "plan": "docs/task9/installation-and-two-host-acceptance-plan.md",
+  "historical_ordinary_checks": {
+    "batch": "af1986cd-f101-47bf-880a-c2134468013f",
+    "phase_count": 13,
+    "default_passed": 450,
+    "offhost_passed": 649,
+    "ignored_each_configuration": 106,
+    "distinct_new_bodies": 46,
+    "cross_configuration_counts_summed": false,
+    "source_index_sha256": "6efcea40845eef4193a48ee62a7774ca3691b183b1784f525d1ad9cd42f9e48f",
+    "result_sha256": "95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d",
+    "provides_installation_or_cross_host_credit": false
+  },
+  "host_facts": {
+    "S": {
+      "role": "EXISTING_LINUX_DEVELOPMENT_SOURCE",
+      "observation_scope": "ORDINARY_UID_READ_ONLY_METADATA_NOT_INSTALLATION_AUDIT",
+      "observed_at_utc": "2026-11-01T01:30:47.040897+00:00",
+      "architecture": "x86_64",
+      "logical_cpus": 24,
+      "mem_total_kib": 32140112,
+      "home_filesystem_free_bytes_at_read": 251911761920,
+      "root_private_installation_state": "UNKNOWN_PERMISSION_DENIED",
+      "authority_from_path_absence": false
+    },
+    "D": {
+      "role": "USER_SELECTED_INDEPENDENT_CLOUD_BACKUP_TARGET",
+      "independence_evidence": "USER_ATTESTED_TWO_DISTINCT_HOSTS_NOT_GEOGRAPHIC_OR_ACCOUNT_DISASTER_RECOVERY_PROOF",
+      "custodian": "USER_MANAGED_HOST_AND_CLOUD_DISK",
+      "signing_key_custody_choice": "DESTINATION_ROOT_PRIVATE_DIRECTORY_NOT_YET_GENERATED_OR_INSTALLED",
+      "current_access_observation": "EXISTING_STRICT_HOST_TRUST_NONINTERACTIVE_ACCESS_PERMISSION_DENIED_NO_NEW_CREDENTIALS",
+      "fresh_installation_or_capacity_observation": false,
+      "historical_observation_date": "2026-10-26",
+      "historical_logical_cpus": 2,
+      "historical_memory_class_gib": 2,
+      "historical_disk_class_gib": 50,
+      "historical_data_not_current_capacity_approval": true,
+      "current_available_memory_bytes": null,
+      "current_available_disk_bytes": null,
+      "current_host_storage_identity": null
+    }
+  },
+  "approvals": {
+    "A": "AUTHORIZED_PREPARATION_ONLY",
+    "C0": "SUPPLEMENTAL_TOPOLOGY_AND_INSTALLER_CODE_CONTRACT_NOT_AUTHORIZED",
+    "B": "EXACT_KEY_TRUST_CUSTODY_NOT_AUTHORIZED",
+    "C": "EXACT_RUNTIME_LAUNCH_PERMISSION_MOUNT_INSTALLATION_NOT_AUTHORIZED",
+    "D1": "REAL_FIRST_PUBLICATION_RA_AND_NAMED_NEGATIVES_NOT_AUTHORIZED",
+    "D2": "NARROW_SOURCE_UNAVAILABLE_RB_NOT_AUTHORIZED"
+  },
+  "C_stage_guards": {
+    "C_prepare": "EXACT_FRESH_NAMESPACE_REGISTRY_FENCE_SESSION_IDENTITIES_ONLY_SEPARATE_APPROVAL_NO_ENTRY_ENABLEMENT",
+    "C_install": "AFTER_ACTUAL_PUBLIC_PINS_ELF_ANCHOR_POLICY_AND_LAUNCH_MANIFEST_CATALOGUE_SEALED_AND_SEPARATELY_APPROVED",
+    "either_stage_authorized": false,
+    "source_expected_destination_policy_pin_requires_actual_D_installation_readback_not_wire_echo": true
+  },
+  "capture_topology_proposal": {
+    "state": "C0_CONTRACT_REVIEW_REQUIRED_NOT_IMPLEMENTED",
+    "current_closed_mount_count": 12,
+    "candidate_closed_mount_count": 15,
+    "preserve_original_twelve_identities_and_modes": true,
+    "additional_exact_read_only_mounts": [
+      "/var/lib/knowweave-c4/b1/source-policy.json",
+      "/var/lib/knowweave-c4/b1/launch-manifest.json",
+      "/var/lib/knowweave-c4-source-fences"
+    ],
+    "capture_receives_auth_or_transport_private_keys": false,
+    "broad_parent_bind_or_relaxed_mount_count_allowed": false,
+    "accurate_code_and_c11_field_delta_sealed": false,
+    "onsite_lock_inode_and_lifecycle_proved": false
+  },
+  "blockers": [
+    {
+      "id": "H1",
+      "status": "OPEN",
+      "requires": [
+        "CURRENT_TARGET_METADATA",
+        "EXACT_EXISTING_INSTALLATION_INVENTORY"
+      ]
+    },
+    {
+      "id": "H2",
+      "status": "OPEN",
+      "requires": [
+        "C0_EXACT_TOPOLOGY_CONTRACT",
+        "ORDINARY_REGRESSION",
+        "C_REAL_MOUNT_AND_C11"
+      ]
+    },
+    {
+      "id": "H3",
+      "status": "OPEN",
+      "requires": [
+        "B_C_APPROVAL",
+        "REAL_PUBLIC_PINS",
+        "ROLE_BUILD_ELF_POLICY_ANCHOR_MANIFEST"
+      ]
+    },
+    {
+      "id": "H4",
+      "status": "OPEN",
+      "requires": [
+        "REVIEWED_EXACT_INSTALLATION_TOOL",
+        "FIXED_NATIVE_PARENT_LAUNCH_CHAIN",
+        "C_APPROVAL"
+      ]
+    },
+    {
+      "id": "H5",
+      "status": "OPEN",
+      "requires": [
+        "OLD_WRITER_WRITE_SURFACE_EXCLUSION",
+        "GLOBAL64",
+        "S5",
+        "REAL_ROOT_PG_C11"
+      ]
+    },
+    {
+      "id": "H6",
+      "status": "OPEN",
+      "requires": [
+        "D1_ORIGINAL_SUCCESS_AND_RA",
+        "APPLICABLE_NEGATIVES",
+        "D2_SOURCE_UNAVAILABLE_RB",
+        "RAW_INDEPENDENT_REVIEW"
+      ]
+    }
+  ],
+  "uninstantiated_installation_material": {
+    "private_host_inventory_sha256": null,
+    "S_auth_public_pin": null,
+    "S_transport_public_pin": null,
+    "D_host_key_pin": null,
+    "D_backup_public_pin": null,
+    "S1_S2_exact_registry_root_bindings": null,
+    "actual_ELF_and_native_parent_pins": null,
+    "policy_anchor_and_launch_manifest_pins": null,
+    "exact_file_owner_mode_and_command_catalogue": null,
+    "exact_case_UUID_network_volume_budget_inventory": null,
+    "accepted_global64_S5_C11_raw_evidence": null,
+    "V1_V2_separate_policy_and_reader_views": null
+  },
+  "immutable_reference_pins": {
+    "docs/task9/b1-preparation-test-matrix.json": {
+      "bytes": 31920,
+      "sha256": "4eea0c2b2d4fd6a101db1b117a7553fb05f61f3b00af66f555606f4c168e4bcd"
+    },
+    "docs/task9/r2b-validation-plan.json": {
+      "bytes": 31819,
+      "sha256": "b934d2ef262a8c5e1c8762af515e944fc5c244a2c0c5600a8428ea0cc88111b6"
+    },
+    "docs/task9/r2b-wire-profile.json": {
+      "bytes": 29775,
+      "sha256": "732e84a1c89ac042b437d1adf8f7da8a4e9473e01443611802c58aaf1b8eaf8a"
+    },
+    "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md": {
+      "bytes": 28012,
+      "sha256": "c24b555ae1eefc10e4a22cbe3c1834b629e0a4970ab38d7d10a999dff3016159"
+    }
+  },
+  "historical_preparation_cases": 37,
+  "layered_obligations_not_test_body_count": 53,
+  "acceptance_sequence": [
+    "CURRENT_FACTS_AND_C0",
+    "B_PUBLIC_PINS",
+    "ROLE_BUILDS",
+    "C_EXACT_INSTALLATION_AND_ONSITE_PROOFS",
+    "D1_FIRST_PUBLICATION",
+    "RA_STOP_RETAIN",
+    "NAMED_NEGATIVES_AND_PRE_ADMITTED_S2",
+    "D2_NARROW_SOURCE_UNAVAILABLE_RB",
+    "RAW_REVIEW_AND_APPLICABLE_REGRESSIONS"
+  ],
+  "failure_windows": [
+    "BEFORE_PERMISSION",
+    "BEFORE_SIGNATURE",
+    "BEFORE_RENAME",
+    "BEFORE_PARENT_SYNC",
+    "BEFORE_VERIFY",
+    "BEFORE_REPLY"
+  ],
+  "S1_success_fence_retained_without_auto_close": true,
+  "PRIOR_COMPLETE_requires_pre_admitted_S2_and_original_D1_reader_context": true,
+  "RA_RB_fresh_and_sequential": true,
+  "unknown_outcome": "HOLD_RETAIN_NO_AUTOMATIC_REPLAY_NO_AUTHORITY_FROM_DISK",
+  "Task9_accepted": false,
+  "C4_accepted": false,
+  "installed": false,
+  "first_S": false,
+  "source_READY": false,
+  "fence_installed": false,
+  "CompleteBackup": false,
+  "runtime_authority_wired": false,
+  "genuine_Root_PG_positive_credit": false,
+  "keys_or_trust_installed": false,
+  "source_isolated": false,
+  "recovery_executed": false,
+  "main_merged": false,
+  "production_deployed": false,
+  "operational_flag_semantics": "FALSE_MEANS_NO_ACCEPTED_EXECUTION_CREDIT_NOT_PROOF_OF_PHYSICAL_ABSENCE_OR_EMPTY_PRIVATE_INSTALLATION",
+  "all_negative_cases_require_fresh_pre_admitted_operation_and_resource_IDs": true,
+  "V1_V2_view_names_do_not_authorize_D2_RB": true
+}
