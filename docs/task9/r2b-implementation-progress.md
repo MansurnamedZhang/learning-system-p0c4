@@ -1,5 +1,19 @@
 # Task9 R2b实施进展
 
+## 2026-11-01：Capture 挂载增量合同完成独审，编码与现场安装仍待批准
+
+已完成[Capture 挂载增量合同](capture-mount-amendment-contract.md)、准确机器表与分层检查计划的准备和独立审查。当前产品源码保持 0531083cc7b686ee30a0df7b4c9cdae3aa84b574 的字节与默认关闭状态，本轮没有编码、产品测试或现场安装信用。
+
+唯一方案保留原十二项挂载及实际 Source/name 绑定，增加 Capture 专属 policy、原 Capture own launch manifest 的两个只读别名，以及真实 fence 根只读视图。新 policy 绑定 Capture 自身的构建与 ELF；不能直接借用 PublicationSource 的材料。两文件来源唯一由原已审 Capture release 根 R 加固定叶名派生，不能传任意路径或挂整个 b1 父目录。
+
+未来编码准确限定五个现有文件：Root/source_launch、S5/source/binding、Capture local cutover、DB process 及原 DB tests。需要批准的是这五叶的固定增量和原限定普通 Linux 检查；Cargo、依赖、bin、policy/installed/fence 校验器、打包、部署、CI 与原批准合同均不改。真实三项挂载、Capture 专属文件发行、私有父目录和权限仍属于 C 现场包另批；安装器与目标端资料缺口没有由本合同关闭。
+
+修订保持产品自有 FD 上限64；必要 runtime/SSH 句柄逐项归属、数量和重叠及实际总数另核，原更严局部门不放宽。新只读来源的全 host 可写别名/祖先与 host writer 排除、原件持续再核、纯 parser 与真实 Group/Catalog 身份检查均分层列明。计划的 20 项普通检查与 12 组现场义务全部尚未执行，不抵扣原37/53，不用旧普通回归冒充新代码通过。旧草案未通过项与所有失败/HOLD保留。
+
+产品仍默认关闭；C0 编码、B/C 安装、真实 Root/PG/C11、全期 global64/S5、首次跨机签名、RA/RB、Task9/C4 正式验收仍开放。未合并 main、未部署生产。下方为历史检查点。
+
+---
+
 ## 2026-11-01：真实安装与双机验收方案准备，尚未安装或运行
 
 本轮只完成安装前审查、方案与填报结构、现有访问范围内的只读元数据检查及文档核验；产品源码保持 be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c 的默认关闭状态。既有 13 道普通 Linux 检查及 Backup 默认 450 / offhost 649 passed（各 106 ignored）、46 个不同新增正文保留原批证据，本轮没有新增产品测试信用。

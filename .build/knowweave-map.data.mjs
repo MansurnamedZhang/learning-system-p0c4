@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "安装与双机方案已准备；真实安装/Task9 验收 OPEN",
-    "detail": "已列六项缺口及 A/C0/B/C/D1/D2 最小审批。Capture 原12mount与新policy/fence冲突，15mount仅待审候选；本轮不改Rust、不安装密钥/信任/launcher、不运行首签或恢复。",
-    "evidence": "be147 默认关闭代码及历史 ordinary13 门（450/649 passed、各106 ignored，46个新正文）保持原信用。S 只读元数据更新；S 私有安装及 D 新现场状态仍未核实。方案规定 S1 永久 fence、S2 预准入、RA/RB fresh顺序、六窗口与原件独审；Task9/C4 未关闭。"
+    "statusLabel": "Capture 增量合同已独审；五叶编码与安装待批准",
+    "detail": "唯一15挂载=原12保留＋Capture专用policy、原own manifest两个RO别名＋真实fence RO。未来五个现有Rust文件，保持角色/build原件、来源写面排除和原预算。",
+    "evidence": "合同/机器表/分层计划独审；20普通提案与12现场组全部未执行。现403 Rust、旧37/53和旧51检查点不变，保留旧草案未通过项。C0编码、B/C实装、原Root/PG/C11/global64/S5、首签与RA/RB及Task9/C4仍OPEN。"
   }
 ];
 
@@ -1640,30 +1640,30 @@ export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
   "date": "2026-11-01",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c",
-  "state": "Task9 实装与双机整链方案准备：C0 拓扑与 B/C/D 待审，产品保持默认关闭",
-  "progressSummary": "本轮文档与准备结构核验；产品源码不变。既有普通 13 门、默认 450/offhost 649 passed（各106 ignored）、46新正文保留原证据，没有新增现场验收信用。",
-  "progressEvidence": "2026-11-01 完成 S 普通用户只读元数据，root 私有安装权限拒绝保持未知；D 非交互访问拒绝，未取得新现场状态。六项缺口和准确审批分包见真实安装与双机实施单。",
-  "pendingSummary": "H1 目标现况；H2 Capture 12→15 固定拓扑待准确合同；H3 key/trust 与 ELF/policy/anchor 实值；H4 安装器和 native parent 链；H5 旧 writer/global64/S5/真实 C11；H6 首签、RA/RB 与故障原件独核。Task9/C4 OPEN。",
+  "sourceCommit": "0531083cc7b686ee30a0df7b4c9cdae3aa84b574",
+  "state": "Task9 C0：Capture 五文件增量合同完成独审；编码与现场权限仍待批准",
+  "progressSummary": "本轮仅合同/机器表/分层计划与文档检查，产品源码不变。未来准确五叶、十五项挂载；计划20项普通检查和12组现场义务均未执行。",
+  "progressEvidence": "Capture 专属 policy 与原 own launch manifest 两个 RO 别名，加真实 fence RO；本 Capture 构建/ELF/原件身份不借 PublicationSource。旧51检查点、原37/53及所有403份Rust保持字节。",
+  "pendingSummary": "待人类批准准确五文件 C0 编码及限定 Linux 检查；目标新资料、安装器/固定启动链、B/C 实装和全期 Root/PG/C11/global64/S5、首签/RA/RB仍OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
-  "boundarySummary": "真实安装、首次 S/Ready/fence、正常 CompleteBackup、RA/RB 与 Task9/C4 正式验收仍 OPEN；没有源端隔离、main 合并或生产部署。",
-  "roadmapHeadline": "P0-C4 Task9：真实安装与双机验收准备继续，C0 与 B/C/D 尚未授权实施",
-  "taskPlanScope": "本轮 docs-only 准备与已有 feature 分支同步；不改变 Rust、旧37矩阵、53分层计划或原批准合同，不安装或扩大安全权限。",
+  "boundarySummary": "合同独审不授C0编码、现场挂载、key/trust、首签或恢复权限；Task9/C4、CompleteBackup与生产仍OPEN。",
+  "roadmapHeadline": "P0-C4 Task9：Capture 挂载合同已独审，C0 编码及真实安装未授权",
+  "taskPlanScope": "当前只起草与审查合同和文档同步；未来代码闭集五个现有Rust文件，未新增文件/依赖/打包/部署/CI或修改原批准记录。",
   "nextSteps": [
     [
-      "现场事实与 C0",
-      "先核 D 当前安装/容量和 S 私有安装元数据，再审定准确拓扑与安装工具差额；不绕过权限拒绝。"
+      "批准准确 C0 五叶",
+      "先审定Capture专用只读视图、同原件持续再核、来源写别名拒绝和固定十五项；批准后才编码及限定Linux检查。"
     ],
     [
-      "B 托管与 C 安装",
-      "分阶确认三用途 key/trust、固定角色 ELF、policy/anchor/launcher、挂载及旧 writer/全期生命周期证据。"
+      "C0 新代码与原件补验",
+      "按新不可变源包独审、格式/Clippy/编译/普通回归分层留证；旧普通13门不冒充新代码通过。"
     ],
     [
-      "D1 与 D2 分案验收",
-      "正常跨机首发与 RA；预准入 S2 负例保 D1 原件；再获准狭窄源不可访问与 fresh RB，最后原件独审。"
+      "独立现场与双机验收",
+      "目标新资料和安装器/实际权限另审，完成Root/PG/C11/S5/global64后再分案首签、RA、源不可访问RB。"
     ]
   ]
 };
@@ -1696,6 +1696,10 @@ export const principles = [
 ];
 
 export const references = [
+  [
+    "Task9 Capture挂载增量合同与准确五文件审批",
+    "docs/task9/capture-mount-amendment-contract.md"
+  ],
   [
     "Task9真实安装、双机验收与最小审批",
     "docs/task9/installation-and-two-host-acceptance-plan.md"

@@ -1,6 +1,6 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-11-01。当前状态：Task9 实装与双机整链方案准备：C0 拓扑与 B/C/D 待审，产品保持默认关闭，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新：2026-11-01。当前状态：Task9 C0：Capture 五文件增量合同完成独审；编码与现场权限仍待批准，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；当前本地源码检查点：`0531083cc7b686ee30a0df7b4c9cdae3aa84b574`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
@@ -10,7 +10,7 @@
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。本轮文档与准备结构核验；产品源码不变。既有普通 13 门、默认 450/offhost 649 passed（各106 ignored）、46新正文保留原证据，没有新增现场验收信用。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。本轮仅合同/机器表/分层计划与文档检查，产品源码不变。未来准确五叶、十五项挂载；计划20项普通检查和12组现场义务均未执行。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -61,21 +61,21 @@ flowchart LR
 
 ## 下一步
 
-H1 目标现况；H2 Capture 12→15 固定拓扑待准确合同；H3 key/trust 与 ELF/policy/anchor 实值；H4 安装器和 native parent 链；H5 旧 writer/global64/S5/真实 C11；H6 首签、RA/RB 与故障原件独核。Task9/C4 OPEN。
+待人类批准准确五文件 C0 编码及限定 Linux 检查；目标新资料、安装器/固定启动链、B/C 实装和全期 Root/PG/C11/global64/S5、首签/RA/RB仍OPEN。
 
-- **现场事实与 C0**：先核 D 当前安装/容量和 S 私有安装元数据，再审定准确拓扑与安装工具差额；不绕过权限拒绝。
-- **B 托管与 C 安装**：分阶确认三用途 key/trust、固定角色 ELF、policy/anchor/launcher、挂载及旧 writer/全期生命周期证据。
-- **D1 与 D2 分案验收**：正常跨机首发与 RA；预准入 S2 负例保 D1 原件；再获准狭窄源不可访问与 fresh RB，最后原件独审。
+- **批准准确 C0 五叶**：先审定Capture专用只读视图、同原件持续再核、来源写别名拒绝和固定十五项；批准后才编码及限定Linux检查。
+- **C0 新代码与原件补验**：按新不可变源包独审、格式/Clippy/编译/普通回归分层留证；旧普通13门不冒充新代码通过。
+- **独立现场与双机验收**：目标新资料和安装器/实际权限另审，完成Root/PG/C11/S5/global64后再分案首签、RA、源不可访问RB。
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-本轮文档与准备结构核验；产品源码不变。既有普通 13 门、默认 450/offhost 649 passed（各106 ignored）、46新正文保留原证据，没有新增现场验收信用。
+本轮仅合同/机器表/分层计划与文档检查，产品源码不变。未来准确五叶、十五项挂载；计划20项普通检查和12组现场义务均未执行。
 
-H1 目标现况；H2 Capture 12→15 固定拓扑待准确合同；H3 key/trust 与 ELF/policy/anchor 实值；H4 安装器和 native parent 链；H5 旧 writer/global64/S5/真实 C11；H6 首签、RA/RB 与故障原件独核。Task9/C4 OPEN。
+待人类批准准确五文件 C0 编码及限定 Linux 检查；目标新资料、安装器/固定启动链、B/C 实装和全期 Root/PG/C11/global64/S5、首签/RA/RB仍OPEN。
 
-2026-11-01 完成 S 普通用户只读元数据，root 私有安装权限拒绝保持未知；D 非交互访问拒绝，未取得新现场状态。六项缺口和准确审批分包见真实安装与双机实施单。
+Capture 专属 policy 与原 own launch manifest 两个 RO 别名，加真实 fence RO；本 Capture 构建/ELF/原件身份不借 PublicationSource。旧51检查点、原37/53及所有403份Rust保持字节。
 
 ```mermaid
 flowchart LR
@@ -87,7 +87,7 @@ flowchart LR
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>私有单机范围限定验收"]
-    C4T9["Task 9<br/>真实独立故障域闭合<br/>安装与双机方案已准备；真实安装/Task9 验收 OPEN"]
+    C4T9["Task 9<br/>真实独立故障域闭合<br/>Capture 增量合同已独审；五叶编码与安装待批准"]
     C4T1 --> C4T2
     C4T2 --> C4T3
     C4T3 --> C4T4
@@ -113,7 +113,7 @@ flowchart LR
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
 | Task 8 · 当前回归、旧版升级与审查 | 私有单机范围限定验收 | Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。 169 ignored已具名处置，不等于169全部运行；65 extra与3 measurement未执行披露。 |
-| Task 9 · 真实独立故障域闭合 | 安装与双机方案已准备；真实安装/Task9 验收 OPEN | 已列六项缺口及 A/C0/B/C/D1/D2 最小审批。Capture 原12mount与新policy/fence冲突，15mount仅待审候选；本轮不改Rust、不安装密钥/信任/launcher、不运行首签或恢复。 be147 默认关闭代码及历史 ordinary13 门（450/649 passed、各106 ignored，46个新正文）保持原信用。S 只读元数据更新；S 私有安装及 D 新现场状态仍未核实。方案规定 S1 永久 fence、S2 预准入、RA/RB fresh顺序、六窗口与原件独审；Task9/C4 未关闭。 |
+| Task 9 · 真实独立故障域闭合 | Capture 增量合同已独审；五叶编码与安装待批准 | 唯一15挂载=原12保留＋Capture专用policy、原own manifest两个RO别名＋真实fence RO。未来五个现有Rust文件，保持角色/build原件、来源写面排除和原预算。 合同/机器表/分层计划独审；20普通提案与12现场组全部未执行。现403 Rust、旧37/53和旧51检查点不变，保留旧草案未通过项。C0编码、B/C实装、原Root/PG/C11/global64/S5、首签与RA/RB及Task9/C4仍OPEN。 |
 
 ### 原五任务父里程碑（保留原编号）
 
@@ -456,6 +456,7 @@ flowchart TB
 
 ## 状态依据
 
+- [Task9 Capture挂载增量合同与准确五文件审批](../docs/task9/capture-mount-amendment-contract.md)
 - [Task9真实安装、双机验收与最小审批](../docs/task9/installation-and-two-host-acceptance-plan.md)
 - [架构设计文档集（设计参考，状态以本图为准）](../docs/KnowWeave架构设计总览.md)
 - [批准记录与阶段边界](../docs/设计批准与实施路线.md)
@@ -491,4 +492,4 @@ flowchart TB
 
 历史只读子进程、同身份物理克隆、同guard重启与Task5受控用例保留各自原源码；不能相互替代。当前分项采用与历史检查点以验收清单为准；Task8完整十门和四升级已限定通过；规定专项与整组终审、Task9独立故障域仍开放。
 
-路线图只更新文档与图示。真实安装、首次 S/Ready/fence、正常 CompleteBackup、RA/RB 与 Task9/C4 正式验收仍 OPEN；没有源端隔离、main 合并或生产部署。六张SVG/Mermaid、HTML与Markdown共14份输出由同一数据生成。审核与验证范围见本轮审核记录；历史测试数量不能相加或换算项目完成百分比。
+路线图只更新文档与图示。合同独审不授C0编码、现场挂载、key/trust、首签或恢复权限；Task9/C4、CompleteBackup与生产仍OPEN。六张SVG/Mermaid、HTML与Markdown共14份输出由同一数据生成。审核与验证范围见本轮审核记录；历史测试数量不能相加或换算项目完成百分比。

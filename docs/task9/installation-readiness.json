@@ -53,7 +53,7 @@
   },
   "approvals": {
     "A": "AUTHORIZED_PREPARATION_ONLY",
-    "C0": "SUPPLEMENTAL_TOPOLOGY_AND_INSTALLER_CODE_CONTRACT_NOT_AUTHORIZED",
+    "C0": "EXACT_FIVE_FILE_CONTRACT_REVIEWED_CODING_AND_LIMITED_CHECKS_NOT_AUTHORIZED",
     "B": "EXACT_KEY_TRUST_CUSTODY_NOT_AUTHORIZED",
     "C": "EXACT_RUNTIME_LAUNCH_PERMISSION_MOUNT_INSTALLATION_NOT_AUTHORIZED",
     "D1": "REAL_FIRST_PUBLICATION_RA_AND_NAMED_NEGATIVES_NOT_AUTHORIZED",
@@ -66,7 +66,7 @@
     "source_expected_destination_policy_pin_requires_actual_D_installation_readback_not_wire_echo": true
   },
   "capture_topology_proposal": {
-    "state": "C0_CONTRACT_REVIEW_REQUIRED_NOT_IMPLEMENTED",
+    "state": "EXACT_FIVE_FILE_CONTRACT_REVIEWED_NOT_APPROVED_NOT_IMPLEMENTED",
     "current_closed_mount_count": 12,
     "candidate_closed_mount_count": 15,
     "preserve_original_twelve_identities_and_modes": true,
@@ -77,8 +77,18 @@
     ],
     "capture_receives_auth_or_transport_private_keys": false,
     "broad_parent_bind_or_relaxed_mount_count_allowed": false,
-    "accurate_code_and_c11_field_delta_sealed": false,
-    "onsite_lock_inode_and_lifecycle_proved": false
+    "accurate_code_and_c11_field_delta_sealed": true,
+    "onsite_lock_inode_and_lifecycle_proved": false,
+    "uses_Capture_own_policy_and_own_manifest_not_PublicationSource": true,
+    "host_source_rule": "ORIGINAL_ADMITTED_RO_CAPTURE_RELEASE_SOURCE_R_PLUS_EXACT_FIXED_LEAF",
+    "host_source_leaf_names": [
+      "capture-source-policy.json",
+      "capture-launch-manifest.json"
+    ],
+    "source_evidence_file_count_unchanged": 12,
+    "C11_message_count_unchanged": 15,
+    "main_actions_unchanged": 13,
+    "coding_authorized": false
   },
   "blockers": [
     {
@@ -93,9 +103,9 @@
       "id": "H2",
       "status": "OPEN",
       "requires": [
-        "C0_EXACT_TOPOLOGY_CONTRACT",
-        "ORDINARY_REGRESSION",
-        "C_REAL_MOUNT_AND_C11"
+        "HUMAN_C0_EXACT_FIVE_FILE_CODING_APPROVAL",
+        "REVIEWED_IMPLEMENTATION_AND_FRESH_ORDINARY_CHECKS",
+        "C_REAL_FIFTEEN_MOUNTS_AND_C11"
       ]
     },
     {
@@ -210,5 +220,34 @@
   "production_deployed": false,
   "operational_flag_semantics": "FALSE_MEANS_NO_ACCEPTED_EXECUTION_CREDIT_NOT_PROOF_OF_PHYSICAL_ABSENCE_OR_EMPTY_PRIVATE_INSTALLATION",
   "all_negative_cases_require_fresh_pre_admitted_operation_and_resource_IDs": true,
-  "V1_V2_view_names_do_not_authorize_D2_RB": true
+  "V1_V2_view_names_do_not_authorize_D2_RB": true,
+  "capture_mount_contract": {
+    "status": "REVIEWED_PROPOSAL_NOT_CODING_OR_INSTALLATION_APPROVAL",
+    "documents": {
+      "docs/task9/capture-mount-amendment-contract.md": {
+        "bytes": 21908,
+        "sha256": "b883e8a6588581c596f4a46ad046f51b3d9ba75dbb4ebbf12bd0d243d7b975c7"
+      },
+      "docs/task9/capture-mount-amendment-machine-delta.json": {
+        "bytes": 32494,
+        "sha256": "f0d2f77ef8ed0dced8af930ff1847237c8d2c9c58efa5375edc25392f83c8d92"
+      },
+      "docs/task9/capture-mount-amendment-validation-plan.json": {
+        "bytes": 25164,
+        "sha256": "7a905baa07656d24f3dd58064eee009edd5b1cf3145378000a7898546e9c6d8d"
+      }
+    },
+    "future_exact_source_paths": [
+      "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "crates/learning-backup/src/source/binding.rs",
+      "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs"
+    ],
+    "proposed_ordinary_checks": 20,
+    "site_obligation_groups": 12,
+    "product_tests_executed": false,
+    "approved": false,
+    "implemented": false
+  }
 }

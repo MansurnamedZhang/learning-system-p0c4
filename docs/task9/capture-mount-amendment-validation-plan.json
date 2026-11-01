@@ -1,0 +1,488 @@
+{
+  "schema": 1,
+  "artifact_kind": "TASK9_C0_LAYERED_VALIDATION_PREPARATION_ONLY",
+  "status": "CONTRACT_PROPOSAL_NOT_APPROVED_NOT_IMPLEMENTED",
+  "date": "2026-11-01",
+  "product_consumes_this_file": false,
+  "executable": false,
+  "code_approved": false,
+  "installation_approved": false,
+  "permissions_changed": false,
+  "Task9_accepted": false,
+  "C4_accepted": false,
+  "public_contract": "docs/task9/capture-mount-amendment-contract.md",
+  "public_machine_delta": "docs/task9/capture-mount-amendment-machine-delta.json",
+  "base_commit": "0531083cc7b686ee30a0df7b4c9cdae3aa84b574",
+  "base_tree": "d85a6faddb141e5aac1bad5e9b8bc52cd272124f",
+  "counts_are_not_acceptance": {
+    "proposed_unit_bodies": 20,
+    "proposed_site_obligation_groups": 12,
+    "implemented_unit_bodies": 0,
+    "executed_C0_units": 0,
+    "executed_C0_site_cases": 0,
+    "original_matrix_cases": 37,
+    "original_r2b_obligations": 53,
+    "matrices_not_merged": true,
+    "duplicated_config_run_not_new_definition": true
+  },
+  "approval_order": [
+    "CURRENT_DOCS_DRAFT_AND_INDEPENDENT_REVIEW",
+    "SEPARATE_EXACT_FIVE_FILE_C0_CODE_AND_LIMITED_NONPRIVILEGED_CHECK_APPROVAL",
+    "NEW_PRIVATE_CANDIDATE_AND_INDEPENDENT_CODE_REVIEW",
+    "FRESH_EXACT_SOURCE_PACKAGE_BOUND_CONTROLS_AND_RUN_ADMISSION",
+    "ORDINARY_LINUX_CHECKS_AND_RAW_OTHER_AUDIT",
+    "SEPARATE_EXACT_C_INSTALLATION_FILE_RESOURCE_PERMISSION_APPROVAL",
+    "GENUINE_C_NATIVE_MOUNT_FLOCK_C11_S5_PRODUCT64_RUNTIME_TOTAL_TESTS_AND_RAW_AUDIT",
+    "SEPARATE_REAL_CROSSHOST_FIRST_SIGN_AND_PUBLICATION",
+    "SEPARATE_RA_RECOVERY_AND_SOURCE_UNAVAILABLE_RB_APPROVAL",
+    "ORIGINAL37_PLUS53_FINAL_INDEPENDENT_AUDIT"
+  ],
+  "ordinary_preconditions": {
+    "Windows_work_now": "TEXT_JSON_STATIC_METADATA_ONLY",
+    "no_Rust_Node_Git_SSH_API_PG_Docker_invoked_by_this_draft": true,
+    "future_builder": "EXISTING_C_ADMITTED_IMAGE_PIN_AND_ORIGINAL_USER_FIXED_NONPRIVILEGED_PROFILE",
+    "future_security": "4CPU_8GiB_MEMORY_8GiB_SWAP_NETWORK_NONE_NO_PRIVILEGED_NO_PG_NO_NEW_NETWORK_OR_VOLUME_READONLY_EXACT_SOURCE_ONLY_BUILD_OUTPUT_RW",
+    "no_compiled_installed_keys_or_roles": "ORDINARY_UNSET_PROFILE_NO_KEY_TRUST_NATIVE_INSTALL",
+    "fixed_template_controls": "BOUND_AND_INDEPENDENTLY_REVIEWED_BEFORE_FRESH_BATCH_NO_AUTOMATIC_OLD_REPLAY"
+  },
+  "ordinary_regression": {
+    "backup_two_configs": [
+      "default",
+      "offhost-b1"
+    ],
+    "backup_phase_order": [
+      "format",
+      "clippy-backup-default",
+      "clippy-backup-offhost",
+      "check-backup-default",
+      "check-backup-offhost",
+      "compile-backup-default",
+      "list-default",
+      "ignored-default",
+      "unit-default",
+      "compile-backup-offhost",
+      "list-offhost",
+      "ignored-offhost",
+      "unit-offhost"
+    ],
+    "DB_two_configs": [
+      "default",
+      "b1-source-peer"
+    ],
+    "DB_required_checks": [
+      "format-check",
+      "clippy-D-warnings",
+      "cargo-test-lib-no-run",
+      "exact-all-list",
+      "exact-ignored-list",
+      "ordinary-nonignored-lib-tests"
+    ],
+    "DB_feature_is_not_admission": true,
+    "actual_counts_and_names": "BIND_FULL_ROSTERS_FROM_FROZEN_NEW_SOURCE_BEFORE_RUN_NOT_PREDICTED_OR_COPIED_FROM_OLD_SUCCESS",
+    "old_body_and_attribute_rule": "ALL_PREEXISTING_TEST_FUNCTION_BODIES_AND_ATTRIBUTES_RAW_UNCHANGED; NEW_TESTS_NO_IGNORE; ONLY_source_launch::tests::projection_fixture_SHARED_HELPER_MAY_EXPLICITLY_UPGRADE_DATA_TO_15",
+    "old_source_evidence12_rule": "EVERY_EXISTING_CAPTURED_SOURCE_PROOF_12FILE_BODY_AND_ROSTER_RETAINED_NO_GLOBAL_12_REPLACEMENT",
+    "failure": "PRESERVE_EXACT_FAILED_BATCH_AND_RAW_NO_AUTOREPLAY_NEXT_FIX_NEW_BYTES_NEW_BATCH_NO_CREDIT_CARRY",
+    "parser_semantic_boundary": "C0-U08_NOT_A_GROUP_REGISTRY_CATALOG_QUALIFICATION_TEST; REAL_HELD_LOADER_C03_REQUIRED"
+  },
+  "proposed_ordinary_cases": [
+    {
+      "id": "C0-U-01",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_exact_fifteen_preserves_original_twelve_rows",
+      "obligation": "Compare fixed15 sorted rows to original12 subsequence; exact source formula for three additions.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-02",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_projection_rejects_old_twelve_and_extra_mount",
+      "obligation": "Old12, 14, duplicate15 and extra16 refuse; no caller profile fallback.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-03",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_projection_rejects_policy_launch_or_fence_rw",
+      "obligation": "Each new destination RW/kind/source/name substitution refuses. Full all-host DATA negative fixtures include another-project/own-PG RW source ancestor, overlapping subtree and declared alias; ordinary DATA cannot prove actual host kernel alias exclusion.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-04",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_parent_overlay_refuses_without_broad_bind",
+      "obligation": "Exact parent overlay refusal; retain existing image root and assets-child semantics.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-05",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_five_field_hash_covers_actual_source_name_and_ro",
+      "obligation": "Actual source, volume name, rw and normalized bind name all affect full Hmount; raw assets missing/null beforeafter remains distinct.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-06",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_capture_policy_uses_own_manager_build_and_release",
+      "obligation": "Existing pure parser accepts canonical Capture-specific manager build/release with own manifest pins; DATA only.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-07",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_publication_bundle_cannot_substitute_capture_manager_pins",
+      "obligation": "Different PublicationSource compile/build/release bundle refuses with unchanged original parser.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-08",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_parser_checks_crossrecord_shape_and_compiled_pins_only",
+      "obligation": "Unchanged pure parser checks canonical shape, v4 syntax, compiled public/source-control pins and policy/fence/launch cross-record equality only. Valid foreign v4 group/current-registry values are not expected-Catalog comparisons; no genuine semantic credit from invalid-hash raw.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false,
+      "semantic_binding_deferred_to": [
+        "C0-C-03",
+        "ORIGINAL_HELD_LOADER_CURRENT_GROUP_REGISTRY_CATALOG_ADMISSION"
+      ]
+    },
+    {
+      "id": "C0-U-09",
+      "planned_leaf": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "proposed_test_name": "c0_capture_negative_bundle_keeps_fixed_connection_and_transport_paths",
+      "obligation": "Fixed Source policy path predicates remain unchanged; no actual auth/key/network read.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-10",
+      "planned_leaf": "crates/learning-backup/src/source/binding.rs",
+      "proposed_test_name": "c0_b1_install_projection_rejects_twelve_or_recipe_mismatch",
+      "obligation": "Backup S5 DATA consumer requires exact15 fullcanonical rehash matched to runtime and Catalog.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-11",
+      "planned_leaf": "crates/learning-backup/src/source/binding.rs",
+      "proposed_test_name": "c0_b1_install_projection_requires_fixed_release_alias_sources",
+      "obligation": "Fixed new source formulas and source/name/type/RW remain connected to actual original release mapping.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-12",
+      "planned_leaf": "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "proposed_test_name": "c0_local_mountinfo_requires_exact_fifteen",
+      "obligation": "Exactly one occurrence per known business target; unrelated original platform rows not counted as business mounts.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-13",
+      "planned_leaf": "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "proposed_test_name": "c0_local_mountinfo_rejects_duplicate_ro_drift_and_parent_overlay",
+      "obligation": "Initial and repeated local fixed predicate refuse aliases, RW flips, parent mount masks, missing targets and unknown child overlays.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-14",
+      "planned_leaf": "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "proposed_test_name": "c0_local_mountinfo_preserves_assets_child_only",
+      "obligation": "Original assets child stays the sole original parent-child topology member; not a wildcard child allowance.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-15",
+      "planned_leaf": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "proposed_test_name": "c0_capture_projection_exact_fifteen_is_data_only",
+      "obligation": "DB fixed C11 topology/recipe predicate tested as DATA; not genuine Root/Capture admission.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-16",
+      "planned_leaf": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "proposed_test_name": "c0_capture_negative_launch_requires_original_stamp_and_bytes",
+      "obligation": "Private compare requires dev/ino and full original Linux stamp plus entire canonical raw and SHA. Original/new DB launch cap4096, exact EOF and cap+1 refusal; generic Task1b16KiB must not raise that gate.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-17",
+      "planned_leaf": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "proposed_test_name": "c0_capture_negative_launch_rejects_same_bytes_new_inode",
+      "obligation": "Equal-bytes new-inode is rejected as a replacement; no re-adoption.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-18",
+      "planned_leaf": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "proposed_test_name": "c0_capture_readonly_roots_rejects_missing_or_rw_negative_view",
+      "obligation": "Original factory/revalidate fixed RO paths include all three additions and reject parent/child masks.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-19",
+      "planned_leaf": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "proposed_test_name": "c0_old_twelve_never_selects_new_profile",
+      "obligation": "New code cannot retry older recipe after15 rejection.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    },
+    {
+      "id": "C0-U-20",
+      "planned_leaf": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "proposed_test_name": "c0_negative_metadata_repeats_debit_original_meter",
+      "obligation": "Ordinary deterministic actual helper accounting: allocation/read/hash/recheck prepays same original backing; exhaustion fails before new work; no fake context.",
+      "existing_test_body": false,
+      "execution_status": "NOT_IMPLEMENTED_NOT_EXECUTED",
+      "genuine_credit": false
+    }
+  ],
+  "site_obligations": [
+    {
+      "id": "C0-C-01",
+      "name": "ACTUAL_INSTALLATION_PACKET",
+      "obligation": "Exact resource IDs, read-only release root R, complete file inventory/modes/hash/ELF/libs/canonical policy-manifest-Catalog issuance and all stale writers excluded. No wildcard installer. Full all-host RW source/ancestor/alias and non-Docker host issuer/reconfiguration/old/inflight writer exclusion are mandatory; RO target is insufficient.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-02",
+      "name": "ACTUAL_FIFTEEN_MOUNTS",
+      "obligation": "Same original host Root full Docker projection and Capture mountinfo before/after; unchanged old12 sources/names; no broadened parent mount; compare host/capture two file aliases and actual fence devino. Original Root holds actual source root/leaf and Capture-root policy alias FDs through before, complete after/fullpostobs and every critical recheck, comparing full stamp/raw/hash. Full all-host set refuses RW source/ancestor/overlap/physical alias; unknown HOLD without stopping other projects.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-03",
+      "name": "ACTUAL_CAPTURE_ROLE_AND_MIRROR",
+      "obligation": "Original Capture ELF/compile pins/Catalog Capture row ownmanifest; private mirror in original Book, repeated fullstamp/raw checks; no PublicationSource role substitution. Own/new DB launch cap4096; actual held loader/current SourceGroup/registry/Catalog/admission compare semantic group/deployment/authority values. Pure parser shape or recomputed malformed hashes cannot substitute. DB mirror is launch only; Root owns policy dual-alias proof.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-04",
+      "name": "READONLY_FLOCK_FEASIBILITY",
+      "obligation": "On precisely approved filesystem, root read-only open of same lock can perform LOCK_EX|LOCK_NB, host/capture contention observes same original lock, no file write or new writable bind.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-05",
+      "name": "C11_AND_S5_FIRST_WORK",
+      "obligation": "Actual Root Install before observations, child genesis, complete host postobservation, durable record, original BrokerInstallObserved/ack, then first genuine work. Raw frame/pid/code/native/namespace/current proof/root FD correlation all retained.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-06",
+      "name": "ORIGINAL_LOCK_ORDER",
+      "obligation": "Original registry lease then same fence lock; Enrollment lease only releases after natural Q0 and stored/revalidated cut; Capture prepare natural release then new S lease without self-Busy workaround.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-07",
+      "name": "PRODUCT64_AND_EXPLICIT_RUNTIME_TOTALS",
+      "obligation": "Product-owned open FDs <=64. Necessary runtime/SSH handles require exact actual owner, quantity, overlap with product descriptors, lifecycle and actual total inventory. Product files/sockets/pipes/child/AsyncFd wrappers cannot be relabelled extra. Existing stricter local actual-table guards remain. Original cumulative scan/journal/Observation bytes/entries traced; no cap/RLIMIT increase; snapshots alone are not whole-life proof.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-08",
+      "name": "FIXED_NEGATIVES_FRESH_ONLY",
+      "obligation": "Separately pre-admitted fresh negative resources exercise old12, missing/wrong RW/source, alias replacement, samebytes differentinode, parent mask, wrongpolicy/anchor and nonempty fence. Never mutate or replay old failed/HOLD or prior success S1 namespace. Include other-project RW source ancestor/physical alias and non-Docker host writer cases in separately exact fresh negative plans; never run by mutating approved success or stopping unrelated services.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-09",
+      "name": "OWNER_CANCEL_UNWIND",
+      "obligation": "Actual started query/task/child remains in original Book until natural return; cancel/timeouts/unknown remain negative and preserved; no Drop-as-stop or replay.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-10",
+      "name": "D_ONLY_AND_DEFAULT_OFF",
+      "obligation": "No feature/missing pins remain before-effects rejected; D-only history/import/RA/RB reads do not touch S policy/fence. C0 does not add Source auth/transport/key/trust access.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-11",
+      "name": "INSTALLED_OLD_WRITER_EXCLUSION",
+      "obligation": "Installed launch/ACL/PG/ELF/native observations show old same-pin code and inflight nonconforming writers cannot mutate protected Source/export/journal or global-generation paths. Explicit host installation/reconfiguration and non-Docker writer/alias/inflight exclusion for both new file sources and the real fence root; record owner and maintenance window, no malicious Root resistance claim.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    },
+    {
+      "id": "C0-C-12",
+      "name": "FINAL_C0_RAW_AUDIT",
+      "obligation": "Independent audit actual raw bytes/process IDs/exit/EOF/full observations/hash/timing/budget/FD original evidence. C0 site result still not cross-host first sign, CompleteBackup, RA/RB or Task9 acceptance.",
+      "execution_status": "NOT_EXECUTED_REQUIRES_SEPARATE_C_APPROVAL",
+      "separate_exact_operational_plan_required": true
+    }
+  ],
+  "permissions_to_request_later": [
+    {
+      "id": "C0-CODE",
+      "scope": "Exact five source leaves in machine table plus nonprivileged Linux checks only",
+      "new_persistent_security_permission": false,
+      "status": "NOT_REQUESTED_BY_THIS_DRAFT_NOT_APPROVED"
+    },
+    {
+      "id": "C0-C-METADATA",
+      "scope": "Exact Capture policy under same original release R; reissued ownmanifest/Catalog/role build package with hashes/modes/owners; same real fence anchor and original identities",
+      "impact": "Root private installed bytes/trust-chain issuance; Source ELF changes can require new D Source-manager policy pin issuance in separately exact C packet",
+      "status": "NOT_APPROVED"
+    },
+    {
+      "id": "C0-C-MOUNT",
+      "scope": "Exactly three added RO binds and new private container b1 parent in a fresh named project; exact existing12 bindings retained",
+      "impact": "Requires Root/Docker configuration on specifically approved new resources; exposes only keyless Capture-specific records and real fence negative view; same flock causes contention; no write permission",
+      "status": "NOT_APPROVED"
+    },
+    {
+      "id": "C0-C-NATIVE",
+      "scope": "Actual launcher/native/PG peer-map/UID/writer exclusion/product-owned64 and exact necessary runtime/SSH handle totals/S5 proof with accurate file/resource/security changes",
+      "impact": "Potential maintenance and access change; not authorized by code approval; exact separate packet mandatory",
+      "status": "NOT_APPROVED"
+    },
+    {
+      "id": "TASK9-LIVE-RA-RB",
+      "scope": "Real independent D sign/publication, two preadmitted fresh recovery targets RA/RB, source unavailability separately exact",
+      "impact": "Persistent key/trust installation and source isolation or destructive recovery may be required; each corresponding action waits approval",
+      "status": "NOT_APPROVED_BY_C0"
+    }
+  ],
+  "original_obligations": {
+    "matrix37": {
+      "path": "docs/task9/b1-preparation-test-matrix.json",
+      "bytes": 31920,
+      "sha256": "4eea0c2b2d4fd6a101db1b117a7553fb05f61f3b00af66f555606f4c168e4bcd"
+    },
+    "matrix53": {
+      "path": "docs/task9/r2b-validation-plan.json",
+      "bytes": 31819,
+      "sha256": "b934d2ef262a8c5e1c8762af515e944fc5c244a2c0c5600a8428ea0cc88111b6"
+    },
+    "all_original_raw_bytes_and_case_ids_unchanged": true,
+    "no_marking_original_case_passed_from_C0_unit": true,
+    "C0_to_existing_mapping": [
+      {
+        "C0": [
+          "C0-C-02",
+          "C0-C-03",
+          "C0-C-05"
+        ],
+        "original": [
+          "B1-BIND-05",
+          "B1-BIND-06",
+          "B1-BIND-07",
+          "B1-BIND-08",
+          "R2B-ACTOR-01",
+          "R2B-ACTOR-02"
+        ],
+        "relation": "PREREQUISITE_OR_NEGATIVE_SUBOBLIGATION_NOT_FULL_CASE_COMPLETION"
+      },
+      {
+        "C0": [
+          "C0-C-04",
+          "C0-C-06",
+          "C0-C-08",
+          "C0-C-11"
+        ],
+        "original": [
+          "R2B-FENCE-01",
+          "R2B-FENCE-02",
+          "R2B-FENCE-04",
+          "R2B-FENCE-07"
+        ],
+        "relation": "C_SITE_SUBOBLIGATIONS_ONLY_ORIGINAL_TESTS_STILL_NEED_FULL_EVIDENCE"
+      },
+      {
+        "C0": [
+          "C0-C-09",
+          "C0-C-10"
+        ],
+        "original": [
+          "R2B-WIRE-08",
+          "R2B-FENCE-08"
+        ],
+        "relation": "ORIGINAL_OWNER_AND_D_ONLY_BOUNDARIES_NOT_NEW_AUTHORITY"
+      },
+      {
+        "C0": [
+          "C0-C-12"
+        ],
+        "original": [
+          "B1-LIVE-01",
+          "B1-LIVE-02",
+          "B1-LIVE-03",
+          "B1-LIVE-04",
+          "R2B-ACCEPTANCE-01",
+          "R2B-ACCEPTANCE-02",
+          "R2B-ACCEPTANCE-03",
+          "R2B-ACCEPTANCE-04",
+          "R2B-ACCEPTANCE-05"
+        ],
+        "relation": "THESE_ORIGINAL_FORMAL_CASES_REMAIN_OPEN_C0_CANNOT_SUBSTITUTE_REAL_TARGET_OR_RECOVERY"
+      }
+    ]
+  },
+  "raw_evidence_requirements": [
+    "FROZEN_BASE_NEW_SOURCE_CODE_AND_TEST_DELTA_PINS",
+    "FULL_ORDINARY_PHASE_STDOUT_STDERR_EXIT_AND_UNCHANGED_SOURCE_BEFORE_AFTER",
+    "ORIGINAL_HOST_CID_EXEC_PID_START_NAMESPACE_ELF_CATALOG_CAPTURESTART_LOCK_C11_RECORD_GENESIS_POSTOBS_ACK_RAW",
+    "EXACT15_ACTUAL_DOCKER_MOUNTS_AND_NATIVE_MOUNTINFO_BOTH_SIDES_BEFORE_AFTER",
+    "ORIGINAL_CAPTURE_MANIFEST_NEW_ALIAS_HELD_NAMED_FULLSTAMP_RAW_HASH_AND_POLICY_HASH",
+    "ACTUAL_RO_FLOCK_CONTENDED_AND_UNCONTENDED_OUTCOMES_ON_SAME_LOCK",
+    "PRODUCT_OWNED64_PLUS_EXACT_NECESSARY_RUNTIME_SSH_OWNER_COUNT_OVERLAP_LIFETIME_ACTUAL_TOTAL_AND_ORIGINAL_BUDGET_TRAJECTORY",
+    "EXACT_TARGET_STOP_OR_UNCONFIRMED_ORIGINAL_NATURAL_SETTLEMENT_RESIDUE_AND_PENDING_STATE",
+    "INDEPENDENT_REVIEW_AND_RETAINED_OLD_FAIL_HOLD_NO_REPLAY",
+    "ROOT_BEFORE_AFTER_CRITICAL_POLICY_DUAL_ALIAS_ACTUAL_FDS_FULLSTAMP_RAW_HASH_WITH_CAPTURE_OWN_MANIFEST",
+    "FULL_ALL_HOST_RW_SOURCE_ANCESTOR_OVERLAP_PHYSICAL_ALIAS_AND_NON_DOCKER_WRITER_EXCLUSION"
+  ],
+  "real_feasibility_holds": [
+    "RO_BIND_FLOCK_KERNEL_FILESYSTEM",
+    "PRIVATE_PARENT_AND_SAME_INODE_ALIAS_CUSTODY",
+    "PRODUCT64_AND_PRECISE_NECESSARY_RUNTIME_SSH_OWNERS_COUNT_OVERLAP_ACTUAL_TOTAL",
+    "BUDGET_CAPS_AND_DEADLINES",
+    "C11_FULLPOSTOBS_FIRST_WORK_S5",
+    "SITE_INSTALLER_AND_WRITER_EXCLUSION",
+    "REAL_D_KEYS_TRUST_CUSTODY_FIRST_SIGN_RA_RB"
+  ]
+}

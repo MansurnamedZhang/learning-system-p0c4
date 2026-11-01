@@ -19,7 +19,7 @@ Task8 私有单机收尾及旧失败/HOLD 保持原结论。这里不重复 Task
 | 编号 | 当前缺口 | 关闭条件 |
 |---|---|---|
 | H1 | D 当前可达性、容量、文件系统、既有安装和非冲突路径未重新核实；S 的 root 私有安装状态未知 | 经获准的现场元数据清单取得时间、主机/存储身份、容量、既有文件/模式/摘要及冲突清单；不读取私钥内容，不绕过权限拒绝 |
-| H2 | Capture 固定 12 挂载与新 Source mutation policy/fence 读取存在真实布局冲突 | C0 准确拓扑增量合同、代码与普通回归获批并通过；C 再验证真实 mountinfo/权限/held FD，不用父目录广泛 bind 绕过 |
+| H2 | 五文件 Capture 增量合同已独审；当前产品仍固定十二项，尚未编码或安装新视图 | 先批准准确五文件 C0 编码及限定 Linux 检查，完成新代码审查/原件回归；再单独批准并实核 C 的十五项 mount、权限、原件/锁及全期生命周期 |
 | H3 | 真实托管公钥、ELF、policy、anchor、launch manifest 的现场 pin 尚未形成 | 按第 4 节无环顺序，在 B/C 授权后生成并封存真实清单；任何空值或测试向量禁止进入安装 |
 | H4 | 没有已审 B1 policy/key/launcher/受限 forced-command 安装器；旧 source fixture issuer 不能承担该工作 | 准确安装工具及其差额先独审，安装清单逐项给出新增文件、父目录、所有者、模式、摘要、命令与退出/留存规则，再经 C 批准 |
 | H5 | 旧 writer 排除、全期 global64、S5、真实 Root/PG/C11 和原 holder 结算缺现场证据 | C 的真实生命周期观察通过；列全产品 FD 与 runtime/SSH 必需 FD，证明旧自动入口/在途写者不存在或被精确隔离 |
@@ -27,18 +27,22 @@ Task8 私有单机收尾及旧失败/HOLD 保持原结论。这里不重复 Task
 
 源码定位以该基线为准：[Capture/Root 启动合同](../../crates/learning-backup/src/offhost_b1/source_launch.rs)、[DB peer 进程观察](../../crates/learning-db/src/snapshot_broker/b1_peer/process.rs)、[固定安装读取](../../crates/learning-backup/src/offhost_b1/policy/installed.rs)、[source fence](../../crates/learning-backup/src/offhost_b1/source_fence.rs)。本轮不改变这些源码或原批准合同。
 
-### C0 拓扑候选：需要补充审定，尚未实施
+### C0 合同已完成独审：仍未批准编码或实装
 
-原 12 个 mount 的身份、模式和封闭检查保持不变。优先审查的最小候选为额外三个**准确只读** bind：固定 `source-policy.json`、固定 `launch-manifest.json`、固定 `/var/lib/knowweave-c4-source-fences`，形成独立版本的 15-mount 合同。Capture 不需要接收 S 的应用认证私钥、SSH transport 私钥或 known-hosts；这些留在 host publication S。
+准确合同、机器表与分层检查计划见[Capture 挂载增量合同](capture-mount-amendment-contract.md)。未来五文件固定改动仍需明确批准，本段不提升 H2 到完成。
 
-这需要协调 Root/Capture 与 DB peer 的实际进程观察、C11 合同/确认、no-follow 祖先目录、同 inode 锁及 registry 锁顺序；不能简单把 `12` 改成 `>=12`、跳过检查或绑定整个 `/var/lib/knowweave-c4/b1`。旧 12-mount profile 继续严格拒绝未知布局。准确变更文件与字段应另封补充合同；未获批前只准备方案，不编码或安装。
+唯一十五项方案保留原十二项的 tuple 与实际 source/name，新增 Capture 专属 policy、原 own manifest 两个精确 RO 文件别名，以及同一真实 fence 根 RO。宿主两文件来源恰是原已审 RO release 根 R 下的 capture-source-policy.json、capture-launch-manifest.json，容器目标仍为原 loader 固定名。Capture 的独立 manager build/release 由其自身 Catalog 行和实际 ELF 约束；不能直接挂 PublicationSource 的 policy/manifest、强行相等角色 pin 或构造新权限 DTO。
+
+Root/DB/S5/local cutover 全部精确十五项、Hmount、完整 host 投影、来源可写别名/祖先及两份原件的持续再核按合同闭合。保持十五消息、十三主动作和十二份 captured evidence；没有新 wire 字段、caller selector 或旧十二项 B1 回退。原 Task1b parser/fence 代码不放宽，Capture own launch/mirror 仍受原4096B较小cap约束。
+
+这次只完成合同设计审查。未来 C0 编码和普通 Linux 检查另批；三个真实 RO mount、文件与 Catalog 发行、root 私有父目录、实际 lock/FD/PG/C11 证明属于 C 包另批。H4 安装工具/固定 D 启动链仍是独立缺口，不在本五文件代码请求中。旧草案和审查结果保留；独审通过不等于用户采纳或机器 permit。
 
 ## 3. 最小审批分包
 
 | 包 | 最小动作与对象 | 影响及退出条件 | 不包含 |
 |---|---|---|---|
 | A：现有准备范围 | 本地只读审查、普通 S 元数据检查、方案/填报结构与静态核验、已有 feature 分支及路线图同步 | 不改变运行权限；保留全部旧失败/HOLD；产品源码本轮不变 | 新凭证、root 安装、现场首签、恢复 |
-| C0：准确补充编码合同 | H2 的精确拓扑/观察/C11 差额，及 H4 安装工具设计所需的准确代码面；先逐项独审再批准 | 仅默认关闭实现与原限定 Linux 检查；任何扩文件、字段或安全行为必须明确列出 | C 现场配置、密钥生成、权限安装、整链运行 |
+| C0：准确补充编码合同 | 已独审的 H2 五文件 Capture 拓扑/只读视图/观察增量；H4 安装工具另审，不包含在此闭集 | 人类明确批准后才做默认关闭代码和原限定 Linux 检查；未列 source/test/package/deploy/CI 不得自扩 | C 现场配置、密钥生成、权限安装、整链运行 |
 | B：密钥与信任托管 | 仅封存清单中 S 应用 Ed25519、独立 SSH transport Ed25519、D 备份 P-256 三种用途；其公钥/host-key trust、registry 身份及托管根 | 原件仅在所属主机 root 私有目录；公开只导出公钥指纹/摘要。意外存在或不符即 HOLD，不覆盖/轮换旧材料 | authorized_keys/sshd/sudoers/launcher、PG 授权、首签 |
 | C：运行身份与固定安装 | C-prepare 仅准确新 namespace/registry/fence/session 根及身份实例化；C-install 再批准实际 ELF/父 launcher、private Unix PG owner/socket、policy/anchor/manifest、RO mount、旧 writer 排除与受限 SSH/必要精确安全规则 | 两个阶段分别有准确清单及 guard；C-prepare 不启用运行入口。只在新隔离资源逐项 CAS/no-follow/禁止覆盖，接受永久 fence 可用性代价后才可启用 | 任意 sudo/root shell、业务目录迁移、生产变更、源断联、恢复 |
 | D1：正常整链与 RA | 固定新 UUID/数据库/卷/子网/预算的真实跨机首发、正常 CompleteBackup、全新 RA；已具名适用负例及 S2 后续中断 | 精确 ID 停机留卷；S1 fence 永久保留。RA 停机核验后再进入 RB；失败不自动重放 | 源整体断网/关机、源数据删除、已有业务恢复覆盖 |

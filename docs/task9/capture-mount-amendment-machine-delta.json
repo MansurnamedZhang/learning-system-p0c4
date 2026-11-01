@@ -1,0 +1,973 @@
+{
+  "schema": 1,
+  "artifact_kind": "TASK9_C0_EXACT_CAPTURE_MOUNT_AMENDMENT_CONTRACT_DATA",
+  "status": "CONTRACT_PROPOSAL_NOT_APPROVED_NOT_IMPLEMENTED",
+  "date": "2026-11-01",
+  "product_consumes_this_file": false,
+  "executable": false,
+  "coding_approved": false,
+  "installation_approved": false,
+  "permissions_changed": false,
+  "implemented": false,
+  "Task9_accepted": false,
+  "C4_accepted": false,
+  "base": {
+    "commit": "0531083cc7b686ee30a0df7b4c9cdae3aa84b574",
+    "tree": "d85a6faddb141e5aac1bad5e9b8bc52cd272124f",
+    "public_files": 708,
+    "bridge": {
+      "path": ".artifacts/t9-liveprep-20261101/NEW-BASE-BRIDGE.json",
+      "bytes": 547455,
+      "sha256": "811e5f304495d4435625a681464e95ddb35c46722a4f01676c199d437e3f9741",
+      "path_base": "ORIGINAL_PROTECTED_TASK7_WORKTREE_PRIVATE_EVIDENCE"
+    }
+  },
+  "public_documents": {
+    "contract": "docs/task9/capture-mount-amendment-contract.md",
+    "machine_delta": "docs/task9/capture-mount-amendment-machine-delta.json",
+    "validation_plan": "docs/task9/capture-mount-amendment-validation-plan.json"
+  },
+  "future_coding_exact_allowlist": {
+    "production_existing": [
+      {
+        "path": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+        "bytes": 649650,
+        "sha256": "edd8328961ff4cea2e34f2bc2a19fe47b09d5c095989eb77301a2f612f8968fd",
+        "responsibility": "Root C11 projection and two actual whole-host paths exact15; new fixed source/alias/parent checks and original custody; shared fixture helper only may upgrade, old test bodies/attrs preserved; append strict unchanged-policy-parser DATA probes in same leaf. Extend full all-host three-source RW/ancestor/physical-alias refusal; retain policy release/loader FD mirror at before/after/critical boundaries; no new wire fields."
+      },
+      {
+        "path": "crates/learning-backup/src/source/binding.rs",
+        "bytes": 147451,
+        "sha256": "9c2959045fd1cca85ba32867bfb9bf597752d1d256d02453ef53ca29ac16029c",
+        "responsibility": "B1 Install/S5 host projection exact15, three source joins and full five-field recipe rehash; source-evidence12 unchanged."
+      },
+      {
+        "path": "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+        "bytes": 32338,
+        "sha256": "df05f9ace05d6098865c3bf0210aae0cc71a735915c8834c54faa169424c7dd9",
+        "responsibility": "B1LocalMounts initial/recheck exact15 and fixed parent-overlay refusal; old four-root/companion/export/legacy paths unchanged."
+      },
+      {
+        "path": "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+        "bytes": 155494,
+        "sha256": "f199ffd5541e8794a0e1c122ee3d308e7ff46195ca5e9407d78ca27e67cd3716",
+        "responsibility": "Capture-only private held negative launch mirror in original acquisition/OriginalState; full ownmanifest stamp/raw/hash; actual RO-root/alias revalidate; C11 exact15/recipe; original meter and bounded FD custody; no public API or message. New mirror cap4096 follows original ownmanifest; no policy DTO or job-schema addition."
+      }
+    ],
+    "test_existing": [
+      {
+        "path": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+        "bytes": 48875,
+        "sha256": "e5762a76ada71a4ddf24b9579846bb31c0e5d1d046c293d010bf95efa78860f9",
+        "responsibility": "Append ordinary private fixed topology, launch-alias identity/fullbytes and original-meter negative probes; no genuine fixture."
+      }
+    ],
+    "all_source_leaves": 5,
+    "all_five_in_original_Source32": true,
+    "new_source_files": [],
+    "deleted_source_files": [],
+    "package_script_paths": [],
+    "deploy_script_paths": [],
+    "ci_paths": [],
+    "dependency_paths": [],
+    "unlisted_changes_require_new_delta": true
+  },
+  "fixed_profile": {
+    "label": "task9-b1-capture-ro-negative-15-v1",
+    "selection": "ONLY_NEW_REVIEWED_BUILDS_IN_ORIGINAL_FIXED_B1_BRANCH",
+    "existing_B1_profile": "task9-b1-limited-v1",
+    "new_compile_inputs": [],
+    "new_runtime_fields_or_selectors": [],
+    "new_build_accepts_old12": false,
+    "old_build_accepts_new15": false,
+    "fallback": false,
+    "legacy_nonB1_changed": false,
+    "caller_path_role_bool_callback_DTO_authority": false
+  },
+  "fixed_topology": {
+    "docker_mounts": 15,
+    "original_mounts": 12,
+    "additional_mounts": 3,
+    "order": "UTF8_BYTE_ORDER_BY_DESTINATION",
+    "rows": [
+      {
+        "destination": "/opt/knowweave-c4/b1-capture",
+        "kind": "bind",
+        "rw": false,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/run/kwc4/sfx",
+        "kind": "bind",
+        "rw": true,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/usr/bin/docker",
+        "kind": "bind",
+        "rw": false,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/lib/knowweave-c4-source-fences",
+        "kind": "bind",
+        "rw": false,
+        "host_source": {
+          "fixed": "/var/lib/knowweave-c4-source-fences"
+        },
+        "object": "ORIGINAL_LIVE_FENCE_ROOT_NOT_COPY",
+        "original_12": false
+      },
+      {
+        "destination": "/var/lib/knowweave-c4/b1-source-observation",
+        "kind": "bind",
+        "rw": false,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/lib/knowweave-c4/b1/launch-manifest.json",
+        "kind": "bind",
+        "rw": false,
+        "host_source": {
+          "original_release_destination": "/opt/knowweave-c4/b1-capture",
+          "fixed_relative_leaf": "capture-launch-manifest.json"
+        },
+        "object": "ORIGINAL_CAPTURE_OWN_MANIFEST_SECOND_NAME",
+        "original_12": false
+      },
+      {
+        "destination": "/var/lib/knowweave-c4/b1/source-policy.json",
+        "kind": "bind",
+        "rw": false,
+        "host_source": {
+          "original_release_destination": "/opt/knowweave-c4/b1-capture",
+          "fixed_relative_leaf": "capture-source-policy.json"
+        },
+        "object": "CAPTURE_SPECIFIC_SOURCE_POLICY_ALIAS",
+        "original_12": false
+      },
+      {
+        "destination": "/var/lib/knowweave-c4/registry",
+        "kind": "volume",
+        "rw": true,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/lib/knowweave-c4/snapshot-effects-v2",
+        "kind": "volume",
+        "rw": true,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/lib/knowweave-c4/snapshot-export-v2",
+        "kind": "volume",
+        "rw": true,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/lib/knowweave-source",
+        "kind": "volume",
+        "rw": true,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/lib/knowweave-source/assets",
+        "kind": "bind",
+        "rw": false,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/lib/postgresql",
+        "kind": "volume",
+        "rw": true,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/run/docker.sock",
+        "kind": "bind",
+        "rw": false,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      },
+      {
+        "destination": "/var/run/postgresql",
+        "kind": "volume",
+        "rw": true,
+        "original_12": true,
+        "source_name": "UNCHANGED_ORIGINAL_C_ADMITTED_ACTUAL_MAPPING"
+      }
+    ],
+    "original_R": "SAME_ORIGINAL_C_ADMITTED_AND_ROOT_CURRENTLY_MEASURED_UNIQUE_RO_BIND_SOURCE_FOR_/opt/knowweave-c4/b1-capture; OPEN_ROOT_FD_NOFOLLOW_PLUS_FIXED_TWO_LEAVES; NOT_CALLER_PATH_OR_CONTAINER_DESTINATION",
+    "original_12_actual_source_name_unchanged": true,
+    "mountinfo_total_lines_is_not_15": true,
+    "each_fixed_target_occurrences": 1,
+    "unlisted_children": "REJECT",
+    "forbidden_extra_parent_mount_targets": [
+      "/var",
+      "/var/lib",
+      "/var/lib/knowweave-c4",
+      "/var/lib/knowweave-c4/b1"
+    ],
+    "original_image_root_slash_allowed": true
+  },
+  "file_rules": {
+    "container_metadata_parent": "/var/lib/knowweave-c4/b1",
+    "parent_host_bind": false,
+    "private_parent_uid": 0,
+    "private_parent_mode": "0700",
+    "ancestors": "HELD_COMPONENT_NOFOLLOW_ROOT_UID_NO_GROUP_OTHER_WRITE_NAMED_IDENTITY_RECHECK",
+    "file_uid": 0,
+    "file_mode": "0600",
+    "file_nlink": 1,
+    "policy_bytes": 16384,
+    "launch_bytes": 4096,
+    "anchor_bytes": 4096,
+    "fence_root": "/var/lib/knowweave-c4-source-fences",
+    "fence_namespace_top": [
+      "anchor.json",
+      "lock",
+      "operations",
+      "staging"
+    ],
+    "lock": "ORIGINAL_EMPTY_SINGLELINK_0600_READONLY_FD_LOCK_EX_NB_NO_WRITE",
+    "alias_equal": [
+      "dev",
+      "ino",
+      "uid",
+      "gid",
+      "mode",
+      "nlink",
+      "len",
+      "mtime_ns",
+      "ctime_ns",
+      "full_canonical_raw",
+      "full_raw_sha256"
+    ],
+    "alias_is_not_hardlink_creation": true,
+    "DB_capture_own_launch_bytes_unchanged": 4096,
+    "Task1b_generic_launch_reader_bytes_unchanged": 16384
+  },
+  "capture_policy": {
+    "exact_existing_fields": [
+      "format_version",
+      "capability",
+      "profile",
+      "role",
+      "deployment_id",
+      "source_group_id",
+      "registry_anchor",
+      "source_control_binding_sha256",
+      "source_auth_public_key_sha256",
+      "source_auth_key_path",
+      "source_fence_anchor_sha256",
+      "manager_release_sha256",
+      "manager_build_input_sha256",
+      "destination_verifier_public_key_sha256",
+      "source_connection",
+      "transport",
+      "launch_id"
+    ],
+    "capture_manager_fields": {
+      "manager_build_input_sha256": "ACTUAL_CAPTURE_COMPILE_MANAGER_BUILD",
+      "manager_release_sha256": "ACTUAL_CAPTURE_ELF_AND_CAPTURE_OWN_MANIFEST_BINARY_SHA"
+    },
+    "all_other_fields": "SAME_ADMITTED_SOURCE_DEPLOYMENT_GROUP_REGISTRY_AUTHORITY_LOCK_SOURCE_CONTROL_PUBLIC_PINS_SHARED_FENCE_CONNECTION_TRANSPORT_LAUNCH_LABEL; EACH_ORIGINAL_PREDICATE_RETAINED",
+    "source_auth_path_DATA_is_not_open_permission": true,
+    "policy_socket_DATA": "/run/knowweave-c4-source-pg",
+    "actual_Capture_SQLx_socket": "/var/run/postgresql",
+    "actual_Capture_SQLx_role": "learning_admin",
+    "policy_mints_publication": false,
+    "field_values": {
+      "format_version": 1,
+      "capability": "task9_b1_source_policy_v1",
+      "profile": "task9-b1-limited-v1",
+      "role": "source",
+      "deployment_id": "SAME_REGISTRY_AUTHORITY_AND_ORIGINAL_CATALOG_DEPLOYMENT",
+      "source_group_id": "SAME_ORIGINAL_CATALOG_AND_CURRENT_UNIQUE_SOURCE_GROUP",
+      "registry_anchor": "SAME_FIXED_PATH_DEV_INO_AUTHORITY_SHA_LOCK_DEV_INO",
+      "source_control_binding_sha256": "SAME_CAPTURE_COMPILE_AND_ORIGINAL_SOURCE_GROUP_CONTROL_BINDING",
+      "source_auth_public_key_sha256": "SAME_COMPILED_AND_ADMITTED_PUBLIC_AUTH_PIN",
+      "source_auth_key_path": "/var/lib/knowweave-c4/b1/source-auth.pk8",
+      "source_fence_anchor_sha256": "SAME_ORIGINAL_FENCE_ANCHOR_RAW_SHA",
+      "manager_release_sha256": "ACTUAL_CAPTURE_ELF_SHA",
+      "manager_build_input_sha256": "ACTUAL_CAPTURE_COMPILE_MANAGER_BUILD",
+      "destination_verifier_public_key_sha256": "SAME_COMPILED_ADMITTED_PUBLIC_VERIFIER_PIN",
+      "source_connection": "EXACT_ADMITTED_SOURCE_LOGICAL_CONNECTION_DATA_ORIGINAL_FIXED_SCHEMA",
+      "transport": "EXACT_ADMITTED_SOURCE_PUBLIC_TRANSPORT_CONFIGURATION_ORIGINAL_FIXED_SCHEMA_NO_CREDENTIAL_OPEN",
+      "launch_id": "SAME_ORIGINAL_CATALOG_JOB_SHARED_ANCHOR_LABEL"
+    }
+  },
+  "launch_original": {
+    "exact_existing_fields": [
+      "format_version",
+      "capability",
+      "profile",
+      "launch_id",
+      "role",
+      "code_commit",
+      "build_input_sha256",
+      "binary_sha256",
+      "launcher_sha256",
+      "policy_sha256",
+      "anchor_sha256",
+      "source_auth_public_key_sha256",
+      "destination_verifier_public_key_sha256",
+      "transport_public_key_sha256"
+    ],
+    "JSON_role": "source",
+    "actual_process_role": "capture",
+    "Catalog_role": "Capture",
+    "uses_PublicationSource_row": false,
+    "Capture_original": "/opt/knowweave-c4/b1-capture/capture-launch-manifest.json",
+    "new_alias": "/var/lib/knowweave-c4/b1/launch-manifest.json",
+    "policy_sha256": "EXACT_CAPTURE_SPECIFIC_POLICY_RAW_SHA256",
+    "anchor_sha256": "ORIGINAL_SHARED_FENCE_ANCHOR_RAW_SHA256",
+    "code_build_binary": "SAME_CAPTURE_COMPILED_PINS_REAL_ELF_ORIGINAL_CATALOG_CAPTURE_ROLE",
+    "launch_id": "SAME_CATALOG_SOURCESTART_CAPTURESTART_JOB_LIVE_LOCK",
+    "DB_runtime_custody": "PRIVATE_CAPTURE_ONLY_HELD_LAUNCH_MIRROR_IN_ORIGINAL_ACQUISITION_AND_OriginalState; FIXED_PATH; SAME_FULLSTAMP_RAW_HASH_AS_ALREADY_HELD_OWN_MANIFEST; EACH_revalidate_bounded; ALL_NEW_RESOURCES_PREPAID_RETAINED; SOURCE_ROLE_NOT_IN_CAPTURE_ALIAS_BRANCH; MAX4096_SAME_AS_ORIGINAL_OWN_LAUNCH_NOT_GENERIC16K",
+    "Task1b_parser_loader_changed": false,
+    "source_fence_changed": false,
+    "field_values": {
+      "format_version": 1,
+      "capability": "task9_b1_launch_manifest_v1",
+      "profile": "task9-b1-limited-v1",
+      "launch_id": "ORIGINAL_CATALOG_SHARED_LABEL",
+      "role": "source",
+      "code_commit": "ACTUAL_CAPTURE_COMPILE_MANAGER_CODE_COMMIT",
+      "build_input_sha256": "ACTUAL_CAPTURE_COMPILE_MANAGER_BUILD",
+      "binary_sha256": "ACTUAL_CAPTURE_OWN_ELF_SHA",
+      "launcher_sha256": "ORIGINAL_CATALOG_ROOTLAUNCHER_ELF_SHA",
+      "policy_sha256": "EXACT_CAPTURE_SPECIFIC_POLICY_RAW_SHA",
+      "anchor_sha256": "EXACT_ORIGINAL_SHARED_FENCE_ANCHOR_RAW_SHA",
+      "source_auth_public_key_sha256": "SAME_COMPILED_ADMITTED_PUBLIC_AUTH_PIN",
+      "destination_verifier_public_key_sha256": "SAME_COMPILED_ADMITTED_PUBLIC_VERIFIER_PIN",
+      "transport_public_key_sha256": "SAME_C_ADMITTED_SHA256_CANONICAL_OPENSSH_PUBLIC_WIRE_BLOB_NOT_KEY_CONTENT"
+    },
+    "Root_policy_mirror_custody": {
+      "owner": "SAME_ORIGINAL_ROOT_JOB_FIXED_PRIVATE_STORAGE",
+      "times": [
+        "INSTALL_BEFORE",
+        "POST_GENESIS_COMPLETE_AFTER_FULLPOSTOBS",
+        "EACH_EXISTING_CRITICAL_RECHECK"
+      ],
+      "policy_aliases": [
+        "R/capture-source-policy.json",
+        "CAPTURE_ROOT_FD/var/lib/knowweave-c4/b1/source-policy.json"
+      ],
+      "checks": [
+        "SAME_DEV_INO_AND_FULL_LINUX_STAMP",
+        "FULL_CANONICAL_RAW_AND_HASH_EQUALS_ORIGINAL_CAPTURE_MANIFEST_POLICY_SHA",
+        "HELD_FD_PLUS_NAMED_REOPEN_NO_REPLACEMENT"
+      ],
+      "meter": "ORIGINAL_ROOT_PREPAY_ALL_OPEN_STORAGE_READ_HASH_COMPARE_AND_ENUMERATION",
+      "DB_mirror_scope": "LAUNCH_ONLY_NO_POLICY_DTO_OR_JOB_SCHEMA_CHANGE",
+      "Task1b_policy_holder": "EXISTING_ORIGINAL_FULL_READ_RECHECK_UNCHANGED"
+    }
+  },
+  "release_packet": {
+    "fixed_metadata_leaf_names_before": [
+      "capture-launch-manifest.json",
+      "source-peer-execution.json"
+    ],
+    "fixed_metadata_leaf_names_after": [
+      "capture-launch-manifest.json",
+      "source-peer-execution.json",
+      "capture-source-policy.json"
+    ],
+    "executable_unchanged": "knowweave-c4-b1-capture",
+    "libraries": "EXACT_ORIGINAL_CAPTURE_CATALOG_LIBRARIES_MAX32_NO_NEW_DEP",
+    "existing_full_release_directory_census": false,
+    "actual_complete_inventory_count": "REQUIRED_IN_SEPARATE_C_INSTANCE_UNKNOWN_NOW",
+    "RecordRef_name_added": false,
+    "new_policy_binding": "EXISTING_CAPTURE_MANIFEST_POLICY_SHA256"
+  },
+  "hash_preimages": {
+    "Hmount": "SHA256(EXISTING_CANONICAL_JSON_ALL15_ACTUAL_ROWS_SORTED_BY_DESTINATION)",
+    "row_exact_keys": [
+      "destination",
+      "source",
+      "kind",
+      "rw",
+      "name"
+    ],
+    "bind_absent_or_null_name_in_Hmount": "",
+    "volume_source_name": "ACTUAL_ORIGINAL_MAPPING_NOT_TEMPLATE",
+    "full_assets_raw": "ORIGINAL_FULL_OBJECT_ABSENT_NULL_PRESERVED",
+    "wrapper_added": false,
+    "joins": [
+      "Catalog.capture_recipe_sha256",
+      "Catalog.installed_runtime.capture_mount_recipe_sha256",
+      "CaptureStart.mount_recipe_sha256",
+      "Root_before_full_projection",
+      "Root_after_full_projection",
+      "C11_full_host_cutover",
+      "DB_C11_rehash",
+      "backup_B1Install_S5_rehash"
+    ],
+    "Hexec_changed": false,
+    "actual_recipe_sha256": "UNINSTANTIATED_NO_REAL_C_SOURCES_NAMES"
+  },
+  "unchanged_protocol": {
+    "Root_message_kinds": 15,
+    "main_actions": 13,
+    "new_C11_message_fields": [],
+    "genesis_fullpostobs_record_ack_before_work": true,
+    "KWB1_changed": false,
+    "new_authority_type_constructor": false,
+    "captured_source_evidence_files": 12,
+    "ProofRecord_evidence_rules_changed": false,
+    "fence_close_GC_TTL_added": false
+  },
+  "reference_pins": [
+    {
+      "path": "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "bytes": 649650,
+      "sha256": "edd8328961ff4cea2e34f2bc2a19fe47b09d5c095989eb77301a2f612f8968fd",
+      "verified_line_ranges": [
+        [
+          464,
+          602
+        ],
+        [
+          2460,
+          2556
+        ],
+        [
+          4320,
+          4356
+        ],
+        [
+          8221,
+          8234
+        ],
+        [
+          8361,
+          8383
+        ],
+        [
+          8459,
+          8516
+        ],
+        [
+          8546,
+          8603
+        ],
+        [
+          8748,
+          8779
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/source/binding.rs",
+      "bytes": 147451,
+      "sha256": "9c2959045fd1cca85ba32867bfb9bf597752d1d256d02453ef53ca29ac16029c",
+      "verified_line_ranges": [
+        [
+          564,
+          615
+        ],
+        [
+          1015,
+          1115
+        ],
+        [
+          1383,
+          1497
+        ],
+        [
+          1590,
+          1610
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "bytes": 32338,
+      "sha256": "df05f9ace05d6098865c3bf0210aae0cc71a735915c8834c54faa169424c7dd9",
+      "verified_line_ranges": [
+        [
+          30,
+          225
+        ],
+        [
+          812,
+          847
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+      "bytes": 155494,
+      "sha256": "f199ffd5541e8794a0e1c122ee3d308e7ff46195ca5e9407d78ca27e67cd3716",
+      "verified_line_ranges": [
+        [
+          123,
+          267
+        ],
+        [
+          310,
+          345
+        ],
+        [
+          1552,
+          1637
+        ],
+        [
+          2346,
+          2375
+        ],
+        [
+          2612,
+          2627
+        ],
+        [
+          2658,
+          2792
+        ],
+        [
+          3393,
+          3410
+        ],
+        [
+          4005,
+          4128
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer/job.rs",
+      "bytes": 108997,
+      "sha256": "9da6d1a6e55fa76c7030b5b85acae073a205051d5a3290d93ff1352361fab00c",
+      "verified_line_ranges": [
+        [
+          701,
+          744
+        ],
+        [
+          2910,
+          2951
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/policy.rs",
+      "bytes": 19569,
+      "sha256": "2db99db5de6b9c2ab8248939d8a9a1c4d6b59145cef2af579140def705a3aea6",
+      "verified_line_ranges": [
+        [
+          108,
+          124
+        ],
+        [
+          156,
+          159
+        ],
+        [
+          207,
+          225
+        ],
+        [
+          274,
+          289
+        ],
+        [
+          435,
+          512
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/policy/installed.rs",
+      "bytes": 20383,
+      "sha256": "d50060273b2891349fbe738bd9b23dbedb2601a6548eba948aac1f471664f5f4",
+      "verified_line_ranges": [
+        [
+          23,
+          28
+        ],
+        [
+          76,
+          87
+        ],
+        [
+          130,
+          220
+        ],
+        [
+          235,
+          256
+        ],
+        [
+          378,
+          425
+        ],
+        [
+          533,
+          600
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/source_fence.rs",
+      "bytes": 27167,
+      "sha256": "4ea5f25e5b1a1cb3693d20a8df5bcf641047e365328ed0f8e541fb18121ff14e",
+      "verified_line_ranges": [
+        [
+          23,
+          69
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/source/snapshot_effects.rs",
+      "bytes": 73944,
+      "sha256": "8d7dd1a9ecd8af5cc1f6038076efd2962de1c77e6b9e0487300fb6a0b70fc8dd",
+      "verified_line_ranges": [
+        [
+          188,
+          227
+        ],
+        [
+          774,
+          785
+        ],
+        [
+          1110,
+          1164
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/source/admission.rs",
+      "bytes": 52257,
+      "sha256": "293780cf81a091920b2e9e71d165d61a31f1f721391384d405b11b3c8b873901",
+      "verified_line_ranges": [
+        [
+          54,
+          83
+        ],
+        [
+          420,
+          451
+        ],
+        [
+          517,
+          564
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/registry.rs",
+      "bytes": 71726,
+      "sha256": "70cb9b5c68bc2e2d0736ce3285575de8691ce6b25bfc3588027a27ae07119d76",
+      "verified_line_ranges": [
+        [
+          246,
+          248
+        ],
+        [
+          512,
+          529
+        ],
+        [
+          572,
+          590
+        ],
+        [
+          768,
+          779
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-assets/src/secure_dir.rs",
+      "bytes": 27769,
+      "sha256": "c3d4eac2091ebba5c3127b3efe4adda077d47e6a139666aa186895c343dc3435",
+      "verified_line_ranges": [
+        [
+          65,
+          107
+        ],
+        [
+          203,
+          217
+        ],
+        [
+          252,
+          268
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/policy/tests.rs",
+      "bytes": 9235,
+      "sha256": "a2a8280eb1abe26ea45bd7af9e8f01bcd4133472d6f604580c3b36f667258a02",
+      "verified_line_ranges": [
+        [
+          23,
+          105
+        ]
+      ]
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs",
+      "bytes": 48875,
+      "sha256": "e5762a76ada71a4ddf24b9579846bb31c0e5d1d046c293d010bf95efa78860f9",
+      "verified_line_ranges": [
+        [
+          1150,
+          1230
+        ]
+      ]
+    },
+    {
+      "path": "docs/task9/r2b-source-actor-code-contract.md",
+      "bytes": 59472,
+      "sha256": "b4ee882aada5f2c909d7a2011f4dbf16f6816d1c9371a5acdd77317f96c3f11b",
+      "verified_line_ranges": [
+        [
+          175,
+          197
+        ],
+        [
+          205,
+          213
+        ],
+        [
+          233,
+          255
+        ]
+      ]
+    },
+    {
+      "path": "docs/task9/r2b-source-actor-machine-schema.json",
+      "bytes": 75105,
+      "sha256": "f7413f400c6b18e83ac2899a8ee5ee86b512116039d02b2f13279674fc695d3f",
+      "verified_line_ranges": [
+        [
+          2268,
+          2304
+        ]
+      ]
+    },
+    {
+      "path": "docs/task9/c11/CONTRACT.md",
+      "bytes": 8504,
+      "sha256": "db6c165aa84dd8bbc9f89b118664ed81114c2286abbefd80406938a5640f1f53",
+      "verified_line_ranges": [
+        [
+          21,
+          33
+        ]
+      ]
+    },
+    {
+      "path": "docs/task9/c11/MACHINE-DELTA.json",
+      "bytes": 20770,
+      "sha256": "e7547949249886bbf82a6a6ae277b2e32bcbb5801e9c7496ca0c27862a59a1ff"
+    },
+    {
+      "path": "docs/task9/b1-preparation-test-matrix.json",
+      "bytes": 31920,
+      "sha256": "4eea0c2b2d4fd6a101db1b117a7553fb05f61f3b00af66f555606f4c168e4bcd"
+    },
+    {
+      "path": "docs/task9/r2b-validation-plan.json",
+      "bytes": 31819,
+      "sha256": "b934d2ef262a8c5e1c8762af515e944fc5c244a2c0c5600a8428ea0cc88111b6"
+    },
+    {
+      "path": "docs/task9/r2b-source-actor-extension-approval.md",
+      "bytes": 10481,
+      "sha256": "964922017daea3c3685149b466b49e23503d0a87438ced8bbc9cc42adcdae4f2"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md",
+      "bytes": 28012,
+      "sha256": "c24b555ae1eefc10e4a22cbe3c1834b629e0a4970ab38d7d10a999dff3016159"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-04-p0c4-completion.md",
+      "bytes": 73790,
+      "sha256": "85fc8c72d5a6e58923247ba3fa717572f2013aeb95b0193f6a997c04db2ce741",
+      "verified_line_ranges": [
+        [
+          210,
+          235
+        ]
+      ]
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-04-p0c4-completion-design.md",
+      "bytes": 63781,
+      "sha256": "e209e1e24fe707c2e1fb8fb5547bc6cae66240210edd8a8283318f5eb64ed054",
+      "verified_line_ranges": [
+        [
+          194,
+          276
+        ]
+      ]
+    }
+  ],
+  "budget_and_owners": {
+    "same_original_cumulative_meter": true,
+    "scan_bytes": 536870912,
+    "scan_entries": 100000,
+    "observation_bytes": 67108864,
+    "C11_record_bytes": 1048576,
+    "Root_frame_bytes": 4096,
+    "Root_control_total_bytes": 262400,
+    "host_container_cap": 1024,
+    "cap_increase": false,
+    "new_work": "PREPAY_FIXED_STORAGE_FDS_DIRECTORIES_STAT_RAWREAD_HASH_CANONICAL_ALLOC_COMPARE_BEFORE_WORK_ON_ORIGINAL_METERS; REPEATS_PAY_AGAIN; ERRORS_RETAIN_CHARGE",
+    "lock_order": [
+      "ORIGINAL_REGISTRY_EXCLUSIVE_LEASE",
+      "ORIGINAL_FENCE_LOCK_EX_NB"
+    ],
+    "capture_Q0_release": "ONLY_AFTER_NATURAL_Q0_CUT_STORED_AND_ORIGINAL_RECHECK",
+    "runtime_or_S_clock_reset": false,
+    "existing_deadlines_unchanged_seconds": {
+      "firstS_once": 1800,
+      "Root_capture": 1200,
+      "cutover": 120,
+      "request_or_proof_or_settlement_observation": 30
+    },
+    "cancel_unwind": "STICKY_NEGATIVE_RETAIN_STARTED_ORIGINAL_FUTURE_TASK_CHILD_AND_OWNED_FDS_UNTIL_NATURAL_SETTLEMENT; UNKNOWN_HOLD; NO_ABORT_NO_DROP_SUCCESS_NO_REPLAY",
+    "successful_fence_cost": "PERSISTENT_NEGATIVE_MAY_BLOCK_THIS_SOURCE_AND_OTHER_GROUPS_SHARING_GLOBAL_REGISTRY_GENERATION; NO_AUTO_RELEASE",
+    "product_owned_fd_cap": 64,
+    "necessary_runtime_ssh_handles": "EXACT_REAL_OWNER_QUANTITY_OVERLAP_LIFETIME_AND_ACTUAL_TOTAL_INVENTORY_REQUIRED; NO_RELABELLING_PRODUCT_FDS_AS_EXTRA",
+    "FD_budget_original_reference": "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md:75",
+    "existing_stricter_local_fd_guards_relaxed": false,
+    "actual_fd_domain_evidence_complete": false
+  },
+  "approval_layers": {
+    "now": "DRAFT_INDEPENDENT_REVIEW_DOC_PUBLICATION_ONLY",
+    "future_C0_code": "SEPARATE_EXACT_FIVE_EXISTING_RUST_FILES_AND_NONPRIVILEGED_LIMITED_LINUX_CHECK_APPROVAL",
+    "future_C_install": "SEPARATE_EXACT_HOST_RESOURCE_FILE_HASH_MODE_OWNER_BIND_PRIVATE_PARENT_NATIVE_PG_LAUNCH_PACKET",
+    "future_crosshost_RA_RB": "SEPARATE_REAL_CHAIN_AND_SOURCE_ISOLATION_OR_DESTRUCTIVE_TARGET_PERMISSIONS",
+    "keys_trust_credentials_or_security_installed_here": false
+  },
+  "open_feasibility": [
+    "ACTUAL_BIND_SOURCE_ALIAS_SAME_INODE_FULLSTAMP_PARENT_CUSTODY",
+    "ACTUAL_RO_FLOCK_ON_ORIGINAL_HOST_LOCK_AND_CONTENDED_NEGATIVE_RETURN",
+    "PRODUCT_OWNED_FD_CAP64_PLUS_EXACT_NECESSARY_RUNTIME_SSH_OWNERS_COUNT_OVERLAP_AND_ACTUAL_TOTAL",
+    "ACTUAL_METADATA_MOUNTINFO_FULL_OBSERVATION_FIT_ORIGINAL_BUDGETS",
+    "GENUINE_C11_GENESIS_FULLPOSTOBS_ACK_FIRST_WORK_S5",
+    "EXACT_C_INSTALLER_PACKET_AND_NATIVE_PERMISSION_APPROVAL",
+    "REAL_INDEPENDENT_D_FIRST_SIGN_RA_RB"
+  ],
+  "explicit_no_change_source_paths": [
+    {
+      "path": "crates/learning-backup/src/offhost_b1/policy.rs",
+      "bytes": 19569,
+      "sha256": "2db99db5de6b9c2ab8248939d8a9a1c4d6b59145cef2af579140def705a3aea6"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/policy/installed.rs",
+      "bytes": 20383,
+      "sha256": "d50060273b2891349fbe738bd9b23dbedb2601a6548eba948aac1f471664f5f4"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/source_fence.rs",
+      "bytes": 27167,
+      "sha256": "4ea5f25e5b1a1cb3693d20a8df5bcf641047e365328ed0f8e541fb18121ff14e"
+    },
+    {
+      "path": "crates/learning-backup/src/registry.rs",
+      "bytes": 71726,
+      "sha256": "70cb9b5c68bc2e2d0736ce3285575de8691ce6b25bfc3588027a27ae07119d76"
+    },
+    {
+      "path": "crates/learning-backup/src/source/admission.rs",
+      "bytes": 52257,
+      "sha256": "293780cf81a091920b2e9e71d165d61a31f1f721391384d405b11b3c8b873901"
+    },
+    {
+      "path": "crates/learning-backup/src/offhost_b1/mod.rs",
+      "bytes": 15735,
+      "sha256": "d017016923749ac4e72ea88636f39d45f6c44f2233e15385c3b2611e6debc80e"
+    },
+    {
+      "path": "crates/learning-db/src/snapshot_broker/b1_peer/job.rs",
+      "bytes": 108997,
+      "sha256": "9da6d1a6e55fa76c7030b5b85acae073a205051d5a3290d93ff1352361fab00c"
+    }
+  ],
+  "full_release_roster_caveat": "NO_CURRENT_CLOSED_TOTAL_DIRECTORY_COUNT_WAS_FOUND; FIXED_METADATA_NAMES_ARE_NOT_A_MEASURED_COMPLETE_C_PACKET; FUTURE_C_MUST_EXPLICITLY_ENUMERATE_AND_APPROVE_THE_REAL_PACKET_NO_WILDCARD_INSTALLER",
+  "source_write_protection": {
+    "protected_actual_sources": [
+      "R/capture-source-policy.json",
+      "R/capture-launch-manifest.json",
+      "/var/lib/knowweave-c4-source-fences"
+    ],
+    "owner": "ORIGINAL_ROOT_ACTUAL_HOST_OBSERVER_NOT_CAPTURE_DTO",
+    "times": [
+      "INSTALL_BEFORE",
+      "POST_GENESIS_COMPLETE_AFTER_FULLPOSTOBS",
+      "EACH_EXISTING_CRITICAL_RECHECK"
+    ],
+    "host_projection": "FULL_ALL_HOST_CONTAINER_SET_INCLUDING_OWN_PG_OTHER_MOUNTS",
+    "reject": "ANY_RW_SOURCE_OR_WRITABLE_ANCESTOR_OVERLAPPING_SUBTREE_OR_PHYSICAL_ALIAS_OF_THREE_SOURCES",
+    "physical_identity": "HELD_SOURCE_ROOT_LEAF_FDS_COMPLETE_NOFOLLOW_ANCESTORS_ACTUAL_OBJECT_IDENTITY_PREPAID_NOT_STRING_EQUALITY_ONLY",
+    "existing_companion_export_guard": "PRESERVED_AND_EXTENDED_NOT_SUBSTITUTED",
+    "DB_scope": "RECHECK_COMPLETE_AUTHENTICATED_MOUNTS_DATA_AND_FORMULA_HASH_ONLY_NO_HOST_KERNEL_CLAIM",
+    "non_Docker_writers": "SEPARATELY_APPROVED_C_EXCLUDES_HOST_INSTALLATION_RECONFIGURATION_OLD_WRITERS_INFLIGHT_AND_OTHER_WRITABLE_ALIASES",
+    "unknown": "HOLD_NO_AUTO_STOP_OTHER_PROJECTS",
+    "new_wire_fields": [],
+    "RO_destination_does_not_prove_immutable_host_source": true
+  },
+  "draft1_to_draft2": {
+    "old_raw_preserved": [
+      {
+        "name": "CONTRACT.md",
+        "bytes": 18512,
+        "sha256": "f302d19e8775c7a5a351251aeb2c5de2d11a492e204bb6a01dbdc00a1efe54f8"
+      },
+      {
+        "name": "MACHINE-DELTA.json",
+        "bytes": 27921,
+        "sha256": "06cda4c815f5ed24b747cef74390947c0e94eaae594bfa06fe927c8db9713602"
+      },
+      {
+        "name": "VALIDATION-PLAN.json",
+        "bytes": 22725,
+        "sha256": "d183fbe92b308e8a1bc836ca04fcc75ef6a445835a107093bd3cbff1146a036e"
+      }
+    ],
+    "exact_semantic_changes": [
+      {
+        "id": "D1",
+        "change": "Restore original product-owned64 FD domain; necessary runtime/SSH actual ownership/count/overlap/total separate; retain stricter local guards."
+      },
+      {
+        "id": "D2",
+        "change": "Root all-host RW source/ancestor/overlap/physical-alias protection for three new sources at before/after/critical; separately exclude non-Docker install/reconfiguration/old/inflight writers; DB authentic DATA only; unknown HOLD no auto-stop."
+      },
+      {
+        "id": "D3",
+        "change": "Narrow U08 to pure parser shape/cross-record/compiled pins; actual current group/deployment/registry/Catalog/admission remains C03 obligation."
+      },
+      {
+        "id": "D4",
+        "change": "Specify original Root policy dual-alias held FD/raw/stamp custody and timing; DB new mirror remains launch-only and4096; unchanged Task1b generic cap16KiB not overriding smaller original gate."
+      },
+      {
+        "id": "D5",
+        "change": "Neutral contract proposal status; no approval/implementation/installation/runtime credit."
+      }
+    ],
+    "source_allowlist_unchanged": true,
+    "product_source_changes": false
+  }
+}
