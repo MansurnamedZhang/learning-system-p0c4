@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "Capture 代码静审通过；控制台 AUTH255／HOLD",
-    "detail": "首轮真实控制台在首次SSH认证时退出255，未观察到上传或runner启动；FileExistsError与原批次独占、防重放门一致。本候选尚未运行格式、类型、Clippy或测试；20个新增定义按四配置为0/14/0/6。",
-    "evidence": "组合CODE gate a009984a、独审9d329253；旧109个测试属性/正文保留。认证原因尚未确定，原批次HOLD保留且不重放；先由用户验证标准客户端正常只读登录，再建新批次。真实C0-C02、B/C安装、Root/PG/C11/S5、FD全期证明、首签/RA/RB及Task9/C4仍OPEN。"
+    "statusLabel": "CF2普通25门与20项补验通过；双机验收OPEN",
+    "detail": "25阶段退出码全0：Backup默认450通过/106忽略、offhost663/106；DB默认62/24、peer129/26，filtered全0。新20定义逐名通过（0/14/0/6），跨配置重复正文不计为新增；源码与自然清理原件独核完成。",
+    "evidence": "受测source24282f8a／CODE22bcb1dd；13门bcd700／raw9638、名单4fbf／e1c3；实际25门50212fc5／证据1fcc9574／原件独核c2ce628c。默认关闭，旧失败/HOLD及原37/53保留。真实安装、C0-C02、RootPG/C11/S5/全期FD、首次跨机签名和RA/RB及Task9/C4仍OPEN。"
   }
 ];
 
@@ -1638,32 +1638,32 @@ export const diagrams = [
 
 export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
-  "date": "2026-11-01",
+  "date": "2026-11-02",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
-  "state": "Task9 C0：五叶代码静审通过；首轮控制台认证255，原批次HOLD",
-  "progressSummary": "五叶默认关闭候选组合静审通过，保留旧109个测试属性/正文并新增20个普通定义。首轮控制台仅首次SSH认证退出255，未观察到上传或runner启动；尚无本候选的rustfmt、类型、Clippy或测试结果。",
-  "progressEvidence": "CODE gate a009984a、独审9d329253；新增定义四配置0/14/0/6。认证HOLD c17d23d2：首连接退出255，后续上传/启动/采集记录缺失；FileExistsError与既有独占尝试标记一致。原37/53、合同三件及52个历史检查点保留。",
-  "pendingSummary": "先由用户用标准SSH客户端验证正常只读登录，不发送或记录口令；认证原因未定，不绕过拒绝。原失败批次不重放，正常访问确认后才绑定新format批次，后续compile/list与全新25门另用新UUID。",
+  "state": "Task9 C0：CF2限定普通25门及20项补验通过，真实安装与双机验收仍OPEN",
+  "progressSummary": "受测CF2候选的25阶段全部退出0：Backup默认450通过/106既有忽略、offhost663/106，DB默认62/24、peer129/26，filtered均0。新20项普通定义逐名通过，按四配置0/14/0/6；跨配置重复正文不相加。源码、资源身份与自然清理原件已独核，默认关闭保持。",
+  "progressEvidence": "当前source24282f8a／CODE22bcb1dd／Deltab60dc254；新编译列举原件bcd7005b／raw9638f408，名单4fbf8ff6／OTHER e1c373f1；实际25门结果50212fc5、证据包1fcc9574、原件独核c2ce628c（独审7da793b3）。旧109及新20测试属性/正文原字节保持。",
+  "pendingSummary": "普通检查通过不代替真实准入。后续按已审方案完成B/C安装准备与另行批准的配置操作，补真实C0-C02 namespace、ROflock/写面排除、全期FD、RootPG/C11/S5和首次跨机签名、RA/RB；Task9及C4整关继续OPEN。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
-  "boundarySummary": "本轮仅继续准确五叶默认关闭编码与原普通Linux检查。控制台认证失败不授新凭证或权限；B/C安装、真实C0-C02及Root/PG/C11/S5、首签/RA/RB和Task9/C4均OPEN，旧FAIL/HOLD保持。",
-  "roadmapHeadline": "P0-C4 Task9：代码静审已过，普通 Linux 检查受控制台认证阻断",
-  "taskPlanScope": "准确五个既有Rust文件的默认关闭候选已组合静审，新增20定义尚未执行。首轮真实控制台AUTH255/HOLD未上传或启动产品；原批次保持、先核正常登录，不以重跑规避独占门。",
+  "boundarySummary": "测试信用绑定受测CF2/source2428及其限定四配置库范围。出版711文件只允许12项文档/生成器/ledger变动，其余699须与CF2逐raw相同（含403Rust及11Cargo/lock）；文档变化单列生成与结构QA，不宣称整个出版711都在该批次编译。未安装密钥/信任/launcher或变更权限，未恢复，main与生产未变。",
+  "roadmapHeadline": "P0-C4 Task9：C0普通25门已补验，真实安装与双机整链待完成",
+  "taskPlanScope": "原五叶默认关闭代码已完成新CODE、全新13门编译列举、精确四名单冻结和全新25门整库普通回归。两轮Clippy失败分别修复两处冗余表达式及私有函数参数借用组合，原失败/HOLD保留不重放；原37/53现场义务不转为普通测试信用。",
   "nextSteps": [
     [
-      "核正常只读登录",
-      "用户在真实控制台使用标准SSH客户端只读验证id-u；不向对话提交口令，不由脚本读取或缓存。权限拒绝继续HOLD，不绕过。"
+      "保管当前原件与源码身份",
+      "以受测CF2/source2428、CODE22bc及15c7实际结果50212/c2ce为本轮依据；保留原53检查点和失败/HOLD，只追加54，不跨源码转授历史信用。"
     ],
     [
-      "绑定全新格式批次",
-      "正常访问经核实后，保留原失败批次，创建新的精确绑定批次并一次启动format；FileExistsError对应旧尝试标记，禁止清除后重放。"
+      "完成真实安装与准入条件",
+      "按准确实施单补齐角色安装、公钥与信任/launcher、C0十五挂载及原十二namespace兼容等材料；实际安装和安全权限变更须在对应最小范围另行批准。"
     ],
     [
-      "后续名单与普通25门",
-      "格式原件独核后另建compile/list批次取得四配置实际名单，再冻结名单、重新审绑定并执行全新25门；现场B/C和双机验收仍另审。"
+      "继续正式双机验收",
+      "在真实RootPG/C11/S5、来源写面排除与全期FD证明闭合后，推进首次跨机签名和RA/RB；尚不宣布Task9/C4完成、main合并或生产部署。"
     ]
   ]
 };

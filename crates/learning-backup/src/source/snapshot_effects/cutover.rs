@@ -90,7 +90,12 @@ impl B1LocalMounts {
             ("/var/lib/knowweave-c4/b1/launch-manifest.json", false),
             ("/var/lib/knowweave-c4-source-fences", false),
         ];
-        let parents = ["/var", "/var/lib", "/var/lib/knowweave-c4", "/var/lib/knowweave-c4/b1"];
+        let parents = [
+            "/var",
+            "/var/lib",
+            "/var/lib/knowweave-c4",
+            "/var/lib/knowweave-c4/b1",
+        ];
         let mut counts = [0usize; 15];
         for line in text.lines() {
             let mut fields = line.split_ascii_whitespace();
@@ -110,11 +115,13 @@ impl B1LocalMounts {
                 {
                     return Err(invalid());
                 }
-            } else if parents.contains(&target) || topology.iter().any(|(root, _)| {
-                target
-                    .strip_prefix(root)
-                    .is_some_and(|s| s.starts_with('/'))
-            }) {
+            } else if parents.contains(&target)
+                || topology.iter().any(|(root, _)| {
+                    target
+                        .strip_prefix(root)
+                        .is_some_and(|s| s.starts_with('/'))
+                })
+            {
                 // The assets child is the sole allowed parent/child member.
                 // Any other overlay under the fifteen fixed targets rejects.
                 return Err(invalid());
@@ -852,20 +859,29 @@ mod tests {
     fn c0_mountinfo_fixture() -> String {
         let mut raw = "1 0 0:1 / / rw - overlay overlay rw\n".to_owned();
         let targets = [
-            ("/var/lib/postgresql", true), ("/var/lib/knowweave-source", true),
+            ("/var/lib/postgresql", true),
+            ("/var/lib/knowweave-source", true),
             ("/var/lib/knowweave-source/assets", false),
             ("/var/lib/knowweave-c4/registry", true),
             ("/var/lib/knowweave-c4/snapshot-effects-v2", true),
             ("/var/lib/knowweave-c4/snapshot-export-v2", true),
-            ("/run/kwc4/sfx", true), ("/var/lib/knowweave-c4/b1-source-observation", false),
-            ("/opt/knowweave-c4/b1-capture", false), ("/usr/bin/docker", false),
-            ("/var/run/docker.sock", false), ("/var/run/postgresql", true),
+            ("/run/kwc4/sfx", true),
+            ("/var/lib/knowweave-c4/b1-source-observation", false),
+            ("/opt/knowweave-c4/b1-capture", false),
+            ("/usr/bin/docker", false),
+            ("/var/run/docker.sock", false),
+            ("/var/run/postgresql", true),
             ("/var/lib/knowweave-c4/b1/source-policy.json", false),
             ("/var/lib/knowweave-c4/b1/launch-manifest.json", false),
             ("/var/lib/knowweave-c4-source-fences", false),
         ];
         for (i, (target, rw)) in targets.into_iter().enumerate() {
-            raw.push_str(&format!("{} 1 0:{} / {target} {} - ext4 /dev/fixture rw\n", i + 2, i + 2, if rw { "rw" } else { "ro" }));
+            raw.push_str(&format!(
+                "{} 1 0:{} / {target} {} - ext4 /dev/fixture rw\n",
+                i + 2,
+                i + 2,
+                if rw { "rw" } else { "ro" }
+            ));
         }
         raw
     }
@@ -874,18 +890,35 @@ mod tests {
     fn c0_local_mountinfo_requires_exact_fifteen() {
         let raw = c0_mountinfo_fixture();
         assert!(B1LocalMounts::require_fifteen(raw.as_bytes()).is_ok());
-        let twelve = raw.lines().filter(|line| !line.contains("/var/lib/knowweave-c4/b1/") && !line.contains("/var/lib/knowweave-c4-source-fences")).collect::<Vec<_>>().join("\n");
+        let twelve = raw
+            .lines()
+            .filter(|line| {
+                !line.contains("/var/lib/knowweave-c4/b1/")
+                    && !line.contains("/var/lib/knowweave-c4-source-fences")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(B1LocalMounts::require_fifteen(twelve.as_bytes()).is_err());
     }
     #[cfg(feature = "offhost-b1")]
     #[test]
     fn c0_local_mountinfo_rejects_duplicate_ro_drift_and_parent_overlay() {
         let raw = c0_mountinfo_fixture();
-        let duplicate = format!("{raw}100 1 0:4 / /var/lib/knowweave-c4/b1/source-policy.json ro - ext4 /dev/fixture rw\n");
+        let duplicate = format!(
+            "{raw}100 1 0:4 / /var/lib/knowweave-c4/b1/source-policy.json ro - ext4 /dev/fixture rw\n"
+        );
         assert!(B1LocalMounts::require_fifteen(duplicate.as_bytes()).is_err());
-        let rw = raw.replace("/var/lib/knowweave-c4-source-fences ro", "/var/lib/knowweave-c4-source-fences rw");
+        let rw = raw.replace(
+            "/var/lib/knowweave-c4-source-fences ro",
+            "/var/lib/knowweave-c4-source-fences rw",
+        );
         assert!(B1LocalMounts::require_fifteen(rw.as_bytes()).is_err());
-        for parent in ["/var", "/var/lib", "/var/lib/knowweave-c4", "/var/lib/knowweave-c4/b1"] {
+        for parent in [
+            "/var",
+            "/var/lib",
+            "/var/lib/knowweave-c4",
+            "/var/lib/knowweave-c4/b1",
+        ] {
             let hidden = format!("{raw}100 1 0:4 / {parent} ro - ext4 /dev/fixture rw\n");
             assert!(B1LocalMounts::require_fifteen(hidden.as_bytes()).is_err());
         }
@@ -894,9 +927,10 @@ mod tests {
     #[test]
     fn c0_local_mountinfo_preserves_assets_child_only() {
         let raw = c0_mountinfo_fixture();
-        let injected = format!("{raw}100 1 0:4 / /var/lib/knowweave-source/assets/hidden ro - ext4 /dev/fixture rw\n");
+        let injected = format!(
+            "{raw}100 1 0:4 / /var/lib/knowweave-source/assets/hidden ro - ext4 /dev/fixture rw\n"
+        );
         assert!(B1LocalMounts::require_fifteen(injected.as_bytes()).is_err());
         assert!(B1LocalMounts::require_fifteen(raw.as_bytes()).is_ok());
     }
-
 }

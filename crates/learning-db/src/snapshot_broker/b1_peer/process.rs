@@ -387,13 +387,15 @@ pub(super) fn capture_launch_read_data(
     scan: &SharedJournalBudget,
 ) -> Result<(Vec<u8>, [u8; 32])> {
     prepay_capture_launch_work(scan)?;
-    if stamp.bytes == 0 || stamp.bytes > CAPTURE_LAUNCH_MAX
+    if stamp.bytes == 0
+        || stamp.bytes > CAPTURE_LAUNCH_MAX
         || stamp.mode & libc::S_IFMT != libc::S_IFREG
         || Stamp::observe(file, scan)? != *stamp
     {
         return Err(Error::Identity);
     }
-    scan.charge(stamp.bytes * 2 + 1, 3).map_err(|_| Error::Capacity)?;
+    scan.charge(stamp.bytes * 2 + 1, 3)
+        .map_err(|_| Error::Capacity)?;
     let mut raw = vec![0; stamp.bytes as usize];
     file.seek(SeekFrom::Start(0)).map_err(|_| Error::Io)?;
     file.read_exact(&mut raw).map_err(|_| Error::Io)?;
@@ -507,16 +509,15 @@ impl CaptureLaunchMirror {
         let (file, saved) = self.pending.last_mut().ok_or(Error::Identity)?;
         let stamp = Stamp::observe(file, scan)?;
         *saved = Some(stamp);
-        if !stamp.root_file(CAPTURE_LAUNCH_MAX)
-            || stamp.gid != 0
-            || stamp.mode & 0o7777 != 0o600
-        {
+        if !stamp.root_file(CAPTURE_LAUNCH_MAX) || stamp.gid != 0 || stamp.mode & 0o7777 != 0o600 {
             return Err(Error::Identity);
         }
         // All six originals are already rooted and fully stamped. This fixed
         // nonfallible move preserves the same resources in the final holder.
         let (file, _) = self.pending.pop().expect("fixed alias leaf retained");
-        let parents = self.pending.drain(..)
+        let parents = self
+            .pending
+            .drain(..)
             .map(|(file, stamp)| (file, stamp.expect("fixed ancestry stamped")))
             .collect();
         self.held = Some(HeldNamed {
@@ -566,9 +567,14 @@ fn acquire_capture_launch_mirror(
     scan: &SharedJournalBudget,
 ) -> Result<CaptureLaunchAcquisitionGuard> {
     prepay_capture_launch_work(scan)?;
-    scan.charge((std::mem::size_of::<CaptureLaunchMirror>() + 1024) as u64, 2)
-        .map_err(|_| Error::Capacity)?;
-    let mut slot = CAPTURE_LAUNCH_ACQUISITION.lock().map_err(|_| Error::Poisoned)?;
+    scan.charge(
+        (std::mem::size_of::<CaptureLaunchMirror>() + 1024) as u64,
+        2,
+    )
+    .map_err(|_| Error::Capacity)?;
+    let mut slot = CAPTURE_LAUNCH_ACQUISITION
+        .lock()
+        .map_err(|_| Error::Poisoned)?;
     if let Some(original) = slot.as_mut() {
         original.failed = true;
         return Err(Error::Poisoned);
@@ -2631,7 +2637,11 @@ pub(super) const CAPTURE_TOPOLOGY: [(&str, &str, bool); 15] = [
     ("/usr/bin/docker", "bind", false),
     ("/var/lib/knowweave-c4-source-fences", "bind", false),
     ("/var/lib/knowweave-c4/b1-source-observation", "bind", false),
-    ("/var/lib/knowweave-c4/b1/launch-manifest.json", "bind", false),
+    (
+        "/var/lib/knowweave-c4/b1/launch-manifest.json",
+        "bind",
+        false,
+    ),
     ("/var/lib/knowweave-c4/b1/source-policy.json", "bind", false),
     ("/var/lib/knowweave-c4/registry", "volume", true),
     ("/var/lib/knowweave-c4/snapshot-effects-v2", "volume", true),
@@ -2644,32 +2654,48 @@ pub(super) const CAPTURE_TOPOLOGY: [(&str, &str, bool); 15] = [
 ];
 
 pub(super) fn capture_readonly_mountinfo_data(raw: &[u8]) -> Result<()> {
-    let text = std::str::from_utf8(&raw).map_err(|_| Error::Identity)?;
+    let text = std::str::from_utf8(raw).map_err(|_| Error::Identity)?;
     let mut counts = [0usize; 15];
     for line in text.lines() {
         let fields: Vec<_> = line.split_ascii_whitespace().collect();
         if fields.len() < 10 {
             return Err(Error::Identity);
         }
-        let separator = fields.iter().position(|v| *v == "-").ok_or(Error::Identity)?;
+        let separator = fields
+            .iter()
+            .position(|v| *v == "-")
+            .ok_or(Error::Identity)?;
         if separator < 6 || fields.len() != separator + 4 {
             return Err(Error::Identity);
         }
         let target = fields[4];
-        if ["/var", "/var/lib", "/var/lib/knowweave-c4", "/var/lib/knowweave-c4/b1"].contains(&target) {
+        if [
+            "/var",
+            "/var/lib",
+            "/var/lib/knowweave-c4",
+            "/var/lib/knowweave-c4/b1",
+        ]
+        .contains(&target)
+        {
             return Err(Error::Identity);
         }
         if let Some(index) = CAPTURE_TOPOLOGY.iter().position(|row| row.0 == target) {
             counts[index] += 1;
             let rw = CAPTURE_TOPOLOGY[index].2;
             if counts[index] != 1
-                || !fields[5].split(',').any(|v| v == if rw { "rw" } else { "ro" })
-                || fields[5].split(',').any(|v| v == if rw { "ro" } else { "rw" })
+                || !fields[5]
+                    .split(',')
+                    .any(|v| v == if rw { "rw" } else { "ro" })
+                || fields[5]
+                    .split(',')
+                    .any(|v| v == if rw { "ro" } else { "rw" })
             {
                 return Err(Error::Identity);
             }
         } else if CAPTURE_TOPOLOGY.iter().any(|row| {
-            target.strip_prefix(row.0).is_some_and(|suffix| suffix.starts_with('/'))
+            target
+                .strip_prefix(row.0)
+                .is_some_and(|suffix| suffix.starts_with('/'))
         }) {
             return Err(Error::Identity);
         }
@@ -2685,7 +2711,9 @@ pub(super) fn capture_mount_recipe_data(mounts: &[job::InstallMountProjection]) 
         return Err(Error::Identity);
     }
     for (mount, (destination, kind, rw)) in mounts.iter().zip(CAPTURE_TOPOLOGY) {
-        if mount.destination != destination || mount.kind != kind || mount.rw != rw
+        if mount.destination != destination
+            || mount.kind != kind
+            || mount.rw != rw
             || !job::path(&mount.source)
             || (kind == "bind" && mount.name.as_deref().is_some_and(|name| !name.is_empty()))
             || (kind == "volume" && mount.name.as_deref().is_none_or(str::is_empty))
@@ -2695,7 +2723,9 @@ pub(super) fn capture_mount_recipe_data(mounts: &[job::InstallMountProjection]) 
     }
     let release = &mounts[0].source;
     let fixed_leaf = |source: &str, leaf: &str| {
-        source.strip_prefix(release.as_str()).is_some_and(|suffix| suffix.strip_prefix('/') == Some(leaf))
+        source
+            .strip_prefix(release.as_str())
+            .is_some_and(|suffix| suffix.strip_prefix('/') == Some(leaf))
     };
     if mounts[3].source != "/var/lib/knowweave-c4-source-fences"
         || !fixed_leaf(&mounts[5].source, "capture-launch-manifest.json")
@@ -2711,10 +2741,16 @@ pub(super) fn capture_mount_recipe_data(mounts: &[job::InstallMountProjection]) 
         rw: bool,
         name: &'a str,
     }
-    let normalized = mounts.iter().map(|m| Mount {
-        destination: &m.destination, source: &m.source, kind: &m.kind, rw: m.rw,
-        name: m.name.as_deref().unwrap_or(""),
-    }).collect::<Vec<_>>();
+    let normalized = mounts
+        .iter()
+        .map(|m| Mount {
+            destination: &m.destination,
+            source: &m.source,
+            kind: &m.kind,
+            rw: m.rw,
+            name: m.name.as_deref().unwrap_or(""),
+        })
+        .collect::<Vec<_>>();
     let raw = job::canonical(&normalized)?;
     Ok(encode_hex(&Sha256::digest(&raw)))
 }
@@ -3104,7 +3140,7 @@ impl OriginalState {
             } => {
                 require_capture_readonly_roots(scan)?;
                 live()?;
-                revalidate_capture_launch_mirror(*negative_launch, &self.manifest, scan)?;
+                revalidate_capture_launch_mirror(negative_launch, &self.manifest, scan)?;
                 live()?;
                 capture.revalidate(scan)?;
                 live()?;

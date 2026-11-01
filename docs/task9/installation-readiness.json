@@ -1,190 +1,17 @@
 {
-  "schema": 1,
-  "artifact_kind": "TASK9_INSTALLATION_AND_TWO_HOST_PREPARATION_NOT_AUTHORITY",
-  "date": "2026-11-01",
-  "status": "DEFAULT_OFF_FIVE_SOURCE_STATIC_CODE_REVIEWED_CONSOLE_AUTH_HOLD_NO_UPLOAD_OR_PRODUCT_RUN",
-  "product_consumes_this_file": false,
-  "executable": false,
-  "code_base_commit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
-  "code_base_tree": "7984aa2073418b48f19df7e6be01c20861b6c403",
-  "product_source_changed_this_preparation": true,
-  "default_off": true,
-  "plan": "docs/task9/installation-and-two-host-acceptance-plan.md",
-  "historical_ordinary_checks": {
-    "batch": "af1986cd-f101-47bf-880a-c2134468013f",
-    "phase_count": 13,
-    "default_passed": 450,
-    "offhost_passed": 649,
-    "ignored_each_configuration": 106,
-    "distinct_new_bodies": 46,
-    "cross_configuration_counts_summed": false,
-    "source_index_sha256": "6efcea40845eef4193a48ee62a7774ca3691b183b1784f525d1ad9cd42f9e48f",
-    "result_sha256": "95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d",
-    "provides_installation_or_cross_host_credit": false
-  },
-  "host_facts": {
-    "S": {
-      "role": "EXISTING_LINUX_DEVELOPMENT_SOURCE",
-      "observation_scope": "ORDINARY_UID_READ_ONLY_METADATA_NOT_INSTALLATION_AUDIT",
-      "observed_at_utc": "2026-11-01T01:30:47.040897+00:00",
-      "architecture": "x86_64",
-      "logical_cpus": 24,
-      "mem_total_kib": 32140112,
-      "home_filesystem_free_bytes_at_read": 251911761920,
-      "root_private_installation_state": "UNKNOWN_PERMISSION_DENIED",
-      "authority_from_path_absence": false
-    },
-    "D": {
-      "role": "USER_SELECTED_INDEPENDENT_CLOUD_BACKUP_TARGET",
-      "independence_evidence": "USER_ATTESTED_TWO_DISTINCT_HOSTS_NOT_GEOGRAPHIC_OR_ACCOUNT_DISASTER_RECOVERY_PROOF",
-      "custodian": "USER_MANAGED_HOST_AND_CLOUD_DISK",
-      "signing_key_custody_choice": "DESTINATION_ROOT_PRIVATE_DIRECTORY_NOT_YET_GENERATED_OR_INSTALLED",
-      "current_access_observation": "EXISTING_STRICT_HOST_TRUST_NONINTERACTIVE_ACCESS_PERMISSION_DENIED_NO_NEW_CREDENTIALS",
-      "fresh_installation_or_capacity_observation": false,
-      "historical_observation_date": "2026-10-26",
-      "historical_logical_cpus": 2,
-      "historical_memory_class_gib": 2,
-      "historical_disk_class_gib": 50,
-      "historical_data_not_current_capacity_approval": true,
-      "current_available_memory_bytes": null,
-      "current_available_disk_bytes": null,
-      "current_host_storage_identity": null
-    }
-  },
-  "approvals": {
-    "A": "AUTHORIZED_PREPARATION_ONLY",
-    "C0": "AUTHORIZED_EXACT_FIVE_EXISTING_SOURCE_DEFAULT_OFF_CODE_AND_ORIGINAL_LIMITED_ORDINARY_CHECKS_NOT_INSTALLATION",
-    "B": "EXACT_KEY_TRUST_CUSTODY_NOT_AUTHORIZED",
-    "C": "EXACT_RUNTIME_LAUNCH_PERMISSION_MOUNT_INSTALLATION_NOT_AUTHORIZED",
-    "D1": "REAL_FIRST_PUBLICATION_RA_AND_NAMED_NEGATIVES_NOT_AUTHORIZED",
-    "D2": "NARROW_SOURCE_UNAVAILABLE_RB_NOT_AUTHORIZED"
-  },
+  "C4_accepted": false,
   "C_stage_guards": {
-    "C_prepare": "EXACT_FRESH_NAMESPACE_REGISTRY_FENCE_SESSION_IDENTITIES_ONLY_SEPARATE_APPROVAL_NO_ENTRY_ENABLEMENT",
     "C_install": "AFTER_ACTUAL_PUBLIC_PINS_ELF_ANCHOR_POLICY_AND_LAUNCH_MANIFEST_CATALOGUE_SEALED_AND_SEPARATELY_APPROVED",
+    "C_prepare": "EXACT_FRESH_NAMESPACE_REGISTRY_FENCE_SESSION_IDENTITIES_ONLY_SEPARATE_APPROVAL_NO_ENTRY_ENABLEMENT",
     "either_stage_authorized": false,
     "source_expected_destination_policy_pin_requires_actual_D_installation_readback_not_wire_echo": true
   },
-  "capture_topology_proposal": {
-    "state": "DEFAULT_OFF_FIVE_SOURCE_CANDIDATE_STATIC_CODE_REVIEWED_NOT_TESTED_NOT_INSTALLED",
-    "current_closed_mount_count": 12,
-    "candidate_closed_mount_count": 15,
-    "preserve_original_twelve_identities_and_modes": true,
-    "additional_exact_read_only_mounts": [
-      "/var/lib/knowweave-c4/b1/source-policy.json",
-      "/var/lib/knowweave-c4/b1/launch-manifest.json",
-      "/var/lib/knowweave-c4-source-fences"
-    ],
-    "capture_receives_auth_or_transport_private_keys": false,
-    "broad_parent_bind_or_relaxed_mount_count_allowed": false,
-    "accurate_code_and_c11_field_delta_sealed": true,
-    "onsite_lock_inode_and_lifecycle_proved": false,
-    "uses_Capture_own_policy_and_own_manifest_not_PublicationSource": true,
-    "host_source_rule": "ORIGINAL_ADMITTED_RO_CAPTURE_RELEASE_SOURCE_R_PLUS_EXACT_FIXED_LEAF",
-    "host_source_leaf_names": [
-      "capture-source-policy.json",
-      "capture-launch-manifest.json"
-    ],
-    "source_evidence_file_count_unchanged": 12,
-    "C11_message_count_unchanged": 15,
-    "main_actions_unchanged": 13,
-    "coding_authorized": true,
-    "current_closed_mount_count_scope": "Historical pre-C0 code profile only; not this candidate or a fresh site observation",
-    "actual_candidate_mounts_observed": false
-  },
-  "blockers": [
-    {
-      "id": "H1",
-      "status": "OPEN",
-      "requires": [
-        "CURRENT_TARGET_METADATA",
-        "EXACT_EXISTING_INSTALLATION_INVENTORY"
-      ]
-    },
-    {
-      "id": "H2",
-      "status": "OPEN",
-      "requires": [
-        "USER_NORMAL_NATIVE_SSH_READ_ONLY_LOGIN_CHECK",
-        "FRESH_FORMAT_AND_FOUR_CONFIG_COMPILER_ROSTERS",
-        "FRESH_WHOLE_LIBRARY_ORDINARY_REGRESSION_AND_RAW_OTHER",
-        "C_REAL_FIFTEEN_MOUNTS_AND_C11"
-      ],
-      "gap": "Five-leaf static CODE passed; first user-console SSH authentication exited255 with no upload/runner record; old batch HOLD and no format/compiler/Clippy/test credit"
-    },
-    {
-      "id": "H3",
-      "status": "OPEN",
-      "requires": [
-        "B_C_APPROVAL",
-        "REAL_PUBLIC_PINS",
-        "ROLE_BUILD_ELF_POLICY_ANCHOR_MANIFEST"
-      ]
-    },
-    {
-      "id": "H4",
-      "status": "OPEN",
-      "requires": [
-        "REVIEWED_EXACT_INSTALLATION_TOOL",
-        "FIXED_NATIVE_PARENT_LAUNCH_CHAIN",
-        "C_APPROVAL"
-      ]
-    },
-    {
-      "id": "H5",
-      "status": "OPEN",
-      "requires": [
-        "OLD_WRITER_WRITE_SURFACE_EXCLUSION",
-        "GLOBAL64",
-        "S5",
-        "REAL_ROOT_PG_C11"
-      ]
-    },
-    {
-      "id": "H6",
-      "status": "OPEN",
-      "requires": [
-        "D1_ORIGINAL_SUCCESS_AND_RA",
-        "APPLICABLE_NEGATIVES",
-        "D2_SOURCE_UNAVAILABLE_RB",
-        "RAW_INDEPENDENT_REVIEW"
-      ]
-    }
-  ],
-  "uninstantiated_installation_material": {
-    "private_host_inventory_sha256": null,
-    "S_auth_public_pin": null,
-    "S_transport_public_pin": null,
-    "D_host_key_pin": null,
-    "D_backup_public_pin": null,
-    "S1_S2_exact_registry_root_bindings": null,
-    "actual_ELF_and_native_parent_pins": null,
-    "policy_anchor_and_launch_manifest_pins": null,
-    "exact_file_owner_mode_and_command_catalogue": null,
-    "exact_case_UUID_network_volume_budget_inventory": null,
-    "accepted_global64_S5_C11_raw_evidence": null,
-    "V1_V2_separate_policy_and_reader_views": null
-  },
-  "immutable_reference_pins": {
-    "docs/task9/b1-preparation-test-matrix.json": {
-      "bytes": 31920,
-      "sha256": "4eea0c2b2d4fd6a101db1b117a7553fb05f61f3b00af66f555606f4c168e4bcd"
-    },
-    "docs/task9/r2b-validation-plan.json": {
-      "bytes": 31819,
-      "sha256": "b934d2ef262a8c5e1c8762af515e944fc5c244a2c0c5600a8428ea0cc88111b6"
-    },
-    "docs/task9/r2b-wire-profile.json": {
-      "bytes": 29775,
-      "sha256": "732e84a1c89ac042b437d1adf8f7da8a4e9473e01443611802c58aaf1b8eaf8a"
-    },
-    "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md": {
-      "bytes": 28012,
-      "sha256": "c24b555ae1eefc10e4a22cbe3c1834b629e0a4970ab38d7d10a999dff3016159"
-    }
-  },
-  "historical_preparation_cases": 37,
-  "layered_obligations_not_test_body_count": 53,
+  "CompleteBackup": false,
+  "PRIOR_COMPLETE_requires_pre_admitted_S2_and_original_D1_reader_context": true,
+  "RA_RB_fresh_and_sequential": true,
+  "S1_success_fence_retained_without_auto_close": true,
+  "Task9_accepted": false,
+  "V1_V2_view_names_do_not_authorize_D2_RB": true,
   "acceptance_sequence": [
     "CURRENT_FACTS_AND_C0",
     "B_PUBLIC_PINS",
@@ -196,37 +23,76 @@
     "D2_NARROW_SOURCE_UNAVAILABLE_RB",
     "RAW_REVIEW_AND_APPLICABLE_REGRESSIONS"
   ],
-  "failure_windows": [
-    "BEFORE_PERMISSION",
-    "BEFORE_SIGNATURE",
-    "BEFORE_RENAME",
-    "BEFORE_PARENT_SYNC",
-    "BEFORE_VERIFY",
-    "BEFORE_REPLY"
-  ],
-  "S1_success_fence_retained_without_auto_close": true,
-  "PRIOR_COMPLETE_requires_pre_admitted_S2_and_original_D1_reader_context": true,
-  "RA_RB_fresh_and_sequential": true,
-  "unknown_outcome": "HOLD_RETAIN_NO_AUTOMATIC_REPLAY_NO_AUTHORITY_FROM_DISK",
-  "Task9_accepted": false,
-  "C4_accepted": false,
-  "installed": false,
-  "first_S": false,
-  "source_READY": false,
-  "fence_installed": false,
-  "CompleteBackup": false,
-  "runtime_authority_wired": false,
-  "genuine_Root_PG_positive_credit": false,
-  "keys_or_trust_installed": false,
-  "source_isolated": false,
-  "recovery_executed": false,
-  "main_merged": false,
-  "production_deployed": false,
-  "operational_flag_semantics": "FALSE_MEANS_NO_ACCEPTED_EXECUTION_CREDIT_NOT_PROOF_OF_PHYSICAL_ABSENCE_OR_EMPTY_PRIVATE_INSTALLATION",
   "all_negative_cases_require_fresh_pre_admitted_operation_and_resource_IDs": true,
-  "V1_V2_view_names_do_not_authorize_D2_RB": true,
+  "approvals": {
+    "A": "AUTHORIZED_PREPARATION_ONLY",
+    "B": "EXACT_KEY_TRUST_CUSTODY_NOT_AUTHORIZED",
+    "C": "EXACT_RUNTIME_LAUNCH_PERMISSION_MOUNT_INSTALLATION_NOT_AUTHORIZED",
+    "C0": "AUTHORIZED_EXACT_FIVE_EXISTING_SOURCE_DEFAULT_OFF_CODE_AND_ORIGINAL_LIMITED_ORDINARY_CHECKS_NOT_INSTALLATION",
+    "D1": "REAL_FIRST_PUBLICATION_RA_AND_NAMED_NEGATIVES_NOT_AUTHORIZED",
+    "D2": "NARROW_SOURCE_UNAVAILABLE_RB_NOT_AUTHORIZED"
+  },
+  "artifact_kind": "TASK9_INSTALLATION_AND_TWO_HOST_PREPARATION_NOT_AUTHORITY",
+  "blockers": [
+    {
+      "id": "H1",
+      "requires": [
+        "CURRENT_TARGET_METADATA",
+        "EXACT_EXISTING_INSTALLATION_INVENTORY"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "gap": "CF2 full four-configuration ordinary25 and raw independent evidence verified; real15 namespace/RootPG/C11/S5/global64 and installation remain open",
+      "id": "H2",
+      "requires": [
+        "C_REAL_FIFTEEN_MOUNTS_AND_C11",
+        "REAL_ROOT_PG_S5_AND_GLOBAL_FD_PROOF",
+        "B_C_SEPARATE_INSTALLATION_APPROVAL"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "id": "H3",
+      "requires": [
+        "B_C_APPROVAL",
+        "REAL_PUBLIC_PINS",
+        "ROLE_BUILD_ELF_POLICY_ANCHOR_MANIFEST"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "id": "H4",
+      "requires": [
+        "REVIEWED_EXACT_INSTALLATION_TOOL",
+        "FIXED_NATIVE_PARENT_LAUNCH_CHAIN",
+        "C_APPROVAL"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "id": "H5",
+      "requires": [
+        "OLD_WRITER_WRITE_SURFACE_EXCLUSION",
+        "GLOBAL64",
+        "S5",
+        "REAL_ROOT_PG_C11"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "id": "H6",
+      "requires": [
+        "D1_ORIGINAL_SUCCESS_AND_RA",
+        "APPLICABLE_NEGATIVES",
+        "D2_SOURCE_UNAVAILABLE_RB",
+        "RAW_INDEPENDENT_REVIEW"
+      ],
+      "status": "OPEN"
+    }
+  ],
   "capture_mount_contract": {
-    "status": "REVIEWED_PROPOSAL_NOT_CODING_OR_INSTALLATION_APPROVAL",
+    "approved": false,
     "documents": {
       "docs/task9/capture-mount-amendment-contract.md": {
         "bytes": 21908,
@@ -248,44 +114,87 @@
       "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
       "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs"
     ],
-    "proposed_ordinary_checks": 20,
-    "site_obligation_groups": 12,
-    "product_tests_executed": false,
-    "approved": false,
     "implemented": false,
-    "record_semantics": "Historical reviewed proposal and original false flags preserved; later minimum coding decision is recorded separately in current_c0_code_preparation, not retroactively in the contract"
+    "product_tests_executed": false,
+    "proposed_ordinary_checks": 20,
+    "record_semantics": "Historical reviewed proposal and original false flags preserved; later minimum coding decision is recorded separately in current_c0_code_preparation, not retroactively in the contract",
+    "site_obligation_groups": 12,
+    "status": "REVIEWED_PROPOSAL_NOT_CODING_OR_INSTALLATION_APPROVAL"
   },
-  "historical_installation_preparation_record": {
-    "status": "LOCAL_PREPARATION_ONLY_NOT_AUTHORIZED_NOT_EXECUTED",
-    "code_base_commit": "be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c",
-    "code_base_tree": "675b764b27ca4bbe6f7485094e314c0999844e3f",
-    "product_source_changed_this_preparation": false,
-    "C0_approval_record": "EXACT_FIVE_FILE_CONTRACT_REVIEWED_CODING_AND_LIMITED_CHECKS_NOT_AUTHORIZED",
-    "H2_blocker": {
-      "id": "H2",
-      "status": "OPEN",
-      "requires": [
-        "HUMAN_C0_EXACT_FIVE_FILE_CODING_APPROVAL",
-        "REVIEWED_IMPLEMENTATION_AND_FRESH_ORDINARY_CHECKS",
-        "C_REAL_FIFTEEN_MOUNTS_AND_C11"
-      ]
-    },
-    "scope": "Archived preparation record, not the current five-leaf coding decision or an installation observation"
-  },
-  "current_c0_code_preparation": {
-    "scope_basis": "User continued the preceding exact minimum coding and ordinary-check step; no retroactive approval of the historical proposal",
-    "five_existing_source_paths": [
-      "crates/learning-backup/src/offhost_b1/source_launch.rs",
-      "crates/learning-backup/src/source/binding.rs",
-      "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
-      "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
-      "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs"
+  "capture_topology_proposal": {
+    "C11_message_count_unchanged": 15,
+    "accurate_code_and_c11_field_delta_sealed": true,
+    "actual_candidate_mounts_observed": false,
+    "additional_exact_read_only_mounts": [
+      "/var/lib/knowweave-c4/b1/source-policy.json",
+      "/var/lib/knowweave-c4/b1/launch-manifest.json",
+      "/var/lib/knowweave-c4-source-fences"
     ],
-    "source_index_sha256": "af8cb0416db30f1c57f09af6744678ff77fdd7c1c27ddcfa108cd9bc36c2c7d9",
-    "code_other_sha256": "a009984a1760bfa4d46f1c761de041962647390027740b74d2b49dcb1adf91f0",
-    "code_other_status": "PASS_C0_EXACT_FIVE_SOURCE_CODE_NOT_RUNTIME_NOT_TASK9",
-    "independent_code_review_sha256": "9d32925343f808d0439d8b05af114d46279a32b028587c747a119661b7976f5c",
-    "old109_test_attributes_and_bodies_raw_unchanged": true,
+    "broad_parent_bind_or_relaxed_mount_count_allowed": false,
+    "candidate_closed_mount_count": 15,
+    "capture_receives_auth_or_transport_private_keys": false,
+    "coding_authorized": true,
+    "current_closed_mount_count": 12,
+    "current_closed_mount_count_scope": "Historical pre-C0 code profile only; not this candidate or a fresh site observation",
+    "host_source_leaf_names": [
+      "capture-source-policy.json",
+      "capture-launch-manifest.json"
+    ],
+    "host_source_rule": "ORIGINAL_ADMITTED_RO_CAPTURE_RELEASE_SOURCE_R_PLUS_EXACT_FIXED_LEAF",
+    "main_actions_unchanged": 13,
+    "onsite_lock_inode_and_lifecycle_proved": false,
+    "preserve_original_twelve_identities_and_modes": true,
+    "source_evidence_file_count_unchanged": 12,
+    "state": "DEFAULT_OFF_FIVE_SOURCE_CANDIDATE_STATIC_CODE_REVIEWED_NOT_TESTED_NOT_INSTALLED",
+    "uses_Capture_own_policy_and_own_manifest_not_PublicationSource": true
+  },
+  "code_base_commit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
+  "code_base_tree": "7984aa2073418b48f19df7e6be01c20861b6c403",
+  "current_c0_code_preparation": {
+    "actual_check_evidence_pins": {
+      "checks_evidence_zip": {
+        "bytes": 235285,
+        "sha256": "1fcc9574626094375887f8db495ac31ad0b5431c9d86951202834b5df2731cb9"
+      },
+      "checks_raw_OTHER": {
+        "bytes": 5884,
+        "sha256": "c2ce628c8e0714565e55c4265c84b091669f9a0ff36a1d8c2cef6636f45a2fb2"
+      },
+      "checks_result": {
+        "bytes": 177779,
+        "sha256": "50212fc546c1e52314822d54269140f5fdaa29992e8aed5ab5dca2c4c30353be"
+      }
+    },
+    "actual_checks_batch_id": "15c74030-2d53-4af5-846d-9f793ceb97d7",
+    "actual_compiler_rosters_observed": true,
+    "actual_full_ordinary_summaries": {
+      "backup-default": {
+        "filtered": 0,
+        "ignored": 106,
+        "passed": 450
+      },
+      "backup-offhost": {
+        "filtered": 0,
+        "ignored": 106,
+        "passed": 663
+      },
+      "db-default": {
+        "filtered": 0,
+        "ignored": 24,
+        "passed": 62
+      },
+      "db-peer": {
+        "filtered": 0,
+        "ignored": 26,
+        "passed": 129
+      }
+    },
+    "actual_source_base_commit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
+    "clippy_executed": true,
+    "code_other_sha256": "22bcb1dd22d0551f6c3924e98ef36770be8188f47cc39de7bbdfd98fc644a071",
+    "default_off": true,
+    "format_executed": true,
+    "installation_authorized": false,
     "new_distinct_test_definitions": 20,
     "new_test_definitions_by_config": {
       "backup-default": 0,
@@ -293,38 +202,191 @@
       "db-default": 0,
       "db-peer": 6
     },
-    "new_ignored_tests": 0,
-    "format_executed": false,
-    "type_compile_executed": false,
-    "clippy_executed": false,
-    "tests_executed": false,
-    "fresh_format_compile_list_checks_batches": "FIRST_USER_CONSOLE_SSH_AUTHENTICATION_EXIT_255_HOLD_NOT_UPLOADED_OR_RUN",
-    "check_modes_planned_phases": {
-      "format": 1,
-      "compile-list": 13,
-      "checks": 25
-    },
-    "actual_compiler_rosters_observed": false,
-    "user_real_console_required_for_existing_password_authentication": true,
-    "transport_logical_client_connections_per_future_batch": 4,
-    "password_read_or_recorded_by_python": false,
-    "old37_53_contracts_preserved": true,
-    "old52_typed_checkpoints_preserved": true,
-    "site_C0_C02_open": true,
-    "installation_authorized": false,
+    "old109_test_attributes_and_bodies_raw_unchanged": true,
+    "old_failed_candidates_and_HOLD_preserved": true,
     "operational_authority_changed": false,
+    "publication_base_commit": "b5c24f0b30ea2519b257b40ddf92a6ed10b3424b",
+    "site_C0_C02_open": true,
+    "source_index_sha256": "24282f8ac10af9615b46e1bbca7dba2176f03ac4f16814ae9cd4953ea345ea86",
+    "source_test_delta_sha256": "b60dc25483f4795ee4872b4e9f56d2a5a3bca1ab735267facd8dc71a4992b9c2",
+    "tests_executed": true,
+    "type_compile_executed": true
+  },
+  "current_progress_as_of": "2026-11-02",
+  "date": "2026-11-01",
+  "default_off": true,
+  "executable": false,
+  "failure_windows": [
+    "BEFORE_PERMISSION",
+    "BEFORE_SIGNATURE",
+    "BEFORE_RENAME",
+    "BEFORE_PARENT_SYNC",
+    "BEFORE_VERIFY",
+    "BEFORE_REPLY"
+  ],
+  "fence_installed": false,
+  "first_S": false,
+  "genuine_Root_PG_positive_credit": false,
+  "historical_c0_static_preparation": {
+    "actual_compiler_rosters_observed": false,
+    "check_modes_planned_phases": {
+      "checks": 25,
+      "compile-list": 13,
+      "format": 1
+    },
+    "clippy_executed": false,
+    "code_other_sha256": "a009984a1760bfa4d46f1c761de041962647390027740b74d2b49dcb1adf91f0",
+    "code_other_status": "PASS_C0_EXACT_FIVE_SOURCE_CODE_NOT_RUNTIME_NOT_TASK9",
     "current_noninteractive_source_metadata_attempt": "PERMISSION_DENIED_NO_BYPASS_OR_RETRY_HOLD_RETAINED_NOT_PRODUCT_EXECUTION",
     "current_user_console_attempt": {
-      "safe_metadata_sha256": "c17d23d27c81694fcc8deffe489c436e6ab523c1995abfc4049f540b7aa7d599",
       "first_phase": "01-create",
-      "ssh_exit": 255,
       "later_upload_launch_collection_records_absent": true,
+      "new_authentication_credentials_or_rights": false,
+      "old_batch_preserved_no_replay": true,
+      "password_or_raw_error_copied_to_public_documents": false,
       "reported_FileExistsError_consistent_with_existing_exclusive_attempt_marker": true,
       "root_cause_of_authentication_rejection_established": false,
-      "old_batch_preserved_no_replay": true,
-      "new_authentication_credentials_or_rights": false,
-      "password_or_raw_error_copied_to_public_documents": false
+      "safe_metadata_sha256": "c17d23d27c81694fcc8deffe489c436e6ab523c1995abfc4049f540b7aa7d599",
+      "ssh_exit": 255
     },
-    "next_access_step": "USER_NORMAL_NATIVE_SSH_READ_ONLY_LOGIN_CHECK_THEN_FRESH_BATCH_AFTER_ACCESS_CONFIRMED"
-  }
+    "five_existing_source_paths": [
+      "crates/learning-backup/src/offhost_b1/source_launch.rs",
+      "crates/learning-backup/src/source/binding.rs",
+      "crates/learning-backup/src/source/snapshot_effects/cutover.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/process.rs",
+      "crates/learning-db/src/snapshot_broker/b1_peer/tests.rs"
+    ],
+    "format_executed": false,
+    "fresh_format_compile_list_checks_batches": "FIRST_USER_CONSOLE_SSH_AUTHENTICATION_EXIT_255_HOLD_NOT_UPLOADED_OR_RUN",
+    "independent_code_review_sha256": "9d32925343f808d0439d8b05af114d46279a32b028587c747a119661b7976f5c",
+    "installation_authorized": false,
+    "new_distinct_test_definitions": 20,
+    "new_ignored_tests": 0,
+    "new_test_definitions_by_config": {
+      "backup-default": 0,
+      "backup-offhost": 14,
+      "db-default": 0,
+      "db-peer": 6
+    },
+    "next_access_step": "USER_NORMAL_NATIVE_SSH_READ_ONLY_LOGIN_CHECK_THEN_FRESH_BATCH_AFTER_ACCESS_CONFIRMED",
+    "old109_test_attributes_and_bodies_raw_unchanged": true,
+    "old37_53_contracts_preserved": true,
+    "old52_typed_checkpoints_preserved": true,
+    "operational_authority_changed": false,
+    "password_read_or_recorded_by_python": false,
+    "scope_basis": "User continued the preceding exact minimum coding and ordinary-check step; no retroactive approval of the historical proposal",
+    "site_C0_C02_open": true,
+    "source_index_sha256": "af8cb0416db30f1c57f09af6744678ff77fdd7c1c27ddcfa108cd9bc36c2c7d9",
+    "tests_executed": false,
+    "transport_logical_client_connections_per_future_batch": 4,
+    "type_compile_executed": false,
+    "user_real_console_required_for_existing_password_authentication": true
+  },
+  "historical_installation_preparation_record": {
+    "C0_approval_record": "EXACT_FIVE_FILE_CONTRACT_REVIEWED_CODING_AND_LIMITED_CHECKS_NOT_AUTHORIZED",
+    "H2_blocker": {
+      "id": "H2",
+      "requires": [
+        "HUMAN_C0_EXACT_FIVE_FILE_CODING_APPROVAL",
+        "REVIEWED_IMPLEMENTATION_AND_FRESH_ORDINARY_CHECKS",
+        "C_REAL_FIFTEEN_MOUNTS_AND_C11"
+      ],
+      "status": "OPEN"
+    },
+    "code_base_commit": "be147b3dbfd0cf4ecfc126dda4d21dfb3fc0d30c",
+    "code_base_tree": "675b764b27ca4bbe6f7485094e314c0999844e3f",
+    "product_source_changed_this_preparation": false,
+    "scope": "Archived preparation record, not the current five-leaf coding decision or an installation observation",
+    "status": "LOCAL_PREPARATION_ONLY_NOT_AUTHORIZED_NOT_EXECUTED"
+  },
+  "historical_ordinary_checks": {
+    "batch": "af1986cd-f101-47bf-880a-c2134468013f",
+    "cross_configuration_counts_summed": false,
+    "default_passed": 450,
+    "distinct_new_bodies": 46,
+    "ignored_each_configuration": 106,
+    "offhost_passed": 649,
+    "phase_count": 13,
+    "provides_installation_or_cross_host_credit": false,
+    "result_sha256": "95fd387f5e92a168f74b2ba1b7d29e5b2b3436312de60706e90f3cf9e9fc424d",
+    "source_index_sha256": "6efcea40845eef4193a48ee62a7774ca3691b183b1784f525d1ad9cd42f9e48f"
+  },
+  "historical_preparation_cases": 37,
+  "host_facts": {
+    "D": {
+      "current_access_observation": "EXISTING_STRICT_HOST_TRUST_NONINTERACTIVE_ACCESS_PERMISSION_DENIED_NO_NEW_CREDENTIALS",
+      "current_available_disk_bytes": null,
+      "current_available_memory_bytes": null,
+      "current_host_storage_identity": null,
+      "custodian": "USER_MANAGED_HOST_AND_CLOUD_DISK",
+      "fresh_installation_or_capacity_observation": false,
+      "historical_data_not_current_capacity_approval": true,
+      "historical_disk_class_gib": 50,
+      "historical_logical_cpus": 2,
+      "historical_memory_class_gib": 2,
+      "historical_observation_date": "2026-10-26",
+      "independence_evidence": "USER_ATTESTED_TWO_DISTINCT_HOSTS_NOT_GEOGRAPHIC_OR_ACCOUNT_DISASTER_RECOVERY_PROOF",
+      "role": "USER_SELECTED_INDEPENDENT_CLOUD_BACKUP_TARGET",
+      "signing_key_custody_choice": "DESTINATION_ROOT_PRIVATE_DIRECTORY_NOT_YET_GENERATED_OR_INSTALLED"
+    },
+    "S": {
+      "architecture": "x86_64",
+      "authority_from_path_absence": false,
+      "home_filesystem_free_bytes_at_read": 251911761920,
+      "logical_cpus": 24,
+      "mem_total_kib": 32140112,
+      "observation_scope": "ORDINARY_UID_READ_ONLY_METADATA_NOT_INSTALLATION_AUDIT",
+      "observed_at_utc": "2026-11-01T01:30:47.040897+00:00",
+      "role": "EXISTING_LINUX_DEVELOPMENT_SOURCE",
+      "root_private_installation_state": "UNKNOWN_PERMISSION_DENIED"
+    }
+  },
+  "immutable_reference_pins": {
+    "docs/superpowers/plans/2026-10-26-task9-r2b-implementation.md": {
+      "bytes": 28012,
+      "sha256": "c24b555ae1eefc10e4a22cbe3c1834b629e0a4970ab38d7d10a999dff3016159"
+    },
+    "docs/task9/b1-preparation-test-matrix.json": {
+      "bytes": 31920,
+      "sha256": "4eea0c2b2d4fd6a101db1b117a7553fb05f61f3b00af66f555606f4c168e4bcd"
+    },
+    "docs/task9/r2b-validation-plan.json": {
+      "bytes": 31819,
+      "sha256": "b934d2ef262a8c5e1c8762af515e944fc5c244a2c0c5600a8428ea0cc88111b6"
+    },
+    "docs/task9/r2b-wire-profile.json": {
+      "bytes": 29775,
+      "sha256": "732e84a1c89ac042b437d1adf8f7da8a4e9473e01443611802c58aaf1b8eaf8a"
+    }
+  },
+  "installed": false,
+  "keys_or_trust_installed": false,
+  "layered_obligations_not_test_body_count": 53,
+  "main_merged": false,
+  "operational_flag_semantics": "FALSE_MEANS_NO_ACCEPTED_EXECUTION_CREDIT_NOT_PROOF_OF_PHYSICAL_ABSENCE_OR_EMPTY_PRIVATE_INSTALLATION",
+  "plan": "docs/task9/installation-and-two-host-acceptance-plan.md",
+  "product_consumes_this_file": false,
+  "product_source_changed_this_preparation": true,
+  "production_deployed": false,
+  "recovery_executed": false,
+  "runtime_authority_wired": false,
+  "schema": 1,
+  "source_READY": false,
+  "source_isolated": false,
+  "status": "DEFAULT_OFF_CF2_FULL_FOUR_CONFIGURATION_25_PHASE_ORDINARY_PASSED_NOT_RUNTIME_NOT_TASK9",
+  "uninstantiated_installation_material": {
+    "D_backup_public_pin": null,
+    "D_host_key_pin": null,
+    "S1_S2_exact_registry_root_bindings": null,
+    "S_auth_public_pin": null,
+    "S_transport_public_pin": null,
+    "V1_V2_separate_policy_and_reader_views": null,
+    "accepted_global64_S5_C11_raw_evidence": null,
+    "actual_ELF_and_native_parent_pins": null,
+    "exact_case_UUID_network_volume_budget_inventory": null,
+    "exact_file_owner_mode_and_command_catalogue": null,
+    "policy_anchor_and_launch_manifest_pins": null,
+    "private_host_inventory_sha256": null
+  },
+  "unknown_outcome": "HOLD_RETAIN_NO_AUTOMATIC_REPLAY_NO_AUTHORITY_FROM_DISK"
 }

@@ -493,10 +493,15 @@ mod b1 {
     }
     const C0_MOUNTS: [(&str, &str, bool); 15] = [
         ("/opt/knowweave-c4/b1-capture", "bind", false),
-        ("/run/kwc4/sfx", "bind", true), ("/usr/bin/docker", "bind", false),
+        ("/run/kwc4/sfx", "bind", true),
+        ("/usr/bin/docker", "bind", false),
         ("/var/lib/knowweave-c4-source-fences", "bind", false),
         ("/var/lib/knowweave-c4/b1-source-observation", "bind", false),
-        ("/var/lib/knowweave-c4/b1/launch-manifest.json", "bind", false),
+        (
+            "/var/lib/knowweave-c4/b1/launch-manifest.json",
+            "bind",
+            false,
+        ),
         ("/var/lib/knowweave-c4/b1/source-policy.json", "bind", false),
         ("/var/lib/knowweave-c4/registry", "volume", true),
         ("/var/lib/knowweave-c4/snapshot-effects-v2", "volume", true),
@@ -504,57 +509,95 @@ mod b1 {
         ("/var/lib/knowweave-source", "volume", true),
         ("/var/lib/knowweave-source/assets", "bind", false),
         ("/var/lib/postgresql", "volume", true),
-        ("/var/run/docker.sock", "bind", false), ("/var/run/postgresql", "volume", true),
+        ("/var/run/docker.sock", "bind", false),
+        ("/var/run/postgresql", "volume", true),
     ];
     fn contains_path(parent: &str, child: &str) -> bool {
-        child == parent || child.strip_prefix(parent).is_some_and(|s| s.starts_with('/'))
+        child == parent
+            || child
+                .strip_prefix(parent)
+                .is_some_and(|s| s.starts_with('/'))
     }
     // Only authenticated observation DATA. Host physical inode/ancestor checks
     // remain duties of the original Root observer, never inferred from JSON.
     fn c0_mount_sources(mounts: &[MountProjection]) -> Result<[&str; 3], BackupError> {
-        if mounts.len() != C0_MOUNTS.len() { return Err(publication_refused()); }
+        if mounts.len() != C0_MOUNTS.len() {
+            return Err(publication_refused());
+        }
         for (mount, (target, kind, rw)) in mounts.iter().zip(C0_MOUNTS) {
-            if mount.destination != target || mount.kind != kind || mount.rw != rw
-                || (kind == "volume" && mount.name.as_ref().is_none_or(String::is_empty)) {
+            if mount.destination != target
+                || mount.kind != kind
+                || mount.rw != rw
+                || (kind == "volume" && mount.name.as_ref().is_none_or(String::is_empty))
+            {
                 return Err(publication_refused());
             }
         }
-        let find = |target| mounts.iter().find(|m| m.destination == target).ok_or_else(publication_refused);
+        let find = |target| {
+            mounts
+                .iter()
+                .find(|m| m.destination == target)
+                .ok_or_else(publication_refused)
+        };
         let r = find("/opt/knowweave-c4/b1-capture")?;
         let policy = find("/var/lib/knowweave-c4/b1/source-policy.json")?;
         let launch = find("/var/lib/knowweave-c4/b1/launch-manifest.json")?;
         let fence = find("/var/lib/knowweave-c4-source-fences")?;
         if policy.source.strip_prefix(r.source.as_str()) != Some("/capture-source-policy.json")
-            || launch.source.strip_prefix(r.source.as_str()) != Some("/capture-launch-manifest.json")
+            || launch.source.strip_prefix(r.source.as_str())
+                != Some("/capture-launch-manifest.json")
             || fence.source != "/var/lib/knowweave-c4-source-fences"
-            || [policy, launch, fence].iter().any(|m| m.name.as_ref().is_some_and(|n| !n.is_empty())) {
+            || [policy, launch, fence]
+                .iter()
+                .any(|m| m.name.as_ref().is_some_and(|n| !n.is_empty()))
+        {
             return Err(publication_refused());
         }
-        Ok([policy.source.as_str(), launch.source.as_str(), fence.source.as_str()])
+        Ok([
+            policy.source.as_str(),
+            launch.source.as_str(),
+            fence.source.as_str(),
+        ])
     }
-    fn prepay_c0_mount_sources(mounts: &[MountProjection], budget: &Budget) -> Result<(), BackupError> {
-        let bytes = mounts.iter().try_fold(256usize, |n,m| {
-            n.checked_add(m.source.len()).and_then(|n| n.checked_add(m.destination.len()))
-                .and_then(|n| n.checked_add(m.kind.len()))
-                .and_then(|n| n.checked_add(m.name.as_ref().map_or(0, String::len)))
-                .ok_or(BackupError::Overflow)
-        })?.checked_mul(8).ok_or(BackupError::Overflow)?;
+    fn prepay_c0_mount_sources(
+        mounts: &[MountProjection],
+        budget: &Budget,
+    ) -> Result<(), BackupError> {
+        let bytes = mounts
+            .iter()
+            .try_fold(256usize, |n, m| {
+                n.checked_add(m.source.len())
+                    .and_then(|n| n.checked_add(m.destination.len()))
+                    .and_then(|n| n.checked_add(m.kind.len()))
+                    .and_then(|n| n.checked_add(m.name.as_ref().map_or(0, String::len)))
+                    .ok_or(BackupError::Overflow)
+            })?
+            .checked_mul(8)
+            .ok_or(BackupError::Overflow)?;
         let mut scan = budget.lock().map_err(|_| publication_refused())?;
         scan.charge(u64::try_from(bytes).map_err(|_| BackupError::Overflow)?)?;
         scan.entries(mounts.len().checked_mul(8).ok_or(BackupError::Overflow)?)
     }
     fn require_c0_mount_recipe(
-        mounts: &[MountProjection], runtime: &str, catalog: &str, budget: &Budget,
+        mounts: &[MountProjection],
+        runtime: &str,
+        catalog: &str,
+        budget: &Budget,
     ) -> Result<(), BackupError> {
         prepay_c0_mount_sources(mounts, budget)?;
         c0_mount_sources(mounts)?;
         let work = mounts.iter().try_fold(2u64, |n, r| {
-            let strings = r.source.len().checked_add(r.destination.len())
+            let strings = r
+                .source
+                .len()
+                .checked_add(r.destination.len())
                 .and_then(|n| n.checked_add(r.kind.len()))
                 .and_then(|n| n.checked_add(r.name.as_ref().map_or(0, String::len)))
                 .ok_or(BackupError::Overflow)?;
-            let escaped = (strings as u64).checked_mul(6)
-                .and_then(|n| n.checked_add(256)).ok_or(BackupError::Overflow)?;
+            let escaped = (strings as u64)
+                .checked_mul(6)
+                .and_then(|n| n.checked_add(256))
+                .ok_or(BackupError::Overflow)?;
             n.checked_add(escaped).ok_or(BackupError::Overflow)
         })?;
         {
@@ -562,13 +605,20 @@ mod b1 {
             scan.charge(work.checked_mul(6).ok_or(BackupError::Overflow)?)?;
             scan.entries(mounts.len() * 8)?;
         }
-        let rows = mounts.iter().map(|r| serde_json::json!({
-            "destination":r.destination,"source":r.source,"kind":r.kind,"rw":r.rw,
-            "name":r.name.as_deref().unwrap_or("")
-        })).collect::<Vec<_>>();
+        let rows = mounts
+            .iter()
+            .map(|r| {
+                serde_json::json!({
+                    "destination":r.destination,"source":r.source,"kind":r.kind,"rw":r.rw,
+                    "name":r.name.as_deref().unwrap_or("")
+                })
+            })
+            .collect::<Vec<_>>();
         let raw = crate::registry::canonical(&rows)?;
         if crate::digest(&raw) != runtime || crate::digest(&raw) != catalog {
-            return Err(BackupError::Invalid("B1 actual fifteen-row mount digest domain"));
+            return Err(BackupError::Invalid(
+                "B1 actual fifteen-row mount digest domain",
+            ));
         }
         Ok(())
     }
@@ -576,17 +626,27 @@ mod b1 {
     mod c0_mount_tests {
         use super::*;
         fn fixture() -> Vec<MountProjection> {
-            C0_MOUNTS.into_iter().enumerate().map(|(i,(target,kind,rw))| MountProjection {
-                destination: target.into(),kind:kind.into(),rw,
-                source: match target {
-                    "/opt/knowweave-c4/b1-capture" => "/fixture/release".into(),
-                    "/var/lib/knowweave-c4/b1/source-policy.json" => "/fixture/release/capture-source-policy.json".into(),
-                    "/var/lib/knowweave-c4/b1/launch-manifest.json" => "/fixture/release/capture-launch-manifest.json".into(),
-                    "/var/lib/knowweave-c4-source-fences" => target.into(),
-                    _ => format!("/fixture/source-{i}"),
-                },
-                name:(kind=="volume").then(||format!("fixture-{i}")),
-            }).collect()
+            C0_MOUNTS
+                .into_iter()
+                .enumerate()
+                .map(|(i, (target, kind, rw))| MountProjection {
+                    destination: target.into(),
+                    kind: kind.into(),
+                    rw,
+                    source: match target {
+                        "/opt/knowweave-c4/b1-capture" => "/fixture/release".into(),
+                        "/var/lib/knowweave-c4/b1/source-policy.json" => {
+                            "/fixture/release/capture-source-policy.json".into()
+                        }
+                        "/var/lib/knowweave-c4/b1/launch-manifest.json" => {
+                            "/fixture/release/capture-launch-manifest.json".into()
+                        }
+                        "/var/lib/knowweave-c4-source-fences" => target.into(),
+                        _ => format!("/fixture/source-{i}"),
+                    },
+                    name: (kind == "volume").then(|| format!("fixture-{i}")),
+                })
+                .collect()
         }
         fn recipe(mounts: &[MountProjection]) -> String {
             let rows=mounts.iter().map(|r|serde_json::json!({"destination":r.destination,"source":r.source,"kind":r.kind,"rw":r.rw,"name":r.name.as_deref().unwrap_or("")})).collect::<Vec<_>>();
@@ -594,17 +654,34 @@ mod b1 {
         }
         #[test]
         fn c0_b1_install_projection_rejects_twelve_or_recipe_mismatch() {
-            let mounts=fixture();let hash=recipe(&mounts);
-            let budget=Arc::new(Mutex::new(crate::registry::ScanBudget::default()));
-            assert!(require_c0_mount_recipe(&mounts,&hash,&hash,&budget).is_ok());
-            assert!(require_c0_mount_recipe(&mounts,&hash,&"00".repeat(32),&budget).is_err());
-            let twelve=mounts.into_iter().filter(|m| !["/var/lib/knowweave-c4/b1/source-policy.json","/var/lib/knowweave-c4/b1/launch-manifest.json","/var/lib/knowweave-c4-source-fences"].contains(&m.destination.as_str())).collect::<Vec<_>>();
-            assert_eq!(twelve.len(),12);assert!(c0_mount_sources(&twelve).is_err());
+            let mounts = fixture();
+            let hash = recipe(&mounts);
+            let budget = Arc::new(Mutex::new(crate::registry::ScanBudget::default()));
+            assert!(require_c0_mount_recipe(&mounts, &hash, &hash, &budget).is_ok());
+            assert!(require_c0_mount_recipe(&mounts, &hash, &"00".repeat(32), &budget).is_err());
+            let twelve = mounts
+                .into_iter()
+                .filter(|m| {
+                    ![
+                        "/var/lib/knowweave-c4/b1/source-policy.json",
+                        "/var/lib/knowweave-c4/b1/launch-manifest.json",
+                        "/var/lib/knowweave-c4-source-fences",
+                    ]
+                    .contains(&m.destination.as_str())
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(twelve.len(), 12);
+            assert!(c0_mount_sources(&twelve).is_err());
         }
         #[test]
         fn c0_b1_install_projection_requires_fixed_release_alias_sources() {
-            let mut mounts=fixture();assert!(c0_mount_sources(&mounts).is_ok());
-            mounts.iter_mut().find(|m| m.destination=="/var/lib/knowweave-c4/b1/source-policy.json").unwrap().source="/fixture/other/capture-source-policy.json".into();
+            let mut mounts = fixture();
+            assert!(c0_mount_sources(&mounts).is_ok());
+            mounts
+                .iter_mut()
+                .find(|m| m.destination == "/var/lib/knowweave-c4/b1/source-policy.json")
+                .unwrap()
+                .source = "/fixture/other/capture-source-policy.json".into();
             assert!(c0_mount_sources(&mounts).is_err());
         }
     }
@@ -1147,14 +1224,26 @@ mod b1 {
             let sources = c0_mount_sources(&current.mounts)?;
             for container in &host.complete_container_projection {
                 for mount in &container.mounts {
-                    let work = sources.iter().try_fold(mount.source.len(), |n,p| n.checked_add(p.len()).ok_or(BackupError::Overflow))?.checked_mul(8).ok_or(BackupError::Overflow)?;
+                    let work = sources
+                        .iter()
+                        .try_fold(mount.source.len(), |n, p| {
+                            n.checked_add(p.len()).ok_or(BackupError::Overflow)
+                        })?
+                        .checked_mul(8)
+                        .ok_or(BackupError::Overflow)?;
                     {
                         let mut scan = budget.lock().map_err(|_| publication_refused())?;
                         scan.charge(u64::try_from(work).map_err(|_| BackupError::Overflow)?)?;
                         scan.entries(8)?;
                     }
-                    if mount.rw && sources.iter().any(|p| contains_path(p, &mount.source) || contains_path(&mount.source, p)) {
-                        return Err(BackupError::Invalid("B1 C0 authenticated RW source projection"));
+                    if mount.rw
+                        && sources.iter().any(|p| {
+                            contains_path(p, &mount.source) || contains_path(&mount.source, p)
+                        })
+                    {
+                        return Err(BackupError::Invalid(
+                            "B1 C0 authenticated RW source projection",
+                        ));
                     }
                 }
             }
