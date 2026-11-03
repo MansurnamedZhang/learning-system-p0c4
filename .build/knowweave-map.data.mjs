@@ -1638,28 +1638,28 @@ export const diagrams = [
 
 export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
-  "date": "2026-11-02",
+  "date": "2026-11-03",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
-  "state": "Task9 C0：CF2限定普通25门及20项补验通过，真实安装与双机验收仍OPEN",
+  "state": "Task9：C0普通补验已通过，H4固定启动链与安装清单已成稿",
   "progressSummary": "受测CF2候选的25阶段全部退出0：Backup默认450通过/106既有忽略、offhost663/106，DB默认62/24、peer129/26，filtered均0。新20项普通定义逐名通过，按四配置0/14/0/6；跨配置重复正文不相加。源码、资源身份与自然清理原件已独核，默认关闭保持。",
   "progressEvidence": "当前source24282f8a／CODE22bcb1dd／Deltab60dc254；新编译列举原件bcd7005b／raw9638f408，名单4fbf8ff6／OTHER e1c373f1；实际25门结果50212fc5、证据包1fcc9574、原件独核c2ce628c（独审7da793b3）。旧109及新20测试属性/正文原字节保持。",
-  "pendingSummary": "普通检查通过不代替真实准入。后续按已审方案完成B/C安装准备与另行批准的配置操作，补真实C0-C02 namespace、ROflock/写面排除、全期FD、RootPG/C11/S5和首次跨机签名、RA/RB；Task9及C4整关继续OPEN。",
+  "pendingSummary": "H4审查稿已列出D端父进程与FIFO要求、待装对象及拒绝测试。先核对H1现场元数据，再填实并审查工具与配置，按批办理B/C。真实C0-C02、Root/PG/C11/S5、全期FD、首次跨机签名和RA/RB仍待验证。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
-  "boundarySummary": "测试信用绑定受测CF2/source2428及其限定四配置库范围。出版711文件只允许12项文档/生成器/ledger变动，其余699须与CF2逐raw相同（含403Rust及11Cargo/lock）；文档变化单列生成与结构QA，不宣称整个出版711都在该批次编译。未安装密钥/信任/launcher或变更权限，未恢复，main与生产未变。",
-  "roadmapHeadline": "P0-C4 Task9：C0普通25门已补验，真实安装与双机整链待完成",
+  "boundarySummary": "测试信用绑定受测CF2/source2428及其四配置库范围。2026-11-03新增的是H4文档和路线图静态核验，现场安装、运行权限及Task9/C4验收仍待闭合。",
+  "roadmapHeadline": "P0-C4 Task9：C0普通25门已补验，H4进入安装工具和配置审查准备",
   "taskPlanScope": "原五叶默认关闭代码已完成新CODE、全新13门编译列举、精确四名单冻结和全新25门整库普通回归。两轮Clippy失败分别修复两处冗余表达式及私有函数参数借用组合，原失败/HOLD保留不重放；原37/53现场义务不转为普通测试信用。",
   "nextSteps": [
     [
       "保管当前原件与源码身份",
-      "以受测CF2/source2428、CODE22bc及15c7实际结果50212/c2ce为本轮依据；保留原53检查点和失败/HOLD，只追加54，不跨源码转授历史信用。"
+      "普通回归沿用CF2/source2428、CODE22bc及15c7实际结果50212/c2ce；保留历史检查点和失败/HOLD。"
     ],
     [
       "完成真实安装与准入条件",
-      "按准确实施单补齐角色安装、公钥与信任/launcher、C0十五挂载及原十二namespace兼容等材料；实际安装和安全权限变更须在对应最小范围另行批准。"
+      "用H4审查稿核对目标现况，填实D专用入口及native parent、角色构建/公钥pin和C0十五挂载。工具、配置和最小权限差额审定后按B/C分批实施。"
     ],
     [
       "继续正式双机验收",
@@ -1703,6 +1703,10 @@ export const references = [
   [
     "Task9真实安装、双机验收与最小审批",
     "docs/task9/installation-and-two-host-acceptance-plan.md"
+  ],
+  [
+    "Task9 H4 固定启动链、待装对象和验收证据",
+    "docs/task9/fixed-launch-installation-review.md"
   ],
   [
     "架构设计文档集（设计参考，状态以本图为准）",

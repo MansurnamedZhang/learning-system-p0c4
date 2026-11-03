@@ -212,7 +212,18 @@
     "tests_executed": true,
     "type_compile_executed": true
   },
-  "current_progress_as_of": "2026-11-02",
+  "current_h4_preparation": {
+    "actual_target_metadata_refreshed": false,
+    "candidate_permissions_applied": false,
+    "installation_tool_implemented": false,
+    "native_launcher_implemented": false,
+    "new_test_credit": false,
+    "review": "fixed-launch-installation-review.md",
+    "review_sha256": "c0aace3bc9b666fb3b4491fae9cdf8bdfa882d11d5b15e545d240fa4ee81343e",
+    "source_commit": "2b18bba78e2ebd03a80595b9f3234623f576116d",
+    "status": "SOURCE_TRACED_LAUNCH_AND_INSTALLATION_DRAFT_NOT_REVIEWED_FOR_INSTALLATION"
+  },
+  "current_progress_as_of": "2026-11-03",
   "date": "2026-11-01",
   "default_off": true,
   "executable": false,

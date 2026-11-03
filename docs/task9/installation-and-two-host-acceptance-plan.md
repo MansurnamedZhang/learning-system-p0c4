@@ -1,5 +1,9 @@
 # Task9：真实安装与双机整链验收实施单
 
+## 2026-11-03 · H4 启动链与安装清单审查稿
+
+已按 feature `2b18bba7` 核对 D 端的实际父 ELF、UID/GID、无参数入口和两条独立 FIFO。下一步的[固定启动链与安装清单](fixed-launch-installation-review.md)列出 D 专用 transport 身份、权限桥和 native parent 的候选边界，以及 A/B/C 分批待装对象、拒绝用例和 EOF/退出取证条件。待用真实目标的元数据与生效 SSH/权限规则填实，再审安装工具和配置。H4 仍开放，当前只完成源码审查和方案准备。
+
 ## 当前进展 · 2026-11-02：CF2 限定普通25门及20项补验通过，正式Task9仍OPEN
 
 受测候选为source index `24282f8a`、CODE gate `22bcb1dd`、Delta `b60dc254`。它保持原五个既有Rust叶范围、默认关闭与所有权限边界，旧109及新20测试的属性和正文均原字节保持。此前两轮Clippy失败分别对应两处冗余表达式与私有函数8参数：已仅移除冗余借用/解引用，并将同原ProcView和File只读借用组合成一个tuple参数；没有新增协议字段、依赖、authority入口或放宽检查。
@@ -70,15 +74,15 @@ Task8 私有单机收尾及旧失败/HOLD 保持原结论。这里不重复 Task
 | 编号 | 当前缺口 | 关闭条件 |
 |---|---|---|
 | H1 | D 当前可达性、容量、文件系统、既有安装和非冲突路径未重新核实；S 的 root 私有安装状态未知 | 经获准的现场元数据清单取得时间、主机/存储身份、容量、既有文件/模式/摘要及冲突清单；不读取私钥内容，不绕过权限拒绝 |
-| H2 | 五文件 Capture 增量合同已独审；当前产品仍固定十二项，尚未编码或安装新视图 | 先批准准确五文件 C0 编码及限定 Linux 检查，完成新代码审查/原件回归；再单独批准并实核 C 的十五项 mount、权限、原件/锁及全期生命周期 |
+| H2 | 五文件 Capture 增量候选已接入默认关闭代码，CF2 普通回归已验；真实十五项挂载和保留原十二项的兼容性未验 | 审定 C 安装实例后实核十五项 mount、权限、原件/锁、来源写面及全期生命周期 |
 | H3 | 真实托管公钥、ELF、policy、anchor、launch manifest 的现场 pin 尚未形成 | 按第 4 节无环顺序，在 B/C 授权后生成并封存真实清单；任何空值或测试向量禁止进入安装 |
-| H4 | 没有已审 B1 policy/key/launcher/受限 forced-command 安装器；旧 source fixture issuer 不能承担该工作 | 准确安装工具及其差额先独审，安装清单逐项给出新增文件、父目录、所有者、模式、摘要、命令与退出/留存规则，再经 C 批准 |
+| H4 | 已有[固定启动链与安装清单审查稿](fixed-launch-installation-review.md)，尚缺实际 B1 安装工具、D native parent 和目标生效规则 | 以 H1 实际元数据填实对象、配置和权限，完成工具/配置独审，再按 C 的准确差额审批并实施 |
 | H5 | 旧 writer 排除、全期 global64、S5、真实 Root/PG/C11 和原 holder 结算缺现场证据 | C 的真实生命周期观察通过；列全产品 FD 与 runtime/SSH 必需 FD，证明旧自动入口/在途写者不存在或被精确隔离 |
 | H6 | 尚无真实双机原调用成功、正常完成收据和 RA/RB 恢复证据 | D1/D2 的准确资源单和场景获批后，按第 6 节执行并独核原件 |
 
 源码定位以该基线为准：[Capture/Root 启动合同](../../crates/learning-backup/src/offhost_b1/source_launch.rs)、[DB peer 进程观察](../../crates/learning-db/src/snapshot_broker/b1_peer/process.rs)、[固定安装读取](../../crates/learning-backup/src/offhost_b1/policy/installed.rs)、[source fence](../../crates/learning-backup/src/offhost_b1/source_fence.rs)。本轮不改变这些源码或原批准合同。
 
-### C0 合同已完成独审：仍未批准编码或实装
+### C0 合同定稿时的审批边界（历史）
 
 准确合同、机器表与分层检查计划见[Capture 挂载增量合同](capture-mount-amendment-contract.md)。未来五文件固定改动仍需明确批准，本段不提升 H2 到完成。
 
