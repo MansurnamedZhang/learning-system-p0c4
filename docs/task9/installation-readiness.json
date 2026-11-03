@@ -258,6 +258,29 @@
     },
     "tooling_patch_sha256": "2c9b977c51041e56eff358a5412edfe34d38216327a505b86972dea69e0aa5ac"
   },
+  "current_h4_policy_preflight": {
+    "C4_accepted": false,
+    "D_effective_candidate_policy_verified": false,
+    "D_filter_offline_fixtures_passed": 8,
+    "D_live_capture_started": false,
+    "D_ordinary_egress_tool_offline_sha256": "565480366b5e644f06bb50a4dc7f7ceccbe53e483148853b48b235fa67260c0a",
+    "D_policy_source_file_counts_by_scope": {
+      "pam_sshd": 5,
+      "pam_sudo": 4,
+      "ssh": 2,
+      "sudo": 3
+    },
+    "D_root_read_only_disk_policy_sha256": "4c934a9e7fb1a4c586a6c5c8d105568e0b9711dc9e419037dc179e1c605e0381",
+    "D_seen_S_egress_verified": false,
+    "D_sudo_candidate_absent_at_observation": true,
+    "S_egress_probe_sent": false,
+    "Task9_accepted": false,
+    "date": "2026-11-03",
+    "installation_executed": false,
+    "next_decision": "ONE_PREAUTH_MARKER_TO_EXISTING_D_22_SINGLE_MATCH_MAX_15_SECONDS",
+    "publication_base_commit": "4af6452ec5cf5bfbcc426078a47e784ff6fd2966",
+    "scope": "TASK9_H4_D_RULES_AND_OFFLINE_EGRESS_READY_ACTIVE_PROBE_DECISION_REQUIRED"
+  },
   "current_h4_preparation": {
     "actual_target_metadata_refreshed": false,
     "candidate_permissions_applied": false,

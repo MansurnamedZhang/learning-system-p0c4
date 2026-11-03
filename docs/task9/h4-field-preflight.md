@@ -2,6 +2,20 @@
 
 2026-11-03。此单补充 [H4 安装候选](h4-installation-materials.md)，保留已完成的本地 8 项工具验证和现场审查 `hold_for_evidence`。
 
+## 18:43–18:45 观测与当前决策
+
+北京时间 18:43，沿用已有管理路径在 D 执行一次非交互 root 只读检查。只取 22 监听元数据和已列范围内的磁盘规则，未运行 SSH 密钥健全性测试、PAM 会话或新账号认证。实际得到：
+
+- 22 可见两个监听条目，`ssh.service` 和 `ssh.socket` 均活动。观察到 `sshd` 及另一 socket 所有者。范围内盘点了两份 SSH 配置和三份 sudoers 配置。候选 `/etc/sudoers.d/knowweave-c4-b1` 当时不存在。
+- SSH 和 sudo 的 PAM 规则分别遍历五份和四份范围内配置。SSH 规则含 `pam_env` 与 `pam_motd`，sudo 规则含 `pam_env`。这要求 C 在真实无 PTY 会话中确认字节通道和环境；静态规则的存在不代表一定输出。
+- 原件 SHA-256 `4c934a9e7fb1a4c586a6c5c8d105568e0b9711dc9e419037dc179e1c605e0381`。规则盘点不证明未来专用账号被管理 SSH 排除，也不证明该账号实际只取得一条 sudo 权限。
+
+北京时间 18:45，D 普通账号复核了已观察的 bind 对应网卡以及已有 `tcpdump`。用 D 自带 libpcap 的离线句柄编译过滤条件并检查八个合成帧，准确标记通过，错标记、错端口、错目标、截断、分片、额外或缺少负载均拒绝。未打开实时抓包，S 未发送探针。离线原件 SHA-256 `565480366b5e644f06bb50a4dc7f7ceccbe53e483148853b48b235fa67260c0a`。
+
+**待决定的单次探针。** 先检查当前 D 网卡和本机地址仍与只读证据一致。获准后，D 在该网卡以非混杂、仅入站方式过滤到本机 IPv4 的 TCP 22，过滤器固定完整的新鲜随机 SSH 版本标记及长度。D 观察进程最长 15 秒，只接受首个准确匹配，输出仅保留该连接的来源元数据。就绪后 S 以普通账号只建立一次到 D 现有 22 的连接，发送无秘密的 SSH 版本标记并在密钥交换和认证前关闭。一次无匹配、权限拒绝或目标变化就停止，无自动重跑。不会生成 pcap、输出其他流量或调整监听、防火墙与信任。 [Ubuntu tcpdump 手册](https://manpages.ubuntu.com/manpages/noble/man8/tcpdump.8.html) · [libpcap 过滤语法](https://manpages.ubuntu.com/manpages/noble/man7/pcap-filter.7.html)
+
+只有这次实际匹配才能填入 D 所见的 S 来源候选。结果仅对应当前 S→D 的 22 路径，22229 的外部映射、实际来源及真实运行链仍在 C 复核。此决定只覆盖上述一次探针。账户、sudoers、监听配置、密钥和正式验收均是后续范围。
+
 ## 本次实测
 
 北京时间 18:38，S、D 均沿用已有 SSH 主机信任，以各自 UID 1000 的普通账号执行一次限定读取。
@@ -17,12 +31,12 @@
 
 已将 D 的候选 bind、公开 host pin、父目录身份填入私有请求草稿。`source_ipv4`、专用 `uid`、`gid` 和 `transport_public_key` 仍为空。实际运行 installer 的输入校验确认拒绝这份草稿，因而当前没有渲染、可安装清单或授权摘要。
 
-## 下一步最小只读范围
+## 18:38 时的只读范围记录
 
-以下 D 侧 A 范围待单独批准。批准对象是一次本机只读核验，由现有管理路径进入，输出只保留必要的布尔状态、规则来源和摘要。涉及路径或权限不符就停。
+以下保留当时提出的 A 范围。已取得的磁盘规则和监听事实见上方，尚未执行的生效权限核验继续留在准确 C 范围。
 
 1. **管理监听。** 确认 22 的真实进程、服务或 socket 单元以及配置文件与启动覆盖关系。核 `/etc/ssh/sshd_config` 和其实际加载的 `/etc/ssh/sshd_config.d/` 条目。若配置引用其他路径，先列出来源并停在该对象。关注 `AllowUsers`/`DenyUsers`、`Match`、账号组、用户 key 文件、`AuthorizedKeysCommand`、用户 CA、口令和可用转发。若安装版本能以配置解析模式输出规则，可在确认其实际参数语义后取所需字段。`-G` 的本次失败不推断为任何规则结论。会执行密钥健全性测试的 `-T`/`-t` 留到有明确 C 验证范围时。 [Ubuntu sshd 手册](https://manpages.ubuntu.com/manpages/noble/man8/sshd.8.html)
 2. **Sudo 与 PAM。** 先核固定候选 `/etc/sudoers.d/knowweave-c4-b1` 是否占用，核 `/etc/sudoers` 与其实际加载的 `/etc/sudoers.d/` 条目。用已确认的 include 闭集检查语法和可能命中的账号、组、通配、默认项及外部策略来源；语法通过仅计语法。只读取 `/etc/pam.d/sshd`、`/etc/pam.d/sudo` 与其在 `/etc/pam.d/` 内的实际 include，确认哪些 account/session 规则适用，检查是否可能写入 protocol stdout。目录外 include、LDAP、外部授权命令或既有宽授权保持 HOLD，等待准确范围。不得凭空置账号证明有效 sudo 权限。 [Ubuntu sudoers 手册](https://manpages.ubuntu.com/manpages/noble/man5/sudoers.5.html)
 3. **S 出口和 C 二次核验。** 优先用已有网络/NAT 或 D 接收侧记录，把 S 的目标流与 D 看到的地址对应。缺少记录时，单列一次范围固定的连通探针再批准。取得真正的账号 UID/GID 和公钥后，按该账号、实际源地址、目标地址和端口复核管理监听排除、隔离监听匹配和有效 sudo 权限。候选账号目前尚不存在，A 阶段只能发现冲突或缺口，C 的二次核验不可省略。
 
-本次待批只读范围不含创建账户、读取私钥/密码内容、扩大安全组、写 sudoers、启动 listener 或改 S。审核完成并取得真实 S 出口和材料后，才可提交 [B/C 的具体写入清单](h4-installation-materials.md)与实际 ELF、owner/mode 和摘要。Task9 正式验收继续开放。
+该只读范围不含创建账户、读取私钥/密码内容、扩大安全组、写 sudoers、启动 listener 或改 S。取得真实 S 出口和材料后，才可提交 [B/C 的具体写入清单](h4-installation-materials.md)与实际 ELF、owner/mode 和摘要。Task9 正式验收继续开放。
