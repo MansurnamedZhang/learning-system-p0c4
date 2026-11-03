@@ -393,6 +393,26 @@
     "source_build_preparation_sha256": "dd382093045ef9172ab7883dc323c561bc4d248aad353d6f77fd93ec742078d8",
     "source_lane_count": 2
   },
+  "current_h4_C_source_kvm_host_preparation": {
+    "C4_accepted": false,
+    "Task9_accepted": false,
+    "approval_manifest_sha256": "c430ba2888bd8e4de91e71dac561e0298494f8ed41d0337879824cee1391b346",
+    "date": "2026-11-04",
+    "disk_count_planned": 2,
+    "disk_virtual_bytes_each": 34359738368,
+    "formal_source_elf_built": false,
+    "guest_booted": false,
+    "guest_image_sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+    "guest_image_signature_verified": true,
+    "local_disk_checks": 2,
+    "private_payload_packages": 21,
+    "qemu_version": "1:10.2.1+ds-1ubuntu3.3",
+    "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+    "source_changes_approved": false,
+    "source_disks_created": false,
+    "source_kvm_device_opened": false,
+    "verified_packages": 23
+  },
   "current_h4_C_source_pg_fixed_view_plan": {
     "C4_accepted": false,
     "Task9_accepted": false,

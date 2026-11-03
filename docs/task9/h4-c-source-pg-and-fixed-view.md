@@ -2,6 +2,8 @@
 
 2026-11-04。S1、S2 已各有 root 私有的宿主案例目录。本次冻结隔离设计、候选配置字节、挂载清单和构建入口。状态为待现场审批与实测。
 
+同日更新已冻结 S 侧 QEMU 版本、实际包字节、签名镜像和两块盘的最小审批范围。 [宿主准备审批清单](h4-c-kvm-host-preparation.md)
+
 ## S1 与 S2 的隔离边界
 
 每个案例使用一台独立的 x86_64 KVM guest，内有独立 Linux 内核、rootful Docker daemon、数据盘和固定路径。宿主案例目录用于存放本案例私有磁盘和证据。guest 的控制根、卷和 socket 身份在 guest 内重新测量。S1 的磁盘、fence、registry 和证据单独留存，S2 使用新盘、新 daemon 和自己的三类角色 ELF。两个 guest 属于同一源端 S 的实验资源，独立备份目标仍是 D。

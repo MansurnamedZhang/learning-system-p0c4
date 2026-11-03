@@ -1,5 +1,9 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-04 · C QEMU/KVM、签名镜像与磁盘清单已冻结
+
+已校验 QEMU 10.2.1 `.3.3`、23 个依赖闭包包和 Canonical 签名 guest 镜像。21 项私有解包及双盘离线流程已本地验证，S 现场待批准。 [审批清单](task9/h4-c-kvm-host-preparation.md)
+
 ## 2026-11-04 · C 源端 PG18 与固定挂载方案已冻结
 
 S1、S2 的独立 guest、Unix peer、control 固定视图及六份角色 ELF 的构建步骤已明确。S 有 `/dev/kvm`，标准路径未发现 QEMU/libvirt，实际环境和权限待分步冻结审批。 [实施单与构建输入](task9/h4-c-source-pg-and-fixed-view.md)

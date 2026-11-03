@@ -49,4 +49,4 @@ Rust 构建输入 `517e9d95e42818dc9f8ad51533ebf0893eba098dd15a494a64b4e3d1636d5
 
 ## 接下来
 
-S1、S2 的 [PG18 与固定视图实施单](h4-c-source-pg-and-fixed-view.md) 已冻结，下一步先明确 S 侧虚拟化工具、guest 镜像和执行审批。各自使用独立 PG 数据卷与 socket 卷，核验无 TCP 监听、host 与容器见到同一 socket，以及三个固定 SQL 角色的 `peer:root` 会话。信任文件、单条 sudo 权限、22229 最窄放行和 listener 分步审批。实装还需要实际 policy、trust、registry/session anchor、launch manifest 和精确 ELF 文件回读。管理 22 的专用账号拒绝、真实启动链、父 ELF、FIFO/FD 及退出证据均待现场验证。 [安装前核验与最小审批](h4-c-installation-preflight.md) · [双机实施单](installation-and-two-host-acceptance-plan.md)
+S1、S2 的 [PG18 与固定视图实施单](h4-c-source-pg-and-fixed-view.md) 已冻结，S 侧虚拟化工具、签名镜像与两块盘的范围已冻结，等待 [宿主准备审批](h4-c-kvm-host-preparation.md)。各自使用独立 PG 数据卷与 socket 卷，核验无 TCP 监听、host 与容器见到同一 socket，以及三个固定 SQL 角色的 `peer:root` 会话。信任文件、单条 sudo 权限、22229 最窄放行和 listener 分步审批。实装还需要实际 policy、trust、registry/session anchor、launch manifest 和精确 ELF 文件回读。管理 22 的专用账号拒绝、真实启动链、父 ELF、FIFO/FD 及退出证据均待现场验证。 [安装前核验与最小审批](h4-c-installation-preflight.md) · [双机实施单](installation-and-two-host-acceptance-plan.md)

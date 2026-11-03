@@ -17,12 +17,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 62617,
+      "bytes": 62579,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": ".build/knowweave-map.data.mjs",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "a19c0742e41a665080204e416248e46faab49fbd914db500264e4c7b60c256e3",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "380e075101da8a7f8f10229d5f45148433592b57a5f1b951b1810220f59c8c3c",
       "source_bytes_preserved": false
     },
     {
@@ -74,12 +74,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115513,
+      "bytes": 115475,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave实施路线与架构.html",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "65943467d379b4881a1d8eb3a71aae0defb13ae83def33b8294953e185274718",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "ef1dad558586c9740dc7bea20bbc40e9eba4d8fb8335e7eb5e365e1e1a01aef1",
       "source_bytes_preserved": false
     },
     {
@@ -3847,12 +3847,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47396,
+      "bytes": 47376,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "bee5a89e6afa93f012353e42368882918df6fe55253e971f969b8fbb33f0f3b8",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "40adf035536356d0e66f4267ccb63d9cd2910a2f2704b5072a2fd0ae24d7ed59",
       "source_bytes_preserved": false
     },
     {
@@ -4524,12 +4524,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 30406,
+      "bytes": 30692,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/p0c4-task9-readiness.md",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "d6dbfa3cced2d7b804726f22bcb6796d2e6538ce16e5384ddd093a4afcca7aa9",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "8b953ec886d41365e4ed36d3571867e757aebaac34b977d54e52a8320904c174",
       "source_bytes_preserved": false
     },
     {
@@ -4778,21 +4778,30 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 8254,
+      "bytes": 8310,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-isolated-resources-and-build.md",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "02bb13871b501a42ed674f913fa2de59bf4869e53074aacfa4218896723cb1e0",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "141917bd531e3ddf23b34c429d5cf9cd25af797e29be4c335ca27ae9f54fbc3a",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 10184,
+      "bytes": 4736,
+      "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
+      "path": "docs/task9/h4-c-kvm-host-preparation.md",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "e3c29a6fbb7eddb50bcc7a55d14ff02033c980bf3034f52d22a4255f874ac914",
+      "source_bytes_preserved": false
+    },
+    {
+      "bytes": 10351,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-source-pg-and-fixed-view.md",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "1988de1b159b9555aafc94c82ed76988ec31e8e08b57a467c6b7fc7e26afa516",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "898acfd27ac000413e72bae848b4ad182fc557994a4b5908663089f949db609a",
       "source_bytes_preserved": false
     },
     {
@@ -4823,21 +4832,21 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 33314,
+      "bytes": 33656,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "64e22724ff032217cb76fbab07d6b8544c332df418f39482a39e2af53f13c33b",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "d540a075fc41590662e6ffdca9b81f514858929471fc11153484d8cfc3220d4c",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 29824,
+      "bytes": 30656,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-readiness.json",
-      "publication_base_commit": "3c38f7920a6c4517e2038362e7b7e4a4000fa483",
-      "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
-      "sha256": "07e38eb2ec54bd8b295b26559d624c0ce21604c03e22afc29eee79119cde0006",
+      "publication_base_commit": "50081f92002a4cc5657e5e0e9448da4e6f3c1e68",
+      "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+      "sha256": "c38d74215f357c701b8bdbaeaa9989fbae5a672ced753a92d75d7da765f0926a",
       "source_bytes_preserved": false
     },
     {
@@ -5856,7 +5865,7 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 721,
+  "manifest_file_count_excludes_manifest_itself": 722,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
   "previous_public_commit": "a3a209711f5441c25093aeb5052fe538537d03b0",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
@@ -13822,6 +13831,27 @@
     "service_enabled": false,
     "source_build_preparation_sha256": "dd382093045ef9172ab7883dc323c561bc4d248aad353d6f77fd93ec742078d8",
     "source_lane_count": 2
+  },
+  "task9_h4_C_source_kvm_host_preparation": {
+    "C4_accepted": false,
+    "Task9_accepted": false,
+    "approval_manifest_sha256": "c430ba2888bd8e4de91e71dac561e0298494f8ed41d0337879824cee1391b346",
+    "date": "2026-11-04",
+    "disk_count_planned": 2,
+    "disk_virtual_bytes_each": 34359738368,
+    "formal_source_elf_built": false,
+    "guest_booted": false,
+    "guest_image_sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+    "guest_image_signature_verified": true,
+    "local_disk_checks": 2,
+    "private_payload_packages": 21,
+    "qemu_version": "1:10.2.1+ds-1ubuntu3.3",
+    "roadmap_sha256": "ef1dad558586c9740dc7bea20bbc40e9eba4d8fb8335e7eb5e365e1e1a01aef1",
+    "scope": "TASK9_C_S_KVM_INPUTS_FROZEN_AWAITING_HOST_PREP_APPROVAL",
+    "source_changes_approved": false,
+    "source_disks_created": false,
+    "source_kvm_device_opened": false,
+    "verified_packages": 23
   },
   "task9_h4_C_source_pg_fixed_view_plan": {
     "C4_accepted": false,
