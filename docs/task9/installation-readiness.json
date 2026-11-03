@@ -393,6 +393,26 @@
     "source_build_preparation_sha256": "dd382093045ef9172ab7883dc323c561bc4d248aad353d6f77fd93ec742078d8",
     "source_lane_count": 2
   },
+  "current_h4_C_source_pg_fixed_view_plan": {
+    "C4_accepted": false,
+    "Task9_accepted": false,
+    "build_roles_prepared": 6,
+    "configured_lanes": 2,
+    "configured_lanes_are_templates": true,
+    "date": "2026-11-04",
+    "fixed_views_validated": false,
+    "formal_source_elf_built": false,
+    "guest_provisioning_approved": false,
+    "mount_plan_sha256": "8f0208ac9f5db978dcafdf130e39cf73b127b5b816817e73b088e99fe7cb3253",
+    "mount_rows_per_lane": 15,
+    "pg_started": false,
+    "plan_sha256": "2db10c8d7b89d1b9a54c7eccd56944f095666933e37e72ba93d3808f848c8b12",
+    "scope": "TASK9_C_SOURCE_PG_FIXED_VIEW_DESIGN_AND_ELF_PREPARATION",
+    "source_host_readback_sha256": "0508fd13fdc85b0e2cb3e5cd2a426bfe5052be265965c3edbc1758d016935bce",
+    "standard_qemu_tools_observed": false,
+    "static_negative_variants_rejected": 8,
+    "topology": "separate_KVM_guests_guest_local_rootful_Docker"
+  },
   "current_h4_egress_and_B_decision": {
     "B_key_generation_authorized": false,
     "C4_accepted": false,

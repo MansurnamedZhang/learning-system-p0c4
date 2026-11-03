@@ -1,5 +1,9 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-04 · C 源端 PG18 与固定挂载方案已冻结
+
+S1、S2 的独立 guest、Unix peer、control 固定视图及六份角色 ELF 的构建步骤已明确。S 有 `/dev/kvm`，标准路径未发现 QEMU/libvirt，实际环境和权限待分步冻结审批。 [实施单与构建输入](task9/h4-c-source-pg-and-fixed-view.md)
+
 ## 2026-11-03 · C 隔离目录身份已入清单
 
 两端 8 个 `root:root 0700` 目录已创建并回读。S1、S2 的正式 ELF 等待隔离 PG18 和 control 固定视图。 [目录及构建记录](task9/h4-c-isolated-resources-and-build.md)
