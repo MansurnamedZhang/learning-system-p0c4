@@ -15,6 +15,14 @@ S 当前有 24 个逻辑 CPU。D 当前有 2 个逻辑 CPU、约 1.18 GiB 可用
 
 Capture 合同同时约束 fence 的主机源路径和容器目标路径。S2 需要单独证实自己的固定路径视图，S1 已成功或留存的 fence 与 registry 继续保留。D 的 V2 也需要单独证实固定路径和受限入口。目录候选只分配物理落点，后续仍须证明应用和 Docker 实际看到的身份。 [Capture 挂载合同](capture-mount-amendment-contract.md) · [固定路径实现](../../crates/learning-backup/src/offhost_b1/source_launch.rs)
 
+## 候选资源复查与源端构建准备
+
+用两端既有管理入口重新只读检查。两处 `/var/lib` 父目录身份匹配，候选根均未创建。S1/S2 和 RA/RB 的候选 Compose 项目名、卷名、网络名和子网未发现冲突。S 有锁定的 PG18 和 builder，D 的锁定 PG18 镜像仍缺，22229 本机监听数仍为零。D 此次约有 1.19 GiB 可用内存和 36.62 GiB 磁盘。容量、命名和路由均须在获准操作前重查。两份私有复查回执的 SHA-256 为 `20962a09b244e0fbd3cbd8a2b45c3baecb63a6fe9e9f5884a5fb9749f2e44c33` 和 `59ff4186cc9cd16f07d4195f3ad5b775a48cfb48ce345d5c9c04907c121a7444`。
+
+源端构建输入合同已核对六份代码文件，固定 Linux/amd64 builder 和 Cargo.lock，并封存 S 的 `/usr/bin/docker` 候选摘要。正式构建时还要从实际隔离视图回读 CLI 身份。源端每个案例分别构建 Root launcher、publication source 和 Capture，逐角色固定编译标记和输入摘要。应用 commit 与构建归档的摘要需要独立取证，与 manager 的 commit 和构建输入分列。合同摘要 `dd382093045ef9172ab7883dc323c561bc4d248aad353d6f77fd93ec742078d8`。 [角色与编译标记](../../crates/learning-backup/src/offhost_b1/mod.rs) · [Cargo 二进制目标](../../crates/learning-backup/Cargo.toml)
+
+`source-binding.json` 的九个字段使用排序、紧凑且无尾换行的 JSON 字节，SHA-256 进入编译固定值。实际数据须来自该案例的 control 根和 PG18，另记录独立数据库身份、owner、postmaster 启动时间、Unix socket 及各角色的真实 `peer:root` 登录主体。观察值与文件字节分别核对。正式源端 ELF 继续等待现场绑定。 [绑定解析规则](../../crates/learning-backup/src/source/binding.rs) · [PG 会话核验](../../crates/learning-db/src/snapshot_broker/b1_peer/session.rs)
+
 ## 目标端 ELF
 
 在 S 的固定 Linux/amd64 builder 内使用只读构建输入、无网络和普通用户构建。Rust receiver 的真实输入包括 B 的源端应用公钥指纹、D 签名公钥指纹、manager 源码提交、构建输入摘要与 `task9-b1-limited-v1`。目标端编译规则允许源端 control binding 留空。源端三角色的正式构建仍需实际隔离 PG 和 control binding。 [角色构建规则](../../crates/learning-backup/src/offhost_b1/mod.rs)

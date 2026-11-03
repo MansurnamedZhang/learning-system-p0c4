@@ -351,6 +351,28 @@
     "scope": "TASK9_C_TWO_HOST_RESOURCE_PROPOSAL_D_THREE_ELF_VERIFIED_NOT_INSTALLED",
     "service_enabled": false
   },
+  "current_h4_C_source_build_preparation": {
+    "C4_accepted": false,
+    "C_installation_executed": false,
+    "D_inactive_bundle_rechecked_sha256": "1ca36be64a69e4956c8359d7cd26e8572a30767d9f582e9a913be75e5057555c",
+    "D_locked_pg18_image_available": false,
+    "D_port_22229_listener_count": 0,
+    "Task9_accepted": false,
+    "candidate_pg_lanes_readonly_checked": 4,
+    "date": "2026-11-03",
+    "empty_backing_roots_created": false,
+    "fixed_views_validated": false,
+    "formal_source_elf_built": false,
+    "read_only_recheck_sha256": {
+      "D": "59ff4186cc9cd16f07d4195f3ad5b775a48cfb48ce345d5c9c04907c121a7444",
+      "S": "20962a09b244e0fbd3cbd8a2b45c3baecb63a6fe9e9f5884a5fb9749f2e44c33"
+    },
+    "role_builds_per_lane": 3,
+    "scope": "TASK9_C_RESOURCE_RECHECK_AND_SOURCE_BUILD_INPUTS_NOT_INSTALLED",
+    "service_enabled": false,
+    "source_build_preparation_sha256": "dd382093045ef9172ab7883dc323c561bc4d248aad353d6f77fd93ec742078d8",
+    "source_lane_count": 2
+  },
   "current_h4_egress_and_B_decision": {
     "B_key_generation_authorized": false,
     "C4_accepted": false,
