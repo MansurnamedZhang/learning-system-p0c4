@@ -1,5 +1,9 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-03 · 现场输入复核
+
+D 已取得本机 bind 候选、与当前握手一致的公开 host pin 和父目录身份。S 的普通路由查询只证明了本地选路，D 所见源地址仍未知。当前停止点是 D 管理 SSH/sudoers/PAM 的限定只读核验，以及真实出口和专用身份实例化。[现场前置核验与审批单](task9/h4-field-preflight.md)
+
 ## 2026-11-03 · D 端现况与 H4 工具候选
 
 D 普通用户只读盘点成功。H4 已实现待启用文件安装工具、native 入口和固定 SSH/sudo 配置生成，4 项 Python 及 4 项 native 隔离检查通过。审查为 `hold_for_evidence`，当前待核 D 生效权限、实际端点/身份和完整 ELF/公钥清单，再做真实启动与 FIFO/EOF 验证。 [H4 现场清单](task9/h4-installation-materials.md)

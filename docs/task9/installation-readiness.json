@@ -212,6 +212,26 @@
     "tests_executed": true,
     "type_compile_executed": true
   },
+  "current_h4_field_preflight": {
+    "C4_accepted": false,
+    "D_bind_candidate_observed_on_interface": true,
+    "D_installation_parent_identities_observed": true,
+    "D_management_effective_permissions_verified": false,
+    "D_management_sshd_G_exit": 255,
+    "D_observation_sha256": "8593078773189ce45fc937abfef589165acb850eca8880ee54ed8d062700dc8e",
+    "D_privileged_read_only_approved": false,
+    "D_public_pin_matches_management_handshake": true,
+    "D_seen_S_egress_verified": false,
+    "S_local_route_observed": true,
+    "S_observation_sha256": "d9aa5a23b73f82ed778afcb653903afc6e9a9b9242702360d208b63e15cb21a8",
+    "Task9_accepted": false,
+    "date": "2026-11-03",
+    "installation_executed": false,
+    "partial_input_rejected": true,
+    "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+    "rendered": false,
+    "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION"
+  },
   "current_h4_materials": {
     "C4_accepted": false,
     "D_native_chain_verified": false,

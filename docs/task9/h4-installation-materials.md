@@ -2,6 +2,8 @@
 
 2026-11-03。此候选把 [H4 设计](fixed-launch-installation-review.md)细化为可检查的 D 端文件和运行合同。现场安装保持 **HOLD**。产品代码、默认关闭的构建条件和原 Task9 验收标准沿用既有版本。
 
+后续 D 公开 pin 与本机地址候选已经复核，S 路由及仍需批准的权限观测见[现场前置核验](h4-field-preflight.md)。
+
 ## D 的只读观测
 
 北京时间 17:42，沿用已有 SSH 主机信任，以 UID 1000 登录 D。观察到 Ubuntu 24.04、x86_64、2 个逻辑 CPU、约 1.92 GiB 内存，`/var/lib` 的 ext4 文件系统当时约有 36.7 GiB 可用。`openssh-server` 为 `1:9.6p1-3ubuntu13.16`，`sudo` 为 `1.9.15p5-3ubuntu5.24.04.1`。候选端口 22229 当时无本机监听，专用账户 `kw-b1-transport` 及 B1 配置、应用和 session 根未观察到。`/usr/local/libexec` 的缺失是多个候选 ELF 路径显示缺失的共同原因。sudoers 私有目录返回权限不足，冲突状态仍未知。原始观测 SHA-256 为 `329dadd6ea3b9eac3265b720341c00aa12399e767a50ed5e71a1ff8ff925ff92`。地址、主机公钥指纹与实际身份资料留在私有记录。

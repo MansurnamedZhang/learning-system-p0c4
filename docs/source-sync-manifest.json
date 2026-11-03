@@ -17,12 +17,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 62574,
+      "bytes": 62634,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": ".build/knowweave-map.data.mjs",
-      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
-      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
-      "sha256": "8164a6c8969fc9c3459771cebff73f01d153827f6ae531b7914039c58e78cc15",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "fabc8befd37fba2a2ee2d118acea49f5a4e1fa437eaa88d37bac5aecbc12676a",
       "source_bytes_preserved": false
     },
     {
@@ -74,12 +74,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115523,
+      "bytes": 115583,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave实施路线与架构.html",
-      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
-      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
-      "sha256": "ba26579db80fdcf9cba13bf1e4bde9d59400c584362cc5e77152184258045743",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "03a80b1801338da3b10c42f20e63da673f71b2c1c90312b7cdcfb794d10d9c6b",
       "source_bytes_preserved": false
     },
     {
@@ -3847,12 +3847,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47453,
+      "bytes": 47483,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
-      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
-      "sha256": "1dbb9dcaa392de174255cf0900ca76c0aef0f662e6958ebc4dcf923fb2637b40",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "cf2df0c3918cb329763b6bc0267f34ef75b5638a255cb5a1a6bef88c377a1e81",
       "source_bytes_preserved": false
     },
     {
@@ -4524,12 +4524,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 27185,
+      "bytes": 27570,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/p0c4-task9-readiness.md",
-      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
-      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
-      "sha256": "4e84cfa7ab24e86290d479112cf7bc72a277981d63b2111f7c105fe57dd40fe0",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "605ba1e738a9f0e21bdf4a352aa5c261148a6fcd7189feacef4a456b3581327e",
       "source_bytes_preserved": false
     },
     {
@@ -4769,30 +4769,39 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 8266,
+      "bytes": 4424,
+      "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
+      "path": "docs/task9/h4-field-preflight.md",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "48971b82eb1c24bde11c81f3d9dff9baa9aeac7a55e469eafec09e336c9b05db",
+      "source_bytes_preserved": false
+    },
+    {
+      "bytes": 8411,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-installation-materials.md",
-      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
-      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
-      "sha256": "bbaee378041aaf3ad4c4eee54f7b5ffe78fb353e158719389f93cb97c23f12db",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "025d284d1f2fc12f75d9f46bbe4b2cc2f66bd144ccb59946ed78cbf4cd2d19d7",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 29763,
+      "bytes": 30232,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
-      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
-      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
-      "sha256": "7f3a8ac134b25c85ed07bf292d07ddac0d2fa2f93a6d1d22e05e479e9a0d3d81",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "a8c09bde22a42a6d891ccf2fe56c435208c4835ebb8ec4b0483de87910048a43",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 17949,
+      "bytes": 18891,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-readiness.json",
-      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
-      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
-      "sha256": "31ad8a0172d655f723a1b5d6929bedc1e4027a655d2fe890d45f327b1bf31b4c",
+      "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+      "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION",
+      "sha256": "5c8e5c444a26b41cb534a0651d4e838e9d5680c2dde0cbdb790920a31df48177",
       "source_bytes_preserved": false
     },
     {
@@ -5811,7 +5820,7 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 716,
+  "manifest_file_count_excludes_manifest_itself": 717,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
   "previous_public_commit": "a3a209711f5441c25093aeb5052fe538537d03b0",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
@@ -13589,6 +13598,28 @@
       "sha256": "2448f4592a64bc9bc5ec5b2e618f936b8f47412c2ab0c23526ae3623d6b7ae59"
     },
     "user_answer": "采纳方案，仅定稿规范（推荐）"
+  },
+  "task9_h4_field_read_only_preflight": {
+    "C4_accepted": false,
+    "D_bind_candidate_observed_on_interface": true,
+    "D_installation_parent_identities_observed": true,
+    "D_management_effective_permissions_verified": false,
+    "D_management_sshd_G_exit": 255,
+    "D_observation_sha256": "8593078773189ce45fc937abfef589165acb850eca8880ee54ed8d062700dc8e",
+    "D_privileged_read_only_approved": false,
+    "D_public_pin_matches_management_handshake": true,
+    "D_seen_S_egress_verified": false,
+    "S_local_route_observed": true,
+    "S_observation_sha256": "d9aa5a23b73f82ed778afcb653903afc6e9a9b9242702360d208b63e15cb21a8",
+    "Task9_accepted": false,
+    "date": "2026-11-03",
+    "field_doc_sha256": "48971b82eb1c24bde11c81f3d9dff9baa9aeac7a55e469eafec09e336c9b05db",
+    "installation_executed": false,
+    "partial_input_rejected": true,
+    "publication_base_commit": "c7d1922a5fea86d34553f1fd3fe56c2a9773cbf3",
+    "rendered": false,
+    "roadmap_sha256": "03a80b1801338da3b10c42f20e63da673f71b2c1c90312b7cdcfb794d10d9c6b",
+    "scope": "TASK9_H4_FIELD_READ_ONLY_FACTS_PARTIAL_INPUT_HOLD_NOT_INSTALLATION"
   },
   "task9_h4_fixed_launch_installation_preparation": {
     "C4_accepted": false,
