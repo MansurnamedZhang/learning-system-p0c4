@@ -212,6 +212,27 @@
     "tests_executed": true,
     "type_compile_executed": true
   },
+  "current_h4_B_D_only_completion": {
+    "B_D_only_completion_approved": true,
+    "B_D_only_exit_code": 0,
+    "B_D_only_receipt_sha256": "668c73ba6b7512dbd19e29628e5e8e74af4d9d2d89098c7567b55d1d970770d5",
+    "B_original_hold_sha256": "52b14b26b6ed3c15acffa10a1dfc7f0845b5725c7f6a70859e116fa6b99698f5",
+    "B_original_operation_replayed": false,
+    "B_original_operation_status": "HOLD",
+    "B_source_readback_sha256": "62485c66067ee7c480a3ab2e94dd4f30f9d7e8d11e9784ae01d6a34dbc9ce499",
+    "C4_accepted": false,
+    "C_actual_uid_gid_verified": false,
+    "C_installation_executed": false,
+    "D_22229_verified": false,
+    "D_directory_mode": "0700",
+    "D_file_mode": "0600",
+    "D_keys_verified": 1,
+    "S_keys_verified": 2,
+    "Task9_accepted": false,
+    "date": "2026-11-03",
+    "publication_base_commit": "176c79276fa83c315faf724ad732ae5f8de9301f",
+    "scope": "TASK9_H4_B_THREE_KEYS_STAGED_D_ONLY_COMPLETION_ORIGINAL_HOLD_PRESERVED"
+  },
   "current_h4_B_custody_readback": {
     "B_auditor_rust_tests_passed": 3,
     "B_generator_rust_tests_passed": 3,
