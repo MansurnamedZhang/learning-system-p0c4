@@ -1,6 +1,6 @@
 # Task9 C 源端 QEMU/KVM 与 guest 磁盘审批清单
 
-2026-11-04。获批的 S 私有解包、一次 KVM API 查询及两块离线磁盘均已完成。两案离线引导和命令已冻结，启动待审批。 [首次引导实施单](h4-c-s1-s2-guest-boot.md) [S1/S2 实施单](h4-c-source-pg-and-fixed-view.md)
+2026-11-04。获批的 S 私有解包、一次 KVM API 查询及两块离线磁盘均已完成。S1 引导尝试在 QCOW2 打开阶段失败并已停机，S2 原盘未动。 [首次引导实施单](h4-c-s1-s2-guest-boot.md) [S1/S2 实施单](h4-c-source-pg-and-fixed-view.md)
 
 ## S 现场执行与独立回读
 
@@ -13,7 +13,7 @@ S 将 21 个已核包解包到本批私有树，重新核对了所有包和签�
 | S1 | 32 GiB | 621,293,568 | `8343cad1375c9064c3f5c6728260d3fc45aadd14cc23d363adf0c448cba454ab` |
 | S2 | 32 GiB | 621,293,568 | `8343cad1375c9064c3f5c6728260d3fc45aadd14cc23d363adf0c448cba454ab` |
 
-现场回执 SHA-256 `0292d93010d39484d9ff457d353e5883015ee7bde9e85c0d5baecb63bce598c7`，本地执行索引 `539933a2438f57c5e5d69ac4e63b6c47601054ec14e007dfcd529a48418c031a`，独立只读回执 `ec75c0bba2fb9585a20f03ab3d1ab20bb9553d1ff3e8d60d7c7c07cea58f57e4`。第二个 root 读取过程逐份核对 21 个包、基底、两个磁盘、QEMU/固件及回执，核查设备元数据与单元状态。KVM API 查询总计一次。两案引导介质、临时非 root 主体和命令已冻结。 [首次引导实施单](h4-c-s1-s2-guest-boot.md)
+现场回执 SHA-256 `0292d93010d39484d9ff457d353e5883015ee7bde9e85c0d5baecb63bce598c7`，本地执行索引 `539933a2438f57c5e5d69ac4e63b6c47601054ec14e007dfcd529a48418c031a`，独立只读回执 `ec75c0bba2fb9585a20f03ab3d1ab20bb9553d1ff3e8d60d7c7c07cea58f57e4`。第二个 root 读取过程逐份核对 21 个包、基底、两个磁盘、QEMU/固件及回执，核查设备元数据与单元状态。KVM API 查询总计一次。新双访问模式 FD 清单已离线验证，现场重试另审。 [首次引导实施单](h4-c-s1-s2-guest-boot.md)
 
 ## 软件和镜像
 

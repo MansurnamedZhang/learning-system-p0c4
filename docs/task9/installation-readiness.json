@@ -393,6 +393,25 @@
     "source_build_preparation_sha256": "dd382093045ef9172ab7883dc323c561bc4d248aad353d6f77fd93ec742078d8",
     "source_lane_count": 2
   },
+  "current_h4_C_source_guest_boot_attempt": {
+    "C4_accepted": false,
+    "S1_disk_unchanged": true,
+    "S1_guest_boot_verified": false,
+    "S1_qemu_exit_code": 1,
+    "S1_stop_confirmed": true,
+    "S2_dispatched": false,
+    "Task9_accepted": false,
+    "amendment_field_approval_pending": true,
+    "amendment_sha256": "5ed4787650b0caddbff5c83241dc58b824426f022ff799a9c71d437b748cd21c",
+    "amendment_static_qa_sha256": "c0d75cd555fdba3e024149cb4221944a5c83b361a8926ad5df6d756c59682863",
+    "date": "2026-11-04",
+    "dispatch_receipt_sha256": "f6e3632ce4728a56ff6e787ab1a64e67e22778d31d072bc260353652f0c303f4",
+    "independent_readback_sha256": "7676581da7953706d96468b0ab6373a6acb575e5fcb6c4a0455591c07d011028",
+    "native_qemu_fdset_qa_sha256": "973d3b6a8e0fd582cf277014945ebad2edf18b38dfcde3b91cc90808e137cf30",
+    "old_hold_retained": true,
+    "root_result_sha256": "c486f09007b5b43ba5f5079f66a7d69d1cfb73369a9f71d55f95802c7a481c55",
+    "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED"
+  },
   "current_h4_C_source_guest_boot_preparation": {
     "C4_accepted": false,
     "Task9_accepted": false,

@@ -1,8 +1,24 @@
 # Task9 C 阶段 S1/S2 首次离线引导
 
-2026-11-04。两份 NoCloud 介质、临时运行主体和逐案固定启动命令已冻结，待批准在 S 上首次启动。此轮是 guest 引导验证，PG18、固定挂载和正式 ELF 仍待后续现场阶段。 [已核验的 S 原盘与工具](h4-c-kvm-host-preparation.md) · [源端 PG18 实施单](h4-c-source-pg-and-fixed-view.md)
+2026-11-04。S1 首次启动尝试在 QEMU 打开 QCOW2 时失败并进入 HOLD，guest 尚未引导。S2 原盘保留，未下发。补充 FD 方案通过离线验证，新的 S 批次待审批。此轮是 guest 引导验证，PG18、固定挂载和正式 ELF 仍待后续现场阶段。 [已核验的 S 原盘与工具](h4-c-kvm-host-preparation.md) · [源端 PG18 实施单](h4-c-source-pg-and-fixed-view.md)
 
-## 介质和静态核验
+## S1 现场结果
+
+临时 unit 已停止，cgroup 已清空。QEMU 退出 1。串口有宿主 FD 检查通过行，随后报告 `Failed to find file descriptor with matching flags=0x0`。只有 `O_RDWR` 描述符的根盘 fdset 缺少 QEMU 探测所需的 `O_RDONLY` 描述符。S1 原盘仍为 32 GiB QCOW2，哈希、inode 和 `root:root 0600` 均与启动前一致，结构检查通过。S2 目录内只有未改动的原盘。
+
+控制器在 root 已封存结果后，因回传事件与结果共用了 `status` 参数而退出。以上结论来自第二个只读会话核对 root 回执、实际串口、两个 unit 状态及原盘；未重放启动。现场回执 SHA-256 `c486f09007b5b43ba5f5079f66a7d69d1cfb73369a9f71d55f95802c7a481c55`，独立回读 `7676581da7953706d96468b0ab6373a6acb575e5fcb6c4a0455591c07d011028`，控制器结果 `f6e3632ce4728a56ff6e787ab1a64e67e22778d31d072bc260353652f0c303f4`。
+
+## 修正方案与审批差额
+
+在原 QEMU 10.2.1 二进制的无主板、无 CPU 夹具上，使用签名基底的私有 QCOW2 副本和原只读 CIDATA。只传根盘读写 FD 可复现现场错误。增加同一 inode 的只读 FD 后，32 GiB QCOW2 读写打开和 CIDATA 只读打开均通过，夹具盘结构检查通过。两条修订 unit 完成静态解析，FD 入口通过同 inode 正例、异 inode 和错误访问模式两个拒绝例。现场 guest 和 KVM 启动待验。 [QEMU 的 FD set](https://www.qemu.org/docs/master/system/invocation.html)
+
+修订把根盘 `O_RDWR` 和 `O_RDONLY` 分别放在 FD 3、4，归入同一 fdset 1。介质移至 FD 5，仍属 fdset 2。PID 1 在每次任务中只额外打开同一个原件的只读 FD，权限和离线隔离设置保持原范围。入口按实际 dev/inode/长度确认两个根盘 FD 指向同一个文件。
+
+新批次最小范围为 S 上独占创建一个新的 S1 私有案例和一块 32 GiB 无 backing QCOW2，使用本次确认字节未变的 S1 磁盘做只读完整复制，核对哈希并绑定新 inode。旧 S1 盘、unit 和回执保持 HOLD。S2 用尚未启动的原盘和新的引导目录。两个新临时 unit 均依照原 2 vCPU、4 GiB guest 内存和 300 秒上限，只在 S1 获得串口与停机证明后运行 S2。
+
+修订清单 SHA-256 `5ed4787650b0caddbff5c83241dc58b824426f022ff799a9c71d437b748cd21c`，真实 QEMU 块路径回执 `973d3b6a8e0fd582cf277014945ebad2edf18b38dfcde3b91cc90808e137cf30`，修订 unit／FD 静态检查 `c0d75cd555fdba3e024149cb4221944a5c83b361a8926ad5df6d756c59682863`。
+
+## 原轮介质和静态核验
 
 | 案例 | CIDATA 容量 | SHA-256 |
 | --- | --- | --- |
@@ -11,15 +27,15 @@
 
 每份 ISO 含本案 `meta-data`、`user-data` 与空接口 `network-config`，实例 ID 和主机名各自独立。介质用包摘要已核对的 genisoimage 生成，Rock Ridge 和 Joliet 两种视图均逐字节读回，cloud-init 26.1 配置通过 schema 验证，介质无启动目录。原有签名基底另以只读转换回读 GPT BIOS 分区、GRUB 串口参数和实际 cloud-init 26.1 源文件。guest 启动自原 QCOW2，由 NoCloud 从 `CIDATA` 读取配置。 [NoCloud 介质格式](https://docs.cloud-init.io/en/26.1/reference/datasources/nocloud.html)
 
-S 只读回读 systemd `259.5-0ubuntu3.4`、QEMU `10.2.1`、两块原盘 inode 与 `0600` 权限、可用内存和空间，并确认两个临时 unit 和用户／组名未占用。QEMU 的机器、加速器与设备选项已由该版本的帮助入口核对。两个等价 unit 在 Linux 经 `systemd-analyze verify` 解析，FD 交接完成一个正例和四个拒绝夹具。KVM 未重新打开，介质仍在准备目录，S 本轮无启动或安装写入。
+S 只读回读 systemd `259.5-0ubuntu3.4`、QEMU `10.2.1`、两块原盘 inode 与 `0600` 权限、可用内存和空间，并确认两个临时 unit 和用户／组名未占用。QEMU 的机器、加速器与设备选项已由该版本的帮助入口核对。两个等价 unit 在 Linux 经 `systemd-analyze verify` 解析，FD 交接完成一个正例和四个拒绝夹具。在准备轮中，KVM 未重新打开，介质当时仍在准备目录。随后现场执行结果见上。
 
-## 启动命令和权限
+## 原轮启动命令和权限
 
 每案 root 调度器只向系统 systemd 提交对应的 transient unit `kw-task9-h4-c-s1-boot.service` 或 `kw-task9-h4-c-s2-boot.service`，逐案使用动态非 root UID/GID，额外组限定为现有 `kvm`。设备策略 `closed` 加 `/dev/kvm rw`。capability 集为空，`NoNewPrivileges=yes`。服务处于私有网络、只读系统和隔离临时目录，使用 16 MiB 私有 `/run` 隔离宿主管理 socket。QEMU 树和 FD 校验入口只读映射到该私有 `/run`。 [systemd 执行隔离](https://manpages.ubuntu.com/manpages/resolute/man5/systemd.exec.5.html)
 
 PID 1 用 `OpenFile` 打开本案原盘、只读 seed 和私有串口文件。入口校验三个 FD 的权限、访问方向、原盘 inode、字节摘要与独占锁，再把原盘、介质映射到 FD 3、4，把串口输出定向到私有文件。原盘仍是 `root:root 0600`，无账号组登记、ACL、sudoers、udev 或常驻 unit 变更。KVM 在实际 QEMU 启动期间会被打开并创建 VM，先前的 API 12 查询不代替这次验证。 [systemd OpenFile](https://manpages.ubuntu.com/manpages/resolute/man5/systemd.service.5.html) · [QEMU FD set](https://www.qemu.org/docs/master/system/invocation.html) · [Linux KVM API](https://docs.kernel.org/virt/kvm/api.html)
 
-下列为冻结的 QEMU 参数，`CASE` 在两条私有命令中已分别固定为 `s1`、`s2`。这是 FD 入口完成身份核验后直接执行的 argv，手工从 shell 调用会缺少经过验证的 FD。
+下列为历史冻结参数，仅用于审计旧 HOLD，`CASE` 在两条私有命令中已分别固定为 `s1`、`s2`。这是 FD 入口完成身份核验后直接执行的 argv，手工从 shell 调用会缺少经过验证的 FD。
 
 ```sh
 /run/kw-task9-qemu/bin/qemu-system-x86_64 \
@@ -37,7 +53,7 @@ PID 1 用 `OpenFile` 打开本案原盘、只读 seed 和私有串口文件。�
   -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny
 ```
 
-## 最小审批和可见影响
+## 原轮获批范围和可见影响
 
 | 对象 | 获批后执行的最小动作 |
 | --- | --- |
