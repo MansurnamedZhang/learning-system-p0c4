@@ -2,6 +2,8 @@
 
 2026-11-03。D 为独立备份目标，S 为开发及源端主机。B 三把密钥均已有各自封存证据，原批次 HOLD 仍单列。C 的专用账号阶段已完成，现场仍处于待安装状态。
 
+两端候选资源、目标端实际 ELF 和下一项空目录审批见[隔离资源与目标端构建](h4-c-isolated-resources-and-build.md)。
+
 ## 专用账号创建与回读
 
 获准后，D 只创建了 `kw-b1-transport` 用户、同名主组和 root 所有的空 home。实际 UID/GID 均为 `2401`，NSS 的本地和默认查找一致，组集合只有 2401，`passwd --status` 返回锁定状态 `L`。登录 shell 为 `/usr/sbin/nologin`，空 home 的模式为 `0755`。账号和组的公共记录差额各为一条预期记录。复查显示从属 ID、登录记录文件、邮箱目录和安装相关路径的监测元数据保持原样，22229 本机监听数仍为 0。
@@ -27,7 +29,7 @@ OpenSSH 9.6 的首次预览因 `-G` 与 `-C` 组合被本机拒绝，记录继�
 | 审批对象 | 精确对象与最小权限 | 实施边界和核验 |
 | --- | --- | --- |
 | **C-identity，已完成** | 只在 D 新建一组本地用户及主组 `kw-b1-transport`，实际 UID/GID 各 `2401`。初始 shell 为现有 `/usr/sbin/nologin`，口令锁定且无补充组。单独新建空 home `/var/lib/knowweave-c4-b1-transport-home`，`root:root 0755`。写入限本用户及主组的本机账号记录、系统工具必要的锁与备份、该空 home。 | 沿用一次现有 root 管理权限。执行前冻结命令和路径身份，确认无额外组、subuid/subgid 或初始化文件分配。执行后用 NSS、身份与口令状态元数据回读。信任文件、正式 shell、sudo 授权、网络规则与服务启动均属于之后的审批。 |
-| C-prepare 资源与实际构建 | 为 S/D 独立 registry、S fence、D session、S 隔离 PG、真实 control 根等提交各自精确路径、UUID、所有权及资源清单。以实际根身份、PG 标识和 B 公钥 pin 构建角色 ELF。 | S 既有 C4 私有根有历史用途，新增子路径须单独核对。固定 Go 工具链和实际输入必须冻结，当前预览没有最终 launcher 或 receiver ELF。 |
+| C-prepare 资源与实际构建 | 为 S/D 独立 registry、S fence、D session、S 隔离 PG、真实 control 根等提交各自精确路径、UUID、所有权及资源清单。以实际根身份、PG 标识和 B 公钥 pin 构建角色 ELF。 | S 既有 C4 私有根有历史用途，新增子路径须单独核对。固定 Go 工具链和实际输入必须冻结，本地审查包已有实参构建的 launcher 和 receiver，S 角色及实装身份仍待冻结。 |
 | C-install 文件与信任 | D 新 `/etc/knowweave-c4-b1` 与 `/usr/local/libexec` 为 `root:root 0755`。前者仅安装 `sshd_config` 0600、`authorized_keys` 0644、`sudoers.pending` 0440、`receiver-launch.lock` 0600。后者仅安装 gate 0755、launcher 0500、receiver 0500。D 单一授权公钥限制来源 /32，S 新 `known-hosts` 仅绑定获审 D 公钥及 22229，产品固定私钥从各自 B 暂存根在本机安装。 | 审批须附实际 ELF、配置、policy、anchor、manifest 的 SHA-256、owner/mode 和安装落点。两侧实际 trust、registry/fence/session 等材料仍需各自冻结。文件安装采用独占创建和回读，启用权限另审。 |
 | C-enable 权限、网络与监听 | D 将此账号的 shell 从 `nologin` 改为受审的固定 gate，并启用单条 `/etc/sudoers.d/knowweave-c4-b1`。该规则只允许经 SHA-256 固定的 launcher，以 `(root:root)`、空参数运行。仅对该命令关闭 PTY 和协议原始 I/O 记录，保留事件审计。单独批准 S /32 的 TCP 22229 放行和 D 隔离 `sshd` 的精确启动及停止。 | 审前核账号额外匹配规则、管理 22 排除、真实网络与云侧范围。现有管理 listener 和业务服务保持在本批之外。遇到身份、地址、权限、ELF 或通道不符，按准确新增对象留证并停止。 |
 

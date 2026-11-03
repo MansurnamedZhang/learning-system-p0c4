@@ -308,6 +308,49 @@
     "scope": "TASK9_C_FIELD_AND_CONFIG_PARSE_PREFLIGHT_IDENTITY_APPROVAL_REQUIRED",
     "service_enabled": false
   },
+  "current_h4_C_resources_and_D_elf": {
+    "C4_accepted": false,
+    "C_D_resource_observation_sha256": "d81b2a8b3e70a67f698a5c15774feb969e9011530671f3eb6b076992cd2eec30",
+    "C_S_initial_subnet_excluded": true,
+    "C_S_resource_observation_sha256": "e7ec525aaf683f6f5c375a9c5381e40f3b6cfec5a389ab7bdbc97a9dc2ca6c04",
+    "C_empty_directories_proposed": 8,
+    "C_empty_directory_creation_approved": false,
+    "C_fixed_isolated_views_verified": false,
+    "C_installation_executed": false,
+    "C_proposed_subnets_readonly_conflict_checked": true,
+    "C_resource_lanes_proposed": 6,
+    "D_22229_verified": false,
+    "D_ELF_artifacts": {
+      "knowweave-c4-b1-receiver": {
+        "bytes": 6764272,
+        "sha256": "b28d7d94ea8c5e0e4044822610e0cd3792c7403ab8858fb3c735bf4397c7a0b3"
+      },
+      "knowweave-c4-b1-receiver-launcher": {
+        "bytes": 3046516,
+        "sha256": "754693a6c4fea5433342bf5a00c3dcd0a34c47cf33cbe3594d0a3adc4d731d0b"
+      },
+      "knowweave-c4-b1-ssh-gate": {
+        "bytes": 3046524,
+        "sha256": "3be69a49c1f78e74e0798291efdc3744af55ce4235452e14a79b07c5eb8f0bed"
+      }
+    },
+    "D_Go_native_tests_passed": 4,
+    "D_Rust_build_input_sha256": "517e9d95e42818dc9f8ad51533ebf0893eba098dd15a494a64b4e3d1636d5d18",
+    "D_Rust_readback_sha256": "e90aa432826ff399112468911ced44b215536936e36a05b3768fe19951caf062",
+    "D_Rust_role_tests_passed": 4,
+    "D_local_inactive_bundle_files": 7,
+    "D_local_inactive_bundle_sha256": "1ca36be64a69e4956c8359d7cd26e8572a30767d9f582e9a913be75e5057555c",
+    "D_native_readback_sha256": "b61651f94571fef4d4d33f40236888293dd73de8c81e1a47a00b9e314d16e693",
+    "D_negative_smokes_passed": 2,
+    "D_pg18_image_staging_required": true,
+    "D_recovery_RA_RB_sequential": true,
+    "S_actual_source_control_binding_ready": false,
+    "Task9_accepted": false,
+    "date": "2026-11-03",
+    "publication_base_commit": "2c2aa3db6193d72c7b960f2c58014a824def0ee6",
+    "scope": "TASK9_C_TWO_HOST_RESOURCE_PROPOSAL_D_THREE_ELF_VERIFIED_NOT_INSTALLED",
+    "service_enabled": false
+  },
   "current_h4_egress_and_B_decision": {
     "B_key_generation_authorized": false,
     "C4_accepted": false,

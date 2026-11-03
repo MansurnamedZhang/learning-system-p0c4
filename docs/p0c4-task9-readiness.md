@@ -1,5 +1,9 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-03 · C 隔离资源清单与 D 端 ELF 就绪
+
+两端六个案例各有独立候选，D 的 receiver、gate、launcher 已用真实输入构建并核对。S 正式 ELF 待真实 PG 和 control binding。下一项是审批两端八个私有空目录。[资源清单与构建证据](task9/h4-c-isolated-resources-and-build.md)
+
 ## 2026-11-03 · C 专用账号已回读
 
 目标机专用账号与主组已创建，实际 `2401/2401`。口令锁定、`nologin`、组集合及 root 所有的空 home 均已核实。私有安装请求已填入真实账号身份。下一步准备隔离资源和实装 ELF，22229 和真实启动链仍待验。[C 安装前核验](task9/h4-c-installation-preflight.md)
