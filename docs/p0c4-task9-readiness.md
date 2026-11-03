@@ -1,5 +1,9 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-03 · D 端现况与 H4 工具候选
+
+D 普通用户只读盘点成功。H4 已实现待启用文件安装工具、native 入口和固定 SSH/sudo 配置生成，4 项 Python 及 4 项 native 隔离检查通过。审查为 `hold_for_evidence`，当前待核 D 生效权限、实际端点/身份和完整 ELF/公钥清单，再做真实启动与 FIFO/EOF 验证。 [H4 现场清单](task9/h4-installation-materials.md)
+
 ## 2026-11-03 · 当前准备与停止点
 
 C0 默认关闭候选的 25 阶段普通 Linux 检查和 20 项新增用例已通过原件核验。H4 已完成固定启动链和待装清单审查稿，明确实际 D 父 ELF、两条独立 FIFO 和 EOF/退出证据。下一步核对 H1 的真实目标现况，填实隔离 listener、专用身份、native launcher 和安装工具后再审。B/C 安装、D1 首签与 RA、D2 源不可访问与 RB 仍待对应准入。 [固定启动链审查稿](task9/fixed-launch-installation-review.md) · [双机实施单](task9/installation-and-two-host-acceptance-plan.md)

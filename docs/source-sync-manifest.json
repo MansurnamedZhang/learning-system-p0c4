@@ -17,12 +17,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 62514,
+      "bytes": 62574,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": ".build/knowweave-map.data.mjs",
-      "publication_base_commit": "2b18bba78e2ebd03a80595b9f3234623f576116d",
-      "scope": "TASK9_H4_FIXED_LAUNCH_INSTALLATION_DRAFT_NOT_OPERATIONAL",
-      "sha256": "3a11888b8f9a7bbbd27472999024259dc505dd005466e54a29f206e300f058f2",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "8164a6c8969fc9c3459771cebff73f01d153827f6ae531b7914039c58e78cc15",
       "source_bytes_preserved": false
     },
     {
@@ -74,12 +74,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115469,
+      "bytes": 115523,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave实施路线与架构.html",
-      "publication_base_commit": "2b18bba78e2ebd03a80595b9f3234623f576116d",
-      "scope": "TASK9_H4_FIXED_LAUNCH_INSTALLATION_DRAFT_NOT_OPERATIONAL",
-      "sha256": "db9491cb65e337730fdaddd497f0126227fac5052ade9e77c224872516db0d74",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "ba26579db80fdcf9cba13bf1e4bde9d59400c584362cc5e77152184258045743",
       "source_bytes_preserved": false
     },
     {
@@ -3847,12 +3847,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47407,
+      "bytes": 47453,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "publication_base_commit": "2b18bba78e2ebd03a80595b9f3234623f576116d",
-      "scope": "TASK9_H4_FIXED_LAUNCH_INSTALLATION_DRAFT_NOT_OPERATIONAL",
-      "sha256": "36357f06b0a9647ea768550d4a61b1322b0f520cd99650eef97de3b0d62e210c",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "1dbb9dcaa392de174255cf0900ca76c0aef0f662e6958ebc4dcf923fb2637b40",
       "source_bytes_preserved": false
     },
     {
@@ -4524,12 +4524,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 26755,
+      "bytes": 27185,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/p0c4-task9-readiness.md",
-      "publication_base_commit": "2b18bba78e2ebd03a80595b9f3234623f576116d",
-      "scope": "TASK9_H4_FIXED_LAUNCH_INSTALLATION_DRAFT_NOT_OPERATIONAL",
-      "sha256": "4061bc7f1c787ad481c157c6c1f93346bdd98b95df183faabf3c7902e772d540",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "4e84cfa7ab24e86290d479112cf7bc72a277981d63b2111f7c105fe57dd40fe0",
       "source_bytes_preserved": false
     },
     {
@@ -4769,21 +4769,30 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 29229,
+      "bytes": 8266,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
-      "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
-      "publication_base_commit": "2b18bba78e2ebd03a80595b9f3234623f576116d",
-      "scope": "TASK9_H4_FIXED_LAUNCH_INSTALLATION_DRAFT_NOT_OPERATIONAL",
-      "sha256": "8f550067c52ce5c5d9b11738f7ddd1f3a90a846da9387d016c0756f19399bf99",
+      "path": "docs/task9/h4-installation-materials.md",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "bbaee378041aaf3ad4c4eee54f7b5ffe78fb353e158719389f93cb97c23f12db",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 16464,
+      "bytes": 29763,
+      "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
+      "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "7f3a8ac134b25c85ed07bf292d07ddac0d2fa2f93a6d1d22e05e479e9a0d3d81",
+      "source_bytes_preserved": false
+    },
+    {
+      "bytes": 17949,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-readiness.json",
-      "publication_base_commit": "2b18bba78e2ebd03a80595b9f3234623f576116d",
-      "scope": "TASK9_H4_FIXED_LAUNCH_INSTALLATION_DRAFT_NOT_OPERATIONAL",
-      "sha256": "49b020a2fcc0324fe6b740f2f0604c4cad3117164c142a95a3204c59678bd423",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "31ad8a0172d655f723a1b5d6929bedc1e4027a655d2fe890d45f327b1bf31b4c",
       "source_bytes_preserved": false
     },
     {
@@ -5386,6 +5395,42 @@
       "source_bytes_preserved": false
     },
     {
+      "bytes": 13089,
+      "exact_byte_source": "H4_TESTED_TOOLING_PATCH",
+      "path": "scripts/task9_h4/install.py",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "4503444a92f96644e0672600a09bbe0533c817f1d112ba8140dbfe81f0d1c3bd",
+      "source_bytes_preserved": false
+    },
+    {
+      "bytes": 7500,
+      "exact_byte_source": "H4_TESTED_TOOLING_PATCH",
+      "path": "scripts/task9_h4/native_linux.go",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "21487c406576c90283875f5f1245d2e48a8b08d7994e2008f6eed5ddbb35c542",
+      "source_bytes_preserved": false
+    },
+    {
+      "bytes": 2909,
+      "exact_byte_source": "H4_TESTED_TOOLING_PATCH",
+      "path": "scripts/task9_h4/native_linux_test.go",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "44d63e0316053b60abcce79df558ba67db8c2a1a1b7d3b3c7bfdef53a34136e4",
+      "source_bytes_preserved": false
+    },
+    {
+      "bytes": 7383,
+      "exact_byte_source": "H4_TESTED_TOOLING_PATCH",
+      "path": "scripts/task9_h4/test_install.py",
+      "publication_base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+      "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+      "sha256": "ff0c1ad649bf26d2d8f9bf94166e5da334306f5e5270fe6c5579f484f327ffbc",
+      "source_bytes_preserved": false
+    },
+    {
       "bytes": 6442,
       "path": "scripts/test_p0c4_attention_acceptance.py",
       "scope": "TASK7_EXACT_CANDIDATE_SOURCE_BLOB",
@@ -5766,7 +5811,7 @@
     }
   ],
   "historical_previous_source_archive_sha256": "fc6cf6ee3642fcc366ff557bdadfdbe0df7bb69289e6e802f17a0e82e1946811",
-  "manifest_file_count_excludes_manifest_itself": 711,
+  "manifest_file_count_excludes_manifest_itself": 716,
   "previous_component_base_source_archive_sha256": "2ba08c7c68726e5e177f85d3d79c5f62351abc1438bb04bdbabad42a347355ea",
   "previous_public_commit": "a3a209711f5441c25093aeb5052fe538537d03b0",
   "previous_scope": "TASK5_CODE_AND_PRESCRIBED_SINGLE_HOST_SUPPLEMENTAL_VALIDATION_ROOT_CLOSED_NATIVE9_AND_THREE_ACTUAL_RUST_GROUPS_TASK6_TO9_C4_OPEN_NOT_COMPLETE_BACKUP_NOT_PRODUCTION",
@@ -13561,6 +13606,34 @@
     "roadmap_sha256": "db9491cb65e337730fdaddd497f0126227fac5052ade9e77c224872516db0d74",
     "scope": "TASK9_H4_FIXED_LAUNCH_INSTALLATION_DRAFT_NOT_OPERATIONAL",
     "static_map_issues": 0
+  },
+  "task9_h4_inactive_tooling_review": {
+    "C4_accepted": false,
+    "D_native_chain_verified": false,
+    "D_ordinary_metadata_sha256": "329dadd6ea3b9eac3265b720341c00aa12399e767a50ed5e71a1ff8ff925ff92",
+    "D_sudo_effective_permissions_verified": false,
+    "Task9_accepted": false,
+    "base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+    "date": "2026-11-03",
+    "installation_executed": false,
+    "linux_native_isolated_tests_passed": 4,
+    "local_fixture_visudo_syntax_only": true,
+    "materials_sha256": "bbaee378041aaf3ad4c4eee54f7b5ffe78fb353e158719389f93cb97c23f12db",
+    "new_permissions_applied": false,
+    "product_code_changed": false,
+    "python_isolated_tests_passed": 4,
+    "review": "hold_for_evidence",
+    "review_sha256": "8166017947e91214d9621d216f710ccb2af70b0e35b63c5f35ad5a7e3c57c564",
+    "roadmap_sha256": "ba26579db80fdcf9cba13bf1e4bde9d59400c584362cc5e77152184258045743",
+    "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+    "status": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+    "tooling_file_sha256": {
+      "scripts/task9_h4/install.py": "4503444a92f96644e0672600a09bbe0533c817f1d112ba8140dbfe81f0d1c3bd",
+      "scripts/task9_h4/native_linux.go": "21487c406576c90283875f5f1245d2e48a8b08d7994e2008f6eed5ddbb35c542",
+      "scripts/task9_h4/native_linux_test.go": "44d63e0316053b60abcce79df558ba67db8c2a1a1b7d3b3c7bfdef53a34136e4",
+      "scripts/task9_h4/test_install.py": "ff0c1ad649bf26d2d8f9bf94166e5da334306f5e5270fe6c5579f484f327ffbc"
+    },
+    "tooling_patch_sha256": "2c9b977c51041e56eff358a5412edfe34d38216327a505b86972dea69e0aa5ac"
   },
   "task9_installation_and_two_host_preparation": {
     "A_authorized_preparation": true,

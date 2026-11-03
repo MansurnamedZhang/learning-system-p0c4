@@ -212,6 +212,32 @@
     "tests_executed": true,
     "type_compile_executed": true
   },
+  "current_h4_materials": {
+    "C4_accepted": false,
+    "D_native_chain_verified": false,
+    "D_ordinary_metadata_sha256": "329dadd6ea3b9eac3265b720341c00aa12399e767a50ed5e71a1ff8ff925ff92",
+    "D_sudo_effective_permissions_verified": false,
+    "Task9_accepted": false,
+    "base_commit": "d64f525da5ff636a2a87f8b5be6e9ebddabf27b0",
+    "date": "2026-11-03",
+    "installation_executed": false,
+    "linux_native_isolated_tests_passed": 4,
+    "local_fixture_visudo_syntax_only": true,
+    "new_permissions_applied": false,
+    "product_code_changed": false,
+    "python_isolated_tests_passed": 4,
+    "review": "hold_for_evidence",
+    "review_sha256": "8166017947e91214d9621d216f710ccb2af70b0e35b63c5f35ad5a7e3c57c564",
+    "scope": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+    "status": "TASK9_D_ORDINARY_METADATA_H4_INACTIVE_TOOLING_REVIEW_HOLD_NOT_INSTALLATION",
+    "tooling_file_sha256": {
+      "scripts/task9_h4/install.py": "4503444a92f96644e0672600a09bbe0533c817f1d112ba8140dbfe81f0d1c3bd",
+      "scripts/task9_h4/native_linux.go": "21487c406576c90283875f5f1245d2e48a8b08d7994e2008f6eed5ddbb35c542",
+      "scripts/task9_h4/native_linux_test.go": "44d63e0316053b60abcce79df558ba67db8c2a1a1b7d3b3c7bfdef53a34136e4",
+      "scripts/task9_h4/test_install.py": "ff0c1ad649bf26d2d8f9bf94166e5da334306f5e5270fe6c5579f484f327ffbc"
+    },
+    "tooling_patch_sha256": "2c9b977c51041e56eff358a5412edfe34d38216327a505b86972dea69e0aa5ac"
+  },
   "current_h4_preparation": {
     "actual_target_metadata_refreshed": false,
     "candidate_permissions_applied": false,
