@@ -2,7 +2,7 @@
 
 2026-11-03。此候选把 [H4 设计](fixed-launch-installation-review.md)细化为可检查的 D 端文件和运行合同。现场安装保持 **HOLD**。产品代码、默认关闭的构建条件和原 Task9 验收标准沿用既有版本。
 
-后续 D 公开 pin 与本机地址候选已经复核，S 路由及仍需批准的权限观测见[现场前置核验](h4-field-preflight.md)。
+后续 D 公开 pin 与本机地址候选已经复核。账号、端口、配置解析和最小权限的最新结果见[C 安装前核验](h4-c-installation-preflight.md)。早期来源探针见[现场前置核验](h4-field-preflight.md)。
 
 ## D 的只读观测
 
