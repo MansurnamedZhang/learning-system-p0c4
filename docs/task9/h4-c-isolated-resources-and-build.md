@@ -9,13 +9,19 @@
 | S1 与 S2 | 两个独立 UUID、候选根、PG 项目、数据卷、Unix socket 卷及内部子网。S 本机已有锁定的 PG18 镜像和固定 Rust builder。最初一个候选子网与实际路由及 Docker 网络重叠，已淘汰并只读复核替代子网。 | 每个实例分别取得真实 DB OID、PG system identifier、owner、socket、容器与卷身份，冻结 control 根、实际 15 项 Capture 挂载及源端编译绑定。PG 使用私有 Unix socket。 |
 | D 的 V1 与 V2 | 两个独立 UUID 和候选存储根，分别承接 S1 和 S2。每个视图分别需要 registry、session namespace、证据/备份根以及 policy、trust 和 launch manifest。 | 固定路径须在各自实际隔离视图中取证。session 目录要求 `anchor.json`、`lock`、`operations`、`staging`。root 身份和 registry 锁必须取实际值。 |
 | RA 与 RB | 两个独立 UUID、候选根、PG 数据卷、Unix socket 卷与内部子网。D 的本地路由和 Docker 网络对候选子网未见冲突。 | D 缺少锁定的 PG18 镜像。先另行批准精确镜像暂存与隔离恢复资源，再复查。RA、RB 顺序运行，正式恢复和源端不可访问验证各自另批。 |
-| 空目录提案 | 两端分别预留一个新根，合计六个案例子目录，共八个目录，全部拟用 `root:root 0700`。两处父路径均经只读核对，候选根未占用。 | 准批后复查父目录身份、挂载和同名条目，逐一独占创建并回读。空目录回读只产生 backing root 身份。挂载、固定视图、数据库、网络和信任另行定稿与审批。 |
+| 隔离目录 | S 创建一个批次根与两个空案例子目录。D 创建一个批次根与四个空案例子目录。八个目录均已回读 `root:root 0700`。 | 已取得 backing root 身份。挂载、固定视图、数据库、网络和信任待后续定稿与审批。 |
 
 S 当前有 24 个逻辑 CPU。D 当前有 2 个逻辑 CPU、约 1.18 GiB 可用内存和约 36.63 GiB 可用磁盘。D 拟按 manager 512 MiB、单个恢复 PG 384 MiB、保留 256 MiB 估算，实际运行前需要重新评估可用内存和留存预算。D 的 22229 当前无监听。云侧映射和源端实际可达性待验证。
 
 Capture 合同同时约束 fence 的主机源路径和容器目标路径。S2 需要单独证实自己的固定路径视图，S1 已成功或留存的 fence 与 registry 继续保留。D 的 V2 也需要单独证实固定路径和受限入口。目录候选只分配物理落点，后续仍须证明应用和 Docker 实际看到的身份。 [Capture 挂载合同](capture-mount-amendment-contract.md) · [固定路径实现](../../crates/learning-backup/src/offhost_b1/source_launch.rs)
 
-## 候选资源复查与源端构建准备
+## 隔离目录创建回读
+
+按批准的八目录清单，两端均先以不跟随符号链接的目录描述符核对 `/var/lib` 设备及 inode，并验证候选根不存在。随后独占创建。S 创建 3 个目录，D 创建 5 个。最终回读确认 `root:root 0700`、目录名与目录描述符身份一致，两个批次根只包含各自的案例子目录，6 个案例子目录均为空。目录和父目录已同步到磁盘。
+
+创建回执 SHA-256 `81d03b5705488499e1beccbc8f6dabdc5100cee928fa3c5c4704d5792aa50016`。已把 6 个案例的实际 backing root 身份接入后续资源清单，SHA-256 `c5e4b6a9a39b5cbae5291b21ac1343bf371513d4b208e0dd677b2fa0a754b92b`。本轮写入范围限于这 8 个目录。固定路径、registry、fence、PG 及 socket 身份继续等待现场取证。
+
+## 候选资源复查与源端构建准备（目录创建前）
 
 用两端既有管理入口重新只读检查。两处 `/var/lib` 父目录身份匹配，候选根均未创建。S1/S2 和 RA/RB 的候选 Compose 项目名、卷名、网络名和子网未发现冲突。S 有锁定的 PG18 和 builder，D 的锁定 PG18 镜像仍缺，22229 本机监听数仍为零。D 此次约有 1.19 GiB 可用内存和 36.62 GiB 磁盘。容量、命名和路由均须在获准操作前重查。两份私有复查回执的 SHA-256 为 `20962a09b244e0fbd3cbd8a2b45c3baecb63a6fe9e9f5884a5fb9749f2e44c33` 和 `59ff4186cc9cd16f07d4195f3ad5b775a48cfb48ce345d5c9c04907c121a7444`。
 
@@ -43,4 +49,4 @@ Rust 构建输入 `517e9d95e42818dc9f8ad51533ebf0893eba098dd15a494a64b4e3d1636d5
 
 ## 接下来
 
-先审批八个空目录，取得真实 backing root 身份。随后分别冻结和审批隔离 PG、挂载及固定视图、信任文件、单条 sudo 权限、22229 最窄放行和 listener。实装还需要实际 policy、trust、registry/session anchor、launch manifest 和精确 ELF 文件回读。管理 22 的专用账号拒绝、真实启动链、父 ELF、FIFO/FD 及退出证据均待现场验证。 [安装前核验与最小审批](h4-c-installation-preflight.md) · [双机实施单](installation-and-two-host-acceptance-plan.md)
+先完成 S1、S2 两套隔离 PG18 配置和 control 视图的准确实施单。各自使用独立 PG 数据卷与 socket 卷，核验无 TCP 监听、host 与容器见到同一 socket，以及三个固定 SQL 角色的 `peer:root` 会话。信任文件、单条 sudo 权限、22229 最窄放行和 listener 分步审批。实装还需要实际 policy、trust、registry/session anchor、launch manifest 和精确 ELF 文件回读。管理 22 的专用账号拒绝、真实启动链、父 ELF、FIFO/FD 及退出证据均待现场验证。 [安装前核验与最小审批](h4-c-installation-preflight.md) · [双机实施单](installation-and-two-host-acceptance-plan.md)

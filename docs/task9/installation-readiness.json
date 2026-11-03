@@ -257,6 +257,26 @@
     "publication_base_commit": "ece1f9c0f26880973005560f21113533df98b5a3",
     "scope": "TASK9_H4_B_SOURCE_READBACK_VERIFIED_D_UNDISPATCHED_ORIGINAL_HOLD"
   },
+  "current_h4_C_backing_roots": {
+    "C4_accepted": false,
+    "C_installation_executed": false,
+    "Task9_accepted": false,
+    "date": "2026-11-03",
+    "directory_counts": {
+      "D": 5,
+      "S": 3
+    },
+    "directory_readback_sha256": "81d03b5705488499e1beccbc8f6dabdc5100cee928fa3c5c4704d5792aa50016",
+    "empty_case_directories_verified": 6,
+    "fixed_views_validated": false,
+    "formal_source_elf_built": false,
+    "isolated_pg_created": false,
+    "mode": "0700",
+    "owner": "root:root",
+    "resource_manifest_sha256": "c5e4b6a9a39b5cbae5291b21ac1343bf371513d4b208e0dd677b2fa0a754b92b",
+    "scope": "TASK9_C_EIGHT_PRIVATE_DIRECTORIES_VERIFIED_NO_RUNTIME_BINDINGS",
+    "service_enabled": false
+  },
   "current_h4_C_identity_creation": {
     "C4_accepted": false,
     "C_identity_approved": true,

@@ -1,12 +1,16 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-03 · C 隔离目录身份已入清单
+
+两端 8 个 `root:root 0700` 目录已创建并回读。S1、S2 的正式 ELF 等待隔离 PG18 和 control 固定视图。 [目录及构建记录](task9/h4-c-isolated-resources-and-build.md)
+
 ## 2026-11-03 · C 资源复查与源端构建准备
 
 两端候选根和四个 PG 案例的候选资源已复查。S1/S2 各三角色的编译输入清单已冻结，正式 ELF 等待实际 PG、control 和固定视图。D 三份实参 ELF 和七文件非启用包已再次核对。 [资源与构建证据](task9/h4-c-isolated-resources-and-build.md)
 
 ## 2026-11-03 · C 隔离资源清单与 D 端 ELF 就绪
 
-两端六个案例各有独立候选，D 的 receiver、gate、launcher 已用真实输入构建并核对。S 正式 ELF 待真实 PG 和 control binding。下一项是审批两端八个私有空目录。[资源清单与构建证据](task9/h4-c-isolated-resources-and-build.md)
+两端六个案例各有独立候选，D 的 receiver、gate、launcher 已用真实输入构建并核对。S 正式 ELF 待真实 PG 和 control binding。当时两端八个私有目录待审批，创建结果见本页最新记录。[资源清单与构建证据](task9/h4-c-isolated-resources-and-build.md)
 
 ## 2026-11-03 · C 专用账号已回读
 
