@@ -212,6 +212,24 @@
     "tests_executed": true,
     "type_compile_executed": true
   },
+  "current_h4_egress_and_B_decision": {
+    "B_key_generation_authorized": false,
+    "C4_accepted": false,
+    "D_22229_verified": false,
+    "D_capture_elapsed_ms": 619,
+    "D_capture_process_exited": true,
+    "D_matching_markers": 1,
+    "S_pre_auth_connections": 1,
+    "S_to_D_22_observation_sha256": "0959612cafb9d71e5f536f075c3f7443e86be0a22938a164d41952016d12d087",
+    "Task9_accepted": false,
+    "authentication_attempts": 0,
+    "date": "2026-11-03",
+    "installation_executed": false,
+    "persistent_keys_generated": false,
+    "private_B_scope_sha256": "3bc210084b6ddeb33cbed5b2516c58a2d4568a9ebd1d8ffe9ada46d737ec0c42",
+    "publication_base_commit": "0d9bb4ed3196b4c4e9bcc9d5b8fd01a913799e24",
+    "scope": "TASK9_H4_ONE_SHOT_22_EGRESS_OBSERVED_B_CUSTODY_DECISION_REQUIRED"
+  },
   "current_h4_field_preflight": {
     "C4_accepted": false,
     "D_bind_candidate_observed_on_interface": true,
