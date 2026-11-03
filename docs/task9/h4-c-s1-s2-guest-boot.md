@@ -13,7 +13,7 @@ S1 从封存旧盘进行只读完整复制，复制后核对原始哈希、独�
 
 两块盘均为 32 GiB，单链接且无 backing，结构检查无错误、损坏或泄漏。新 S1 与 S2 都已写入首次开机数据，后续现场步骤须绑定上表所列停机原件。旧 S1 磁盘和 HOLD 回执通过独立回读，两个新 unit 无活动进程。控制器结果 SHA-256 `352af556fd281d25d4b13b6c00bc2e5a274e9a27348b235b568e8ea688af9554`，独立回读 SHA-256 `9eede78feed5dc56aeabca6fdb5cd921db31a8b51c0afe52133ee7d2e1e8f1d8`，批准清单 `5ed4787650b0caddbff5c83241dc58b824426f022ff799a9c71d437b748cd21c`。
 
-下一段为各 guest 的 PG18 一次性引导、Unix socket 和 control 固定挂载，再采集正式 ELF 的实际身份。 [PG18 与固定挂载实施单](h4-c-source-pg-and-fixed-view.md)
+各 guest 的 PG18 一次性引导、Unix socket 和 control 固定挂载方案已冻结。两案根文件系统容量不足，扩容和现场执行待分步审批。 [PG18 离线冻结单](h4-c-pg18-offline-freeze.md) [PG18 与固定挂载实施单](h4-c-source-pg-and-fixed-view.md)
 
 ## 旧 S1 启动失败及 HOLD
 

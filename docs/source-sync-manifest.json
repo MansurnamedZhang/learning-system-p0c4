@@ -17,12 +17,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 62585,
+      "bytes": 62624,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": ".build/knowweave-map.data.mjs",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "d6e70e65d5247a007a1bfb9a3c2d564289542ed1b84aaf5884a7eeeaa4c81bb3",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "40d020b63239b827f82674a4680fc93d0428bee25189b584ca6eea644da9fb92",
       "source_bytes_preserved": false
     },
     {
@@ -74,12 +74,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115481,
+      "bytes": 115520,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave实施路线与架构.html",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "29218deead0eea9fadd688f556cf3192e183f52c4d0d9280b74fda507f047ef8",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "ed8fbebe06b4f3f499cb1559a90dcfeeb50ba30b1f8162662c74726dae260c95",
       "source_bytes_preserved": false
     },
     {
@@ -3847,12 +3847,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47344,
+      "bytes": 47397,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "cb10304e156e814c7ccd79b113e4ee5f0efc2e1d7045f04c081674c3fbe68876",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "4d97c6931f937868ffbe41fa2d6b91a05c6a35d7e14788d3c18fa09108ac9486",
       "source_bytes_preserved": false
     },
     {
@@ -4524,12 +4524,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 31652,
+      "bytes": 31910,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/p0c4-task9-readiness.md",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "6d4596ce0f7257cfe8b54810b540c321a493fc2d36b62ab5202deba31c9d8f04",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "d71fa96b51397cbaaa7f578f37a50b998da3618653dc031e71d963c9b8ff536c",
       "source_bytes_preserved": false
     },
     {
@@ -4796,21 +4796,30 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 10834,
+      "bytes": 7149,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
-      "path": "docs/task9/h4-c-s1-s2-guest-boot.md",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "b54edc0a0cf77033950a842e97f2a0a2998590703384f1ccfdbf6088b81fba08",
+      "path": "docs/task9/h4-c-pg18-offline-freeze.md",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "1a047c88ab33f94f9c34c56e1a9cdc0f3e6134d3ace06ce5be2af6bedcd85660",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 10472,
+      "bytes": 10926,
+      "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
+      "path": "docs/task9/h4-c-s1-s2-guest-boot.md",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "3fd5ba37792dc35dfd2ee9bfc39a9c29e4f07a46a2f2bb10c8064d1f760181ba",
+      "source_bytes_preserved": false
+    },
+    {
+      "bytes": 10655,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-source-pg-and-fixed-view.md",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "fda17f770bc60e00b6ea9ee21a65f9b341a8320022ab1dc8cd107e9067be2cc7",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "0d5bf4f910dcfc2e977a9080ab705406f62aeece6cbc03aa8e1595c5fe2dfb09",
       "source_bytes_preserved": false
     },
     {
@@ -4841,21 +4850,21 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 34785,
+      "bytes": 35067,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "c9999bd4933a8a960d0fab084f6d2468a5e289b3e5d7344c4f2d403721bdd259",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "7b7463e638040601a0083e139e1011b4ac04646eb1d22e277291560b1c7b0e92",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 35209,
+      "bytes": 36416,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-readiness.json",
-      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
-      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
-      "sha256": "f420235036be3b1c08c1bc46238150700d290e032e9387c7557dc10542ab506a",
+      "publication_base_commit": "c56a119c8b478294fe259bf55cb7f07093fe8cd3",
+      "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN",
+      "sha256": "38dd44ffed55684012ade73d64ae17ebdfc9167c65fb0acb7a71fc530d5f8f09",
       "source_bytes_preserved": false
     },
     {
@@ -13956,6 +13965,31 @@
     "scope": "TASK9_C_S_PRIVATE_KVM_PREP_VERIFIED_GUEST_BOOT_PENDING",
     "service_started": false,
     "source_disks_created_verified": 2
+  },
+  "task9_h4_C_source_pg18_offline_freeze": {
+    "C4_accepted": false,
+    "Task9_accepted": false,
+    "capacity_budget_sha256": "6b7b1cc7697060fb17ecaa145ca2d116f91c38103457868ad84193e7273812db",
+    "capacity_gate_passed": false,
+    "capacity_receipt_sha256": "088da5eb133d098a8e7e0053a85f8d88b5f8eb27707ba0ce7b3beac69fbf7c46",
+    "date": "2026-11-04",
+    "engine_sha256": "d3b938243f60d29fe46baf3a80dbccf0d060618efeaf481ebd44d60122d148ec",
+    "final_media_sealed": false,
+    "guest_available_bytes_by_case": {
+      "S1": 821645312,
+      "S2": 821645312
+    },
+    "guest_pg18_started": false,
+    "migration_elf_sealed": false,
+    "oci_archive_sha256": "82cb6e05ff2195ec47ce5116985c41f059171d9ed1225d61323b9350de3083a1",
+    "oci_sha256": "15719e519d54a8c55348e7ae13f4a9ae2de530b126edf16e363464a356228c92",
+    "pg_start_approved": false,
+    "plan_sha256": "c4993299ce84412b40c6f3ea656efc00097498c91af3d147d0d71beb745a92cf",
+    "qa_sha256": "51ce934a844530b917460219404d425f455d46255c6b2b5af118f77b2bb7fd89",
+    "required_available_floor_bytes": 2147483648,
+    "roadmap_sha256": "ed8fbebe06b4f3f499cb1559a90dcfeeb50ba30b1f8162662c74726dae260c95",
+    "rootfs_change_approved": false,
+    "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN"
   },
   "task9_h4_C_source_pg_fixed_view_plan": {
     "C4_accepted": false,

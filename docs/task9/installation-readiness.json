@@ -504,6 +504,30 @@
     "service_started": false,
     "source_disks_created_verified": 2
   },
+  "current_h4_C_source_pg18_offline_freeze": {
+    "C4_accepted": false,
+    "Task9_accepted": false,
+    "capacity_budget_sha256": "6b7b1cc7697060fb17ecaa145ca2d116f91c38103457868ad84193e7273812db",
+    "capacity_gate_passed": false,
+    "capacity_receipt_sha256": "088da5eb133d098a8e7e0053a85f8d88b5f8eb27707ba0ce7b3beac69fbf7c46",
+    "date": "2026-11-04",
+    "engine_sha256": "d3b938243f60d29fe46baf3a80dbccf0d060618efeaf481ebd44d60122d148ec",
+    "final_media_sealed": false,
+    "guest_available_bytes_by_case": {
+      "S1": 821645312,
+      "S2": 821645312
+    },
+    "guest_pg18_started": false,
+    "migration_elf_sealed": false,
+    "oci_archive_sha256": "82cb6e05ff2195ec47ce5116985c41f059171d9ed1225d61323b9350de3083a1",
+    "oci_sha256": "15719e519d54a8c55348e7ae13f4a9ae2de530b126edf16e363464a356228c92",
+    "pg_start_approved": false,
+    "plan_sha256": "c4993299ce84412b40c6f3ea656efc00097498c91af3d147d0d71beb745a92cf",
+    "qa_sha256": "51ce934a844530b917460219404d425f455d46255c6b2b5af118f77b2bb7fd89",
+    "required_available_floor_bytes": 2147483648,
+    "rootfs_change_approved": false,
+    "scope": "TASK9_C_PG18_OFFLINE_BOOTSTRAP_PLAN_FROZEN_ROOTFS_AND_EXECUTION_GATES_OPEN"
+  },
   "current_h4_C_source_pg_fixed_view_plan": {
     "C4_accepted": false,
     "Task9_accepted": false,
