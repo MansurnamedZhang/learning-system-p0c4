@@ -1,16 +1,29 @@
 # Task9 C 阶段 S1/S2 首次离线引导
 
-2026-11-04。S1 首次启动尝试在 QEMU 打开 QCOW2 时失败并进入 HOLD，guest 尚未引导。S2 原盘保留，未下发。补充 FD 方案通过离线验证，新的 S 批次待审批。此轮是 guest 引导验证，PG18、固定挂载和正式 ELF 仍待后续现场阶段。 [已核验的 S 原盘与工具](h4-c-kvm-host-preparation.md) · [源端 PG18 实施单](h4-c-source-pg-and-fixed-view.md)
+2026-11-04。修订批次在 S 完成 S1 与 S2 的首次离线启动和停机验证。S1 使用新建独立副本，S2 使用原盘。旧 S1 HOLD 的原盘和证据已重新核对。此轮是 guest 引导验证，PG18、固定挂载和正式 ELF 仍待后续现场阶段。 [已核验的 S 原盘与工具](h4-c-kvm-host-preparation.md) · [源端 PG18 实施单](h4-c-source-pg-and-fixed-view.md)
 
-## S1 现场结果
+## 修订批次现场结果
+
+S1 从封存旧盘进行只读完整复制，复制后核对原始哈希、独立 inode 和无 backing。新启动入口把同一根盘的只读及读写描述符加入同一 fdset。S1 获得独立的 guest boot ID、串口通过标记与内核关机记录，QEMU 退出 0。停机和磁盘结构检查通过后才下发 S2，后者通过同样的门。两案均核对实际 QEMU 参数、动态非 root 身份、单一额外 kvm 组、能力集为空、NoNewPrivileges 和私有网络。guest 在仅有 loopback 的条件下从本案 CIDATA 完成 NoCloud 引导，随后正常关机。
+
+| 案例 | S 端结果 SHA-256 | 停机后 QCOW2 SHA-256 |
+| --- | --- | --- |
+| S1 | `bb52d748e63a189b6bfe425b0b7f2c7117be24a28fe8515d3a69f62ea3e0efb6` | `d163a392742b64b19bbf07b56341e72758bf6184289f96483797b4250e14b995` |
+| S2 | `52bd0b986c4464d6a5d8f7a15aab0f481183e572ae630795ed6df8a807f6ae16` | `815409341cecbd4eec33564750a2037c50fc9f0a42c6c76034f2787b820ca92e` |
+
+两块盘均为 32 GiB，单链接且无 backing，结构检查无错误、损坏或泄漏。新 S1 与 S2 都已写入首次开机数据，后续现场步骤须绑定上表所列停机原件。旧 S1 磁盘和 HOLD 回执通过独立回读，两个新 unit 无活动进程。控制器结果 SHA-256 `352af556fd281d25d4b13b6c00bc2e5a274e9a27348b235b568e8ea688af9554`，独立回读 SHA-256 `9eede78feed5dc56aeabca6fdb5cd921db31a8b51c0afe52133ee7d2e1e8f1d8`，批准清单 `5ed4787650b0caddbff5c83241dc58b824426f022ff799a9c71d437b748cd21c`。
+
+下一段为各 guest 的 PG18 一次性引导、Unix socket 和 control 固定挂载，再采集正式 ELF 的实际身份。 [PG18 与固定挂载实施单](h4-c-source-pg-and-fixed-view.md)
+
+## 旧 S1 启动失败及 HOLD
 
 临时 unit 已停止，cgroup 已清空。QEMU 退出 1。串口有宿主 FD 检查通过行，随后报告 `Failed to find file descriptor with matching flags=0x0`。只有 `O_RDWR` 描述符的根盘 fdset 缺少 QEMU 探测所需的 `O_RDONLY` 描述符。S1 原盘仍为 32 GiB QCOW2，哈希、inode 和 `root:root 0600` 均与启动前一致，结构检查通过。S2 目录内只有未改动的原盘。
 
 控制器在 root 已封存结果后，因回传事件与结果共用了 `status` 参数而退出。以上结论来自第二个只读会话核对 root 回执、实际串口、两个 unit 状态及原盘；未重放启动。现场回执 SHA-256 `c486f09007b5b43ba5f5079f66a7d69d1cfb73369a9f71d55f95802c7a481c55`，独立回读 `7676581da7953706d96468b0ab6373a6acb575e5fcb6c4a0455591c07d011028`，控制器结果 `f6e3632ce4728a56ff6e787ab1a64e67e22778d31d072bc260353652f0c303f4`。
 
-## 修正方案与审批差额
+## 修订批次原方案与获批差额
 
-在原 QEMU 10.2.1 二进制的无主板、无 CPU 夹具上，使用签名基底的私有 QCOW2 副本和原只读 CIDATA。只传根盘读写 FD 可复现现场错误。增加同一 inode 的只读 FD 后，32 GiB QCOW2 读写打开和 CIDATA 只读打开均通过，夹具盘结构检查通过。两条修订 unit 完成静态解析，FD 入口通过同 inode 正例、异 inode 和错误访问模式两个拒绝例。现场 guest 和 KVM 启动待验。 [QEMU 的 FD set](https://www.qemu.org/docs/master/system/invocation.html)
+在原 QEMU 10.2.1 二进制的无主板、无 CPU 夹具上，使用签名基底的私有 QCOW2 副本和原只读 CIDATA。只传根盘读写 FD 可复现现场错误。增加同一 inode 的只读 FD 后，32 GiB QCOW2 读写打开和 CIDATA 只读打开均通过，夹具盘结构检查通过。两条修订 unit 完成静态解析，FD 入口通过同 inode 正例、异 inode 和错误访问模式两个拒绝例。现场结果见本页首节。 [QEMU 的 FD set](https://www.qemu.org/docs/master/system/invocation.html)
 
 修订把根盘 `O_RDWR` 和 `O_RDONLY` 分别放在 FD 3、4，归入同一 fdset 1。介质移至 FD 5，仍属 fdset 2。PID 1 在每次任务中只额外打开同一个原件的只读 FD，权限和离线隔离设置保持原范围。入口按实际 dev/inode/长度确认两个根盘 FD 指向同一个文件。
 

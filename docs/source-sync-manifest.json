@@ -17,12 +17,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 62611,
+      "bytes": 62585,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": ".build/knowweave-map.data.mjs",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "cb1a0ac5ba7d2560658063440db3793532a200704056609e582133ebbb444f10",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "d6e70e65d5247a007a1bfb9a3c2d564289542ed1b84aaf5884a7eeeaa4c81bb3",
       "source_bytes_preserved": false
     },
     {
@@ -74,12 +74,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115507,
+      "bytes": 115481,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave实施路线与架构.html",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "5c452183e349e4567e67754425149c315cd96f0b86caf1f607d74c71f6547957",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "29218deead0eea9fadd688f556cf3192e183f52c4d0d9280b74fda507f047ef8",
       "source_bytes_preserved": false
     },
     {
@@ -3847,12 +3847,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47371,
+      "bytes": 47344,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "25bbbe66ff1b03c3ee1f02691febcfb52c3f93bf7e55da0ec305474f13894153",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "cb10304e156e814c7ccd79b113e4ee5f0efc2e1d7045f04c081674c3fbe68876",
       "source_bytes_preserved": false
     },
     {
@@ -4524,12 +4524,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 31413,
+      "bytes": 31652,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/p0c4-task9-readiness.md",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "0ab10af0fb1f303592e5b731eaa50ee9c3ed22c2cebd46fc893683e7dcf5c638",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "6d4596ce0f7257cfe8b54810b540c321a493fc2d36b62ab5202deba31c9d8f04",
       "source_bytes_preserved": false
     },
     {
@@ -4787,30 +4787,30 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 6509,
+      "bytes": 6518,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-kvm-host-preparation.md",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "8fa41bff078a0d3ba23be2b0a38145aa9c8a34ae30f275aaea04e3e20008b707",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "6c8111e9b9954a5f11334eea5f142b95b8400a8af42f54eb76b82a73d728741e",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 9107,
+      "bytes": 10834,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-s1-s2-guest-boot.md",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "06ae689cef69c12e96749ceb2581bc95a65232355f56af1df923a9acb8823bcd",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "b54edc0a0cf77033950a842e97f2a0a2998590703384f1ccfdbf6088b81fba08",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 10423,
+      "bytes": 10472,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-source-pg-and-fixed-view.md",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "4b7c3b0cfcd76137c17c7b7541af6d0452ac301bed4e48d14762943f8fe39ae3",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "fda17f770bc60e00b6ea9ee21a65f9b341a8320022ab1dc8cd107e9067be2cc7",
       "source_bytes_preserved": false
     },
     {
@@ -4841,21 +4841,21 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 34510,
+      "bytes": 34785,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "168a795daf4168cc968ae79774ef1d0e01f7ccea040cf3b3393641e15f8f8ab5",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "c9999bd4933a8a960d0fab084f6d2468a5e289b3e5d7344c4f2d403721bdd259",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 33750,
+      "bytes": 35209,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-readiness.json",
-      "publication_base_commit": "6e2c26b86c606945a5aaafc7dd4aee0090f33dff",
-      "scope": "TASK9_C_S1_FIRST_BOOT_HELD_FDSET_FIX_PREPARED_S2_UNTOUCHED",
-      "sha256": "32d04ba308c7665a7937af6940a21dd55d29a1a20f02d70ce311b646d5d83f3c",
+      "publication_base_commit": "f8dd23a7b724933a77d160be04bc588857d01de9",
+      "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+      "sha256": "f420235036be3b1c08c1bc46238150700d290e032e9387c7557dc10542ab506a",
       "source_bytes_preserved": false
     },
     {
@@ -13884,6 +13884,37 @@
     "systemd_major": 259,
     "transient_nonroot_subject": true,
     "unit_static_verified": 2
+  },
+  "task9_h4_C_source_guest_boot_verified": {
+    "C4_accepted": false,
+    "S1_first_then_S2": true,
+    "Task9_accepted": false,
+    "approval_sha256": "5ed4787650b0caddbff5c83241dc58b824426f022ff799a9c71d437b748cd21c",
+    "cases": {
+      "S1": {
+        "disk_after_sha256": "d163a392742b64b19bbf07b56341e72758bf6184289f96483797b4250e14b995",
+        "root_result_sha256": "bb52d748e63a189b6bfe425b0b7f2c7117be24a28fe8515d3a69f62ea3e0efb6",
+        "serial_sha256": "001967ad58f09143c080cee0cf2806e5d4e57d3daac7993d3dcc4c466558d285",
+        "stop_confirmed": true
+      },
+      "S2": {
+        "disk_after_sha256": "815409341cecbd4eec33564750a2037c50fc9f0a42c6c76034f2787b820ca92e",
+        "root_result_sha256": "52bd0b986c4464d6a5d8f7a15aab0f481183e572ae630795ed6df8a807f6ae16",
+        "serial_sha256": "eae3c3c7e25197e9a7ceac12d85be65a0e6c23d9fde36479ab30c8223506c92a",
+        "stop_confirmed": true
+      }
+    },
+    "date": "2026-11-04",
+    "dispatch_receipt_sha256": "352af556fd281d25d4b13b6c00bc2e5a274e9a27348b235b568e8ea688af9554",
+    "distinct_guest_boot_ids": true,
+    "formal_source_elf_built": false,
+    "guest_count_verified": 2,
+    "guest_pg18_installed": false,
+    "independent_readback_sha256": "9eede78feed5dc56aeabca6fdb5cd921db31a8b51c0afe52133ee7d2e1e8f1d8",
+    "old_S1_hold_verified": true,
+    "roadmap_sha256": "29218deead0eea9fadd688f556cf3192e183f52c4d0d9280b74fda507f047ef8",
+    "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+    "source_fixed_mounts_installed": false
   },
   "task9_h4_C_source_kvm_host_preparation": {
     "C4_accepted": false,

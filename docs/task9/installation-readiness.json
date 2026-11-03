@@ -435,6 +435,36 @@
     "transient_nonroot_subject": true,
     "unit_static_verified": 2
   },
+  "current_h4_C_source_guest_boot_verified": {
+    "C4_accepted": false,
+    "S1_first_then_S2": true,
+    "Task9_accepted": false,
+    "approval_sha256": "5ed4787650b0caddbff5c83241dc58b824426f022ff799a9c71d437b748cd21c",
+    "cases": {
+      "S1": {
+        "disk_after_sha256": "d163a392742b64b19bbf07b56341e72758bf6184289f96483797b4250e14b995",
+        "root_result_sha256": "bb52d748e63a189b6bfe425b0b7f2c7117be24a28fe8515d3a69f62ea3e0efb6",
+        "serial_sha256": "001967ad58f09143c080cee0cf2806e5d4e57d3daac7993d3dcc4c466558d285",
+        "stop_confirmed": true
+      },
+      "S2": {
+        "disk_after_sha256": "815409341cecbd4eec33564750a2037c50fc9f0a42c6c76034f2787b820ca92e",
+        "root_result_sha256": "52bd0b986c4464d6a5d8f7a15aab0f481183e572ae630795ed6df8a807f6ae16",
+        "serial_sha256": "eae3c3c7e25197e9a7ceac12d85be65a0e6c23d9fde36479ab30c8223506c92a",
+        "stop_confirmed": true
+      }
+    },
+    "date": "2026-11-04",
+    "dispatch_receipt_sha256": "352af556fd281d25d4b13b6c00bc2e5a274e9a27348b235b568e8ea688af9554",
+    "distinct_guest_boot_ids": true,
+    "formal_source_elf_built": false,
+    "guest_count_verified": 2,
+    "guest_pg18_installed": false,
+    "independent_readback_sha256": "9eede78feed5dc56aeabca6fdb5cd921db31a8b51c0afe52133ee7d2e1e8f1d8",
+    "old_S1_hold_verified": true,
+    "scope": "TASK9_C_S1_S2_OFFLINE_FIRST_BOOT_AND_STOP_VERIFIED_PG18_PENDING",
+    "source_fixed_mounts_installed": false
+  },
   "current_h4_C_source_kvm_host_preparation": {
     "C4_accepted": false,
     "Task9_accepted": false,

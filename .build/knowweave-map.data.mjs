@@ -1641,16 +1641,16 @@ export const meta = {
   "date": "2026-11-04",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
-  "state": "Task9：S1启动尝试HOLD，FD修复已离线验证",
+  "state": "Task9：S1/S2离线首启与停机通过",
   "progressSummary": "受测CF2候选的25阶段全部退出0：Backup默认450通过/106既有忽略、offhost663/106，DB默认62/24、peer129/26，filtered均0。新20项普通定义逐名通过，按四配置0/14/0/6；跨配置重复正文不相加。源码、资源身份与自然清理原件已独核，默认关闭保持。",
   "progressEvidence": "当前source24282f8a／CODE22bcb1dd／Deltab60dc254；新编译列举原件bcd7005b／raw9638f408，名单4fbf8ff6／OTHER e1c373f1；实际25门结果50212fc5、证据包1fcc9574、原件独核c2ce628c（独审7da793b3）。旧109及新20测试属性/正文原字节保持。",
-  "pendingSummary": "B原批次保留HOLD。S1的QCOW2探测缺少只读FD，已停机留证，S2未下发。双访问模式FD修复已离线验证，现场仍待批准。",
+  "pendingSummary": "B原批次保留HOLD。S1新副本及S2原盘已分别完成离线首启、串口证明和停机盘回读。下一段为PG18和固定挂载。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
   "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "H4现有22路径已实测。C的D端实参ELF已核对，信任、网络、服务启用和真实B1启动链仍待完成。",
-  "roadmapHeadline": "P0-C4 Task9：S1在磁盘打开阶段停止，补充只读FD待现场验证",
+  "roadmapHeadline": "P0-C4 Task9：S1/S2现场离线首启通过，待PG18及固定挂载",
   "taskPlanScope": "原五叶默认关闭代码已完成新CODE、全新13门编译列举、精确四名单冻结和全新25门整库普通回归。两轮Clippy失败分别修复两处冗余表达式及私有函数参数借用组合，原失败/HOLD保留不重放；原37/53现场义务不转为普通测试信用。",
   "nextSteps": [
     [
@@ -1659,7 +1659,7 @@ export const meta = {
     ],
     [
       "完成真实安装与准入条件",
-      "审批新S1副本和双访问模式FD。S1通过并停机后再运行原盘未动的S2，随后另审PG18、固定视图和源端ELF。"
+      "基于两案已核验的停机盘，冻结PG18引导、Unix socket及control固定视图，取得真实身份后构建六份源端ELF。"
     ],
     [
       "继续正式双机验收",
