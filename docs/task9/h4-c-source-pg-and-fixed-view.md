@@ -2,7 +2,7 @@
 
 2026-11-04。S1、S2 已各有 root 私有的宿主案例目录。本次冻结隔离设计、候选配置字节、挂载清单和构建入口。状态为待现场审批与实测。
 
-同日更新已完成 S 私有 QEMU、KVM API 12 查询及两块 32 GiB 磁盘，guest 引导待另审。 [宿主准备及回读](h4-c-kvm-host-preparation.md)
+同日更新已完成 S 私有 QEMU、KVM API 12 查询及两块 32 GiB 磁盘。两份 CIDATA、非 root 临时主体和固定命令已通过离线核验，S1/S2 首次启动待审批。 [引导与权限](h4-c-s1-s2-guest-boot.md)
 
 ## S1 与 S2 的隔离边界
 

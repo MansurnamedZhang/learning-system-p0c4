@@ -1,5 +1,9 @@
 # Task9：真实安装与双机整链验收实施单
 
+## 2026-11-04 · C S1/S2 离线引导准备通过，首次启动待审批
+
+两份 NoCloud ISO、临时 DynamicUser 和 QEMU argv 已冻结。S 只读核对身份与容量，Linux 静态解析两条命令并通过 FD 夹具。现场拟按 S1 成功停机后再运行 S2 的顺序推进。 [引导与权限](h4-c-s1-s2-guest-boot.md)
+
 ## 2026-11-04 · C 宿主私有 QEMU 和两块离线磁盘已核验
 
 S 私有解包 21 项，一次 KVM API 查询返回 12。两块 32 GiB QCOW2 无 backing，原件独立回读一致。下一项为 guest 离线引导介质、运行主体和固定命令。 [宿主执行回执](h4-c-kvm-host-preparation.md)

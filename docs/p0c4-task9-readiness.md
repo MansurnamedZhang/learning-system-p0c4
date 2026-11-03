@@ -1,5 +1,9 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-04 · C 两案离线引导就绪，首次启动待审批
+
+S1/S2 的 CIDATA 介质、临时非 root 主体与固定命令均已通过离线检查。S 本轮只读，guest 和 unit 启动待单独审批。 [首次引导实施单](task9/h4-c-s1-s2-guest-boot.md)
+
 ## 2026-11-04 · C 宿主工具和两块离线盘就绪
 
 S 私有 QEMU、KVM API 12、S1/S2 32 GiB 无 backing QCOW2 已现场执行并独立回读。Guest 离线引导另审。 [现场回执](task9/h4-c-kvm-host-preparation.md)
