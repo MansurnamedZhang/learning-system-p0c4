@@ -413,6 +413,25 @@
     "source_kvm_device_opened": false,
     "verified_packages": 23
   },
+  "current_h4_C_source_kvm_host_preparation_execution": {
+    "C4_accepted": false,
+    "Task9_accepted": false,
+    "approval_manifest_sha256": "c430ba2888bd8e4de91e71dac561e0298494f8ed41d0337879824cee1391b346",
+    "date": "2026-11-04",
+    "disk_backing_files": 0,
+    "disk_virtual_bytes_each": 34359738368,
+    "formal_source_elf_built": false,
+    "guest_booted": false,
+    "independent_readback_sha256": "ec75c0bba2fb9585a20f03ab3d1ab20bb9553d1ff3e8d60d7c7c07cea58f57e4",
+    "kvm_api_queries": 1,
+    "kvm_api_version": 12,
+    "local_execution_index_sha256": "539933a2438f57c5e5d69ac4e63b6c47601054ec14e007dfcd529a48418c031a",
+    "private_payload_packages_verified": 21,
+    "remote_receipt_sha256": "0292d93010d39484d9ff457d353e5883015ee7bde9e85c0d5baecb63bce598c7",
+    "scope": "TASK9_C_S_PRIVATE_KVM_PREP_VERIFIED_GUEST_BOOT_PENDING",
+    "service_started": false,
+    "source_disks_created_verified": 2
+  },
   "current_h4_C_source_pg_fixed_view_plan": {
     "C4_accepted": false,
     "Task9_accepted": false,

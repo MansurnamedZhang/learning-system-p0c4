@@ -1,5 +1,9 @@
 # P0-C4 Task9：独立目标与首签／新发布准备
 
+## 2026-11-04 · C 宿主工具和两块离线盘就绪
+
+S 私有 QEMU、KVM API 12、S1/S2 32 GiB 无 backing QCOW2 已现场执行并独立回读。Guest 离线引导另审。 [现场回执](task9/h4-c-kvm-host-preparation.md)
+
 ## 2026-11-04 · C QEMU/KVM、签名镜像与磁盘清单已冻结
 
 已校验 QEMU 10.2.1 `.3.3`、23 个依赖闭包包和 Canonical 签名 guest 镜像。21 项私有解包及双盘离线流程已本地验证，S 现场待批准。 [审批清单](task9/h4-c-kvm-host-preparation.md)
