@@ -1,11 +1,23 @@
 # Task9 C 源端 PG18 双案首启审批单
 
-2026-11-04。两块已扩容的停机副本、正式 NoCloud 启用介质、宿主启动器及每案命令均已绑定。S 主机只读预检已通过。当前等待独立审批，实际 guest、Docker 和 PG18 运行尚未发生。 [停机扩容回读](h4-c-stopped-disk-growth.md) · [PG18 离线引导](h4-c-pg18-offline-freeze.md)
+2026-11-04。两块已扩容的停机副本、正式 NoCloud 启用介质、宿主启动器及每案命令均已绑定。S 主机只读预检已通过。独立审批后的现场结果记录在下节。 [停机扩容回读](h4-c-stopped-disk-growth.md) · [PG18 离线引导](h4-c-pg18-offline-freeze.md)
 
 | 案例 | 首启前 QCOW2 SHA-256 | 只读启用 ISO SHA-256 |
 | --- | --- | --- |
 | S1 | `0a6650a90a8aab425ca77482c6c25d779570930156b2cd1525869a3dc76a40b3` | `a6ca202848e909db4a0ae69a87cb1582790906e7786ba366c497960355c4b156` |
 | S2 | `b2f8abf1c62d6d80e5bc45c1dae0dcd0e903492bfd21e1de73bc50feda2828cc` | `fe36b0fc9abb1aab7bf8b89c957a50fddbf20769906a5c87b052e1f97a91955a` |
+
+## 2026-11-04 · S1 离线 PG18 首启进入 HOLD，停机已复核
+
+S1 首启未取得完整回执，独立确认已停机。S2 未发送介质，也未启动。 两块原盘和旧 HOLD 的哈希重新核对一致。
+
+宿主内核日志记录该 S1 临时 unit 命中 pids 控制器。运行单设置 `TasksMax=64`，串口记录 `qemu_thread_create` 返回资源暂时不可用，unit 记录进程以 SIGABRT 退出。没有记录到该 unit 的 OOM 或超时。独立回读确认 S1 盘结构无损坏，字节哈希已变化，保留该盘与原回执作为 HOLD。现有证据无法确认 PostgreSQL 已启动或任何首启验收项通过。 [systemd 任务上限](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html#TasksMax=) · [Linux pids 控制器](https://docs.kernel.org/admin-guide/cgroup-v2.html#pid)
+
+拟为新批次准备一块干净的 S1 副本，仅提高新临时 QEMU unit 的任务上限，并采集运行期间的 `pids.current`、`pids.peak` 和 `pids.events`。CPU、内存、设备和网络边界沿用原单。S2 保留已经核验的原始首启前字节，仍等新 S1 通过四项门后才投送。此处是待封存的修正范围。
+
+宿主失败代码 `SYSTEMD_RUN_NONZERO, SERVICE_RESULT_NON_SUCCESS, QEMU_EXIT_NONZERO, NO_VALID_READY_AND_POWEROFF_SEQUENCE`，失败案停机后 QCOW2 SHA-256 `e960766f33eaf60dea13a6d9f7243f61dbaac4c60bc2a28987350216b7448e25`，资源诊断回执 `c89b61881592d0dad1c20e3cb2e22efb69eb92a0594b8d1d3f0b940c04250373`。旧批次保持 HOLD。Task9 双机验收尚未进入。
+
+批准清单 `d3abc266ce0b92584a4d07dc7718f66b0925d7d1d75b7a550e3f589e8e3d937d`，现场执行记录 `260921f5ae0373c1b9865e3abeefdd955d139029119a08b704a0a74467aea34b`，独立回读回执 `4ab343df937eb9162cbb544d9f0f99628ccaaafcbebc296abfdce178c9299103`。
 
 ## 审批范围
 

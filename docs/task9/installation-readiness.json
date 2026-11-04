@@ -307,17 +307,31 @@
     "C4_accepted": false,
     "Task9_accepted": false,
     "activation_media_readback_sha256": "4032ec18eec0d51799f891945510566a5b4f40633f08f29671ac4862ae8caaee",
-    "actual_pg_start_approved": false,
-    "actual_pg_started": false,
+    "actual_pg_start_approved": true,
+    "actual_pg_start_observed": false,
+    "actual_pg_started": null,
     "approval_sha256": "d3abc266ce0b92584a4d07dc7718f66b0925d7d1d75b7a550e3f589e8e3d937d",
     "capacity_gate_at_guest_start_bytes": 2147483648,
     "date": "2026-11-04",
+    "field_readback_passed": false,
+    "field_wire_sha256": "260921f5ae0373c1b9865e3abeefdd955d139029119a08b704a0a74467aea34b",
     "grown_readback_sha256": "3acd7277225823e8ec3e41f75f0c2fad84522b0cc50e44860867b553c1153fff",
-    "guest_started": false,
+    "guest_dispatched": [
+      "S1"
+    ],
+    "guest_started": true,
+    "held_disk_changed": true,
     "host_preflight_sha256": "27aee961fe634e3fe4d63ea0087a2a5a1df53f36c8e43366c9a21d21bdd7294c",
+    "independent_field_readback_sha256": "4ab343df937eb9162cbb544d9f0f99628ccaaafcbebc296abfdce178c9299103",
+    "lane_results": {
+      "S1": "HOLD",
+      "S2": "NOT_DISPATCHED"
+    },
     "launcher_qa_sha256": "6597fb015520831094ddf7f0ad4d34adf6c389d6bbae4b19d07c2ca0808cef83",
     "local_qa_sha256": "722b71b07030bde9e97113c39350d08099e81e89223ec1a31e9391feef431ade",
-    "scope": "TASK9_C_PG18_FIRST_BOOT_ACTIVATION_FROZEN_READONLY_PREFLIGHT_PASSED",
+    "resource_diagnosis_sha256": "c89b61881592d0dad1c20e3cb2e22efb69eb92a0594b8d1d3f0b940c04250373",
+    "resource_failure": "QEMU_CGROUP_TASK_LIMIT",
+    "scope": "TASK9_C_PG18_FIELD_BATCH_HOLD_INDEPENDENT_STOP_READBACK_VERIFIED",
     "source_binding_write_authorized": false
   },
   "current_h4_C_readonly_preflight": {
