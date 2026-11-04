@@ -17,12 +17,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 62612,
+      "bytes": 62585,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": ".build/knowweave-map.data.mjs",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "381707c9cad2714a3ba8d2f5fbcf530cb276865f5a4e70aa31393e3a9050aaf1",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "3992d3d512b84bd4a4c193967868406c82a3393c3606f4fc7fba3247280e9e95",
       "source_bytes_preserved": false
     },
     {
@@ -74,12 +74,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115508,
+      "bytes": 115481,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave实施路线与架构.html",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "fedfaede7369e1e25c538033167a846ded5ded037e85b0a77b0b429d75fbdd84",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "55a70150a89f554bcba6ba73b7a26deec98e347a643abb162715e75fde483792",
       "source_bytes_preserved": false
     },
     {
@@ -3847,12 +3847,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47397,
+      "bytes": 47363,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "4541455f32742bdc38dd6e73a3511c3a2efd00a0cebf1e658c5094465108a293",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "87b6d04271201539e431e08c2542146abdf5bad8e90582a2ae60b865c0729643",
       "source_bytes_preserved": false
     },
     {
@@ -4524,12 +4524,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 32161,
+      "bytes": 32405,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/p0c4-task9-readiness.md",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "7c105545f10ca97ca44250c6516f6d9982885eec5489f2ad54b026a5a0ed108d",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "9fba34028b1e7b98b1a6e5038a93aa4fa2ea93736500f92254e1aeeae05ad78e",
       "source_bytes_preserved": false
     },
     {
@@ -4796,12 +4796,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 7276,
+      "bytes": 7330,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-pg18-offline-freeze.md",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "2faedae62895855c75511187554641ff6cbf06d0b3b1f44713774b4781a7a903",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "2db2c5ded81f2855121bc74fc476b0e3e321a7f20fcd95cbb9fd3688c6b4a690",
       "source_bytes_preserved": false
     },
     {
@@ -4823,12 +4823,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 5141,
+      "bytes": 6420,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-stopped-disk-growth.md",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "a8e771244c440a776a70cfee9e7f04b5403198fa511576a1c2e254942a0abbe9",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "7eaabc8440231e530f50d07f1f952f08559eafdc4cbf10b3901bfb8b8bde816b",
       "source_bytes_preserved": false
     },
     {
@@ -4859,21 +4859,21 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 35328,
+      "bytes": 35554,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "ef1354de1c4effa1047ca65fb0434d7afb161baa93d29128c61cc7ac590bbd80",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "0481d05bcd8672fb277e25332cae6da555df6c8dca0bfb7c2e87995bfd69c220",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 37920,
+      "bytes": 38521,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-readiness.json",
-      "publication_base_commit": "6894741208b0b8c4603c0a4269b8b5075af9889f",
-      "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING",
-      "sha256": "1b4c95dc90dfb41b97428cbb7618c6766c84c44a4193b91496c0cee2fe3ff5b8",
+      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
+      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
+      "sha256": "642ce9565b9a40cf50be21b5501818703a6a581c940acb6de4bd2af861b24d38",
       "source_bytes_preserved": false
     },
     {
@@ -14025,14 +14025,19 @@
     "C4_accepted": false,
     "Task9_accepted": false,
     "activation_media_sealed": false,
-    "actual_growth_approved": false,
-    "actual_growth_performed": false,
+    "actual_growth_approved": true,
+    "actual_growth_performed": true,
     "actual_pg_start_approved": false,
+    "batch_status": "HOLD",
     "capacity_gate_passed": false,
     "date": "2026-11-04",
+    "extent_regression_sha256": "328096a5bc3366a53174964d3040d7b0605df69298b830bc674ba536806e9a8b",
+    "growth_batch_accepted": false,
     "growth_controller_qa_sha256": "c4e9d3e1d9b74eb6682a12762d5a695e386b715fae463bff7414f36f457066e5",
     "growth_plan_sha256": "0493fa8d4e20b5f2ad4570e2f6cb359b49a83b5efbb84a1d1c49d579e1ec3d17",
     "growth_qa_sha256": "d1a2f206678fba75a03368e383ed5173395ca0ad55392b5da50374eded6e2313",
+    "hold_readback_sha256": "a4e0a74f2a3dfaa8dcbf8c9e7c0856ee7c7c93bad5cd9d43910357e4271abbc1",
+    "hold_wire_sha256": "a3fb79bf90055248e5ed6053a8ac2a9f1706501279e74b1812e871de721075e0",
     "migrator_receipt_sha256": "005e611db9ff5c86f905014ce87a7159734b0e9ef64f34cc475dec84bd0d19b8",
     "migrator_sha256": "114dbf837df88e93ad229b5db76b0f86fe849b8bf280cec26d8eff4fd8e4448d",
     "nonfield_fixture_available_bytes": 4472033280,
@@ -14047,9 +14052,14 @@
       "S2": "0e0d889c1bac99e7f681198c7fc9da0c9addbe0c53699966d515404d58ead65b"
     },
     "required_available_bytes_each": 2147483648,
-    "roadmap_sha256": "fedfaede7369e1e25c538033167a846ded5ded037e85b0a77b0b429d75fbdd84",
+    "revised_plan_sha256": "e5e9e8ed64cc504e4eb55b5f15a878923d9194c782056922c534d66e24c4d47b",
+    "revised_scope_approved": false,
+    "roadmap_sha256": "55a70150a89f554bcba6ba73b7a26deec98e347a643abb162715e75fde483792",
     "rootfs_target_bytes": 6442450944,
-    "scope": "TASK9_C_S1_S2_GROWTH_FROZEN_PG18_ARTIFACTS_VERIFIED_FIELD_APPROVAL_PENDING"
+    "s1_candidate_available_bytes": 4461035520,
+    "s1_candidate_readback_passed": true,
+    "s2_started": false,
+    "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN"
   },
   "task9_h4_field_read_only_preflight": {
     "C4_accepted": false,
