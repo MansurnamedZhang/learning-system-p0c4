@@ -1,11 +1,26 @@
 # Task9 C 源端 PG18 双案首启审批单
 
-2026-11-04。两块已扩容的停机副本、正式 NoCloud 启用介质、宿主启动器及每案命令均已绑定。S 主机只读预检已通过。独立审批后的现场结果记录在下节。 [停机扩容回读](h4-c-stopped-disk-growth.md) · [PG18 离线引导](h4-c-pg18-offline-freeze.md)
+2026-11-04。两块已扩容的停机副本、正式 NoCloud 启用介质、宿主启动器及每案命令均已绑定。S 主机只读预检已通过。修正版待审批，历史现场结果在后文。 [停机扩容回读](h4-c-stopped-disk-growth.md) · [PG18 离线引导](h4-c-pg18-offline-freeze.md)
 
 | 案例 | 首启前 QCOW2 SHA-256 | 只读启用 ISO SHA-256 |
 | --- | --- | --- |
 | S1 | `0a6650a90a8aab425ca77482c6c25d779570930156b2cd1525869a3dc76a40b3` | `a6ca202848e909db4a0ae69a87cb1582790906e7786ba366c497960355c4b156` |
 | S2 | `b2f8abf1c62d6d80e5bc45c1dae0dcd0e903492bfd21e1de73bc50feda2828cc` | `fe36b0fc9abb1aab7bf8b89c957a50fddbf20769906a5c87b052e1f97a91955a` |
+
+## 2026-11-04 · 干净 S1 与 QEMU 任务上限修正版
+
+干净 S1 从未参与 PG18 首启的只读原盘重新扩容得到。6 GiB 根文件系统的停机可用空间为 `4461035520` 字节。S2 保留原首启前字节。上一批 S1 运行后副本、串口和回执留在原 HOLD。修正版的启用介质已逐字节回读，S 主机预检也已确认新盘和旧证据。实际重跑等待独立审批。
+
+| 案例 | 干净首启前 QCOW2 SHA-256 | 新只读启用 ISO SHA-256 |
+| --- | --- | --- |
+| S1 | `9fb6249f5098e64d7f65f2323135416af4cf9a2fb9457de42f72b823b93815bb` | `848bce4239e0bc7aa6e9ea92e48763a6abdd390bfdd5af88014c9942ad47d1c2` |
+| S2 | `b2f8abf1c62d6d80e5bc45c1dae0dcd0e903492bfd21e1de73bc50feda2828cc` | `265ea0ed5622124eee1a7cdb35e0fa19e9422908e81e65c4d675898633b9cf35` |
+
+- 仅对新批次的两个临时 QEMU unit 设置 `TasksMax=128`。原来 64 的上限与 QEMU 单个事件循环线程池的默认最大线程数相同。新上限为 vCPU 和其他 QEMU 线程留出空间，现场以峰值和触限记录检验。CPU、内存、KVM 设备、网络隔离和单案 900 秒保持原范围。 [QEMU 线程池参数](https://www.qemu.org/docs/master/interop/qemu-qmp-ref.html) · [systemd 任务上限](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html#TasksMax=)
+- 宿主先核对 QEMU 进程与 unit InvocationID，再在既有监控轮询中读取本 unit 的 `pids.max`、`pids.current`、`pids.peak` 和 `pids.events`。保存第一与最后一次样本、读取到的内核峰值、触限计数和采样次数，关机后再按本 unit 核对内核日志。峰值是最后可读样本之前的内核累计峰值。没有有效采样、峰值达到上限、事件计数非零或出现本 unit 的内核拒绝，均进入 HOLD。 [Linux pids 控制器](https://docs.kernel.org/admin-guide/cgroup-v2.html#pid)
+- 先执行 S1。容量、迁移、权限、停机和任务计数证据全部通过后，控制器才发送 S2 介质。原批次 HOLD 仍按既有回执只读复核。
+
+干净盘回执 `9f3367d275de3ba50be54afad79fc061a62ac99ec87b001ded95326b485b954c`，两份 ISO 回执 `39b86ccda55534fcaa51c6fb917985a490ba73f30ea05b9d774bdc40118c08ac`，本地用例回执 `9491979165376a18fdfdd748cc9c380649f03fbce2ea4675d47f17e71ebd473c`，启动器静态回执 `5ba47839e04c26205b3b33cc59542f213f50b695c71d242bbd2cff109185e704`，S 只读预检回执 `1ecc22dfb183cc0fd1b1333a6b5e828f99519c41d3da9e8e1bdbd02d378b675a`，修正版审批清单 `89f4dec205ca7e9bf99ed31c0ef2bad2ca8a0779e16d924b14d78f45e2952863`。六个计数解析和五个通过条件用例均已通过。运行中的线程峰值和实际 PG18 结果需由获批重跑产生。
 
 ## 2026-11-04 · S1 离线 PG18 首启进入 HOLD，停机已复核
 

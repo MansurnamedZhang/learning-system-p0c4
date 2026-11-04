@@ -334,6 +334,24 @@
     "scope": "TASK9_C_PG18_FIELD_BATCH_HOLD_INDEPENDENT_STOP_READBACK_VERIFIED",
     "source_binding_write_authorized": false
   },
+  "current_h4_C_pg18_resource_revision": {
+    "C4_accepted": false,
+    "Task9_accepted": false,
+    "activation_media_readback_sha256": "39b86ccda55534fcaa51c6fb917985a490ba73f30ea05b9d774bdc40118c08ac",
+    "actual_pg_start_approved": false,
+    "actual_pg_started": false,
+    "approval_sha256": "89f4dec205ca7e9bf99ed31c0ef2bad2ca8a0779e16d924b14d78f45e2952863",
+    "clean_s1_readback_sha256": "9f3367d275de3ba50be54afad79fc061a62ac99ec87b001ded95326b485b954c",
+    "date": "2026-11-04",
+    "guest_started": false,
+    "host_preflight_sha256": "1ecc22dfb183cc0fd1b1333a6b5e828f99519c41d3da9e8e1bdbd02d378b675a",
+    "launcher_qa_sha256": "5ba47839e04c26205b3b33cc59542f213f50b695c71d242bbd2cff109185e704",
+    "local_qa_sha256": "9491979165376a18fdfdd748cc9c380649f03fbce2ea4675d47f17e71ebd473c",
+    "old_pg_hold_retained": true,
+    "pids_observer_sha256": "996584440d02aa088448ce6885bfb85e9310d492efffeab60fdadb09d1ab6a1e",
+    "scope": "TASK9_C_PG18_CLEAN_S1_RESOURCE_REVISION_FROZEN_PREFLIGHT_PASSED",
+    "tasks_max": 128
+  },
   "current_h4_C_readonly_preflight": {
     "C4_accepted": false,
     "C_identity_approved": false,

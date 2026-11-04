@@ -33,7 +33,7 @@
 | PG `999:999` | `/var/lib/postgresql/18/docker` 为 `0700`，配置文件 `0600`，本案 socket 卷目录及 socket `0700`。容器根文件系统只读，初始化器独用有上限的临时 `/tmp`。 |
 | 未来 binding 写入者 | 仅 guest root。source 卷的 `control` 为 `root:root 0700`，真实绑定文件 `0600`、单链接、独占创建并回读。 |
 
-修正版两案独立回读通过，均达到 2 GiB 停机容量门。迁移 ELF 与 NoCloud 准备介质已核验。S1 首启未取得完整回执，独立确认已停机。S2 未发送介质，也未启动。 保留原批次证据，按诊断准备修正范围和新的审批清单。 [扩容及介质运行单](h4-c-stopped-disk-growth.md) · [首启审批单](h4-c-pg18-first-boot.md)
+修正版两案独立回读通过，均达到 2 GiB 停机容量门。迁移 ELF 与 NoCloud 准备介质已核验。S1 首启未取得完整回执，独立确认已停机。S2 未发送介质，也未启动。 干净 S1 和 `TasksMax=128` 修正版已封存，S 只读预检通过，实际重跑等待审批。 [扩容及介质运行单](h4-c-stopped-disk-growth.md) · [首启审批单](h4-c-pg18-first-boot.md)
 
 审批材料须包含实际迁移 ELF 和两份最终介质的哈希、精确启动和停机指令。HOLD、镜像或别名身份漂移、peer 拒绝门失败时保留证据并停止后续案。
 
