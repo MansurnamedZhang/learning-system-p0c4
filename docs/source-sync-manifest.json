@@ -17,12 +17,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 62585,
+      "bytes": 62553,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": ".build/knowweave-map.data.mjs",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "3992d3d512b84bd4a4c193967868406c82a3393c3606f4fc7fba3247280e9e95",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "02bb018e003544707b53768c5588241ee97599729c2f740566b8616c4ca24360",
       "source_bytes_preserved": false
     },
     {
@@ -74,12 +74,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 115481,
+      "bytes": 115449,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave实施路线与架构.html",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "55a70150a89f554bcba6ba73b7a26deec98e347a643abb162715e75fde483792",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "b12edb165b143cdc4b271fca50a7bd36cd8337f2113ae19bf29765fd3505f60e",
       "source_bytes_preserved": false
     },
     {
@@ -3847,12 +3847,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 47363,
+      "bytes": 47317,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/KnowWeave实施路线与系统架构.md",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "87b6d04271201539e431e08c2542146abdf5bad8e90582a2ae60b865c0729643",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "9d2e836666922d2eea0f3b2ffd4c499b534868b1f1f04aad484c2aefd9117ebb",
       "source_bytes_preserved": false
     },
     {
@@ -4524,12 +4524,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 32405,
+      "bytes": 32620,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/p0c4-task9-readiness.md",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "9fba34028b1e7b98b1a6e5038a93aa4fa2ea93736500f92254e1aeeae05ad78e",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "53168e596d82e0ccb71784c26f90c656ca7c8d130c94d524f259f17a264f8f66",
       "source_bytes_preserved": false
     },
     {
@@ -4796,12 +4796,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 7330,
+      "bytes": 7325,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-pg18-offline-freeze.md",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "2db2c5ded81f2855121bc74fc476b0e3e321a7f20fcd95cbb9fd3688c6b4a690",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "7d525c945cd03ec432713ca114ea74566e3c3f32a3ca2242193cbb3b2a6090d5",
       "source_bytes_preserved": false
     },
     {
@@ -4823,12 +4823,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 6420,
+      "bytes": 7447,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/h4-c-stopped-disk-growth.md",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "7eaabc8440231e530f50d07f1f952f08559eafdc4cbf10b3901bfb8b8bde816b",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "e6e00507656f5cd9c947c873623a87958efe8abca02d37cd0fecf5e6b59cf403",
       "source_bytes_preserved": false
     },
     {
@@ -4859,21 +4859,21 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 35554,
+      "bytes": 35778,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-and-two-host-acceptance-plan.md",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "0481d05bcd8672fb277e25332cae6da555df6c8dca0bfb7c2e87995bfd69c220",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "1a5b51d1069bdb57e7ce5b14de1f9b1aca12efb361c9373e349577eb8dcd2851",
       "source_bytes_preserved": false
     },
     {
-      "bytes": 38521,
+      "bytes": 39057,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/task9/installation-readiness.json",
-      "publication_base_commit": "e235f3a8f059fd768b03c4ab96946ed2d1936f66",
-      "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN",
-      "sha256": "642ce9565b9a40cf50be21b5501818703a6a581c940acb6de4bd2af861b24d38",
+      "publication_base_commit": "8a17c0cc9ec36623d6245a97ce211aa4f01ef402",
+      "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING",
+      "sha256": "d35df3e8f08bd042b8e224a511d3cba28bb55d6da99c126ec2617d26ef6bad11",
       "source_bytes_preserved": false
     },
     {
@@ -14028,16 +14028,25 @@
     "actual_growth_approved": true,
     "actual_growth_performed": true,
     "actual_pg_start_approved": false,
-    "batch_status": "HOLD",
-    "capacity_gate_passed": false,
+    "batch_status": "VERIFIED_STOPPED",
+    "capacity_gate_passed": true,
     "date": "2026-11-04",
     "extent_regression_sha256": "328096a5bc3366a53174964d3040d7b0605df69298b830bc674ba536806e9a8b",
-    "growth_batch_accepted": false,
+    "grown_copy_sha256": {
+      "S1": "0a6650a90a8aab425ca77482c6c25d779570930156b2cd1525869a3dc76a40b3",
+      "S2": "b2f8abf1c62d6d80e5bc45c1dae0dcd0e903492bfd21e1de73bc50feda2828cc"
+    },
+    "growth_batch_accepted": true,
     "growth_controller_qa_sha256": "c4e9d3e1d9b74eb6682a12762d5a695e386b715fae463bff7414f36f457066e5",
     "growth_plan_sha256": "0493fa8d4e20b5f2ad4570e2f6cb359b49a83b5efbb84a1d1c49d579e1ec3d17",
     "growth_qa_sha256": "d1a2f206678fba75a03368e383ed5173395ca0ad55392b5da50374eded6e2313",
     "hold_readback_sha256": "a4e0a74f2a3dfaa8dcbf8c9e7c0856ee7c7c93bad5cd9d43910357e4271abbc1",
     "hold_wire_sha256": "a3fb79bf90055248e5ed6053a8ac2a9f1706501279e74b1812e871de721075e0",
+    "independent_readback_sha256": "3acd7277225823e8ec3e41f75f0c2fad84522b0cc50e44860867b553c1153fff",
+    "measured_grown_available_bytes": {
+      "S1": 4461035520,
+      "S2": 4461035520
+    },
     "migrator_receipt_sha256": "005e611db9ff5c86f905014ce87a7159734b0e9ef64f34cc475dec84bd0d19b8",
     "migrator_sha256": "114dbf837df88e93ad229b5db76b0f86fe849b8bf280cec26d8eff4fd8e4448d",
     "nonfield_fixture_available_bytes": 4472033280,
@@ -14051,15 +14060,17 @@
       "S1": "dd6799c0975ee3e36c32a5e79105e9e5289af7c7ea66c4e6b81d687859d236dc",
       "S2": "0e0d889c1bac99e7f681198c7fc9da0c9addbe0c53699966d515404d58ead65b"
     },
+    "prior_growth_hold_retained": true,
     "required_available_bytes_each": 2147483648,
     "revised_plan_sha256": "e5e9e8ed64cc504e4eb55b5f15a878923d9194c782056922c534d66e24c4d47b",
-    "revised_scope_approved": false,
-    "roadmap_sha256": "55a70150a89f554bcba6ba73b7a26deec98e347a643abb162715e75fde483792",
+    "revised_result_sha256": "c259bec630d98a2b5f8ea3ca1a66aff3fff5c3da23620c3469811ca147f64b47",
+    "revised_scope_approved": true,
+    "roadmap_sha256": "b12edb165b143cdc4b271fca50a7bd36cd8337f2113ae19bf29765fd3505f60e",
     "rootfs_target_bytes": 6442450944,
     "s1_candidate_available_bytes": 4461035520,
     "s1_candidate_readback_passed": true,
-    "s2_started": false,
-    "scope": "TASK9_C_S1_COPY_READBACK_PASSED_BATCH_HOLD_S2_NOT_STARTED_REVISED_SCOPE_FROZEN"
+    "s2_started": true,
+    "scope": "TASK9_C_BOTH_STOPPED_GROWTH_COPIES_INDEPENDENTLY_VERIFIED_PG_FIRST_BOOT_PENDING"
   },
   "task9_h4_field_read_only_preflight": {
     "C4_accepted": false,
