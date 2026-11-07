@@ -174,15 +174,45 @@ pub(crate) async fn seed(config: SeedConfig) -> Result<Fixture> {
                         "先检查掩码再看输出，避免把未来信息带入当前 token。\n\n实验字面量 <strong>原样显示</strong>",
                         Intent::Note,
                     )],
-                    target: InsertTarget::NewGroup { anchor },
+                    target: InsertTarget::NewGroup {
+                        anchor: anchor.clone(),
+                    },
                 },
                 reason: "synthetic private overlay".into(),
             },
         )
         .await?;
-    sqlx::query("GRANT SELECT ON ALL TABLES IN SCHEMA public TO kw_preview_reader")
-        .execute(&admin)
+    let layer = reading
+        .state(owner, saved.overlay.overlay_id)
+        .await?
+        .and_then(|state| state.editable)
+        .ok_or("synthetic note layer is not editable")?;
+    let note_group = match layer.groups.as_slice() {
+        [group] if group.location.placed() && group.location.anchor() == &anchor => group.group_id,
+        _ => return Err("synthetic note group does not match its fixed gap".into()),
+    };
+
+    // The appender receives the writes for one V1 InsertNew transaction and
+    // its immutable receipt. Access to grants stays behind lock_space_grant.
+    let mut grants = admin.begin().await?;
+    sqlx::raw_sql(
+        "GRANT SELECT ON ALL TABLES IN SCHEMA public TO kw_preview_reader, kw_preview_writer;
+         GRANT INSERT ON public.block, public.block_revision, public.reference_object,
+             public.overlay_revision, public.overlay_group_identity, public.overlay_group,
+             public.overlay_placement_identity, public.overlay_placement, public.reading_view_revision,
+             public.request_key, public.reading_receipt, public.reading_receipt_block TO kw_preview_writer;
+         GRANT UPDATE (head_revision_id) ON public.overlay, public.reading_view TO kw_preview_writer;
+         GRANT EXECUTE ON FUNCTION public.b3_shape(jsonb,text[],text[]),
+             public.b3_check_object(text,uuid,uuid), public.b3_expected_dependencies(text,uuid,uuid),
+             public.b3_content_dependencies(integer,jsonb), public.p0c_legacy_content_dependencies(integer,jsonb),
+             public.p0c_check_block_asset_use(uuid,uuid,uuid), public.b3_check_reading_evidence(uuid)
+             TO kw_preview_writer;
+         SET LOCAL ROLE learning_auth_lock;
+         GRANT EXECUTE ON FUNCTION public.lock_space_grant(uuid,uuid) TO kw_preview_writer;",
+    )
+    .execute(&mut *grants)
         .await?;
+    grants.commit().await?;
     runtime.close().await;
     admin.close().await;
     Ok(Fixture {
@@ -191,5 +221,11 @@ pub(crate) async fn seed(config: SeedConfig) -> Result<Fixture> {
         source_space,
         personal_space,
         reading: saved.view,
+        overlay: saved.overlay,
+        note_group,
     })
+}
+
+pub(crate) fn preview_note(text: &str) -> TextDraft {
+    draft("我的笔记", text, Intent::Note)
 }

@@ -1,4 +1,4 @@
-use crate::{DOCUMENT_TITLE, Fixture, Result};
+use crate::{DOCUMENT_TITLE, Fixture, Result, fixture::preview_note};
 use axum::{
     Json, Router,
     extract::{
@@ -11,7 +11,8 @@ use axum::{
     routing::{get, post},
 };
 use learning_core::{
-    BlockRef, CompositionRef, ContentDraft, ContentRevision, Principal, ReadingMode, ReadingRef,
+    BlockRef, CompositionRef, ContentDraft, ContentError, ContentRevision, EditReading,
+    InsertTarget, PlacementOrder, Principal, ReadingEdit, ReadingMode, ReadingRef,
     SourceProjection, VersionedReadingItem, VersionedReadingProjection,
 };
 use learning_db::ReadingStore;
@@ -27,6 +28,7 @@ use uuid::Uuid;
 
 const COOKIE_NAME: &str = "kw_reading_preview";
 const SESSION_SECONDS: u64 = 1_800;
+const NOTE_MAX_BYTES: usize = 4_000;
 
 struct Session {
     actor: Uuid,
@@ -40,7 +42,8 @@ struct App {
     owner_code: String,
     visitor_code: String,
     sessions: Mutex<HashMap<Uuid, Session>>,
-    store: ReadingStore,
+    reader: PgPool,
+    writer: ReadingStore,
 }
 
 #[derive(Deserialize)]
@@ -53,6 +56,22 @@ struct SignIn {
 #[serde(deny_unknown_fields)]
 struct ReadingQuery {
     mode: ReadingMode,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NoteBase {
+    overlay_revision: Uuid,
+    reading_revision: Uuid,
+    after_placement: Uuid,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveNote {
+    request_id: Uuid,
+    base: NoteBase,
+    text: String,
 }
 
 #[derive(Serialize)]
@@ -78,6 +97,7 @@ struct Reading {
     source: Option<CompositionRef>,
     entries: Vec<Entry>,
     unplaced: Vec<Entry>,
+    note_base: Option<NoteBase>,
 }
 
 fn text(revision: ContentRevision) -> Result<(String, String)> {
@@ -92,7 +112,11 @@ fn personal(revision: ContentRevision) -> Result<Entry> {
     Ok(Entry::Personal { title, text })
 }
 
-fn reading_dto(projected: VersionedReadingProjection, mode: ReadingMode) -> Result<Reading> {
+fn reading_dto(
+    projected: VersionedReadingProjection,
+    mode: ReadingMode,
+    note_base: Option<NoteBase>,
+) -> Result<Reading> {
     let source = match projected.source {
         SourceProjection::Available { base } => Some(base),
         SourceProjection::Unavailable => None,
@@ -133,6 +157,7 @@ fn reading_dto(projected: VersionedReadingProjection, mode: ReadingMode) -> Resu
         source,
         entries,
         unplaced,
+        note_base,
     })
 }
 
@@ -153,6 +178,15 @@ fn session_id(headers: &HeaderMap) -> Option<Uuid> {
         return None;
     }
     Uuid::parse_str(token).ok()
+}
+
+fn principal(app: &App, headers: &HeaderMap) -> Option<Principal> {
+    let token = session_id(headers)?;
+    let sessions = app.sessions.lock().ok()?;
+    let session = sessions.get(&token)?;
+    (session.expires > Instant::now()).then_some(Principal {
+        actor_id: session.actor,
+    })
 }
 
 fn cookie(token: &str, seconds: u64) -> HeaderValue {
@@ -260,35 +294,128 @@ async fn read(
     headers: HeaderMap,
     query: std::result::Result<Query<ReadingQuery>, QueryRejection>,
 ) -> Response {
-    let actor = session_id(&headers).and_then(|token| {
-        let sessions = app.sessions.lock().ok()?;
-        let session = sessions.get(&token)?;
-        (session.expires > Instant::now()).then_some(Principal {
-            actor_id: session.actor,
-        })
-    });
-    let Some(actor) = actor else {
+    let Some(actor) = principal(&app, &headers) else {
         return error(StatusCode::UNAUTHORIZED, "sign_in_required");
     };
     let Ok(Query(ReadingQuery { mode })) = query else {
         return error(StatusCode::BAD_REQUEST, "invalid_request");
     };
-    let result = app
-        .store
-        .read_versioned(actor, app.fixture.reading.clone(), mode)
-        .await;
-    match result {
-        Ok(Some(projection)) => match reading_dto(projection, mode) {
-            Ok(reading) => Json(reading).into_response(),
-            Err(_) => error(StatusCode::SERVICE_UNAVAILABLE, "reading_unavailable"),
-        },
+    match load_reading(&app, actor, mode).await {
+        Ok(Some(reading)) => Json(reading).into_response(),
         Ok(None) => error(StatusCode::NOT_FOUND, "not_found"),
         Err(_) => error(StatusCode::SERVICE_UNAVAILABLE, "reading_unavailable"),
     }
 }
 
+async fn load_reading(app: &App, actor: Principal, mode: ReadingMode) -> Result<Option<Reading>> {
+    let store = ReadingStore::new(app.reader.clone());
+    let Some(state) = store.state(actor, app.fixture.overlay.overlay_id).await? else {
+        return Ok(None);
+    };
+    if state.view.view_id != app.fixture.reading.view_id {
+        return Err("unexpected preview reading identity".into());
+    }
+    let Some(projection) = store
+        .read_versioned(actor, state.view.clone(), mode)
+        .await?
+    else {
+        return Ok(None);
+    };
+    let mut note_base = None;
+    if let SourceProjection::Available { base } = &projection.source
+        && let Some(layer) = state.editable
+        && let Some(group) = layer.groups.iter().find(|group| {
+            group.group_id == app.fixture.note_group
+                && group.location.placed()
+                && &group.location.anchor().base == base
+        })
+        && let Some(last) = group.placements.last()
+    {
+        let can_write: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM public.space_grant
+                WHERE actor_id = $1 AND space_id = $2 AND can_write)",
+        )
+        .bind(actor.actor_id)
+        .bind(app.fixture.personal_space)
+        .fetch_one(&app.reader)
+        .await?;
+        if can_write {
+            note_base = Some(NoteBase {
+                overlay_revision: state.overlay.revision_id,
+                reading_revision: state.view.revision_id,
+                after_placement: last.placement_id,
+            });
+        }
+    }
+    reading_dto(projection, mode, note_base).map(Some)
+}
+
+async fn save_note(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    body: std::result::Result<Json<SaveNote>, JsonRejection>,
+) -> Response {
+    let Some(actor) = principal(&app, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "sign_in_required");
+    };
+    if actor.actor_id != app.fixture.owner {
+        return error(StatusCode::NOT_FOUND, "not_found");
+    }
+    let Ok(Json(SaveNote {
+        request_id,
+        base,
+        text,
+    })) = body
+    else {
+        return error(StatusCode::BAD_REQUEST, "invalid_request");
+    };
+    if request_id.is_nil()
+        || text.trim().is_empty()
+        || text.len() > NOTE_MAX_BYTES
+        || text.contains('\0')
+    {
+        return error(StatusCode::BAD_REQUEST, "invalid_request");
+    }
+    let command = EditReading {
+        request_id,
+        expected_overlay_revision: base.overlay_revision,
+        expected_reading_view_revision: base.reading_revision,
+        edit: ReadingEdit::InsertNew {
+            drafts: vec![preview_note(&text)],
+            target: InsertTarget::ExistingGroup {
+                group_id: app.fixture.note_group,
+                order: PlacementOrder {
+                    left_placement_id: Some(base.after_placement),
+                    right_placement_id: None,
+                },
+            },
+        },
+        reason: "synthetic preview note".into(),
+    };
+    // Send the submitted base to the store unchanged. It checks the receipt
+    // before the current heads so a lost response can be replayed after a save.
+    match app
+        .writer
+        .edit(actor, app.fixture.overlay.overlay_id, command)
+        .await
+    {
+        Ok(saved) => Json(serde_json::json!({
+            "request_id": request_id, "revision_id": saved.view.revision_id,
+        }))
+        .into_response(),
+        Err(ContentError::ReadingConflict { .. }) => error(StatusCode::CONFLICT, "stale_revision"),
+        Err(ContentError::IdempotencyConflict) => {
+            error(StatusCode::CONFLICT, "request_id_conflict")
+        }
+        Err(ContentError::NotFound) => error(StatusCode::NOT_FOUND, "not_found"),
+        Err(ContentError::Invalid(_)) => error(StatusCode::BAD_REQUEST, "invalid_request"),
+        Err(_) => error(StatusCode::SERVICE_UNAVAILABLE, "save_unavailable"),
+    }
+}
+
 pub(crate) fn router(
-    pool: PgPool,
+    reader: PgPool,
+    writer: PgPool,
     fixture: Fixture,
     owner_code: String,
     visitor_code: String,
@@ -309,7 +436,8 @@ pub(crate) fn router(
         owner_code,
         visitor_code,
         sessions: Mutex::default(),
-        store: ReadingStore::new(pool),
+        reader,
+        writer: ReadingStore::new(writer),
     });
     Ok(Router::new()
         .route(
@@ -334,10 +462,18 @@ pub(crate) fn router(
                 )
             }),
         )
-        .route("/api/session", post(sign_in).delete(sign_out))
+        .route(
+            "/api/session",
+            post(sign_in)
+                .delete(sign_out)
+                .layer(DefaultBodyLimit::max(256)),
+        )
         .route("/api/reading", get(read))
+        .route(
+            "/api/notes",
+            post(save_note).layer(DefaultBodyLimit::max(32 * 1024)),
+        )
         .fallback(|| async { error(StatusCode::NOT_FOUND, "not_found") })
-        .layer(DefaultBodyLimit::max(256))
         .layer(middleware::from_fn_with_state(state.clone(), boundary))
         .with_state(state))
 }

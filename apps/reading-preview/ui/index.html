@@ -10,7 +10,7 @@
 <body>
   <header class="masthead">
     <a class="brand" href="/" aria-label="知织阅读工作台"><span class="mark" aria-hidden="true">织</span>知织<span class="wordmark">KNOWWEAVE</span></a>
-    <span class="lab">合成数据 · 只读预览</span>
+    <span class="lab">合成数据 · 阅读与笔记</span>
   </header>
   <main>
     <section id="login" class="sign-in" hidden>
@@ -33,7 +33,7 @@
       <article class="document" aria-labelledby="document-title">
         <header class="document-head">
           <div class="document-tools">
-            <p class="kicker">学习手稿 / 固定修订</p>
+            <p class="kicker">学习手稿 / 版本化阅读</p>
             <button type="button" id="logout" class="quiet">退出</button>
           </div>
           <h1 id="document-title" tabindex="-1">阅读</h1>
@@ -45,6 +45,20 @@
           </div>
         </header>
         <div id="entries" aria-busy="false"></div>
+        <section id="note-editor" class="note-editor" aria-labelledby="note-title" hidden>
+          <h2 id="note-title">追加私有笔记</h2>
+          <p id="note-location">笔记放在「缩放与掩码」之后、第二次「查询、键与值」之前，仅本次学习者可见。</p>
+          <form id="note-form" autocomplete="off">
+            <label for="note-text">笔记正文</label>
+            <textarea id="note-text" rows="4" required aria-describedby="note-location note-limit"></textarea>
+            <p id="note-limit">最多 4,000 字节，按纯文本显示。</p>
+            <div class="note-actions">
+              <button type="submit" id="note-save">保存笔记</button>
+              <button type="button" id="note-latest" class="quiet" hidden>载入最新修订</button>
+            </div>
+          </form>
+          <p id="note-status" role="status"></p>
+        </section>
         <section id="detached" class="detached" aria-labelledby="detached-title" hidden>
           <h2 id="detached-title">未定位的个人笔记</h2>
           <div id="unplaced"></div>

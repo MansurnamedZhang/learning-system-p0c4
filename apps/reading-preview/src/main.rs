@@ -1,7 +1,7 @@
 mod fixture;
 mod web;
 
-use learning_core::ReadingRef;
+use learning_core::{OverlayRef, ReadingRef};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sqlx::{
     PgPool,
@@ -18,6 +18,7 @@ use uuid::Uuid;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const DOCUMENT_TITLE: &str = "缩放点积注意力";
 const READER: &str = "kw_preview_reader";
+const WRITER: &str = "kw_preview_writer";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -67,6 +68,8 @@ struct Fixture {
     source_space: Uuid,
     personal_space: Uuid,
     reading: ReadingRef,
+    overlay: OverlayRef,
+    note_group: Uuid,
 }
 
 #[derive(Deserialize)]
@@ -83,6 +86,7 @@ struct ServeConfig {
     db: PreviewDb,
     fixture: Fixture,
     reader_password: String,
+    writer_password: String,
     owner_code: String,
     visitor_code: String,
 }
@@ -103,8 +107,9 @@ async fn serve(config: ServeConfig) -> Result<()> {
             AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
             AND NOT EXISTS (
                 SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-                WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
-                AND has_table_privilege(current_user, c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER')
+                WHERE n.nspname IN ('public', 'kw_preview') AND c.relkind IN ('r', 'p')
+                AND (has_any_column_privilege(current_user, c.oid, 'INSERT,UPDATE')
+                     OR has_table_privilege(current_user, c.oid, 'DELETE,TRUNCATE,TRIGGER,MAINTAIN'))
             )",
     )
     .fetch_one(&pool)
@@ -112,10 +117,12 @@ async fn serve(config: ServeConfig) -> Result<()> {
     if !read_only {
         return Err("preview connection must be read-only".into());
     }
+    let writer = config.db.connect(WRITER, &config.writer_password).await?;
     let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await?;
     let address = listener.local_addr()?;
     let app = web::router(
         pool,
+        writer,
         config.fixture,
         config.owner_code,
         config.visitor_code,

@@ -13,7 +13,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; min-width: 0; color: var(--ink); background: var(--ground); }
-button, input { font: inherit; }
+button, input, textarea { font: inherit; }
 button { cursor: pointer; }
 button, a, input, summary { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
@@ -58,6 +58,15 @@ h2 { margin: .22rem 0 .36rem; font-size: 1.14rem; line-height: 1.45; }
 .entry summary { cursor: pointer; color: var(--accent); }
 .entry dl { margin: .55rem 0 0; }
 .entry dd { margin-left: 0; overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; }
+.note-editor { margin-top: 1.4rem; padding: 1rem; border: 1px solid var(--line); border-radius: .45rem; }
+.note-editor p { margin: .3rem 0 .7rem; color: var(--muted); font-size: .88rem; }
+.note-editor form { display: grid; gap: .4rem; }
+.note-editor textarea { width: 100%; min-width: 0; resize: vertical; padding: .6rem; border: 1px solid #849388; border-radius: .36rem; background: white; color: var(--ink); }
+.note-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; }
+#note-save { min-height: 2.75rem; padding: .45rem .8rem; border: 1px solid var(--accent); border-radius: .36rem; color: white; background: var(--accent); }
+#note-save:disabled, #note-latest:disabled { opacity: .62; cursor: default; }
+#note-status { margin: .65rem 0 0; color: var(--ink); }
+#note-status:empty { margin: 0; }
 .detached { margin-top: 1.4rem; }
 .status { margin: 1rem 0 0; color: var(--muted); text-align: center; }
 .empty { color: var(--muted); padding: 1rem 0; }

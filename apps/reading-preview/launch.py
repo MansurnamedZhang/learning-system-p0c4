@@ -126,7 +126,7 @@ def prepare(sql, port, binary):
     marker = uuid.uuid4()
     database = f"kw_preview_{marker.hex}"
     credentials = {role: secrets.token_hex(32) for role in (
-        "learning_admin", "learning_runtime", "kw_preview_reader"
+        "learning_admin", "learning_runtime", "kw_preview_reader", "kw_preview_writer"
     )}
     roles = "\n".join(
         f"CREATE ROLE {role} LOGIN PASSWORD '{value}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;"
@@ -140,15 +140,15 @@ ALTER ROLE kw_preview_reader SET default_transaction_read_only = on;
 CREATE DATABASE {database} OWNER learning_admin;
 REVOKE ALL ON DATABASE {database} FROM PUBLIC;
 GRANT CONNECT, TEMPORARY ON DATABASE {database} TO learning_admin, learning_runtime;
-GRANT CONNECT ON DATABASE {database} TO kw_preview_reader;
+GRANT CONNECT ON DATABASE {database} TO kw_preview_reader, kw_preview_writer;
 """)
     sql(database, f"""
 CREATE SCHEMA kw_preview;
 CREATE TABLE kw_preview.bootstrap (marker uuid PRIMARY KEY);
 INSERT INTO kw_preview.bootstrap VALUES ('{marker}');
-GRANT USAGE ON SCHEMA kw_preview TO learning_admin, learning_runtime, kw_preview_reader;
-GRANT SELECT ON kw_preview.bootstrap TO learning_admin, learning_runtime, kw_preview_reader;
-GRANT USAGE ON SCHEMA public TO kw_preview_reader;
+GRANT USAGE ON SCHEMA kw_preview TO learning_admin, learning_runtime, kw_preview_reader, kw_preview_writer;
+GRANT SELECT ON kw_preview.bootstrap TO learning_admin, learning_runtime, kw_preview_reader, kw_preview_writer;
+GRANT USAGE ON SCHEMA public TO kw_preview_reader, kw_preview_writer;
 """)
     db = {"port": port, "marker": str(marker)}
     fixture = json.loads(command([str(binary), "seed"], json.dumps({
@@ -157,12 +157,79 @@ GRANT USAGE ON SCHEMA public TO kw_preview_reader;
     }), timeout=60, env=child_environment()))
     config = {
         "db": db, "fixture": fixture, "reader_password": credentials["kw_preview_reader"],
+        "writer_password": credentials["kw_preview_writer"],
         "owner_code": secrets.token_hex(32), "visitor_code": secrets.token_hex(32),
     }
     return database, config
 
 
+def verify_database_boundary(sql, database):
+    confined = sql(database, """
+SELECT NOT EXISTS (
+    SELECT 1 FROM pg_roles r WHERE r.rolname IN ('kw_preview_reader', 'kw_preview_writer')
+      AND (r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR r.rolbypassrls OR r.rolreplication
+        OR EXISTS (SELECT 1 FROM pg_auth_members WHERE member = r.oid)
+        OR has_database_privilege(r.oid, current_database(), 'CREATE,TEMP')
+        OR has_schema_privilege(r.oid, 'public', 'CREATE')
+        OR has_schema_privilege(r.oid, 'kw_preview', 'CREATE'))
+) AND NOT EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname IN ('public', 'kw_preview') AND c.relkind IN ('r', 'p')
+      AND (has_any_column_privilege('kw_preview_reader', c.oid, 'INSERT,UPDATE')
+        OR has_table_privilege('kw_preview_reader', c.oid, 'DELETE,TRUNCATE,TRIGGER,MAINTAIN')
+        OR has_table_privilege('kw_preview_writer', c.oid, 'DELETE,TRUNCATE,TRIGGER,MAINTAIN')
+        OR has_any_column_privilege('kw_preview_writer', c.oid, 'INSERT') IS DISTINCT FROM
+            (n.nspname = 'public' AND c.relname IN ('block', 'block_revision', 'reference_object',
+              'overlay_revision', 'overlay_group_identity', 'overlay_group', 'overlay_placement_identity',
+              'overlay_placement', 'reading_view_revision', 'request_key', 'reading_receipt',
+              'reading_receipt_block')))
+) AND NOT EXISTS (
+    SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname IN ('public', 'kw_preview') AND c.relkind IN ('r', 'p')
+      AND a.attnum > 0 AND NOT a.attisdropped
+      AND has_column_privilege('kw_preview_writer', c.oid, a.attnum, 'UPDATE') IS DISTINCT FROM
+          (n.nspname = 'public' AND c.relname IN ('overlay', 'reading_view') AND a.attname = 'head_revision_id')
+);
+""")
+    if confined != "t":
+        raise RuntimeError("synthetic database role boundary did not match")
+
+
+def verify_note_rows(sql, database, fixture):
+    owner = uuid.UUID(fixture["owner"])
+    overlay = uuid.UUID(fixture["overlay"]["overlay_id"])
+    view = uuid.UUID(fixture["reading"]["view_id"])
+    group = uuid.UUID(fixture["note_group"])
+    personal = uuid.UUID(fixture["personal_space"])
+    source = uuid.UUID(fixture["source_space"])
+    counts = json.loads(sql(database, f"""
+SELECT json_build_object(
+    'personal_blocks', (SELECT count(*) FROM block WHERE space_id = '{personal}'),
+    'personal_block_revisions', (SELECT count(*) FROM block_revision WHERE space_id = '{personal}' AND author_id = '{owner}'),
+    'reading_revisions', (SELECT count(*) FROM reading_view_revision WHERE view_id = '{view}'),
+    'overlay_revisions', (SELECT count(*) FROM overlay_revision WHERE overlay_id = '{overlay}'),
+    'reading_edit_keys', (SELECT count(*) FROM request_key WHERE actor_id = '{owner}' AND operation = 'reading_edit'),
+    'edit_receipts', (SELECT count(*) FROM reading_receipt JOIN request_key USING (actor_id, request_id)
+                      WHERE actor_id = '{owner}' AND overlay_id = '{overlay}' AND operation = 'reading_edit'),
+    'head_gap_placements', (SELECT count(*) FROM overlay_placement p JOIN overlay o
+                            ON p.overlay_id = o.id AND p.overlay_revision_id = o.head_revision_id
+                            WHERE o.id = '{overlay}' AND p.group_id = '{group}'),
+    'source_block_revisions', (SELECT count(*) FROM block_revision WHERE space_id = '{source}'),
+    'source_composition_revisions', (SELECT count(*) FROM composition_revision WHERE space_id = '{source}')
+);
+"""))
+    if counts != {
+        "personal_blocks": 3, "personal_block_revisions": 3, "reading_revisions": 4,
+        "overlay_revisions": 4, "reading_edit_keys": 3, "edit_receipts": 3,
+        "head_gap_placements": 3, "source_block_revisions": 3, "source_composition_revisions": 1,
+    }:
+        raise RuntimeError(f"unexpected synthetic note write counts: {counts}")
+    return counts
+
+
 def verify(args, url, database, config, sql):
+    verify_database_boundary(sql, database)
     browser = Path(__file__).with_name("browser-check.mjs")
     env = dict(child_environment(), KW_PREVIEW_URL=url, KW_OWNER_CODE=config["owner_code"],
                KW_VISITOR_CODE=config["visitor_code"], KW_PREVIEW_EVIDENCE=args.evidence or "")
@@ -173,22 +240,35 @@ def verify(args, url, database, config, sql):
         fixture = config["fixture"]
         owner = uuid.UUID(fixture["owner"])
         marker = uuid.UUID(config["db"]["marker"])
-        for step, field in [("REVOKE_SOURCE", "source_space"), ("REVOKE_PERSONAL", "personal_space")]:
+        personal = uuid.UUID(fixture["personal_space"])
+        source = uuid.UUID(fixture["source_space"])
+        where = f"actor_id = '{owner}' AND EXISTS (SELECT 1 FROM kw_preview.bootstrap WHERE marker = '{marker}')"
+        counts = None
+        for step, statement, expected in [
+            ("VERIFY_WRITES", None, None),
+            ("REVOKE_WRITE", f"UPDATE public.space_grant SET can_write = false WHERE {where} AND space_id = '{personal}' RETURNING 1;", "1"),
+            ("REVOKE_SOURCE", f"""
+BEGIN;
+UPDATE public.space_grant SET can_write = true WHERE {where} AND space_id = '{personal}' RETURNING 1;
+DELETE FROM public.space_grant WHERE {where} AND space_id = '{source}' RETURNING 1;
+COMMIT;
+""", "1\n1"),
+            ("REVOKE_PERSONAL", f"DELETE FROM public.space_grant WHERE {where} AND space_id = '{personal}' RETURNING 1;", "1"),
+        ]:
             if next_line(45) != step:
                 raise RuntimeError(f"browser did not reach {step}")
-            space = uuid.UUID(fixture[field])
-            deleted = sql(database, f"""
-DELETE FROM public.space_grant WHERE actor_id = '{owner}' AND space_id = '{space}'
-AND EXISTS (SELECT 1 FROM kw_preview.bootstrap WHERE marker = '{marker}')
-RETURNING 1;
-""")
-            if deleted != "1":
-                raise RuntimeError("synthetic grant revocation failed")
+            if statement is None:
+                counts = verify_note_rows(sql, database, fixture)
+            elif sql(database, statement) != expected:
+                raise RuntimeError(f"synthetic grant transition failed for {step}")
             child.stdin.write("CONTINUE\n")
             child.stdin.flush()
         result = json.loads(next_line(45))
-        if child.wait(timeout=10) != 0 or result["status"] != "B1_BROWSER_CHECKS_PASSED":
+        if child.wait(timeout=10) != 0 or result["status"] != "B2_BROWSER_CHECKS_PASSED":
             raise RuntimeError("browser checks did not pass")
+        if verify_note_rows(sql, database, fixture) != counts:
+            raise RuntimeError("database changed during revoked write checks")
+        result.update(database_role_boundary_verified=True, database_counts=counts)
         return result
     finally:
         stop_child(child)
