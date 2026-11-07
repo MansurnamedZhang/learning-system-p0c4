@@ -7,6 +7,7 @@
 - [实施路线与系统架构](docs/KnowWeave实施路线与系统架构.md)
 - [架构设计索引](docs/architecture/README.md)
 - [B2 阅读与私有笔记预览](apps/reading-preview/README.md)
+- [早期设计、施工计划与项目图标](docs/archive/README.md)
 
 B2 的验收范围为单机隔离合成数据。C4 和 Task9 的验收范围见各自的历史记录。
 
