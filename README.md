@@ -4,7 +4,7 @@
 
 [架构设计审查版](docs/architecture/README.md)已按功能分支源码和既有证据重编。Task8 在规定私有单机范围完成。Task9 独立目标和密钥暂存已准备，C 阶段 S1 PG18 旧批次 HOLD，修订批次待重跑审批。Task9/C4 保持开放。[分线交付与验收计划](docs/architecture/11-delivery-plan.md)分别记录正式验收与浏览器首用进度。
 
-P1 首用 B0/B1 已在独立分支通过真实 PostgreSQL 18.6 与 Edge 的 6 组合成只读验证。下一步是 B2 私有笔记写入、重放与冲突处理。[阅读预览与复验命令](https://github.com/MansurnamedZhang/learning-system-p0c4/tree/034b3468541d70b683f0c43fa7e3ddeb6cec0374/apps/reading-preview)
+P1 首用 B0–B2 已在独立分支通过真实 PostgreSQL 18.6 与 Edge 的合成读写验证。4 组 B2 专项及 6 组 B1 回归覆盖私有保存、重复提交、旧修订草稿保留和撤权。下一门为 B3 真实资料准入评审。[阅读预览与复验命令](https://github.com/MansurnamedZhang/learning-system-p0c4/tree/4e9fae0b0c109f3afe29d05732a3a3c245e80463/apps/reading-preview)
 
 ## 当前进展 · 2026-11-02：CF2 限定普通25门及20项补验通过，正式Task9仍OPEN
 

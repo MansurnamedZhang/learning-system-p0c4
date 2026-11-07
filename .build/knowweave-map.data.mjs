@@ -167,9 +167,9 @@ export const diagrams = [
   {
     "id": "overview",
     "title": "01 · 全系统架构总览",
-    "subtitle": "当前 Rust 内核与目标产品分层。合成只读首用已验证，正式 HTTP、Web 与学习闭环待建设。",
+    "subtitle": "当前 Rust 内核与目标产品分层。合成阅读与私有笔记已验证，正式 HTTP、Web 与学习闭环待建设。",
     "notes": [
-      "B1 在独立预览分支使用 Axum 和只读 PostgreSQL 角色。正式 Web 工作台、产品登录与学习闭环待建设。",
+      "B0–B2 在独立预览分支使用 Axum，读取和笔记保存使用分立的 PostgreSQL 角色。正式 Web 工作台、产品登录与学习闭环待建设。",
       "PostgreSQL 保存身份、修订、权限、位置、关系和任务状态；文件卷保存不可变原件。JSON/Markdown/HTML 是交换或阅读副本。",
       "知识关系图由 PostgreSQL 数据构建；Neo4j 如以后采用，只作为可重建投影。AI 不决定权威知识和验收事实。",
       "C3 规定范围交换已验收。C4 已完成 Task8 规定私有回归，Task9 与正常独立恢复继续开放。"
@@ -193,7 +193,7 @@ export const diagrams = [
         "title": "Web 学习工作台",
         "lines": [
           "阅读与个人层先行",
-          "B1 合成只读实测通过"
+          "B2 合成读写实测通过"
         ],
         "status": "planned"
       },
@@ -1841,13 +1841,13 @@ export const meta = {
   "date": "2026-11-08",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
   "sourceCommit": "08c3687ef39416411af9f21a743fed09ccf8ef3f",
-  "state": "B1 合成只读通过 · Task9 修订 S1 首启待审批",
+  "state": "B2 合成私有笔记通过 · Task9 修订 S1 首启待审批",
   "progressSummary": "Task8 已关闭规定单机范围，Task9 默认关闭代码已完成 CF2 普通检查。真实安装、正常首签和独立恢复是当前关键路径。",
   "progressEvidence": "Task8 的完整十门、四套旧版升级、54 项 fresh 与 6 项历史桥已采用。Task9 CF2 四配置共 25 阶段退出 0、新增 20 个定义逐名通过。现场义务单列。",
   "pendingSummary": "S1 原 PG18 首启停机 HOLD。干净副本、临时 QEMU 单元 TasksMax=128 和峰值判据已封存。实际重跑待审批，S1 通过后才启 S2。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
-  "scope": "八个 P0 分关已按各自范围隔离验收。Task8 私有单机范围完成。Task9 与 C4 整关开放。B1 合成只读通过，正式 Web 与学习闭环待建设。",
+  "scope": "八个 P0 分关已按各自范围隔离验收。Task8 私有单机范围完成。Task9 与 C4 整关开放。B2 合成读写通过，正式 Web 与学习闭环待建设。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
   "boundarySummary": "D 已选定，三把暂存密钥与 D 构建已有核验。正式信任、权限、22229、启动链、首签和恢复依序取证。",
   "roadmapHeadline": "Task9 正式验收与浏览器首用进展",
@@ -1874,7 +1874,7 @@ export const meta = {
       "只隔离实验源访问面，RB 只凭 D 恢复。独核原件后按原五门关闭 Task9 与 C4。"
     ]
   ],
-  "reviewSummary": "架构复核后分线推进。B0/B1 已在 PostgreSQL 18.6 与 Edge 上通过 6 组只读验收，覆盖三种投影、桌面与窄屏、跨身份和撤权。B2 下一步接入私有文本笔记、重放与旧修订冲突。真实资料仍按既定恢复与权限门准入。"
+  "reviewSummary": "架构复核后分线推进。B2 已在 PostgreSQL 18.6 与 Edge 上通过 4 组专项和 6 组 B1 回归。私有笔记可保存，同请求重试返回原回执，旧修订冲突后可保留草稿并载入最新版。下一门为 B3 真实资料准入评审。"
 };
 
 export const principles = [
@@ -1918,8 +1918,8 @@ export const references = [
     "docs/architecture/11-delivery-plan.md"
   ],
   [
-    "B1 合成阅读预览与复验命令",
-    "https://github.com/MansurnamedZhang/learning-system-p0c4/tree/034b3468541d70b683f0c43fa7e3ddeb6cec0374/apps/reading-preview"
+    "B2 合成阅读与笔记预览及复验命令",
+    "https://github.com/MansurnamedZhang/learning-system-p0c4/tree/4e9fae0b0c109f3afe29d05732a3a3c245e80463/apps/reading-preview"
   ],
   [
     "Task9 修订首启与原 HOLD",
@@ -2157,7 +2157,7 @@ export const stages = [
     "status": "planned",
     "deliver": "HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。",
     "gate": "真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。",
-    "evidence": "B1 合成只读实测通过；B2 写入待建设",
+    "evidence": "B2 合成私有笔记通过；B3 真实资料准入待评审",
     "link": "docs/architecture/07-product-interfaces.md"
   },
   {
