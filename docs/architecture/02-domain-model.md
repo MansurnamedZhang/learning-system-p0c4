@@ -74,7 +74,7 @@ Block ID 代表“哪一个知识对象”，Revision ID 代表“这个对象�
 
 ## 实现依据
 
-契约见 [content.rs](../../crates/learning-core/src/content.rs)、[content_version.rs](../../crates/learning-core/src/content_version.rs)、[references.rs](../../crates/learning-core/src/references.rs)、[overlay.rs](../../crates/learning-core/src/overlay.rs)、[relation.rs](../../crates/learning-core/src/relation.rs)。模式见 migrations（私有或未公开参考）；实际限制以合同类型与数据库约束为准。
+契约见 [content.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-core/src/content.rs)、[content_version.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-core/src/content_version.rs)、[references.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-core/src/references.rs)、[overlay.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-core/src/overlay.rs)、[relation.rs](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-core/src/relation.rs)。实际限制以合同类型与已发布迁移中的数据库约束为准。
 
 ## 未来学习事实与现有模型的接缝
 

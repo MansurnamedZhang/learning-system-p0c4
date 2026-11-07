@@ -9,6 +9,8 @@
     "diagrams": 7,
     "documents": 12,
     "manifest_paths": 730,
+    "offline_mirror_browser_pages_verified": 3,
+    "offline_mirror_pinned_source_links": 5,
     "pg18_rerun_approved": false,
     "prior_hold_retained": true,
     "product_code_changed": false,
@@ -105,12 +107,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 145751,
+      "bytes": 146255,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "KnowWeave架构设计.html",
-      "publication_base_commit": "08c3687ef39416411af9f21a743fed09ccf8ef3f",
+      "publication_base_commit": "98bc75fdb874ea556f37b328acb63052c8e9c836",
       "scope": "ARCHITECTURE_REVIEW_20261108_DOCUMENTATION_ONLY",
-      "sha256": "07af144b488cf3a6dff308e0ed7054ab052e20478bf27c955cd0202b0aebf651",
+      "sha256": "ec8a8026b9448547ebc0b455687ef42ffc518e9ec9423a973ff1bc223e83945d",
       "source_blob_sha256": null,
       "source_bytes_preserved": false
     },
@@ -3930,12 +3932,12 @@
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
     },
     {
-      "bytes": 6289,
+      "bytes": 6742,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/architecture/02-domain-model.md",
-      "publication_base_commit": "08c3687ef39416411af9f21a743fed09ccf8ef3f",
+      "publication_base_commit": "98bc75fdb874ea556f37b328acb63052c8e9c836",
       "scope": "ARCHITECTURE_REVIEW_20261108_DOCUMENTATION_ONLY",
-      "sha256": "8803d3b941d533e34a20cfb656d0685ecd40464bf664f92cbf699eb8209dcb18",
+      "sha256": "789694ab9a47b6841754b0611c691651a6f703d42b8ea82d36e16ec4dcb5310b",
       "source_blob_sha256": "90c07d7c7beb4a8e7dbe5c03c6a4d0359712af0c9b35a1e67fcff462185d7d72",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
@@ -4036,12 +4038,12 @@
       "source_bytes_preserved": false
     },
     {
-      "bytes": 145501,
+      "bytes": 145975,
       "exact_byte_source": "CURRENT_DOCUMENTATION_TRANSFORM",
       "path": "docs/architecture/KnowWeave架构设计.html",
-      "publication_base_commit": "08c3687ef39416411af9f21a743fed09ccf8ef3f",
+      "publication_base_commit": "98bc75fdb874ea556f37b328acb63052c8e9c836",
       "scope": "ARCHITECTURE_REVIEW_20261108_DOCUMENTATION_ONLY",
-      "sha256": "0a63a71f06337ebcdc4bebed0a4620e7c869c975765eb089516dd380d30a2d3a",
+      "sha256": "f25542f54e4caacb7e4dc7fefed82309072f8f83f43b4e8f0e33368bc0db69e0",
       "source_blob_sha256": "eccd01137e3a61726d41fb7e987d9a35e2ea639551b50635e2a0cce57c707b2a",
       "source_bytes_preserved": false,
       "source_commit": "679b11c3f280546f8d6c20ab15cf7ef59fae3c1a"
