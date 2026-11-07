@@ -1,10 +1,10 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新 2026-11-08。当前为 架构审查版 · Task9 修订 S1 首启待审批。设计审查源码基线 `08c3687ef39416411af9f21a743fed09ccf8ef3f`。C3 验收源码 `3342c0554c18787749d0f06a772743f867c18720`。现场结论按各批源码、环境与证据范围分别记账。
+更新 2026-11-08。当前为 B1 合成只读通过 · Task9 修订 S1 首启待审批。设计审查源码基线 `08c3687ef39416411af9f21a743fed09ccf8ef3f`。C3 验收源码 `3342c0554c18787749d0f06a772743f867c18720`。现场结论按各批源码、环境与证据范围分别记账。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
-八个 P0 分关已按各自范围隔离验收。Task8 私有单机范围完成。Task9 与 C4 整关开放；登录、HTTP、浏览器和学习闭环待建设。
+八个 P0 分关已按各自范围隔离验收。Task8 私有单机范围完成。Task9 与 C4 整关开放。B1 合成只读通过，正式 Web 与学习闭环待建设。
 
 [离线图文版](../KnowWeave实施路线与架构.html)。此文为可编辑 Markdown 快照；可维护图数据在 [.build/knowweave-map.data.mjs](../.build/knowweave-map.data.mjs)，生成命令为 `node .build/build-knowweave-map.mjs`。
 
@@ -54,7 +54,7 @@ flowchart LR
 | P0-C2 持久任务与受限 Worker | 已验收 | 同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。 | 专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。 | [388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c2-verification.md) |
 | P0-C3 融合快照交换 | 已验收 | 精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。 | 授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。 | [整关隔离验收与 602 份证据哈希复核通过；未生产部署](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c3-verification.md) |
 | P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task5限定收尾；Task6私有16/16；Task7私有6/6；Task8限定完成；Task9与整关OPEN](../docs/p0c4-completion-acceptance.md) |
-| P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [待建设；合成数据首用切片已出提案](../docs/architecture/07-product-interfaces.md) |
+| P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [B1 合成只读实测通过；B2 写入待建设](../docs/architecture/07-product-interfaces.md) |
 | P1-B 学习与实践闭环 | 待建设 | 学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。 | 今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。 | [待建设；先验收一条固定资料与证据的实践链](../docs/architecture/07-product-interfaces.md) |
 | P2 批量演进与多领域复用 | 待建设 | 批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。 | 真实资料更新保留旧事实；第二领域不新增专属核心业务流程。 | [待建设](../docs/学习系统设计方案.md) |
 | P3 按需求增强 | 可选 | AI 辅助、OCR/预览等解析器、语义检索；独立评估 S3 和 Neo4j 可重建投影。 | 来源/版本可追溯、权限不绕过、失败可降级；按测量结果决定引入。 | [可选增强；不是首版必装组件](../docs/数据库选型实验审阅与首版决策.md) |
@@ -69,9 +69,9 @@ S1 原 PG18 首启停机 HOLD。干净副本、临时 QEMU 单元 TasksMax=128 �
 - **运行 D1、RA 和规定负例**：正常首签并打开 CompleteBackup。RA 完整恢复，S2/V2 中断验证已完成 D1 副本仍保全。
 - **完成 D2/RB 和整链独审**：只隔离实验源访问面，RB 只凭 D 恢复。独核原件后按原五门关闭 Task9 与 C4。
 
-## 架构重审与产品首用建议
+## 架构重审与产品首用进展
 
-深度审查发现关键路径串行、现场条件发现偏晚，以及浏览器反馈后置。建议用隔离合成数据先验证阅读与个人笔记切片，方案待采纳。真实资料准入仍沿既定恢复与权限门。
+架构复核后分线推进。B0/B1 已在 PostgreSQL 18.6 与 Edge 上通过 6 组只读验收，覆盖三种投影、桌面与窄屏、跨身份和撤权。B2 下一步接入私有文本笔记、重放与旧修订冲突。真实资料仍按既定恢复与权限门准入。
 
 [深度审查](architecture/10-deep-review.md) · [分线交付与验收](architecture/11-delivery-plan.md) · [完整架构设计](../KnowWeave架构设计.html)
 
@@ -181,17 +181,17 @@ flowchart LR
 
 ## 01 · 全系统架构总览
 
-当前 Rust 内核与目标产品分层。HTTP、Web 与学习闭环待建设，管理链单列。
+当前 Rust 内核与目标产品分层。合成只读首用已验证，正式 HTTP、Web 与学习闭环待建设。
 
 [独立矢量图](diagrams/knowweave-overview.svg) · [Mermaid 源码](diagrams/knowweave-overview.mmd)
 
 ```mermaid
 flowchart TB
     user["个人学习者<br/>电脑 / 平板 / 手机 · 跨设备访问同一服务<br/>【上下文】"]
-    web["Web 学习工作台<br/>阅读与个人层先行 · 首用切片为待采纳设计<br/>【待建设】"]
+    web["Web 学习工作台<br/>阅读与个人层先行 · B1 合成只读实测通过<br/>【待建设】"]
     sources["课程与实践来源<br/>PDF / PPTX / Notebook / 代码 · 原格式资料与实验产物<br/>【上下文】"]
     learning["学习与计划模块<br/>单元 / 任务 / 尝试 / 验收 · P1-B；规则推荐延伸到 P2<br/>【待建设】"]
-    api["Rust HTTP / 身份边界<br/>会话 · DTO · 授权入口 · P1-A；Axum 为建议<br/>【待建设】"]
+    api["Rust HTTP / 身份边界<br/>会话 · DTO · 授权入口 · 正式 P1-A 待建设<br/>【待建设】"]
     import["交换与导入入口<br/>C3 快照已验收；资料入口待建 · 批量更新属于后续阶段<br/>【实施中】"]
     content["内容与关系内核<br/>块 / 组合 / 个人层 / 审查 · P0-A / B1–B4 已验收<br/>【已验收】"]
     jobs["持久任务与 Worker<br/>job_outbox → job → 租约 · C2 资产完整性已验收<br/>【已验收】"]
@@ -229,7 +229,7 @@ flowchart TB
     classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362
 ```
 
-- 浏览器工作台、HTTP 登录和学习闭环均为待建设。React + TypeScript + Vite、Axum 是建议组合，尚未作为已实施依赖固化。
+- B1 在独立预览分支使用 Axum 和只读 PostgreSQL 角色。正式 Web 工作台、产品登录与学习闭环待建设。
 - PostgreSQL 保存身份、修订、权限、位置、关系和任务状态；文件卷保存不可变原件。JSON/Markdown/HTML 是交换或阅读副本。
 - 知识关系图由 PostgreSQL 数据构建；Neo4j 如以后采用，只作为可重建投影。AI 不决定权威知识和验收事实。
 - C3 规定范围交换已验收。C4 已完成 Task8 规定私有回归，Task9 与正常独立恢复继续开放。
@@ -505,6 +505,7 @@ flowchart TB
 - [架构设计审查版](../KnowWeave架构设计.html)
 - [深度审查与决策建议](../docs/architecture/10-deep-review.md)
 - [分线交付与验收计划](../docs/architecture/11-delivery-plan.md)
+- [B1 合成阅读预览与复验命令](https://github.com/MansurnamedZhang/learning-system-p0c4/tree/034b3468541d70b683f0c43fa7e3ddeb6cec0374/apps/reading-preview)
 - [Task9 修订首启与原 HOLD](../docs/task9/h4-c-pg18-first-boot.md)
 - [Task9 Capture挂载增量合同与准确五文件审批](../docs/task9/capture-mount-amendment-contract.md)
 - [Task9真实安装、双机验收与最小审批](../docs/task9/installation-and-two-host-acceptance-plan.md)

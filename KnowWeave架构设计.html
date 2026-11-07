@@ -10,8 +10,8 @@ main{min-width:0}header{padding:34px 40px;background:var(--paper);border:1px sol
 @media(max-width:1000px){.shell{grid-template-columns:220px minmax(0,1fr);gap:20px;padding:20px}.chapter,header{padding:26px}}
 @media(max-width:760px){.shell{display:block;padding:14px}aside{position:static;max-height:none;padding:10px 4px 18px}nav{grid-template-columns:1fr 1fr;gap:3px}.brand{font-size:22px}.controls{grid-template-columns:1fr auto}.counter{grid-column:1/-1}.aside-note{display:none}.chapter,header{padding:22px 18px}h1{font-size:29px}h2{font-size:22px}h3{font-size:19px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}@media print{body{background:#fff;color:#111}.shell{display:block;padding:0;max-width:none}aside,.chapter-source,.empty{display:none}.chapter,header{border:0;border-radius:0;padding:12px 0;box-shadow:none}h2,h3{break-after:avoid}.table-wrap,.diagram{overflow:visible}table{min-width:0;font-size:10px}svg{min-width:0}pre{white-space:pre-wrap}.chapter{break-before:page}.chapter:first-of-type{break-before:auto}.chapter[hidden]{display:block}.hide-code pre{display:block}a{color:#111;text-decoration:none}footer{font-size:10px}}
-</style></head><body><div class="shell"><aside><div class="brand">知织 · KnowWeave<small>架构审查版 · 2026-11-08</small></div><div class="controls"><input id="search" type="search" aria-label="搜索架构章节" placeholder="搜索：版本、关系、恢复…"><button id="print" type="button">打印 / PDF</button><div id="counter" class="counter">全部 12 章</div></div><nav aria-label="章节目录"><a href="#chapter-index">阅读入口与状态</a><a href="#chapter-overview">01 总体架构与产品边界</a><a href="#chapter-domain">02 块与版本化领域模型</a><a href="#chapter-modules">03 Rust 模块与代码边界</a><a href="#chapter-permissions">04 事务授权与关系查询</a><a href="#chapter-assets">05 原件存储与持久任务</a><a href="#chapter-recovery">06 快照交换与备份恢复</a><a href="#chapter-interfaces">07 API 前端与学习闭环</a><a href="#chapter-deployment">08 部署运维与架构演进</a><a href="#chapter-evidence">09 决策记录与证据索引</a><a href="#chapter-review">10 全项目架构与进度审查</a><a href="#chapter-delivery">11 分线交付与验收计划</a></nav><p class="aside-note">正文来自可编辑 Markdown。7 张架构图可离线阅读。绿色为阶段已验收，蓝色为实施中，灰色为待建设，紫色为可选。</p></aside><main><header><div class="eyebrow">ARCHITECTURE · 当前实现与目标边界</div><h1>KnowWeave 架构设计与交付</h1><p>按当前内核、正式灾备与产品首用组织。先读<a href="#chapter-review">全项目审查</a>与<a href="#chapter-delivery">交付计划</a>，再查看各层设计和验收来源。</p><div class="badges"><span class="badge">Rust · PostgreSQL 18</span><span class="badge">5 个 crate</span><span class="badge">C3 已隔离验收</span><span class="badge">Task8 私有单机限定完成</span><span class="badge">Task9 正式验收开放</span><span class="badge">API / 前端待建设</span></div></header><div id="empty" class="empty" hidden>没有匹配章节。试试“权限”“版本”“原件”或“恢复”。</div><section class="chapter" id="chapter-index" aria-label="阅读入口与状态"><h2 id="index-heading-1">KnowWeave 架构设计 · 2026-11-08 审查版</h2>
-<p>当前交付物是 Rust 领域内核、私有原件和后台任务体系，以及分阶段的交换、备份与恢复能力。P0-A、B1–B4、C1–C3 已分别通过历史隔离验收。C4 Task8 已完成规定私有单机回归，Task9 与 C4 整关开放。HTTP、Web 工作台和学习流程仍处于设计阶段。</p>
+</style></head><body><div class="shell"><aside><div class="brand">知织 · KnowWeave<small>架构审查版 · 2026-11-08</small></div><div class="controls"><input id="search" type="search" aria-label="搜索架构章节" placeholder="搜索：版本、关系、恢复…"><button id="print" type="button">打印 / PDF</button><div id="counter" class="counter">全部 12 章</div></div><nav aria-label="章节目录"><a href="#chapter-index">阅读入口与状态</a><a href="#chapter-overview">01 总体架构与产品边界</a><a href="#chapter-domain">02 块与版本化领域模型</a><a href="#chapter-modules">03 Rust 模块与代码边界</a><a href="#chapter-permissions">04 事务授权与关系查询</a><a href="#chapter-assets">05 原件存储与持久任务</a><a href="#chapter-recovery">06 快照交换与备份恢复</a><a href="#chapter-interfaces">07 API 前端与学习闭环</a><a href="#chapter-deployment">08 部署运维与架构演进</a><a href="#chapter-evidence">09 决策记录与证据索引</a><a href="#chapter-review">10 全项目架构与进度审查</a><a href="#chapter-delivery">11 分线交付与验收计划</a></nav><p class="aside-note">正文来自可编辑 Markdown。7 张架构图可离线阅读。绿色为阶段已验收，蓝色为实施中，灰色为待建设，紫色为可选。</p></aside><main><header><div class="eyebrow">ARCHITECTURE · 当前实现与目标边界</div><h1>KnowWeave 架构设计与交付</h1><p>按当前内核、正式灾备与产品首用组织。先读<a href="#chapter-review">全项目审查</a>与<a href="#chapter-delivery">交付计划</a>，再查看各层设计和验收来源。</p><div class="badges"><span class="badge">Rust · PostgreSQL 18</span><span class="badge">5 个 crate</span><span class="badge">C3 已隔离验收</span><span class="badge">Task8 私有单机限定完成</span><span class="badge">Task9 正式验收开放</span><span class="badge">B1 合成只读通过</span><span class="badge">正式 Web 待建设</span></div></header><div id="empty" class="empty" hidden>没有匹配章节。试试“权限”“版本”“原件”或“恢复”。</div><section class="chapter" id="chapter-index" aria-label="阅读入口与状态"><h2 id="index-heading-1">KnowWeave 架构设计 · 2026-11-08 审查版</h2>
+<p>当前交付物是 Rust 领域内核、私有原件和后台任务体系，以及分阶段的交换、备份与恢复能力。P0-A、B1–B4、C1–C3 已分别通过历史隔离验收。C4 Task8 已完成规定私有单机回归，Task9 与 C4 整关开放。P1 首用 B0/B1 已在独立分支通过合成只读验证。正式 HTTP/Web 工作台和学习流程待建设。</p>
 <p>本版以 GitHub 功能分支 <code>08c3687ef39416411af9f21a743fed09ccf8ef3f</code> 为审查基线。历史方案保留原合同和采用记录。准备、代码、限定检查、实际现场、整链及生产状态分别列出；日期与源码身份随证据一起读取。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -46,7 +46,7 @@ main{min-width:0}header{padding:34px 40px;background:var(--paper);border:1px sol
 </tr>
 <tr>
 <td><a href="#chapter-interfaces">07 API 前端与学习闭环</a></td>
-<td>可验证的首用切片、接口提案与验收</td>
+<td>首用实测、正式接口设计与下一步验收</td>
 </tr>
 <tr>
 <td><a href="#chapter-deployment">08 部署运维与架构演进</a></td>
@@ -116,11 +116,11 @@ node scripts/build_architecture.mjs --output KnowWeave架构设计.html
 <td>P1-B 串起目标、任务、尝试、产物、验收和复盘</td>
 </tr>
 </tbody></table></div>
-<figure><div class="diagram" tabindex="0" role="region" aria-label="当前内核和目标产品的系统分层"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 930" role="img" aria-labelledby="overview-title overview-desc"><title id="overview-title">01 · 全系统架构总览</title><desc id="overview-desc">当前 Rust 内核与目标产品分层。HTTP、Web 与学习闭环待建设，管理链单列。</desc><style>
+<figure><div class="diagram" tabindex="0" role="region" aria-label="当前内核和目标产品的系统分层"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 930" role="img" aria-labelledby="overview-title overview-desc"><title id="overview-title">01 · 全系统架构总览</title><desc id="overview-desc">当前 Rust 内核与目标产品分层。合成只读首用已验证，正式 HTTP、Web 与学习闭环待建设。</desc><style>
 :root{--paper:#ffffff;--ink:#172338;--muted:#506078;--edge:#6b7b92;--line:#c7d0df;--done:#eaf5ee;--done-ink:#246547;--next:#ebf1ff;--next-ink:#294ea5;--planned:#f2f4f8;--planned-ink:#506078;--optional:#f3ecfb;--optional-ink:#714993;--neutral:#fafbfc;}
 @media(prefers-color-scheme:dark){:root{--paper:#131b29;--ink:#e6edf7;--muted:#b0bdd0;--edge:#97a9c0;--line:#415269;--done:#163a2d;--done-ink:#8fd8b3;--next:#203758;--next-ink:#a7c2ff;--planned:#283447;--planned-ink:#c1ccdc;--optional:#382c49;--optional-ink:#d3b5f2;--neutral:#202b3b;}}
-text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="overview-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="930" fill="var(--paper)"/><path class="edge" d="M217,70 L217,42 L567,42 L567,70" marker-end="url(#overview-arrow)"/><rect x="373" y="21" width="38" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="34" text-anchor="middle">访问</text><path class="edge" d="M567,170 L567,228" marker-end="url(#overview-arrow)"/><rect x="572" y="178" width="66.4" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="191" text-anchor="start">同源 API</text><path class="edge" d="M917,170 L917,228" marker-end="url(#overview-arrow)"/><rect x="922" y="178" width="111.30000000000001" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="191" text-anchor="start">登记 / 受控导入</text><path class="edge" d="M567,228 L567,200 L217,200 L217,228" marker-end="url(#overview-arrow)"/><rect x="360" y="179" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="192" text-anchor="middle">业务调用</text><path class="edge" d="M567,328 L567,357 L217,357 L217,386" marker-end="url(#overview-arrow)"/><rect x="353.5" y="336" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="349" text-anchor="middle">校验与编排</text><path class="edge" d="M917,328 L917,386" marker-end="url(#overview-arrow)"/><rect x="922" y="336" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="349" text-anchor="start">原件与引用</text><path class="edge" d="M217,486 L217,544" marker-end="url(#overview-arrow)"/><rect x="222" y="494" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="507" text-anchor="start">事务读写</text><path class="edge" d="M917,486 L917,544" marker-end="url(#overview-arrow)"/><rect x="922" y="494" width="158.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="507" text-anchor="start">校验 / 定稿 / 授权读取</text><path class="edge" d="M917,486 L917,515 L217,515 L217,544" marker-end="url(#overview-arrow)"/><rect x="704.2" y="496" width="171.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="790" y="509" text-anchor="middle">元数据 / 精确使用 / 授权</text><path class="edge optional-edge" d="M70,278 L40,278 L40,594 L70,594" marker-end="url(#overview-arrow)"/><rect x="40" y="340" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="45" y="353" text-anchor="start">学习事实</text><path class="edge" d="M567,486 L567,515 L217,515 L217,544" marker-end="url(#overview-arrow)"/><rect x="325.7" y="494" width="132.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="507" text-anchor="middle">转投 / 租约 / 结果</text><path class="edge" d="M567,386 L567,358 L917,358 L917,386" marker-end="url(#overview-arrow)"/><rect x="697" y="337" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="350" text-anchor="middle">复用精确授权</text><path class="edge optional-edge" d="M567,486 L567,544" marker-end="url(#overview-arrow)"/><rect x="572" y="494" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="507" text-anchor="start">未来处理器</text><path class="edge" d="M1064,594 L1090,594 L1090,858 L217,858 L217,802" marker-end="url(#overview-arrow)"/><rect x="615" y="837" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="653.5" y="850" text-anchor="middle">原字节闭包</text><path class="edge" d="M217,644 L217,702" marker-end="url(#overview-arrow)"/><rect x="222" y="652" width="103" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="665" text-anchor="start">闭包与一致快照</text><path class="edge optional-edge" d="M217,644 L217,673 L567,673 L567,702" marker-end="url(#overview-arrow)"/><rect x="353.5" y="652" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="665" text-anchor="middle">可重建投影</text><path class="edge optional-edge" d="M567,644 L567,673 L917,673 L917,702" marker-end="url(#overview-arrow)"/><rect x="710" y="652" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="665" text-anchor="middle">按需适配</text><g class="node neutral" data-node="user"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">上下文</text><text x="86" y="114" class="node-title">个人学习者</text><text x="86" y="136" class="node-body">电脑 / 平板 / 手机</text><text x="86" y="155" class="node-body">跨设备访问同一服务</text></g><g class="node planned" data-node="web"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">待建设</text><text x="436" y="114" class="node-title">Web 学习工作台</text><text x="436" y="136" class="node-body">阅读与个人层先行</text><text x="436" y="155" class="node-body">首用切片为待采纳设计</text></g><g class="node neutral" data-node="sources"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">上下文</text><text x="786" y="114" class="node-title">课程与实践来源</text><text x="786" y="136" class="node-body">PDF / PPTX / Notebook / 代码</text><text x="786" y="155" class="node-body">原格式资料与实验产物</text></g><g class="node planned" data-node="learning"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">待建设</text><text x="86" y="272" class="node-title">学习与计划模块</text><text x="86" y="294" class="node-body">单元 / 任务 / 尝试 / 验收</text><text x="86" y="313" class="node-body">P1-B；规则推荐延伸到 P2</text></g><g class="node planned" data-node="api"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">待建设</text><text x="436" y="272" class="node-title">Rust HTTP / 身份边界</text><text x="436" y="294" class="node-body">会话 · DTO · 授权入口</text><text x="436" y="313" class="node-body">P1-A；Axum 为建议</text></g><g class="node next" data-node="import"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">实施中</text><text x="786" y="272" class="node-title">交换与导入入口</text><text x="786" y="294" class="node-body">C3 快照已验收；资料入口待建</text><text x="786" y="313" class="node-body">批量更新属于后续阶段</text></g><g class="node done" data-node="content"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">已验收</text><text x="86" y="430" class="node-title">内容与关系内核</text><text x="86" y="452" class="node-body">块 / 组合 / 个人层 / 审查</text><text x="86" y="471" class="node-body">P0-A / B1–B4 已验收</text></g><g class="node done" data-node="jobs"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">已验收</text><text x="436" y="430" class="node-title">持久任务与 Worker</text><text x="436" y="452" class="node-body">job_outbox → job → 租约</text><text x="436" y="471" class="node-body">C2 资产完整性已验收</text></g><g class="node done" data-node="assetapi"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">已验收</text><text x="786" y="430" class="node-title">资产与来源模块</text><text x="786" y="452" class="node-body">资源版本 · 精确使用授权</text><text x="786" y="471" class="node-body">C1 原字节与 v3 图片/附件</text></g><g class="node done" data-node="pg"><rect x="70" y="544" width="294" height="100" rx="9"/><text x="86" y="564" class="state">已验收</text><text x="86" y="588" class="node-title">PostgreSQL 权威库</text><text x="86" y="610" class="node-body">结构化正文与关系 / 作业状态</text><text x="86" y="629" class="node-body">SQLx · 事务 · 追加迁移</text></g><g class="node optional" data-node="derived"><rect x="420" y="544" width="294" height="100" rx="9"/><text x="436" y="564" class="state">可选</text><text x="436" y="588" class="node-title">可重建派生层</text><text x="436" y="610" class="node-body">预览 / OCR / 搜索 / 检索片段</text><text x="436" y="629" class="node-body">处理器与索引后续按需建设</text></g><g class="node done" data-node="files"><rect x="770" y="544" width="294" height="100" rx="9"/><text x="786" y="564" class="state">已验收</text><text x="786" y="588" class="node-title">不可变原件库</text><text x="786" y="610" class="node-body">SHA-256 原件 · 独立持久卷</text><text x="786" y="629" class="node-body">独立卷不等于独立故障域</text></g><g class="node next" data-node="portable"><rect x="70" y="702" width="294" height="100" rx="9"/><text x="86" y="722" class="state">实施中</text><text x="86" y="746" class="node-title">C3 / C4 可移植性</text><text x="86" y="768" class="node-body">C3 隔离验收已通过</text><text x="86" y="787" class="node-body">C4 Task9 独立整链开放</text></g><g class="node optional" data-node="graph"><rect x="420" y="702" width="294" height="100" rx="9"/><text x="436" y="722" class="state">可选</text><text x="436" y="746" class="node-title">Neo4j 可选投影</text><text x="436" y="768" class="node-body">首版不常驻</text><text x="436" y="787" class="node-body">来源仍为 PostgreSQL</text></g><g class="node optional" data-node="ai"><rect x="770" y="702" width="294" height="100" rx="9"/><text x="786" y="722" class="state">可选</text><text x="786" y="746" class="node-title">可选 AI / 外部执行</text><text x="786" y="768" class="node-body">仅建议；实验默认外部运行</text><text x="786" y="787" class="node-body">关闭后不影响核心流程</text></g></svg></div><figcaption>当前内核和目标产品的系统分层</figcaption></figure>
-<p>采用模块化单体。领域规则和事务由同一代码库维持，未来 HTTP 进程与已有 Worker 分开运行，管理与恢复采用独立身份和受控入口。浏览器只接触 API 提供的最小投影。库接口传入的 <code>Principal</code> 需要 HTTP 适配层依据可信会话构造。</p>
+text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(--ink)}.node rect{fill:var(--planned);stroke:var(--line);stroke-width:1}.node.done rect{fill:var(--done)}.node.next rect{fill:var(--next)}.node.optional rect{fill:var(--optional)}.node.neutral rect{fill:var(--neutral)}.state{font-size:11px;letter-spacing:1px;fill:var(--planned-ink)}.done .state{fill:var(--done-ink)}.next .state{fill:var(--next-ink)}.optional .state{fill:var(--optional-ink)}.node-title{font-size:16px;font-weight:600}.node-body{font-size:13px;fill:var(--muted)}.edge{fill:none;stroke:var(--edge);stroke-width:1.4}.optional-edge{stroke-dasharray:5 4}.edge-label{font-size:12px;fill:var(--muted)}</style><defs><marker id="overview-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker></defs><rect width="1120" height="930" fill="var(--paper)"/><path class="edge" d="M217,70 L217,42 L567,42 L567,70" marker-end="url(#overview-arrow)"/><rect x="373" y="21" width="38" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="34" text-anchor="middle">访问</text><path class="edge" d="M567,170 L567,228" marker-end="url(#overview-arrow)"/><rect x="572" y="178" width="66.4" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="191" text-anchor="start">同源 API</text><path class="edge" d="M917,170 L917,228" marker-end="url(#overview-arrow)"/><rect x="922" y="178" width="111.30000000000001" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="191" text-anchor="start">登记 / 受控导入</text><path class="edge" d="M567,228 L567,200 L217,200 L217,228" marker-end="url(#overview-arrow)"/><rect x="360" y="179" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="192" text-anchor="middle">业务调用</text><path class="edge" d="M567,328 L567,357 L217,357 L217,386" marker-end="url(#overview-arrow)"/><rect x="353.5" y="336" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="349" text-anchor="middle">校验与编排</text><path class="edge" d="M917,328 L917,386" marker-end="url(#overview-arrow)"/><rect x="922" y="336" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="349" text-anchor="start">原件与引用</text><path class="edge" d="M217,486 L217,544" marker-end="url(#overview-arrow)"/><rect x="222" y="494" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="507" text-anchor="start">事务读写</text><path class="edge" d="M917,486 L917,544" marker-end="url(#overview-arrow)"/><rect x="922" y="494" width="158.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="927" y="507" text-anchor="start">校验 / 定稿 / 授权读取</text><path class="edge" d="M917,486 L917,515 L217,515 L217,544" marker-end="url(#overview-arrow)"/><rect x="704.2" y="496" width="171.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="790" y="509" text-anchor="middle">元数据 / 精确使用 / 授权</text><path class="edge optional-edge" d="M70,278 L40,278 L40,594 L70,594" marker-end="url(#overview-arrow)"/><rect x="40" y="340" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="45" y="353" text-anchor="start">学习事实</text><path class="edge" d="M567,486 L567,515 L217,515 L217,544" marker-end="url(#overview-arrow)"/><rect x="325.7" y="494" width="132.6" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="507" text-anchor="middle">转投 / 租约 / 结果</text><path class="edge" d="M567,386 L567,358 L917,358 L917,386" marker-end="url(#overview-arrow)"/><rect x="697" y="337" width="90" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="350" text-anchor="middle">复用精确授权</text><path class="edge optional-edge" d="M567,486 L567,544" marker-end="url(#overview-arrow)"/><rect x="572" y="494" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="577" y="507" text-anchor="start">未来处理器</text><path class="edge" d="M1064,594 L1090,594 L1090,858 L217,858 L217,802" marker-end="url(#overview-arrow)"/><rect x="615" y="837" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="653.5" y="850" text-anchor="middle">原字节闭包</text><path class="edge" d="M217,644 L217,702" marker-end="url(#overview-arrow)"/><rect x="222" y="652" width="103" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="227" y="665" text-anchor="start">闭包与一致快照</text><path class="edge optional-edge" d="M217,644 L217,673 L567,673 L567,702" marker-end="url(#overview-arrow)"/><rect x="353.5" y="652" width="77" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="392" y="665" text-anchor="middle">可重建投影</text><path class="edge optional-edge" d="M567,644 L567,673 L917,673 L917,702" marker-end="url(#overview-arrow)"/><rect x="710" y="652" width="64" height="19" fill="var(--paper)" opacity=".96"/><text class="edge-label" x="742" y="665" text-anchor="middle">按需适配</text><g class="node neutral" data-node="user"><rect x="70" y="70" width="294" height="100" rx="9"/><text x="86" y="90" class="state">上下文</text><text x="86" y="114" class="node-title">个人学习者</text><text x="86" y="136" class="node-body">电脑 / 平板 / 手机</text><text x="86" y="155" class="node-body">跨设备访问同一服务</text></g><g class="node planned" data-node="web"><rect x="420" y="70" width="294" height="100" rx="9"/><text x="436" y="90" class="state">待建设</text><text x="436" y="114" class="node-title">Web 学习工作台</text><text x="436" y="136" class="node-body">阅读与个人层先行</text><text x="436" y="155" class="node-body">B1 合成只读实测通过</text></g><g class="node neutral" data-node="sources"><rect x="770" y="70" width="294" height="100" rx="9"/><text x="786" y="90" class="state">上下文</text><text x="786" y="114" class="node-title">课程与实践来源</text><text x="786" y="136" class="node-body">PDF / PPTX / Notebook / 代码</text><text x="786" y="155" class="node-body">原格式资料与实验产物</text></g><g class="node planned" data-node="learning"><rect x="70" y="228" width="294" height="100" rx="9"/><text x="86" y="248" class="state">待建设</text><text x="86" y="272" class="node-title">学习与计划模块</text><text x="86" y="294" class="node-body">单元 / 任务 / 尝试 / 验收</text><text x="86" y="313" class="node-body">P1-B；规则推荐延伸到 P2</text></g><g class="node planned" data-node="api"><rect x="420" y="228" width="294" height="100" rx="9"/><text x="436" y="248" class="state">待建设</text><text x="436" y="272" class="node-title">Rust HTTP / 身份边界</text><text x="436" y="294" class="node-body">会话 · DTO · 授权入口</text><text x="436" y="313" class="node-body">正式 P1-A 待建设</text></g><g class="node next" data-node="import"><rect x="770" y="228" width="294" height="100" rx="9"/><text x="786" y="248" class="state">实施中</text><text x="786" y="272" class="node-title">交换与导入入口</text><text x="786" y="294" class="node-body">C3 快照已验收；资料入口待建</text><text x="786" y="313" class="node-body">批量更新属于后续阶段</text></g><g class="node done" data-node="content"><rect x="70" y="386" width="294" height="100" rx="9"/><text x="86" y="406" class="state">已验收</text><text x="86" y="430" class="node-title">内容与关系内核</text><text x="86" y="452" class="node-body">块 / 组合 / 个人层 / 审查</text><text x="86" y="471" class="node-body">P0-A / B1–B4 已验收</text></g><g class="node done" data-node="jobs"><rect x="420" y="386" width="294" height="100" rx="9"/><text x="436" y="406" class="state">已验收</text><text x="436" y="430" class="node-title">持久任务与 Worker</text><text x="436" y="452" class="node-body">job_outbox → job → 租约</text><text x="436" y="471" class="node-body">C2 资产完整性已验收</text></g><g class="node done" data-node="assetapi"><rect x="770" y="386" width="294" height="100" rx="9"/><text x="786" y="406" class="state">已验收</text><text x="786" y="430" class="node-title">资产与来源模块</text><text x="786" y="452" class="node-body">资源版本 · 精确使用授权</text><text x="786" y="471" class="node-body">C1 原字节与 v3 图片/附件</text></g><g class="node done" data-node="pg"><rect x="70" y="544" width="294" height="100" rx="9"/><text x="86" y="564" class="state">已验收</text><text x="86" y="588" class="node-title">PostgreSQL 权威库</text><text x="86" y="610" class="node-body">结构化正文与关系 / 作业状态</text><text x="86" y="629" class="node-body">SQLx · 事务 · 追加迁移</text></g><g class="node optional" data-node="derived"><rect x="420" y="544" width="294" height="100" rx="9"/><text x="436" y="564" class="state">可选</text><text x="436" y="588" class="node-title">可重建派生层</text><text x="436" y="610" class="node-body">预览 / OCR / 搜索 / 检索片段</text><text x="436" y="629" class="node-body">处理器与索引后续按需建设</text></g><g class="node done" data-node="files"><rect x="770" y="544" width="294" height="100" rx="9"/><text x="786" y="564" class="state">已验收</text><text x="786" y="588" class="node-title">不可变原件库</text><text x="786" y="610" class="node-body">SHA-256 原件 · 独立持久卷</text><text x="786" y="629" class="node-body">独立卷不等于独立故障域</text></g><g class="node next" data-node="portable"><rect x="70" y="702" width="294" height="100" rx="9"/><text x="86" y="722" class="state">实施中</text><text x="86" y="746" class="node-title">C3 / C4 可移植性</text><text x="86" y="768" class="node-body">C3 隔离验收已通过</text><text x="86" y="787" class="node-body">C4 Task9 独立整链开放</text></g><g class="node optional" data-node="graph"><rect x="420" y="702" width="294" height="100" rx="9"/><text x="436" y="722" class="state">可选</text><text x="436" y="746" class="node-title">Neo4j 可选投影</text><text x="436" y="768" class="node-body">首版不常驻</text><text x="436" y="787" class="node-body">来源仍为 PostgreSQL</text></g><g class="node optional" data-node="ai"><rect x="770" y="702" width="294" height="100" rx="9"/><text x="786" y="722" class="state">可选</text><text x="786" y="746" class="node-title">可选 AI / 外部执行</text><text x="786" y="768" class="node-body">仅建议；实验默认外部运行</text><text x="786" y="787" class="node-body">关闭后不影响核心流程</text></g></svg></div><figcaption>当前内核和目标产品的系统分层</figcaption></figure>
+<p>采用模块化单体。领域规则和事务由同一代码库维持，未来 HTTP 进程与已有 Worker 分开运行，管理与恢复采用独立身份和受控入口。浏览器只接触 API 提供的最小投影。库接口传入的 <code>Principal</code> 由 HTTP 适配层依据可信会话构造。B1 已在独立合成预览中验证固定修订、三种阅读投影和即时撤权。</p>
 <h3 id="overview-heading-3">权威数据</h3>
 <div class="table-wrap"><table>
 <thead>
@@ -326,7 +326,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </tr>
 </tbody></table></div>
 <p><code>offhost-b1</code> 显式启用 <code>independent-verifier</code> 与 DB 的 <code>b1-source-peer</code>。Source、Capture、Source RootLauncher、Receiver 四个 Rust 入口要求该 feature。构建还需要角色和公钥等实际 pin，现场需固定安装与运行准入。现有管理 CLI、内部库入口和历史读取各有不同权限，不能互换。</p>
-<p>待建设接口以 Web 适配层调用已审的领域 Store。当前没有 Web workspace、HTTP router 或登录会话；生产部署和浏览器合约属于后续阶段。Cargo 的 crate 边、容器进程边与信任边界分别审查。<a href="https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/Cargo.toml">Cargo 根配置</a> · <a href="https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-backup/Cargo.toml">Backup Cargo 配置</a> · <a href="https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/Cargo.toml">DB Cargo 配置</a></p>
+<p>受审内核树提供领域 Store。B1 预览另设 <code>apps/reading-preview</code> 工作区，使用 Axum 及只读数据库角色复用领域读接口。正式工作台、产品登录和持久部署属于后续阶段。Cargo 的 crate 边、容器进程边与信任边界分别审查。<a href="https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/Cargo.toml">Cargo 根配置</a> · <a href="https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-backup/Cargo.toml">Backup Cargo 配置</a> · <a href="https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/Cargo.toml">DB Cargo 配置</a></p>
 <h3 id="modules-heading-2">模式迁移</h3>
 <div class="table-wrap"><table>
 <thead>
@@ -583,8 +583,10 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <p><a href="docs/p0c4-completion-acceptance.md">限定验收台账</a> · <a href="docs/p0c4-task8-current-regression.md">Task8 证据</a> · <a href="docs/task9/installation-and-two-host-acceptance-plan.md">Task9 现场顺序</a> · <a href="https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/architecture/06-portability-and-recovery.md">早期章节快照</a></p>
 <p class="chapter-source"><a href="docs/architecture/06-portability-and-recovery.md">编辑本章 Markdown ↗</a></p></section>
 <section class="chapter" id="chapter-interfaces" aria-label="07 API 前端与学习闭环"><h2 id="interfaces-heading-1">07 API 前端与学习闭环</h2>
-<p>本章是新的切片设计提案。Rust 后端与独立 Web 前端沿原批准方向。HTTP 框架、前端框架、URL 和身份方案由 P1 实施评审冻结。现有源码提供可复用的 Store 与命令。</p>
-<h3 id="interfaces-heading-2">首次使用 · 一篇可复现的 Attention 文档</h3>
+<h3 id="interfaces-heading-2">B0/B1 · 合成只读预览已通过</h3>
+<p>2026-11-08 在独立预览分支交付。临时 PostgreSQL 18.6 实际写入合成 Attention 文档、同一块的两个固定出现和一条私有笔记。本地 Axum 服务用只读数据库角色执行 <code>ReadingStore::read_versioned</code>，按服务端会话确定 actor，浏览器展示原文、融合和个人三种视图。</p>
+<p>Edge 桌面与 390 像素窄屏通过 6 组验证，覆盖固定修订、出现路径、文本安全渲染、键盘、访客拒绝、撤权及退出。同一会话撤掉来源授权后，原文与来源标识消失，仍有个人空间授权的本人笔记进入未定位区。随后撤掉个人空间授权，阅读被拒绝。临时数据库已核验停机并清理。预览只接收合成文本，正式身份与资产入口仍待建设。<a href="https://github.com/MansurnamedZhang/learning-system-p0c4/tree/034b3468541d70b683f0c43fa7e3ddeb6cec0374/apps/reading-preview">预览代码与复验命令</a></p>
+<h3 id="interfaces-heading-3">首次使用设计 · 一篇可复现的 Attention 文档</h3>
 <ol>
 <li>打开同一固定阅读修订。默认融合视图，能切换原文或个人层。笔记用归属标记区分，可展开块版本和来源。</li>
 <li>在两个出现点之一的间隙插入一条文本笔记，保留另一处的独立出现。使用 <code>GapAnchor</code> 和 <code>ReadingStore</code> 的版本与事务语义。</li>
@@ -592,8 +594,8 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <li>模拟延迟或断开。客户端保留草稿，重试沿用原请求。遇到旧修订冲突时可打开当前允许的版本并保留手工合并内容。</li>
 <li>将文档升级与个人笔记迁移交互放在首切片之后。映射不确定的内容继续可找回，先由用户确认。</li>
 </ol>
-<p>先使用合成文档与隔离数据库。第一阶段只读，第二阶段加入个人文本写。暂缓上传、全局搜索、共享内容批量编辑、AI 和学习计划。正式资料和持久发布按 <a href="#chapter-delivery">交付门</a> 单列。</p>
-<h3 id="interfaces-heading-3">HTTP 适配层设计</h3>
+<p>步骤 1 已由 B1 合成预览验证。步骤 2–4 是 B2 的个人文本写、重试与冲突范围。步骤 5 属于后续版本迁移。暂缓上传、全局搜索、共享内容批量编辑、AI 和学习计划。正式资料和持久发布按 <a href="#chapter-delivery">交付门</a> 单列。</p>
+<h3 id="interfaces-heading-4">正式 HTTP 适配层设计</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -624,7 +626,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </tr>
 </tbody></table></div>
 <p>建议同源部署和服务端会话，HTTP 层验证会话、写请求来源和输入上限，依据会话映射 actor；浏览器可提交业务目标，无法指定运行身份。普通处理使用 least-privilege 数据库身份与允许的 Store。管理、备份、恢复与任何按任意路径操作的接口独立。</p>
-<h4 id="interfaces-heading-4">保存状态</h4>
+<h4 id="interfaces-heading-5">保存状态</h4>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -654,7 +656,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </tr>
 </tbody></table></div>
 <p>不可见和不存在采用相同外部形状。未认证、校验失败、冲突、暂时不可用与成功分别可观察。响应不含 SQL、主机路径、隐藏关系或权限猜测信息。对 Markdown 按白名单处理输出，外链与媒体权限另审。桌面和窄屏都验证焦点、键盘操作、保存反馈和越权负例。</p>
-<h3 id="interfaces-heading-5">P1-B 的最小学习数据</h3>
+<h3 id="interfaces-heading-6">P1-B 的最小学习数据</h3>
 <p>先用一次 Attention 实践建立事实链。学习单元固定目标、先修、资源版本和通过规则；用户在外部完成实现或测量并提交产物引用；验收记录所用规则、证据、评价者与条件，复盘与下次建议引用当时事实。计划调整追加版本。业务类型和数据库表由后续契约审定。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -698,7 +700,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </tr>
 </thead>
 <tbody><tr>
-<td>Web/API（待建设）</td>
+<td>正式 Web/API（待建设）</td>
 <td>身份、受限命令、用户投影、受控下载</td>
 <td>浏览器端到端、会话、授权错误和缓存策略</td>
 </tr>
@@ -723,6 +725,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <td>管理和传输身份分开；实际链、干净目标和零源依赖回读</td>
 </tr>
 </tbody></table></div>
+<p>B1 预览使用本机回环服务和可丢弃的 PostgreSQL 18 集群。它与目标部署分开记录。<a href="#chapter-interfaces">预览验收范围</a></p>
 <p>程序、PG 数据、原件、暂存、可重建派生、备份和证据分别留存。运行身份只读所需发布物，写权限按职责逐项核对。普通 Worker 与后续 HTTP 服务没有备份签发或恢复权限。宿主 root 和 Docker daemon 属于可信运维边界。两端私钥由所属主机 root 托管，发布文档只保存证据索引和允许公开的摘要。</p>
 <h3 id="deployment-heading-3">H4 当前实施边界</h3>
 <p>C 先完成 S1/S2 离线 PG18 与固定视图，再以实际身份冻结 source-binding、源角色 ELF 和安装对象。D 端曾完成真实 pin 构建及锁定专用账号的准备。权限、trust、固定启动和 22229 的准确范围应在安装前再审。独立目标的容量和可达性按执行时的观测重新核对。旧 HOLD 的资源不可直接重新开机或作为后续成功实例。<a href="docs/task9/h4-c-isolated-resources-and-build.md">隔离资源与构建</a> · <a href="docs/task9/installation-and-two-host-acceptance-plan.md">安装和双机顺序</a></p>
@@ -783,7 +786,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </thead>
 <tbody><tr>
 <td>Rust、PostgreSQL 与私有原件库，API/Worker 分进程</td>
-<td>既有设计与已落地内核；HTTP/前端依旧待建</td>
+<td>内核已落地，隔离只读 HTTP/Web 已验证，正式入口待建</td>
 <td>有真实容量或部署边界证据时再讨论拆分</td>
 </tr>
 <tr>
@@ -813,8 +816,8 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </tr>
 <tr>
 <td>分线推进合成数据的浏览器首用</td>
-<td><strong>本版建议，待采纳</strong></td>
-<td>明确隔离范围、入口及验收，再决定实施</td>
+<td>B0/B1 在独立分支完成</td>
+<td>B2 验证个人文本写、重试与冲突，真实资料另过准入门</td>
 </tr>
 <tr>
 <td>AI 作为建议层</td>
@@ -834,8 +837,8 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </thead>
 <tbody><tr>
 <td>审查源码</td>
-<td>功能分支 <code>08c3687ef39416411af9f21a743fed09ccf8ef3f</code>，树 <code>45dba175a53f57f2ed321de1e4eafe698a93f1d7</code>、727 叶。Cargo 五个 crate、15 个迁移，应用 HTTP/Web/学习闭环待建设。</td>
-<td>这是当前阅读的基线；运行结果各自使用下列受测身份。</td>
+<td>功能分支 <code>08c3687ef39416411af9f21a743fed09ccf8ef3f</code>，树 <code>45dba175a53f57f2ed321de1e4eafe698a93f1d7</code>、727 叶。Cargo 五个 crate、15 个迁移，审查树尚无应用 HTTP/Web/学习闭环。</td>
+<td>各运行结果分别使用下列受测身份。</td>
 </tr>
 <tr>
 <td>P0-A、B1–B4、C1–C3</td>
@@ -866,6 +869,11 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <td>Task9 C · 11 月 4 日</td>
 <td>原 S1 首启触限，停机独立回读；S2 PG 首启未投送。干净 S1 与 128 任务修订封存，预检通过。</td>
 <td>本版以最后已封存证据为准，实际重跑需批准。Task9/C4 未通过。</td>
+</tr>
+<tr>
+<td>P1 首用 B0/B1 · 11 月 8 日</td>
+<td>源码 <code>790f004</code>，PostgreSQL 18.6 与 Edge 156 实际 6 组通过，临时集群已停机清理。结果 SHA-256 <code>ad9383230a9545c3aea728dde41409f0f0fdb944dec956356f7a2f4baabd3ceb</code>。</td>
+<td>本机合成只读。正式身份、资产、笔记写入及 Task9 依各自门验收。</td>
 </tr>
 </tbody></table></div>
 <p><a href="docs/KnowWeave%E5%AE%9E%E6%96%BD%E8%B7%AF%E7%BA%BF%E4%B8%8E%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84.md">A–C3 路线及分关入口</a> · <a href="docs/p0c4-completion-acceptance.md">C4 采用台账</a> · <a href="docs/p0c4-task8-current-regression.md">Task8 原件与限制</a> · <a href="docs/task9/installation-and-two-host-acceptance-plan.md">CF2 实际来源</a> · <a href="docs/task9/h4-key-custody-decision.md">密钥托管记录</a> · <a href="docs/task9/h4-c-pg18-first-boot.md">C 首启回读</a></p>
@@ -958,10 +966,10 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <td>失去已验证的事务与授权闭包，或失去整库恢复语义。现有证据未表明该代价可换来用户价值，不纳入本版。</td>
 </tr>
 </tbody></table></div>
-<p>路线修订的接受点是 <a href="#chapter-delivery">交付与验收计划</a> 的两条线。Task9 当前仍停在实际重跑审批。P1 切片是新的实施建议，尚待确定范围与启动日期。</p>
+<p>审查后的进展按 <a href="#chapter-delivery">交付与验收计划</a> 两条线记录。P1 的 B0/B1 合成只读已验证，B2 写入待做。Task9 当前仍停在实际重跑审批。</p>
 <p class="chapter-source"><a href="docs/architecture/10-deep-review.md">编辑本章 Markdown ↗</a></p></section>
 <section class="chapter" id="chapter-delivery" aria-label="11 分线交付与验收计划"><h2 id="delivery-heading-1">11 分线交付与验收计划</h2>
-<p>Task9 沿已批准规范继续，浏览器首用切片作为独立建议。每条线分别记源码、运行结果、证据覆盖和停止条件。完成按可观察交付结算，进度以当前门和下一项依赖呈现。</p>
+<p>Task9 沿已批准规范继续。浏览器首用已在独立分支完成 B0/B1。每条线分别记源码、运行结果、证据覆盖和停止条件。完成按可观察交付结算，进度以当前门和下一项依赖呈现。</p>
 <h3 id="delivery-heading-2">A 线 · Task9 与 P0-C4 收口</h3>
 <div class="table-wrap"><table>
 <thead>
@@ -1008,7 +1016,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </tr>
 </tbody></table></div>
 <p>A1 与 A2 仍是同一份冻结的串行首启方案。A3 至 A7 分解的是交付判据，具体权限、顺序和失败动作由现场审批单约束。<a href="docs/task9/h4-c-pg18-first-boot.md">首启冻结单</a> · <a href="docs/task9/installation-and-two-host-acceptance-plan.md">真实安装及双机验收</a> · <a href="docs/superpowers/plans/2026-10-04-p0c4-completion.md">五门正式计划</a></p>
-<h3 id="delivery-heading-3">B 线 · 浏览器首用切片建议</h3>
+<h3 id="delivery-heading-3">B 线 · 浏览器首用切片</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1018,17 +1026,17 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 </tr>
 </thead>
 <tbody><tr>
-<td>B0 · 切片设计</td>
-<td>选一个合成的 Attention 文档，含固定组合、两个相同块的独立出现、一个私有 Overlay 和可验证版本。确定首用任务和权限负例。</td>
-<td>能指明每条 UI 数据的领域来源和具体测试夹具；评审本页和接口设计。</td>
+<td>B0 · 切片设计已落实</td>
+<td>合成 Attention 文档含固定组合、同一块的两个独立出现、一条私有笔记和可验证修订。</td>
+<td>界面以实际领域 Store 读取合成夹具，固定出现与私有层可分别验证。</td>
 </tr>
 <tr>
-<td>B1 · 私有只读切片</td>
+<td>B1 · 合成只读通过</td>
 <td>独立临时服务通过受信会话打开固定视图，桌面和窄屏可浏览、展开来源、切换原文/融合/个人。</td>
-<td>同一用户在两种视口读到同一固定修订；另一个主体和已撤权访问均无法借响应、缓存或资源 URL 得到私有内容。</td>
+<td>实际 PG18.6 与 Edge 通过 6 组检查。覆盖第二身份、来源撤权、个人空间撤权和退出会话。</td>
 </tr>
 <tr>
-<td>B2 · 私有写入切片</td>
+<td>B2 · 下一步 · 私有写入</td>
 <td>在一个明确间隙插入文本笔记；经受控 API 保存后刷新可复现，原文不变。</td>
 <td>重发同一请求只有一个逻辑结果；旧版本冲突保留草稿；会话过期或撤权后拒绝；内容渲染对不安全标记做限制。</td>
 </tr>
@@ -1038,7 +1046,7 @@ text{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;fill:var(-
 <td>既定恢复门、权限、数据留存、容量、发布及端到端体验分别具备证据。</td>
 </tr>
 </tbody></table></div>
-<p>B0–B2 使用可丢弃的合成数据和与 Task9 分开的资源。B1/B2 的入口、凭据和生命周期另作实现决定；本版提供设计与验收脚本提纲。<a href="#chapter-interfaces">产品接口与首用场景</a></p>
+<p>B0–B2 使用可丢弃的合成数据和与 Task9 分开的资源。B1 使用本机回环入口、一次启动有效的合成访问码和独立的只读数据库身份。B2 需先冻结最小写入身份和编辑请求合同，再用真实 PostgreSQL 验证保存、重放、旧修订冲突及撤权。正式身份、媒体与真实持久资料由对应产品门准入。<a href="#chapter-interfaces">产品接口与首用场景</a> · <a href="https://github.com/MansurnamedZhang/learning-system-p0c4/tree/034b3468541d70b683f0c43fa7e3ddeb6cec0374/apps/reading-preview">B1 预览与复验命令</a></p>
 <h3 id="delivery-heading-4">缩短验证往返</h3>
 <ol>
 <li>每张待办卡只记录一个可证伪结论，并具名写出“输入／进入条件／成功原件／失败留存／下一门”。已有决定采用批次及其冻结文件为准。</li>

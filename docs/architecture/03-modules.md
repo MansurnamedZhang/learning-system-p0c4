@@ -14,7 +14,7 @@
 
 `offhost-b1` 显式启用 `independent-verifier` 与 DB 的 `b1-source-peer`。Source、Capture、Source RootLauncher、Receiver 四个 Rust 入口要求该 feature。构建还需要角色和公钥等实际 pin，现场需固定安装与运行准入。现有管理 CLI、内部库入口和历史读取各有不同权限，不能互换。
 
-待建设接口以 Web 适配层调用已审的领域 Store。当前没有 Web workspace、HTTP router 或登录会话；生产部署和浏览器合约属于后续阶段。Cargo 的 crate 边、容器进程边与信任边界分别审查。[Cargo 根配置](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/Cargo.toml) · [Backup Cargo 配置](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-backup/Cargo.toml) · [DB Cargo 配置](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/Cargo.toml)
+受审内核树提供领域 Store。B1 预览另设 `apps/reading-preview` 工作区，使用 Axum 及只读数据库角色复用领域读接口。正式工作台、产品登录和持久部署属于后续阶段。Cargo 的 crate 边、容器进程边与信任边界分别审查。[Cargo 根配置](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/Cargo.toml) · [Backup Cargo 配置](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-backup/Cargo.toml) · [DB Cargo 配置](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/Cargo.toml)
 
 ## 模式迁移
 
