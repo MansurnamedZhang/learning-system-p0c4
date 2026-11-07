@@ -9,7 +9,7 @@ flowchart TB
     pg["内部 PostgreSQL<br/>postgres 独立持久卷 · 业务事实与持久任务<br/>【已验收】"]
     assets["assets 独立持久卷<br/>不可变原字节 / SHA-256 · 当前为 filesystem 后端<br/>【已验收】"]
     backup["C4 备份协调器<br/>维护窗与一致性清单 · 管理权限与运行角色分开<br/>【实施中】"]
-    remote["独立备份副本<br/>另一故障域 / 可校验保留集 · 密钥另存；恢复到干净实例<br/>【待建设】"]
+    remote["独立备份目标 D<br/>真实独立主机与托管准备 · 首签与恢复待实际验收<br/>【实施中】"]
     browser -- "HTTPS" --> gateway
     gateway -- "静态资源" --> web
     gateway -- "受保护 API" --> api
@@ -22,8 +22,8 @@ flowchart TB
     assets -. "按资产清单复制" .-> remote
     backup -. "数据库 + 清单" .-> remote
     class worker,pg,assets done
-    class backup next
-    class browser,gateway,management,web,api,remote planned
+    class backup,remote next
+    class browser,gateway,management,web,api planned
     classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
     classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
     classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b

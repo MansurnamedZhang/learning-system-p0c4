@@ -157,9 +157,9 @@ export const c4Tasks = [
     "id": 9,
     "title": "真实独立故障域闭合",
     "status": "next",
-    "statusLabel": "CF2普通25门与20项补验通过；双机验收OPEN",
-    "detail": "25阶段退出码全0：Backup默认450通过/106忽略、offhost663/106；DB默认62/24、peer129/26，filtered全0。新20定义逐名通过（0/14/0/6），跨配置重复正文不计为新增；源码与自然清理原件独核完成。",
-    "evidence": "受测source24282f8a／CODE22bcb1dd；13门bcd700／raw9638、名单4fbf／e1c3；实际25门50212fc5／证据1fcc9574／原件独核c2ce628c。默认关闭，旧失败/HOLD及原37/53保留。真实安装、C0-C02、RootPG/C11/S5/全期FD、首次跨机签名和RA/RB及Task9/C4仍OPEN。"
+    "statusLabel": "C 阶段 · S1 修订首启待审批",
+    "detail": "独立 D 已选定，三把密钥已按所属主机暂存，D 端实参构建已核。CF2 的 25 门和新增 20 项普通检查已通过。原 S1 在 QEMU 触限后停机 HOLD。",
+    "evidence": "干净 S1、TasksMax=128、峰值和触限记录已封存，S 只读预检通过。S1 全部门通过并停机后才运行 S2；后续须现场 C 准入、D1/RA、S2/V2 中断、D2/RB 和整链独审。"
   }
 ];
 
@@ -167,12 +167,12 @@ export const diagrams = [
   {
     "id": "overview",
     "title": "01 · 全系统架构总览",
-    "subtitle": "模块化单体目标架构：业务契约与现有后端内核已实现；HTTP/API和Web产品入口待P1建设。",
+    "subtitle": "当前 Rust 内核与目标产品分层。HTTP、Web 与学习闭环待建设，管理链单列。",
     "notes": [
       "浏览器工作台、HTTP 登录和学习闭环均为待建设。React + TypeScript + Vite、Axum 是建议组合，尚未作为已实施依赖固化。",
       "PostgreSQL 保存身份、修订、权限、位置、关系和任务状态；文件卷保存不可变原件。JSON/Markdown/HTML 是交换或阅读副本。",
       "知识关系图由 PostgreSQL 数据构建；Neo4j 如以后采用，只作为可重建投影。AI 不决定权威知识和验收事实。",
-      "C4恢复管理代码与单机补验已推进至Task8限定收尾；Task9和独立完成收据仍开放，不能将单机ReadingCopy交付称为生产服务。"
+      "C3 规定范围交换已验收。C4 已完成 Task8 规定私有回归，Task9 与正常独立恢复继续开放。"
     ],
     "nodes": [
       {
@@ -192,8 +192,8 @@ export const diagrams = [
         "row": 0,
         "title": "Web 学习工作台",
         "lines": [
-          "阅读 · 编辑 · 图谱 · 今日",
-          "P1-A / P1-B 待建设"
+          "阅读与个人层先行",
+          "首用切片为待采纳设计"
         ],
         "status": "planned"
       },
@@ -313,8 +313,8 @@ export const diagrams = [
         "row": 4,
         "title": "C3 / C4 可移植性",
         "lines": [
-          "Task6/7 私有单机限定完成",
-          "Task9 与 C4 整关开放"
+          "C3 隔离验收已通过",
+          "C4 Task9 独立整链开放"
         ],
         "status": "next"
       },
@@ -757,14 +757,14 @@ export const diagrams = [
   {
     "id": "crates",
     "title": "03 · Rust 代码与授权边界",
-    "subtitle": "实线显示现有模块依赖与运行接口；虚线表示未来接入。crate 是代码模块，不是独立网络服务。",
+    "subtitle": "实线为现有直接依赖或运行接口，虚线为计划接入。模块与进程边界分别读取。",
     "notes": [
-      "当前a5eb28d Cargo workspace有core、assets、db、worker、backup五个crate。真实直接依赖：backup → db/assets/core；worker → db/assets/core；db → assets/core；assets → core。assets不负责业务actor授权。API与Web尚未加入workspace。",
+      "源码审查基线 08c3687。真实直接依赖为 backup→db/assets/core、worker→db/assets/core、db→assets/core、assets→core。API 与 Web 待建。",
       "Worker 原件与二进制只读，staging 私有可写；C3 另挂服务所有的私有可写 snapshots 卷，管理凭据不进入普通 Worker。",
       "数据库 runtime 是可信内部服务角色，非每位最终用户或每个 Worker 的独立数据库租户。用户权限由业务 actor、当前空间授权和必要引用闭包共同判定。",
       "两项 P2 契约缺口已记录：持当前 token 的共享 runtime 可调用通用 succeed 而不写专用结果；也可直接调用完成函数绕过 Rust 字节复核。正常 Worker 已验收路径使用原子结果函数。这里 P2 是问题优先级，不表示已安排在路线 P2 阶段。",
       "旧 outbox_event 只保存 composition_released，C2 的 job_outbox / job 是独立协议；图与实现均不把两者合并成一张通用队列表。",
-      "图省略backup→core直接连线以保持可读，代码依赖以Cargo.toml为准。"
+      "offhost-b1 与 DB peer 默认关闭，feature、真实构建 pin、已装权限和现场准入各有独立证据。"
     ],
     "nodes": [
       {
@@ -861,8 +861,8 @@ export const diagrams = [
         "row": 2,
         "title": "learning-backup",
         "lines": [
-          "Task6/7 私有范围限定完成",
-          "Task9 与公开恢复仍开放"
+          "封存、收据、导入与恢复",
+          "Task9 首签入口默认关闭"
         ],
         "status": "next"
       }
@@ -1021,6 +1021,28 @@ export const diagrams = [
           "x": 567,
           "y": 518,
           "anchor": "middle"
+        }
+      },
+      {
+        "from": "backup",
+        "to": "core",
+        "label": "直接依赖",
+        "fromPort": "left",
+        "toPort": "left",
+        "route": [
+          [
+            48,
+            436
+          ],
+          [
+            48,
+            278
+          ]
+        ],
+        "labelAt": {
+          "x": 57,
+          "y": 351,
+          "anchor": "start"
         }
       },
       {
@@ -1236,7 +1258,7 @@ export const diagrams = [
   {
     "id": "portability",
     "title": "05 · C3 交换与 C4 恢复",
-    "subtitle": "C3范围快照交换已验收；C4单机链已完成Task8限定回归与审查；Task9独立域和正常公开恢复仍待完成。",
+    "subtitle": "C3 范围交换与 C4 实例恢复分开验收。Task8 私有单机通过，Task9 独立整链开放。",
     "notes": [
       "C3 Task 1–7 已完成分项与整关隔离验收：Task 7 在全新 Compose 项目通过完整 workspace、四套旧版升级、真实 Worker SIGKILL/租约接管、双端往返和四组失败注入。独立 root 只读审计核验 602 份证据文件、341 个源码文件、301 项镜像输入；状态为 P0_C3_VERIFIED / NOT_PRODUCTION。",
       "C3 输入为精确 ReadingViewRevision、模式和原件选项；当前授权求闭包，作业结束与交付时再次检查。已下载的文件无法被服务器远程撤回。",
@@ -1244,7 +1266,7 @@ export const diagrams = [
       "C4 Task2/3/5分别在原固定源码上完成规定单机补验；Task4只覆盖内容三门。Task6的2e5026d私有16/16与Task7的36c89f2私有6/6分别留证，不作为当前全工作区或四套升级通过。",
       "Task7六案：完整正例、缺失原件、损坏dump、传输中断、未知效果、原件根替换。未知效果在导入后拒绝并留3项UNKNOWN/runnable0；不是导入前目标不变。根替换只声明列举catalog/assets/attempt字节不变，不声明整个文件系统不变。",
       "三个good-pin恢复路径各四份ReadingCopy文件共1172B，四处逐字相等且inode独立；它们位于同一主机，不构成独立故障域。失败53df不计通过，历史未观测的外层OS收据不补造。",
-      "Task8规定私有回归及整组审查已限定完成。Task9仍须以真实独立目标、托管密钥及首签/新发布权限集成完成正常CompleteBackup与源端不可访问恢复；C4整关保持开放。",
+      "Task9 的 D 已选定，密钥已按主机暂存。实际首签、正常发布、RA 与源端不可访问 RB 仍待通过。",
       "未来P1-B新增学习任务、尝试、产物、验收与计划历史后，须同步扩展恢复闭包并另验整链。"
     ],
     "nodes": [
@@ -1340,12 +1362,12 @@ export const diagrams = [
         "id": "copy",
         "col": 2,
         "row": 2,
-        "title": "独立故障域验收",
+        "title": "独立 D 校验与完成收据",
         "lines": [
-          "单机传输专项已通过",
-          "云目标已盘点，密钥未安装"
+          "目标与暂存材料已准备",
+          "真实独立签收与发布待验"
         ],
-        "status": "planned"
+        "status": "next"
       },
       {
         "id": "check",
@@ -1443,9 +1465,9 @@ export const diagrams = [
   {
     "id": "deployment",
     "title": "06 · 目标部署与存储边界",
-    "subtitle": "目标为私有单机 Linux + Compose。现有证明来自隔离验收环境，未部署成生产服务。",
+    "subtitle": "面向用户的私有 Linux 应用是目标。当前 Compose 与 S/D 资源用于隔离验证和准入准备。",
     "notes": [
-      "C4 源控制根绑定已在单可信容器命名空间实测；独立签发/每部署编译 pin 不构成宿主生产安装流程，独立存储故障域仍延后。",
+      "Task9 源端 S1/S2 是独立 guest，共享 S 物理域。D 是独立物理目标。安装信任、隔离与真实首签须按各门取证。",
       "只有 HTTPS 入口面向浏览器；数据库、文件卷和高权管理入口不直接公开。API 与 Worker 复用业务代码而采用不同运行职责。",
       "C2 专用 Worker 容器以非 root 运行、只读根文件系统、私有 tmpfs，限制资源；管理 secret 不在 Worker 文件系统中。宿主 root / Docker daemon 仍属于可信管理边界。",
       "assets 是权威原字节；staging 是未完成工作；derived 是可重建派生物；验收 evidence 保存此次测试证据，并不等于将来学习产物的数据库模型。",
@@ -1566,12 +1588,12 @@ export const diagrams = [
         "id": "remote",
         "col": 2,
         "row": 3,
-        "title": "独立备份副本",
+        "title": "独立备份目标 D",
         "lines": [
-          "另一故障域 / 可校验保留集",
-          "密钥另存；恢复到干净实例"
+          "真实独立主机与托管准备",
+          "首签与恢复待实际验收"
         ],
-        "status": "planned"
+        "status": "next"
       }
     ],
     "edges": [
@@ -1633,39 +1655,226 @@ export const diagrams = [
         "dashed": true
       }
     ]
+  },
+  {
+    "id": "recovery-gates",
+    "title": "07 · Task9 双机关键路径",
+    "subtitle": "以已封存的 PG18 首启为当前入口。节点顺序表示证据依赖，各现场动作按其批准范围执行。",
+    "height": 524,
+    "nodes": [
+      {
+        "id": "s1",
+        "row": 0,
+        "col": 0,
+        "status": "next",
+        "title": "S1 修订首启 · 待审批",
+        "lines": [
+          "干净副本 · TasksMax=128",
+          "容量、迁移、权限、资源、停机"
+        ]
+      },
+      {
+        "id": "s2",
+        "row": 0,
+        "col": 1,
+        "status": "planned",
+        "title": "S2 独立复核",
+        "lines": [
+          "仅 S1 通过并停机后启动",
+          "同等身份及停机证据"
+        ]
+      },
+      {
+        "id": "hold",
+        "row": 0,
+        "col": 2,
+        "status": "neutral",
+        "title": "保留 HOLD",
+        "lines": [
+          "按精确身份停机留证",
+          "原失败资源与证据封存"
+        ]
+      },
+      {
+        "id": "binding",
+        "row": 1,
+        "col": 0,
+        "status": "planned",
+        "title": "源端真实绑定与 ELF",
+        "lines": [
+          "PG / Unix socket / control",
+          "各案三角色独立构建"
+        ]
+      },
+      {
+        "id": "admission",
+        "row": 1,
+        "col": 1,
+        "status": "planned",
+        "title": "C 现场安装准入",
+        "lines": [
+          "trust、父进程、固定视图",
+          "Root / PG / C11 / S5 / FD"
+        ]
+      },
+      {
+        "id": "d1",
+        "row": 1,
+        "col": 2,
+        "status": "planned",
+        "title": "D1 首签与完成发布",
+        "lines": [
+          "原 S 最终校验及持久 fence",
+          "原 D 单次裁决与完整回执"
+        ]
+      },
+      {
+        "id": "finalReview",
+        "row": 2,
+        "col": 0,
+        "status": "planned",
+        "title": "独审与五门签结论",
+        "lines": [
+          "负例、回归及原件独核",
+          "Task9 与 C4 单列结论"
+        ]
+      },
+      {
+        "id": "rb",
+        "row": 2,
+        "col": 1,
+        "status": "planned",
+        "title": "D2 / RB 零源依赖",
+        "lines": [
+          "仅隔离实验源访问面",
+          "用 D 证据完成全量恢复"
+        ]
+      },
+      {
+        "id": "ra",
+        "row": 2,
+        "col": 2,
+        "status": "planned",
+        "title": "RA 与中断保全",
+        "lines": [
+          "RA 干净目标正常恢复",
+          "S2 / V2 中断保全 D1"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2",
+        "label": "全部通过"
+      },
+      {
+        "from": "s1",
+        "to": "hold",
+        "label": "失败或证据缺项",
+        "fromPort": "top",
+        "toPort": "top",
+        "route": [
+          [
+            217,
+            16
+          ],
+          [
+            917,
+            16
+          ]
+        ],
+        "labelAt": {
+          "x": 655,
+          "y": 14,
+          "anchor": "middle"
+        }
+      },
+      {
+        "from": "s2",
+        "to": "binding",
+        "label": "两案证据"
+      },
+      {
+        "from": "binding",
+        "to": "admission",
+        "fromPort": "right",
+        "toPort": "left",
+        "route": []
+      },
+      {
+        "from": "admission",
+        "to": "d1",
+        "fromPort": "right",
+        "toPort": "left",
+        "route": []
+      },
+      {
+        "from": "d1",
+        "to": "ra"
+      },
+      {
+        "from": "ra",
+        "to": "rb",
+        "fromPort": "left",
+        "toPort": "right",
+        "route": []
+      },
+      {
+        "from": "rb",
+        "to": "finalReview",
+        "fromPort": "left",
+        "toPort": "right",
+        "route": []
+      }
+    ],
+    "notes": [
+      "原 S1 达到 cgroup 任务上限后停机 HOLD。修订已封存且只读预检通过，S2 尚无 PG18 首启回执。",
+      "S1/S2 是源端两个隔离案例，V1/V2 是 D 上的独立准入视图，RA/RB 是两次独立干净恢复。",
+      "D1 正常完成、先前完整备份保全和 RB 零源依赖分别验收。HOLD、首签许可和历史合法读取不能互换。"
+    ]
   }
 ];
 
 export const meta = {
   "title": "知织 · KnowWeave｜实施路线与系统架构",
-  "date": "2026-11-04",
+  "date": "2026-11-08",
   "baseline": "3342c0554c18787749d0f06a772743f867c18720",
-  "sourceCommit": "dbbec4a15afec246c503b24f9a4a5dd6928ba366",
-  "state": "Task9：干净S1与QEMU任务上限修正版已封存",
-  "progressSummary": "受测CF2候选的25阶段全部退出0：Backup默认450通过/106既有忽略、offhost663/106，DB默认62/24、peer129/26，filtered均0。新20项普通定义逐名通过，按四配置0/14/0/6；跨配置重复正文不相加。源码、资源身份与自然清理原件已独核，默认关闭保持。",
-  "progressEvidence": "当前source24282f8a／CODE22bcb1dd／Deltab60dc254；新编译列举原件bcd7005b／raw9638f408，名单4fbf8ff6／OTHER e1c373f1；实际25门结果50212fc5、证据包1fcc9574、原件独核c2ce628c（独审7da793b3）。旧109及新20测试属性/正文原字节保持。",
-  "pendingSummary": "B和原PG18批次保留HOLD。干净S1、TasksMax=128与线程峰值门已封存，S只读预检通过，重跑待审批。",
+  "sourceCommit": "08c3687ef39416411af9f21a743fed09ccf8ef3f",
+  "state": "架构审查版 · Task9 修订 S1 首启待审批",
+  "progressSummary": "Task8 已关闭规定单机范围，Task9 默认关闭代码已完成 CF2 普通检查。真实安装、正常首签和独立恢复是当前关键路径。",
+  "progressEvidence": "Task8 的完整十门、四套旧版升级、54 项 fresh 与 6 项历史桥已采用。Task9 CF2 四配置共 25 阶段退出 0、新增 20 个定义逐名通过。现场义务单列。",
+  "pendingSummary": "S1 原 PG18 首启停机 HOLD。干净副本、临时 QEMU 单元 TasksMax=128 和峰值判据已封存。实际重跑待审批，S1 通过后才启 S2。",
   "historicalMaintenance": "各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。",
   "intro": "面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。",
-  "scope": "当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。",
+  "scope": "八个 P0 分关已按各自范围隔离验收。Task8 私有单机范围完成。Task9 与 C4 整关开放；登录、HTTP、浏览器和学习闭环待建设。",
   "snapshotSummary": "A5 Rust1052通过/0失败/169忽略，四套真实旧版升级及15迁移checksum已过；ordinary Python824/82跳过，Root903/3跳过，合并904个unique Linux正文，deploy21。54 fresh、6历史桥、33RootFS和5FS辅助分列；两private Linux frame opt-in及Windows parser边界保留。",
-  "boundarySummary": "H4现有22路径已实测。C的D端实参ELF已核对，信任、网络、服务启用和真实B1启动链仍待完成。",
-  "roadmapHeadline": "P0-C4 Task9：PG18资源修正版待审批",
-  "taskPlanScope": "原五叶默认关闭代码已完成新CODE、全新13门编译列举、精确四名单冻结和全新25门整库普通回归。两轮Clippy失败分别修复两处冗余表达式及私有函数参数借用组合，原失败/HOLD保留不重放；原37/53现场义务不转为普通测试信用。",
+  "boundarySummary": "D 已选定，三把暂存密钥与 D 构建已有核验。正式信任、权限、22229、启动链、首签和恢复依序取证。",
+  "roadmapHeadline": "Task9 正式验收与浏览器首用设计",
+  "taskPlanScope": "Task1–8 分项按原台账采用。S1/S2 首启、C 准入、D1/RA、S2/V2 中断及 D2/RB 是不同验收门。原 37/53 现场义务、旧失败和 HOLD 独立留存。",
   "nextSteps": [
     [
-      "保管当前原件与源码身份",
-      "普通回归沿用CF2/source2428、CODE22bc及15c7实际结果50212/c2ce；保留历史检查点和失败/HOLD。"
+      "审批 S1 修订首启",
+      "核验容量、迁移、peer 权限、QEMU 峰值与触限、停机证据。旧 HOLD 留存。"
     ],
     [
-      "完成真实安装与准入条件",
-      "审批修正版离线首启。S1的容量、迁移、权限、停机和任务计数证据通过后才投送S2。"
+      "S1 通过后验证 S2",
+      "分别回读实际 PG、Unix socket 与 control 身份，再生成源绑定和角色 ELF。"
     ],
     [
-      "继续正式双机验收",
-      "在真实RootPG/C11/S5、来源写面排除与全期FD证明闭合后，推进首次跨机签名和RA/RB；尚不宣布Task9/C4完成、main合并或生产部署。"
+      "通过现场 C 准入",
+      "独审准确安装范围与实际信任、权限、父 ELF、Root/PG/C11/S5、十五项视图、写面和 FD。"
+    ],
+    [
+      "运行 D1、RA 和规定负例",
+      "正常首签并打开 CompleteBackup。RA 完整恢复，S2/V2 中断验证已完成 D1 副本仍保全。"
+    ],
+    [
+      "完成 D2/RB 和整链独审",
+      "只隔离实验源访问面，RB 只凭 D 恢复。独核原件后按原五门关闭 Task9 与 C4。"
     ]
-  ]
+  ],
+  "reviewSummary": "深度审查发现关键路径串行、现场条件发现偏晚，以及浏览器反馈后置。建议用隔离合成数据先验证阅读与个人笔记切片，方案待采纳。真实资料准入仍沿既定恢复与权限门。"
 };
 
 export const principles = [
@@ -1696,6 +1905,22 @@ export const principles = [
 ];
 
 export const references = [
+  [
+    "架构设计审查版",
+    "KnowWeave架构设计.html"
+  ],
+  [
+    "深度审查与决策建议",
+    "docs/architecture/10-deep-review.md"
+  ],
+  [
+    "分线交付与验收计划",
+    "docs/architecture/11-delivery-plan.md"
+  ],
+  [
+    "Task9 修订首启与原 HOLD",
+    "docs/task9/h4-c-pg18-first-boot.md"
+  ],
   [
     "Task9 Capture挂载增量合同与准确五文件审批",
     "docs/task9/capture-mount-amendment-contract.md"
@@ -1928,8 +2153,8 @@ export const stages = [
     "status": "planned",
     "deliver": "HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。",
     "gate": "真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。",
-    "evidence": "待建设；首次形成浏览器内容工作台",
-    "link": "docs/设计批准与实施路线.md"
+    "evidence": "待建设；合成数据首用切片已出提案",
+    "link": "docs/architecture/07-product-interfaces.md"
   },
   {
     "id": "P1-B",
@@ -1938,8 +2163,8 @@ export const stages = [
     "status": "planned",
     "deliver": "学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。",
     "gate": "今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。",
-    "evidence": "待建设；通过后形成完整学习系统试用版",
-    "link": "docs/学习系统设计方案.md"
+    "evidence": "待建设；先验收一条固定资料与证据的实践链",
+    "link": "docs/architecture/07-product-interfaces.md"
   },
   {
     "id": "P2",

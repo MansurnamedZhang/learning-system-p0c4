@@ -48,13 +48,19 @@ READ COMMITTED 下正文与当前权限在同一语句快照判断。需要跨�
 
 图形 UI 可以直接使用 PostgreSQL 返回的授权投影，并不要求安装 Neo4j。若未来引入 Neo4j，正文回读仍由权威库重新授权，投影结果不能变成绕过权限的凭证。
 
+## P1 首个接口的审查点
+
+从同一个授权 Store 返回固定版本，HTTP 层只映射其公开投影。至少验证 actor/space 伪造、撤权后新读与原请求重放、隐藏依赖错误归一化、同请求重试和旧版本并发冲突。授权读取的资产使用私有响应与精确引用；对共享缓存、旧内容和导出结果分别核对。 [接口与保存状态](07-product-interfaces.md)
+
 ## 已知限制
 
 | 限制 | 含义与后续动作 |
 | --- | --- |
 | 内核 trusted caller | P1-A 必须补登录、会话、HTTP 授权和错误投影 |
-| 共享 runtime 能力 | 持当前 token 的内部代码仍可误用通用完成函数；生产前需收紧已记录契约缺口 |
+| 共享 runtime 能力 | 迁移 0012 仍向 runtime 授予通用完成函数，0013 提供专用结果入口。持有效 token 的其他可信代码可能绕过正常 Worker 的文件复核或专用结果路径；上线前单列权限与约束复核 |
 | 文件已交付 | 撤权可以阻止后续交付，不能擦除用户已取得的字节 |
 | 查询预算 | 有界查询支持可解释失败；不承诺任意密图都完整返回 |
 
-依据：[内容边界](../content-boundary.md)、[B3 边界](../p0b3-boundary.md)、[B4 边界](../p0b4-boundary.md)、[C2 边界](../p0c2-boundary.md)、[C3 边界](../p0c3-boundary.md)。
+依据：[内容边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/content-boundary.md)、[B3 边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/p0b3-boundary.md)、[B4 边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/p0b4-boundary.md)、[C2 边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/p0c2-boundary.md)、[C3 边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/p0c3-boundary.md)。
+
+源码入口：[写入与收据](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/src/write.rs) · [锁定授权](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/src/authorization.rs) · [读取固定修订](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/src/reading/read.rs) · [作业租约](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/migrations/0012_job_leases.sql)。

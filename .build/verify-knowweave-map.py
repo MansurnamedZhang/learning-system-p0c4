@@ -106,7 +106,7 @@ for t in expected_tasks:
         if field not in ' '.join(card['text']):issues.append(('html','task-content',t['id'],field))
     expected_row=f"| Task {t['id']} · {t['title']} | {label} | {t['detail']} {t['evidence']} |"
     if expected_row not in md:issues.append(('markdown','task-row',t['id']))
-for field in ('date','state','sourceCommit','progressSummary','progressEvidence','pendingSummary'):
+for field in ('date','state','sourceCommit','progressSummary','progressEvidence','pendingSummary','reviewSummary'):
     value=qa['progress'][field]
     for name,content in (('html',html_text),('markdown',md)):
         if value not in content:issues.append((name,'current-progress-field',field))
@@ -132,8 +132,9 @@ for d in qa['diagrams']:
     for note in d['notes']:
         if note not in html_text or note not in md:issues.append((d['id'],'missing-note',note))
 files=qa['files']
-if len(files)!=14 or len(set(files))!=14:issues.append(('outputs','artifact-set'))
-if len(list((ROOT/'docs/diagrams').glob('knowweave-*.svg')))!=6:
+expected_files = 2 + 2 * len(qa['diagrams'])
+if len(files)!=expected_files or len(set(files))!=expected_files:issues.append(('outputs','artifact-set'))
+if len(list((ROOT/'docs/diagrams').glob('knowweave-*.svg')))!=len(qa['diagrams']):
     issues.append(('outputs','svg-count'))
 stale_claims=('最新整库导入正式测试已执行但失败','尚无成功恢复或资产闭包验收信用',
               '当前阶段 C4 · 五任务实施线','当前阶段 C4：五任务实施线')

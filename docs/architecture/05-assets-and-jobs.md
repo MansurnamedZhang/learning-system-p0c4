@@ -27,7 +27,7 @@ Linux 路径处理拒绝符号链接、越界和不受信目录，使用 no-foll
 
 ## 持久任务链路
 
-![同事务事件、转投、租约与结果](diagrams/knowweave-jobs.svg)
+![同事务事件、转投、租约与结果](../diagrams/knowweave-jobs.svg)
 
 C2 在 v3 图片或附件的真实写入事务中追加 `job_outbox`。只登记资产、只关联资源版本或重放旧请求收据，不自动产生同一事件。旧 `outbox_event` 只保存组合发布事件，与 C2 `job_outbox` 是两个协议。
 
@@ -43,6 +43,10 @@ Worker 专用容器只获得 runtime 凭据，资产和固定二进制只读；�
 
 C3 快照任务使用独立 snapshot_queued、snapshot_running、snapshot_retry_wait 状态与扫描入口，防止旧 C2 Worker 误领新类型。尝试目录由 job 和 lease token 隔离；进程重启从持久结果与文件摘要重开，而非依赖原内存对象。
 
+## 外部效果与恢复
+
+快照效果 broker 和恢复端效果观察具有独立进程与回执边界。普通任务的数据库租约证明当前可提交，不能证明磁盘写入或外部效果是否已完成。Task6 的规定单机验证使用快照实际结果核对恢复状态，旧 token 失效；无法确认效果时保留 Unknown/HOLD，自动重发会增加重复副作用。 [C4 恢复与任务校验](06-portability-and-recovery.md)
+
 ## 文件寿命与清理
 
 | 数据 | 性质 | 清理原则 |
@@ -54,4 +58,6 @@ C3 快照任务使用独立 snapshot_queued、snapshot_running、snapshot_retry_
 | 测试 evidence | 验收依据 | 先归档索引、摘要和必要日志，保留失败与成功的对应关系 |
 | C4 隔离目标卷 | 隔离/脏/禁止复用状态 | 未明确批准清理前保留，绝不当作下一批恢复目标 |
 
-当前没有自动 TTL collector、公开下载 URL 或完整解析器集。租约过期不等于目录到期，撤权不等于立即擦除磁盘字节。依据：[C1 边界](../p0c1-boundary.md)、[C2 边界](../p0c2-boundary.md)、[C3 边界](../p0c3-boundary.md)。
+当前没有自动 TTL collector、公开下载 URL 或完整解析器集。租约过期不等于目录到期，撤权不等于立即擦除磁盘字节。依据：[C1 边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/p0c1-boundary.md)、[C2 边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/p0c2-boundary.md)、[C3 边界](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/docs/p0c3-boundary.md)。
+
+源码入口：[授权原件读取](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/src/assets/read.rs) · [资产完整性处理](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-db/src/job_processor.rs) · [快照效果 broker](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/08c3687ef39416411af9f21a743fed09ccf8ef3f/crates/learning-worker/src/bin/snapshot-effect-broker.rs)。

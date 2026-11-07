@@ -7,7 +7,7 @@ flowchart TB
     delivery["重验权限后交付<br/>完成时及下载时再检查 · 导入授权目标范围<br/>【已验收】"]
     pause["C4 · 受控写入维护窗<br/>Task2 源端与监督单机收尾 · 高权管理侧；非公开API<br/>【实施中】"]
     backup["一致数据库 + 资产清单<br/>Task2/3 单机补验收尾 · 独立完成收据归 Task9<br/>【实施中】"]
-    copy["独立故障域验收<br/>单机传输专项已通过 · 云目标已盘点，密钥未安装<br/>【待建设】"]
+    copy["独立 D 校验与完成收据<br/>目标与暂存材料已准备 · 真实独立签收与发布待验<br/>【实施中】"]
     check["完整恢复资格校验<br/>Task6 私有单机16/16 · Task7 三路 P6/字节独核<br/>【实施中】"]
     restore["干净目标导入与原件<br/>Task5 规定单机补验完成 · 公开恢复资格仍未签发<br/>【实施中】"]
     future["P1-B 扩展恢复闭包<br/>学习事实 / 规则 / 产物 / 计划 · 另做全链恢复验收<br/>【待建设】"]
@@ -22,8 +22,8 @@ flowchart TB
     restore -- "恢复验证" --> check
     future -. "补学习事实" .-> restore
     class view,closure,bundle,visible,preflight,delivery done
-    class pause,backup,check,restore next
-    class copy,future planned
+    class pause,backup,copy,check,restore next
+    class future planned
     classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
     classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
     classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b

@@ -1,0 +1,24 @@
+flowchart TB
+    s1["S1 修订首启 · 待审批<br/>干净副本 · TasksMax=128 · 容量、迁移、权限、资源、停机<br/>【实施中】"]
+    s2["S2 独立复核<br/>仅 S1 通过并停机后启动 · 同等身份及停机证据<br/>【待建设】"]
+    hold["保留 HOLD<br/>按精确身份停机留证 · 原失败资源与证据封存<br/>【上下文】"]
+    binding["源端真实绑定与 ELF<br/>PG / Unix socket / control · 各案三角色独立构建<br/>【待建设】"]
+    admission["C 现场安装准入<br/>trust、父进程、固定视图 · Root / PG / C11 / S5 / FD<br/>【待建设】"]
+    d1["D1 首签与完成发布<br/>原 S 最终校验及持久 fence · 原 D 单次裁决与完整回执<br/>【待建设】"]
+    finalReview["独审与五门签结论<br/>负例、回归及原件独核 · Task9 与 C4 单列结论<br/>【待建设】"]
+    rb["D2 / RB 零源依赖<br/>仅隔离实验源访问面 · 用 D 证据完成全量恢复<br/>【待建设】"]
+    ra["RA 与中断保全<br/>RA 干净目标正常恢复 · S2 / V2 中断保全 D1<br/>【待建设】"]
+    s1 -- "全部通过" --> s2
+    s1 -- "失败或证据缺项" --> hold
+    s2 -- "两案证据" --> binding
+    binding ----> admission
+    admission ----> d1
+    d1 ----> ra
+    ra ----> rb
+    rb ----> finalReview
+    class s1 next
+    class s2,binding,admission,d1,finalReview,rb,ra planned
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362

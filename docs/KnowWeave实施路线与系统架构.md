@@ -1,16 +1,16 @@
 # 知织 · KnowWeave｜实施路线与系统架构
 
-更新：2026-11-04。当前状态：Task9：干净S1与QEMU任务上限修正版已封存，`NOT_PRODUCTION`。C3 验收源码 HEAD：`3342c0554c18787749d0f06a772743f867c18720`；源码参考基线（实际字节见本轮 CODE / 源索引）：`dbbec4a15afec246c503b24f9a4a5dd6928ba366`。各项现场验收保留自己的源码身份，不给最新源码转授历史信用。
+更新 2026-11-08。当前为 架构审查版 · Task9 修订 S1 首启待审批。设计审查源码基线 `08c3687ef39416411af9f21a743fed09ccf8ef3f`。C3 验收源码 `3342c0554c18787749d0f06a772743f867c18720`。现场结论按各批源码、环境与证据范围分别记账。
 
 面向个人长期学习、支持多领域复用的服务器应用。以可独立修订的块为核心，将原文、笔记、图片、想法与猜想连续编排；版本、位置、关系、证据与学习事实各自留存。
 
-当前状态与目标设计同图展示：P0-A、B1–B4、C1–C3已分关验收；C4代码和规定私有单机补验已完成Task8限定回归收尾，Task9及C4整关仍开放。颜色只表示标注范围，不代表部署。
+八个 P0 分关已按各自范围隔离验收。Task8 私有单机范围完成。Task9 与 C4 整关开放；登录、HTTP、浏览器和学习闭环待建设。
 
 [离线图文版](../KnowWeave实施路线与架构.html)。此文为可编辑 Markdown 快照；可维护图数据在 [.build/knowweave-map.data.mjs](../.build/knowweave-map.data.mjs)，生成命令为 `node .build/build-knowweave-map.mjs`。
 
 ## 实施路线
 
-P0-A、B1–B4、C1–C3 共 8 个分关已验收。受测CF2候选的25阶段全部退出0：Backup默认450通过/106既有忽略、offhost663/106，DB默认62/24、peer129/26，filtered均0。新20项普通定义逐名通过，按四配置0/14/0/6；跨配置重复正文不相加。源码、资源身份与自然清理原件已独核，默认关闭保持。
+P0-A、B1–B4、C1–C3 共 8 个分关已验收。Task8 已关闭规定单机范围，Task9 默认关闭代码已完成 CF2 普通检查。真实安装、正常首签和独立恢复是当前关键路径。
 
 不用分关数量或累加测试数估算整个项目完成百分比；各阶段历史测试数不能相加。
 
@@ -54,28 +54,36 @@ flowchart LR
 | P0-C2 持久任务与受限 Worker | 已验收 | 同事务事件、持久转投、数据库租约、有限重试、资产完整性处理器。 | 专用 Worker 真 SIGKILL/接管/取消/撤权；旧 token 拒绝；唯一结果。 | [388 通过 / 0 失败 / 3 忽略；965 份证据哈希一致](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c2-verification.md) |
 | P0-C3 融合快照交换 | 已验收 | 精确 Reading 快照、版本化目录包与可选原件；导入前校验、原子可见。 | 授权闭包往返；缺件/篡改/撤权/同 ID 不同字节拒绝；不出现半可见视图。 | [整关隔离验收与 602 份证据哈希复核通过；未生产部署](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/p0c3-verification.md) |
 | P0-C4 完整备份与干净恢复 | 实施中 | 受控写入维护窗、数据库一致性备份、资产闭包、异机副本、干净实例恢复。 | 固定历史、个人间隙、关系/审查、权限与原件一致；残缺备份不得标 complete。 | [Task5限定收尾；Task6私有16/16；Task7私有6/6；Task8限定完成；Task9与整关OPEN](../docs/p0c4-completion-acceptance.md) |
-| P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [待建设；首次形成浏览器内容工作台](../docs/设计批准与实施路线.md) |
-| P1-B 学习与实践闭环 | 待建设 | 学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。 | 今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。 | [待建设；通过后形成完整学习系统试用版](../docs/学习系统设计方案.md) |
+| P1-A 登录、API 与内容工作台 | 待建设 | HTTP 身份/会话、稳定 DTO、连续阅读、块编辑、插入图片笔记与历史冲突处理。 | 真实浏览器端到端；跨设备读取服务端保存；冲突保留草稿；HTTP/资产授权。 | [待建设；合成数据首用切片已出提案](../docs/architecture/07-product-interfaces.md) |
+| P1-B 学习与实践闭环 | 待建设 | 学习单元、计划、任务、尝试、产物、验收、复习；接入首批真实资料。 | 今日任务→阅读实践→提交产物→条件化验收；关闭 AI 仍可用；补学习事实恢复。 | [待建设；先验收一条固定资料与证据的实践链](../docs/architecture/07-product-interfaces.md) |
 | P2 批量演进与多领域复用 | 待建设 | 批量内容升级、迁移候选处理、第二领域、规则推荐与计划调整。 | 真实资料更新保留旧事实；第二领域不新增专属核心业务流程。 | [待建设](../docs/学习系统设计方案.md) |
 | P3 按需求增强 | 可选 | AI 辅助、OCR/预览等解析器、语义检索；独立评估 S3 和 Neo4j 可重建投影。 | 来源/版本可追溯、权限不绕过、失败可降级；按测量结果决定引入。 | [可选增强；不是首版必装组件](../docs/数据库选型实验审阅与首版决策.md) |
 
 ## 下一步
 
-B和原PG18批次保留HOLD。干净S1、TasksMax=128与线程峰值门已封存，S只读预检通过，重跑待审批。
+S1 原 PG18 首启停机 HOLD。干净副本、临时 QEMU 单元 TasksMax=128 和峰值判据已封存。实际重跑待审批，S1 通过后才启 S2。
 
-- **保管当前原件与源码身份**：普通回归沿用CF2/source2428、CODE22bc及15c7实际结果50212/c2ce；保留历史检查点和失败/HOLD。
-- **完成真实安装与准入条件**：审批修正版离线首启。S1的容量、迁移、权限、停机和任务计数证据通过后才投送S2。
-- **继续正式双机验收**：在真实RootPG/C11/S5、来源写面排除与全期FD证明闭合后，推进首次跨机签名和RA/RB；尚不宣布Task9/C4完成、main合并或生产部署。
+- **审批 S1 修订首启**：核验容量、迁移、peer 权限、QEMU 峰值与触限、停机证据。旧 HOLD 留存。
+- **S1 通过后验证 S2**：分别回读实际 PG、Unix socket 与 control 身份，再生成源绑定和角色 ELF。
+- **通过现场 C 准入**：独审准确安装范围与实际信任、权限、父 ELF、Root/PG/C11/S5、十五项视图、写面和 FD。
+- **运行 D1、RA 和规定负例**：正常首签并打开 CompleteBackup。RA 完整恢复，S2/V2 中断验证已完成 D1 副本仍保全。
+- **完成 D2/RB 和整链独审**：只隔离实验源访问面，RB 只凭 D 恢复。独核原件后按原五门关闭 Task9 与 C4。
+
+## 架构重审与产品首用建议
+
+深度审查发现关键路径串行、现场条件发现偏晚，以及浏览器反馈后置。建议用隔离合成数据先验证阅读与个人笔记切片，方案待采纳。真实资料准入仍沿既定恢复与权限门。
+
+[深度审查](architecture/10-deep-review.md) · [分线交付与验收](architecture/11-delivery-plan.md) · [完整架构设计](../KnowWeave架构设计.html)
 
 ## 当前阶段 C4：九任务补齐计划
 
 任务编号依据 [2026-10-04 补齐计划](https://github.com/MansurnamedZhang/learning-system-p0c4/blob/addf1193c98e18c6eadb548ed635c35eaff95707/docs/superpowers/plans/2026-10-04-p0c4-completion.md)，与下面原五任务父里程碑分开。分项通过不关闭父里程碑或 C4。
 
-受测CF2候选的25阶段全部退出0：Backup默认450通过/106既有忽略、offhost663/106，DB默认62/24、peer129/26，filtered均0。新20项普通定义逐名通过，按四配置0/14/0/6；跨配置重复正文不相加。源码、资源身份与自然清理原件已独核，默认关闭保持。
+Task8 已关闭规定单机范围，Task9 默认关闭代码已完成 CF2 普通检查。真实安装、正常首签和独立恢复是当前关键路径。
 
-B和原PG18批次保留HOLD。干净S1、TasksMax=128与线程峰值门已封存，S只读预检通过，重跑待审批。
+S1 原 PG18 首启停机 HOLD。干净副本、临时 QEMU 单元 TasksMax=128 和峰值判据已封存。实际重跑待审批，S1 通过后才启 S2。
 
-当前source24282f8a／CODE22bcb1dd／Deltab60dc254；新编译列举原件bcd7005b／raw9638f408，名单4fbf8ff6／OTHER e1c373f1；实际25门结果50212fc5、证据包1fcc9574、原件独核c2ce628c（独审7da793b3）。旧109及新20测试属性/正文原字节保持。
+Task8 的完整十门、四套旧版升级、54 项 fresh 与 6 项历史桥已采用。Task9 CF2 四配置共 25 阶段退出 0、新增 20 个定义逐名通过。现场义务单列。
 
 ```mermaid
 flowchart LR
@@ -87,7 +95,7 @@ flowchart LR
     C4T6["Task 6<br/>作业归一化与恢复资格校验<br/>私有单机16/16限定完成"]
     C4T7["Task 7<br/>完整 Attention 链与负例<br/>私有单机6/6原件限定关闭"]
     C4T8["Task 8<br/>当前回归、旧版升级与审查<br/>私有单机范围限定验收"]
-    C4T9["Task 9<br/>真实独立故障域闭合<br/>CF2普通25门与20项补验通过；双机验收OPEN"]
+    C4T9["Task 9<br/>真实独立故障域闭合<br/>C 阶段 · S1 修订首启待审批"]
     C4T1 --> C4T2
     C4T2 --> C4T3
     C4T3 --> C4T4
@@ -113,7 +121,7 @@ flowchart LR
 | Task 6 · 作业归一化与恢复资格校验 | 私有单机16/16限定完成 | 恢复后全表校验、任务归一化、旧租约/token失效、快照写入与效果证明；无法确认的外部副作用保留Unknown/HOLD。 2026-10-24采用2e5026d：五项恢复基础＋十一项快照场景，每项1 passed/0 failed/0 ignored，含core/P6原件独核。该历史范围不等于当前源码Task8回归或公开恢复资格。 |
 | Task 7 · 完整 Attention 链与负例 | 私有单机6/6原件限定关闭 | Attention完整正例、缺失原件、损坏dump、传输中断、未知外部效果、原件根替换六案，按各自预期阶段采用。 2026-10-25 Root采用36c89f2；此前3项＋新3项，六案Core/Proof与三个good-pin场景P6及实际ReadingCopy字节独核。仅规定私有单机夹具，不签发CompleteBackup/RecoveredInstance。 |
 | Task 8 · 当前回归、旧版升级与审查 | 私有单机范围限定验收 | Task8已按规定私有单机范围完成：A5完整Linux/PG18十门、四套真实旧版升级、54项fresh专项（53项A5＋1项Source679）、6项未变历史桥及整组独审。RootFS33与生命周期FS5单列；各源码与证明层级分别记账。 全部规定专项的有限原件、来源、实际正文与精确资源收尾已限定采用；所有旧失败/HOLD保持。生命周期真实13,094日志经独审后的16k读取配方完整导出13,099文件，512MiB读/输出、32MiB单件、300/360秒与资源等式不变。Full9大negative、部分最终proof与Schema未选output、ELF/inspect/独立OS时钟等层级限制继续披露，不宣称所有物理状态或正常恢复均已外部证明。 169 ignored已具名处置，不等于169全部运行；65 extra与3 measurement未执行披露。 |
-| Task 9 · 真实独立故障域闭合 | CF2普通25门与20项补验通过；双机验收OPEN | 25阶段退出码全0：Backup默认450通过/106忽略、offhost663/106；DB默认62/24、peer129/26，filtered全0。新20定义逐名通过（0/14/0/6），跨配置重复正文不计为新增；源码与自然清理原件独核完成。 受测source24282f8a／CODE22bcb1dd；13门bcd700／raw9638、名单4fbf／e1c3；实际25门50212fc5／证据1fcc9574／原件独核c2ce628c。默认关闭，旧失败/HOLD及原37/53保留。真实安装、C0-C02、RootPG/C11/S5/全期FD、首次跨机签名和RA/RB及Task9/C4仍OPEN。 |
+| Task 9 · 真实独立故障域闭合 | C 阶段 · S1 修订首启待审批 | 独立 D 已选定，三把密钥已按所属主机暂存，D 端实参构建已核。CF2 的 25 门和新增 20 项普通检查已通过。原 S1 在 QEMU 触限后停机 HOLD。 干净 S1、TasksMax=128、峰值和触限记录已封存，S 只读预检通过。S1 全部门通过并停机后才运行 S2；后续须现场 C 准入、D1/RA、S2/V2 中断、D2/RB 和整链独审。 |
 
 ### 原五任务父里程碑（保留原编号）
 
@@ -173,14 +181,14 @@ flowchart LR
 
 ## 01 · 全系统架构总览
 
-模块化单体目标架构：业务契约与现有后端内核已实现；HTTP/API和Web产品入口待P1建设。
+当前 Rust 内核与目标产品分层。HTTP、Web 与学习闭环待建设，管理链单列。
 
 [独立矢量图](diagrams/knowweave-overview.svg) · [Mermaid 源码](diagrams/knowweave-overview.mmd)
 
 ```mermaid
 flowchart TB
     user["个人学习者<br/>电脑 / 平板 / 手机 · 跨设备访问同一服务<br/>【上下文】"]
-    web["Web 学习工作台<br/>阅读 · 编辑 · 图谱 · 今日 · P1-A / P1-B 待建设<br/>【待建设】"]
+    web["Web 学习工作台<br/>阅读与个人层先行 · 首用切片为待采纳设计<br/>【待建设】"]
     sources["课程与实践来源<br/>PDF / PPTX / Notebook / 代码 · 原格式资料与实验产物<br/>【上下文】"]
     learning["学习与计划模块<br/>单元 / 任务 / 尝试 / 验收 · P1-B；规则推荐延伸到 P2<br/>【待建设】"]
     api["Rust HTTP / 身份边界<br/>会话 · DTO · 授权入口 · P1-A；Axum 为建议<br/>【待建设】"]
@@ -191,7 +199,7 @@ flowchart TB
     pg["PostgreSQL 权威库<br/>结构化正文与关系 / 作业状态 · SQLx · 事务 · 追加迁移<br/>【已验收】"]
     derived["可重建派生层<br/>预览 / OCR / 搜索 / 检索片段 · 处理器与索引后续按需建设<br/>【可选】"]
     files["不可变原件库<br/>SHA-256 原件 · 独立持久卷 · 独立卷不等于独立故障域<br/>【已验收】"]
-    portable["C3 / C4 可移植性<br/>Task6/7 私有单机限定完成 · Task9 与 C4 整关开放<br/>【实施中】"]
+    portable["C3 / C4 可移植性<br/>C3 隔离验收已通过 · C4 Task9 独立整链开放<br/>【实施中】"]
     graph["Neo4j 可选投影<br/>首版不常驻 · 来源仍为 PostgreSQL<br/>【可选】"]
     ai["可选 AI / 外部执行<br/>仅建议；实验默认外部运行 · 关闭后不影响核心流程<br/>【可选】"]
     user -- "访问" --> web
@@ -224,7 +232,7 @@ flowchart TB
 - 浏览器工作台、HTTP 登录和学习闭环均为待建设。React + TypeScript + Vite、Axum 是建议组合，尚未作为已实施依赖固化。
 - PostgreSQL 保存身份、修订、权限、位置、关系和任务状态；文件卷保存不可变原件。JSON/Markdown/HTML 是交换或阅读副本。
 - 知识关系图由 PostgreSQL 数据构建；Neo4j 如以后采用，只作为可重建投影。AI 不决定权威知识和验收事实。
-- C4恢复管理代码与单机补验已推进至Task8限定收尾；Task9和独立完成收据仍开放，不能将单机ReadingCopy交付称为生产服务。
+- C3 规定范围交换已验收。C4 已完成 Task8 规定私有回归，Task9 与正常独立恢复继续开放。
 
 ## 02 · 块、位置与版本关系
 
@@ -274,7 +282,7 @@ flowchart TB
 
 ## 03 · Rust 代码与授权边界
 
-实线显示现有模块依赖与运行接口；虚线表示未来接入。crate 是代码模块，不是独立网络服务。
+实线为现有直接依赖或运行接口，虚线为计划接入。模块与进程边界分别读取。
 
 [独立矢量图](diagrams/knowweave-crates.svg) · [Mermaid 源码](diagrams/knowweave-crates.mmd)
 
@@ -288,7 +296,7 @@ flowchart TB
     assets["learning-assets<br/>不可变字节 / staging / 校验 · Filesystem 原件存储<br/>【已验收】"]
     pg["PostgreSQL 内部接口<br/>最小权限 / 限定数据库函数 · 业务行、收据、两个独立 outbox<br/>【已验收】"]
     file["文件系统存储卷<br/>原件只读；staging 私有可写 · C3 挂私有可写 snapshots<br/>【已验收】"]
-    backup["learning-backup<br/>Task6/7 私有范围限定完成 · Task9 与公开恢复仍开放<br/>【实施中】"]
+    backup["learning-backup<br/>封存、收据、导入与恢复 · Task9 首签入口默认关闭<br/>【实施中】"]
     web -. "JSON API" .-> api
     api -. "身份和命令" .-> db
     worker -- "作业与授权" --> db
@@ -301,6 +309,7 @@ flowchart TB
     assets -- "流式 I/O" --> file
     backup -- "直接依赖" --> db
     backup -- "直接依赖" --> assets
+    backup -- "直接依赖" --> core
     backup -- "受控管理" --> pg
     class worker,core,db,assets,pg,file done
     class backup next
@@ -311,12 +320,12 @@ flowchart TB
     classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362
 ```
 
-- 当前a5eb28d Cargo workspace有core、assets、db、worker、backup五个crate。真实直接依赖：backup → db/assets/core；worker → db/assets/core；db → assets/core；assets → core。assets不负责业务actor授权。API与Web尚未加入workspace。
+- 源码审查基线 08c3687。真实直接依赖为 backup→db/assets/core、worker→db/assets/core、db→assets/core、assets→core。API 与 Web 待建。
 - Worker 原件与二进制只读，staging 私有可写；C3 另挂服务所有的私有可写 snapshots 卷，管理凭据不进入普通 Worker。
 - 数据库 runtime 是可信内部服务角色，非每位最终用户或每个 Worker 的独立数据库租户。用户权限由业务 actor、当前空间授权和必要引用闭包共同判定。
 - 两项 P2 契约缺口已记录：持当前 token 的共享 runtime 可调用通用 succeed 而不写专用结果；也可直接调用完成函数绕过 Rust 字节复核。正常 Worker 已验收路径使用原子结果函数。这里 P2 是问题优先级，不表示已安排在路线 P2 阶段。
 - 旧 outbox_event 只保存 composition_released，C2 的 job_outbox / job 是独立协议；图与实现均不把两者合并成一张通用队列表。
-- 图省略backup→core直接连线以保持可读，代码依赖以Cargo.toml为准。
+- offhost-b1 与 DB peer 默认关闭，feature、真实构建 pin、已装权限和现场准入各有独立证据。
 
 ## 04 · 持久任务与真实故障恢复
 
@@ -363,7 +372,7 @@ flowchart TB
 
 ## 05 · C3 交换与 C4 恢复
 
-C3范围快照交换已验收；C4单机链已完成Task8限定回归与审查；Task9独立域和正常公开恢复仍待完成。
+C3 范围交换与 C4 实例恢复分开验收。Task8 私有单机通过，Task9 独立整链开放。
 
 [独立矢量图](diagrams/knowweave-portability.svg) · [Mermaid 源码](diagrams/knowweave-portability.mmd)
 
@@ -377,7 +386,7 @@ flowchart TB
     delivery["重验权限后交付<br/>完成时及下载时再检查 · 导入授权目标范围<br/>【已验收】"]
     pause["C4 · 受控写入维护窗<br/>Task2 源端与监督单机收尾 · 高权管理侧；非公开API<br/>【实施中】"]
     backup["一致数据库 + 资产清单<br/>Task2/3 单机补验收尾 · 独立完成收据归 Task9<br/>【实施中】"]
-    copy["独立故障域验收<br/>单机传输专项已通过 · 云目标已盘点，密钥未安装<br/>【待建设】"]
+    copy["独立 D 校验与完成收据<br/>目标与暂存材料已准备 · 真实独立签收与发布待验<br/>【实施中】"]
     check["完整恢复资格校验<br/>Task6 私有单机16/16 · Task7 三路 P6/字节独核<br/>【实施中】"]
     restore["干净目标导入与原件<br/>Task5 规定单机补验完成 · 公开恢复资格仍未签发<br/>【实施中】"]
     future["P1-B 扩展恢复闭包<br/>学习事实 / 规则 / 产物 / 计划 · 另做全链恢复验收<br/>【待建设】"]
@@ -392,8 +401,8 @@ flowchart TB
     restore -- "恢复验证" --> check
     future -. "补学习事实" .-> restore
     class view,closure,bundle,visible,preflight,delivery done
-    class pause,backup,check,restore next
-    class copy,future planned
+    class pause,backup,copy,check,restore next
+    class future planned
     classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
     classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
     classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
@@ -406,12 +415,12 @@ flowchart TB
 - C4 Task2/3/5分别在原固定源码上完成规定单机补验；Task4只覆盖内容三门。Task6的2e5026d私有16/16与Task7的36c89f2私有6/6分别留证，不作为当前全工作区或四套升级通过。
 - Task7六案：完整正例、缺失原件、损坏dump、传输中断、未知效果、原件根替换。未知效果在导入后拒绝并留3项UNKNOWN/runnable0；不是导入前目标不变。根替换只声明列举catalog/assets/attempt字节不变，不声明整个文件系统不变。
 - 三个good-pin恢复路径各四份ReadingCopy文件共1172B，四处逐字相等且inode独立；它们位于同一主机，不构成独立故障域。失败53df不计通过，历史未观测的外层OS收据不补造。
-- Task8规定私有回归及整组审查已限定完成。Task9仍须以真实独立目标、托管密钥及首签/新发布权限集成完成正常CompleteBackup与源端不可访问恢复；C4整关保持开放。
+- Task9 的 D 已选定，密钥已按主机暂存。实际首签、正常发布、RA 与源端不可访问 RB 仍待通过。
 - 未来P1-B新增学习任务、尝试、产物、验收与计划历史后，须同步扩展恢复闭包并另验整链。
 
 ## 06 · 目标部署与存储边界
 
-目标为私有单机 Linux + Compose。现有证明来自隔离验收环境，未部署成生产服务。
+面向用户的私有 Linux 应用是目标。当前 Compose 与 S/D 资源用于隔离验证和准入准备。
 
 [独立矢量图](diagrams/knowweave-deployment.svg) · [Mermaid 源码](diagrams/knowweave-deployment.mmd)
 
@@ -427,7 +436,7 @@ flowchart TB
     pg["内部 PostgreSQL<br/>postgres 独立持久卷 · 业务事实与持久任务<br/>【已验收】"]
     assets["assets 独立持久卷<br/>不可变原字节 / SHA-256 · 当前为 filesystem 后端<br/>【已验收】"]
     backup["C4 备份协调器<br/>维护窗与一致性清单 · 管理权限与运行角色分开<br/>【实施中】"]
-    remote["独立备份副本<br/>另一故障域 / 可校验保留集 · 密钥另存；恢复到干净实例<br/>【待建设】"]
+    remote["独立备份目标 D<br/>真实独立主机与托管准备 · 首签与恢复待实际验收<br/>【实施中】"]
     browser -- "HTTPS" --> gateway
     gateway -- "静态资源" --> web
     gateway -- "受保护 API" --> api
@@ -440,22 +449,63 @@ flowchart TB
     assets -. "按资产清单复制" .-> remote
     backup -. "数据库 + 清单" .-> remote
     class worker,pg,assets done
-    class backup next
-    class browser,gateway,management,web,api,remote planned
+    class backup,remote next
+    class browser,gateway,management,web,api planned
     classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
     classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
     classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
     classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362
 ```
 
-- C4 源控制根绑定已在单可信容器命名空间实测；独立签发/每部署编译 pin 不构成宿主生产安装流程，独立存储故障域仍延后。
+- Task9 源端 S1/S2 是独立 guest，共享 S 物理域。D 是独立物理目标。安装信任、隔离与真实首签须按各门取证。
 - 只有 HTTPS 入口面向浏览器；数据库、文件卷和高权管理入口不直接公开。API 与 Worker 复用业务代码而采用不同运行职责。
 - C2 专用 Worker 容器以非 root 运行、只读根文件系统、私有 tmpfs，限制资源；管理 secret 不在 Worker 文件系统中。宿主 root / Docker daemon 仍属于可信管理边界。
 - assets 是权威原字节；staging 是未完成工作；derived 是可重建派生物；验收 evidence 保存此次测试证据，并不等于将来学习产物的数据库模型。
 - 生产部署前重新核对服务器时钟、runtime配置、HTTP授权、已记录的内部runtime契约缺口、日志/容量/升级/备份策略。当前没有本轮生产时钟或服务健康实测，不将历史故障写成实时状态。
 
+## 07 · Task9 双机关键路径
+
+以已封存的 PG18 首启为当前入口。节点顺序表示证据依赖，各现场动作按其批准范围执行。
+
+[独立矢量图](diagrams/knowweave-recovery-gates.svg) · [Mermaid 源码](diagrams/knowweave-recovery-gates.mmd)
+
+```mermaid
+flowchart TB
+    s1["S1 修订首启 · 待审批<br/>干净副本 · TasksMax=128 · 容量、迁移、权限、资源、停机<br/>【实施中】"]
+    s2["S2 独立复核<br/>仅 S1 通过并停机后启动 · 同等身份及停机证据<br/>【待建设】"]
+    hold["保留 HOLD<br/>按精确身份停机留证 · 原失败资源与证据封存<br/>【上下文】"]
+    binding["源端真实绑定与 ELF<br/>PG / Unix socket / control · 各案三角色独立构建<br/>【待建设】"]
+    admission["C 现场安装准入<br/>trust、父进程、固定视图 · Root / PG / C11 / S5 / FD<br/>【待建设】"]
+    d1["D1 首签与完成发布<br/>原 S 最终校验及持久 fence · 原 D 单次裁决与完整回执<br/>【待建设】"]
+    finalReview["独审与五门签结论<br/>负例、回归及原件独核 · Task9 与 C4 单列结论<br/>【待建设】"]
+    rb["D2 / RB 零源依赖<br/>仅隔离实验源访问面 · 用 D 证据完成全量恢复<br/>【待建设】"]
+    ra["RA 与中断保全<br/>RA 干净目标正常恢复 · S2 / V2 中断保全 D1<br/>【待建设】"]
+    s1 -- "全部通过" --> s2
+    s1 -- "失败或证据缺项" --> hold
+    s2 -- "两案证据" --> binding
+    binding ----> admission
+    admission ----> d1
+    d1 ----> ra
+    ra ----> rb
+    rb ----> finalReview
+    class s1 next
+    class s2,binding,admission,d1,finalReview,rb,ra planned
+    classDef done fill:#eaf5ee,stroke:#438363,color:#173d2b
+    classDef next fill:#ebf1ff,stroke:#4365b4,color:#203866
+    classDef planned fill:#f2f4f8,stroke:#8591a3,color:#28354b
+    classDef optional fill:#f3ecfb,stroke:#9271b0,color:#4a3362
+```
+
+- 原 S1 达到 cgroup 任务上限后停机 HOLD。修订已封存且只读预检通过，S2 尚无 PG18 首启回执。
+- S1/S2 是源端两个隔离案例，V1/V2 是 D 上的独立准入视图，RA/RB 是两次独立干净恢复。
+- D1 正常完成、先前完整备份保全和 RB 零源依赖分别验收。HOLD、首签许可和历史合法读取不能互换。
+
 ## 状态依据
 
+- [架构设计审查版](../KnowWeave架构设计.html)
+- [深度审查与决策建议](../docs/architecture/10-deep-review.md)
+- [分线交付与验收计划](../docs/architecture/11-delivery-plan.md)
+- [Task9 修订首启与原 HOLD](../docs/task9/h4-c-pg18-first-boot.md)
 - [Task9 Capture挂载增量合同与准确五文件审批](../docs/task9/capture-mount-amendment-contract.md)
 - [Task9真实安装、双机验收与最小审批](../docs/task9/installation-and-two-host-acceptance-plan.md)
 - [Task9 H4 固定启动链、待装对象和验收证据](../docs/task9/fixed-launch-installation-review.md)
@@ -494,6 +544,6 @@ flowchart TB
 
 各历史来源、失败UUID、HOLD与未观测字段保留，不将旧失败改写为通过，不重放旧资源，也不把不同源码的测试数相加。Task5受控11/11是10项历史c749＋1项85c；另有85c九项native及最终回归独审采用，限定代码与规定单机补验完成。Task6的16/16属于2e5026d；Task7的6/6属于36c89f2。历史检查点以Git历史和验收清单的折叠章节为准。
 
-历史只读子进程、同身份物理克隆、同guard重启与Task5受控用例保留各自原源码；不能相互替代。当前分项采用与历史检查点以验收清单为准；Task8完整十门和四升级已限定通过；规定专项与整组终审、Task9独立故障域仍开放。
+历史只读子进程、同身份物理克隆、同 guard 重启与 Task5 受控用例分别保留原件。Task8 的规定单机完整回归、专项与整组审查均已采用。Task9 的独立域整链仍开放。
 
-路线图只更新文档与图示。H4现有22路径已实测。C的D端实参ELF已核对，信任、网络、服务启用和真实B1启动链仍待完成。六张SVG/Mermaid、HTML与Markdown共14份输出由同一数据生成。审核与验证范围见本轮审核记录；历史测试数量不能相加或换算项目完成百分比。
+路线图与 7 套 SVG/Mermaid 由同一数据生成。现场边界见 Task9 运行单，业务证据按原验收范围查阅。

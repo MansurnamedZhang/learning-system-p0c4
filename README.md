@@ -1,5 +1,9 @@
 # 知织 · KnowWeave
 
+## 2026-11-08 · 架构重审与后续交付
+
+[架构设计审查版](docs/architecture/README.md)已按功能分支源码和既有证据重编。Task8 在规定私有单机范围完成。Task9 独立目标和密钥暂存已准备，C 阶段 S1 PG18 旧批次 HOLD，修订批次待重跑审批。Task9/C4 保持开放。[分线交付与验收计划](docs/architecture/11-delivery-plan.md)区分正式验收与待采纳的浏览器首用切片。
+
 ## 当前进展 · 2026-11-02：CF2 限定普通25门及20项补验通过，正式Task9仍OPEN
 
 受测候选为source index `24282f8a`、CODE gate `22bcb1dd`、Delta `b60dc254`。它保持原五个既有Rust叶范围、默认关闭与所有权限边界，旧109及新20测试的属性和正文均原字节保持。此前两轮Clippy失败分别对应两处冗余表达式与私有函数8参数：已仅移除冗余借用/解引用，并将同原ProcView和File只读借用组合成一个tuple参数；没有新增协议字段、依赖、authority入口或放宽检查。

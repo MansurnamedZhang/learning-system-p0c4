@@ -6,9 +6,9 @@
 
 至少区分三种粒度：Block 是长期内容维护单位；LearningUnit 是未来学习目标、任务与验收组织单位；RetrievalChunk 是可重新切分的检索派生片段。后两者不能替代块的长期身份。
 
-![身份、版本与位置关系](diagrams/knowweave-domain.svg)
+![身份、版本与位置关系](../diagrams/knowweave-domain.svg)
 
-## 主要实体
+## 主要实体与落表范围
 
 | 实体 | 职责 | 版本或引用规则 |
 | --- | --- | --- |
@@ -75,3 +75,9 @@ Block ID 代表“哪一个知识对象”，Revision ID 代表“这个对象�
 ## 实现依据
 
 契约见 [content.rs](../../crates/learning-core/src/content.rs)、[content_version.rs](../../crates/learning-core/src/content_version.rs)、[references.rs](../../crates/learning-core/src/references.rs)、[overlay.rs](../../crates/learning-core/src/overlay.rs)、[relation.rs](../../crates/learning-core/src/relation.rs)。模式见 migrations（私有或未公开参考）；实际限制以合同类型与数据库约束为准。
+
+## 未来学习事实与现有模型的接缝
+
+`app_user` 是业务 actor 登记，账号登录和会话由 P1-A 引入。当前关系与认识审查可以表达证据和判断，尚无学习计划、尝试和评分账本。P1-B 增加独立事实，引用已采用的精确内容与规则版本；表与恢复闭包一起评审。
+
+[现有迁移](https://github.com/MansurnamedZhang/learning-system-p0c4/tree/08c3687ef39416411af9f21a743fed09ccf8ef3f/migrations) · [学习闭环设计](07-product-interfaces.md)
