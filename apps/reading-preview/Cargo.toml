@@ -1,0 +1,19 @@
+[package]
+name = "knowweave-reading-preview"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[workspace]
+
+[dependencies]
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }
+learning-core = { path = "../../crates/learning-core" }
+learning-db = { path = "../../crates/learning-db" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "postgres", "uuid"] }
+subtle = "2.6"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+uuid = { version = "1", features = ["serde", "v4"] }

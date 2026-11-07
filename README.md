@@ -1,5 +1,15 @@
 # 知织 · KnowWeave
 
+## 项目归档 · 2026-11-08
+
+知织开发已结束。本分支汇集最后发布的核心代码、实施路线与 B2 浏览器预览，供查阅和复现。
+
+- [实施路线与系统架构](docs/KnowWeave实施路线与系统架构.md)
+- [架构设计索引](docs/architecture/README.md)
+- [B2 阅读与私有笔记预览](apps/reading-preview/README.md)
+
+B2 的验收范围为单机隔离合成数据。C4 和 Task9 的验收范围见各自的历史记录。
+
 ## 2026-11-08 · 架构重审与后续交付
 
 [架构设计审查版](docs/architecture/README.md)已按功能分支源码和既有证据重编。Task8 在规定私有单机范围完成。Task9 独立目标和密钥暂存已准备，C 阶段 S1 PG18 旧批次 HOLD，修订批次待重跑审批。Task9/C4 保持开放。[分线交付与验收计划](docs/architecture/11-delivery-plan.md)分别记录正式验收与浏览器首用进度。
